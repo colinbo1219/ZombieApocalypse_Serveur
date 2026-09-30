@@ -10,7 +10,7 @@ Phase 1 = analyse seule, aucune modification.
 
 ## Pile technique
 - `arclight-5dc8683.jar` : Forge 1.20.1 + API Bukkit/Spigot dans le même serveur.
-- Skript 2.9.5 : presque toute la logique de jeu (`plugins/Skript/scripts/za_*.sk`, 67 fichiers).
+- Skript 2.9.5 : presque toute la logique de jeu (`plugins/Skript/scripts/za_*.sk`, 78 fichiers).
 - MythicMobs 5.7.2 : zombies et PNJ (`plugins/MythicMobs/Mobs|Skills|Items|RandomSpawns/`).
 - Plugin maison `plugins/ZAMonde.jar` : ville, PNJ, props, HUD, caméras (données dans `plugins/ZAMonde/`).
 - 37 mods Forge (liste et SHA-1 dans [JARS.txt](JARS.txt)), configs dans `config/`, `defaultconfigs/`, `world/serverconfig/`.
@@ -51,8 +51,18 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
 
 ## Pièges connus
 - Numéros en double : `za_p7_economie` / `za_p7_progression`, `za_p38_lieux` / `za_p38_prologue`.
-- LISEZMOI.txt annonce 41 scripts : il y en a 67.
+- LISEZMOI.txt annonce 41 scripts : il y en a 78.
 - Colin utilise Java 25 en local, alors que le serveur exige Java 17 ou 21.
+
+## Travail des phases 2 à 15 (voir docs/RAPPORTS_PHASES.md)
+- Nouveaux modules : `za_p61_electricite` (sous-stations Create/CCA/IE), `za_p63_echos` (personnages du prologue),
+  `za_p65_zombies_vivants`, `za_p66_ruines` (+ `_donnees`, généré), `za_p67_diplomatie`, `za_p68_cours`,
+  `za_p69_exploration` (dossier Arel), `za_p70_ondes` (bulletin de Léa, téléphone), `za_p71_chronique`, `za_p72_archives`.
+- Mod client : `pack_joueurs/za_modeles-1.3.0.jar`, produit par `ZA_sources/modeles_generateur/extension_1_3.py`
+  à partir du jar 1.2.0 (le générateur `zamodels.py` est plus ancien que le mod déployé).
+- Ruines de Saint-Aurèle : `ZA_sources/ville/gen_ruines.py` -> `plugins/ZAMonde/ruines.json.gz` + `za_p66_ruines_donnees.sk`.
+- Vérification statique : `python3 docs/outils/verif_skript.py plugins/Skript/scripts/*.sk` (à lancer après chaque modif).
+- Ce qu'il faut installer / tester : `docs/A_INSTALLER.md`.
 
 ## Façon de travailler
 - Commits petits et clairs, en français, poussés sur GitHub pour que Colin puisse récupérer et tester.
