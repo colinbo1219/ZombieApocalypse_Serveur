@@ -547,3 +547,87 @@ deux sont faits.
 - En jeu : `delete loop-zombie` (même forme que `za_p10_finition`), `target of`, comparaison `time is between`.
 - Les zombies des mods Forge (zombie_extreme) ne sont peut-être pas vus comme des « monster » ni des « zombies » par
   Arclight. S'ils brûlent encore, il faudra régler cela dans la configuration de ce mod.
+
+---
+
+## COMPLÉMENT — Défense, monde agrandi, zombies, histoire (30 sept., suite)
+
+Demande de Colin : « fais tout ça » (les listes « Le monde », « Les zombies », « L'histoire et l'ambiance ») plus
+« des protections de base genre tourelle, soldat qui se recrute ».
+
+### Défense des bases
+Fichiers : `za_p75_defense.sk`, `MythicMobs/Mobs/ZA_Defense.yml`, `za_p16_tourelles.sk`.
+- **Soldats de la milice** :
+  - `/garde recruter [arbalete|hache]` : 40 ou 30 jetons, 3 soldats au maximum.
+  - Faction `ZA_Milice` : ils visent les monstres qui ne sont pas de leur faction.
+  - Poste de garde : un soldat à plus de 18 blocs y est ramené par une commande vanilla visant son UUID.
+  - Mort ou renvoi : le propriétaire est prévenu.
+- **Tourelles** :
+  - niveaux 1 à 3 (2 Composants électroniques par niveau) ;
+  - elles visent la cible la plus proche, y compris les monstres des mods ;
+  - près d'une sous-station qui produit, elles tirent sans flèches.
+- Commandes vanilla (`tag`, `data merge`, `execute ... as <uuid> ... tp`) testées sur un serveur 1.20.1.
+
+### Monde
+Fichiers : `batisse.py`, `epaves.py`, `souterrains.py`, `sites.py`.
+- **Villages** : école, clinique et caserne, en plus de l'église, du dépanneur, du casse-croûte et du garage. Chaque
+  bâtiment devient un sous-lieu avec son nom et ses zombies, prioritaire sur le village.
+- **Routes** :
+  - l'exode : 40 voitures sur 200 blocs ;
+  - 9 carambolages, sur l'autoroute 40 et la route 117 ;
+  - 3 convois militaires.
+  - Tout est posé à la hauteur réelle de la chaussée.
+  - `za_p76_routes.sk` : la nuit, une horde de 5 à 10 morts arrive par la route.
+- **Souterrains** :
+  - NORDA niveau -2, bunker de commandement Bravo, tunnels de Saint-Aurèle (6 bouches d'égout) ;
+  - vide de structure : seul ce qui est construit remplace la roche ;
+  - kiosques d'accès à échelle.
+  - `za_p77_souterrains.sk` : apparitions dans les couloirs hors de vue, ambiance sonore. `za_p73` reconnaît un
+    souterrain seulement à sa profondeur.
+- **Hiver** : `za_p78_hiver.sk`, calé sur Serene Seasons (12 sous-saisons de 8 jours, `season set`) :
+  - la neige s'accumule (`snowAccumulationHeight`) ;
+  - l'eau à ciel ouvert gèle autour des joueurs ;
+  - les morts sont ralentis ;
+  - le froid s'ajoute à la température corporelle (za_p15).
+- **zombie_extreme** : ses zombies héritent de `Monster`, pas de `Zombie`. Ils ne brûlent donc jamais au soleil.
+  - La retraite de l'aube passe pour eux par le datapack `za_aube`.
+  - `za_p32` couvre maintenant tous les monstres.
+
+### Zombies
+- **Silhouettes** (za_modeles 1.5.0, `extension_1_5.py`) :
+  - mâchoire pendante, côtes, vertèbres, bras cassé ;
+  - 14 modèles humains, peaux passées en 64x96.
+- **La meute** : `za_p79_meute.sk` :
+  - portes : 6 coups et elles cèdent ; une porte renforcée perd un point à la place ;
+  - pyramide si le joueur est plus haut ;
+  - ralliement à 16 blocs quand un mort frappe.
+
+### Histoire et ambiance
+- **Voix** (za_modeles 1.6.0) :
+  - synthèse Piper (voix siwis) avec filtre radio, niveau aligné sur les voix existantes (`voix_generer.py`,
+    `extension_1_6.py`) ;
+  - 11 répliques : entractes J2, J4 et J6, hiver, nids, fin de saison.
+- **Fin de saison** : `za_p80_fin_norda.sk` :
+  - cinématique puis vote `/choix` de 10 minutes ;
+  - conséquences :
+    - détruire : NORDA -2 scellé et mutants divisés par deux ;
+    - vérité : titre « Témoin de la vérité » ;
+    - remède : -8 % à chaque morsure et un antidote par joueur.
+- **Dix premières minutes** : `za_p81_guide.sk`, `/fil`. Un fil en barre d'action avec flèche, distance et boussole,
+  de l'autobus jusqu'à l'appartement 2A puis vers un abri.
+- Le panneau du niveau -2 dit « PROGRAMME Z-01 », en cohérence avec le dossier Arel.
+
+### Tests
+- Serveur vanilla 1.20.1 : régions avec souterrains, épaves, villages et kiosques chargées puis réenregistrées sans
+  erreur. Panneaux et coffres conservés.
+- Datapack `za_aube` exécuté sans erreur.
+- Vérificateur Skript : 88 scripts, aucune anomalie. Il détecte maintenant aussi les commandes et fonctions définies
+  deux fois : un conflit `/guide` a été trouvé et corrigé en `/fil`.
+
+### Non testé en jeu
+- MythicMobs : sélecteur `otherfactionmonsters`, faction `ZA_Milice`, équipement des soldats.
+- EMF : sous-modèles `za_machoire` et `za_avant_bras` (sens de rotation).
+- Serene Seasons : `season set`.
+- Skript : `push ... horizontally towards` (pyramide), `yaw of` et `atan2` (flèche du guide), `on inventory open`.
+- Rendu des voix de synthèse dans le jeu.
+- Arclight avec les mods.

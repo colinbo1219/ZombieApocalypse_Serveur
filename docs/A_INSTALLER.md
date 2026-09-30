@@ -1,7 +1,7 @@
 # À faire demain matin — installation et tests
 
 Aucun **plugin** à ajouter. Côté **mods** : les 16 mods décoratifs que tu m'as envoyés sont maintenant utilisés par la
-ville (section 6) : à mettre sur le serveur et dans le pack des joueurs, avec le mod client `za_modeles` 1.4.0.
+ville (section 6) : à mettre sur le serveur et dans le pack des joueurs, avec le mod client `za_modeles` 1.6.0.
 
 **Nouveau monde de 10 000 × 10 000 entièrement généré par moi** (pas de Lost Cities) : section 9. C'est la plus grosse
 étape de demain matin : environ 15-60 minutes selon ton PC, à faire serveur arrêté.
@@ -35,7 +35,7 @@ git pull
 
 1. Arrête le serveur, récupère les fichiers (étape 1), relance-le (`start.bat`).
    Un redémarrage est plus sûr que 11 `sk reload` (et **jamais** `sk reload all`).
-2. Regarde la console au démarrage : Skript affiche `Loaded 81 scripts`. S'il y a des lignes **error**, copie-les
+2. Regarde la console au démarrage : Skript affiche `Loaded 88 scripts`. S'il y a des lignes **error**, copie-les
    moi dans la prochaine session : je corrige.
 3. MythicMobs se recharge au démarrage (sinon `/mm reload`) : 6 nouveaux zombies (`ZA_Policier_Infecte`,
    `ZA_Medecin_Infecte`, `ZA_Ouvrier_Infecte`, `ZA_Ouvrier_Brule`, `ZA_Pompier_Infecte`, `ZA_Prisonnier_Infecte`).
@@ -44,9 +44,9 @@ git pull
 ## 3. Mettre à jour le pack des joueurs (CurseForge)
 
 1. Dans ton projet de modpack CurseForge, dossier `overrides/mods` : **remplace** l'ancien `za_modeles-1.x.jar` par
-   `pack_joueurs/za_modeles-1.5.0.jar` (dans le dépôt).
+   `pack_joueurs/za_modeles-1.6.0.jar` (dans le dépôt).
 2. Monte la version du pack (ex. 1.4), exporte, publie. Les joueurs mettent à jour leur pack.
-   Sans la 1.5.0, les nouveaux zombies ont l'apparence de base et les nouveaux sons sont muets (pas de plantage).
+   Sans la 1.6.0, les nouveaux zombies ont l'apparence de base et les nouveaux sons sont muets (pas de plantage).
 
 ## 4. Poser Saint-Aurèle en ruines (une seule fois)
 
@@ -67,7 +67,7 @@ git pull
 | Échos | `/zaecho lancer ginette <toi>` | indice radio, en t'approchant : Ginette te reconnaît |
 | Électricité | accumulateur CCA chargé → comparateur → fil → bloc ; regarder le bloc, `/electricite installer` ; attendre 15 s ; `/electricite` | sous-station qui produit 1 à 5 unités |
 | Réparation | `/zaelec panne <id>` puis `/electricite reparer` (2 Composants + 4 cuivre) | 20 s, des zombies arrivent, radio |
-| Zombies | `/mm mobs spawn ZA_Policier_Infecte` | uniforme, yeux qui luisent dans le noir (mod 1.5.0) |
+| Zombies | `/mm mobs spawn ZA_Policier_Infecte` | uniforme, yeux qui luisent dans le noir (mod 1.6.0) |
 | Scènes rares | `/zazv scene regard <toi>` | un zombie te fixe |
 | Ruines | marcher dans la ville | titre « Population : 0 », souvenirs, mot de Maman dans le coffre du 2A |
 | Lampes | `/zaville lampes hopital on` | les lampadaires de l'hôpital s'allument |
@@ -91,7 +91,7 @@ sont toutes présentes et Create Deco accepte ton Create 6.0.8. Liste exacte + S
 
 **Donc ces mods deviennent obligatoires, sur le serveur ET dans le pack des joueurs** :
 1. Copie les 16 jars dans `mods/` du serveur (tu les as déjà sur ton PC).
-2. Ajoute-les au modpack CurseForge (même versions), avec `za_modeles-1.5.0.jar`, puis publie.
+2. Ajoute-les au modpack CurseForge (même versions), avec `za_modeles-1.6.0.jar`, puis publie.
 3. Redémarre le serveur. Dans la console, cherche **« BlockData invalide »** (ZAMonde) : s'il y en a, copie-les moi.
 4. **Reconstruis la ville du prologue** (elle a été posée avant les mods) : `/zamonde construire` puis attends la fin
    (`/zamonde etat`). Les joueurs en plein prologue verront la nouvelle ville au chapitre suivant.
@@ -140,7 +140,7 @@ Create 6.0.8, Steam 'n' Rails 1.7.3, Create Crafts & Additions 1.3.3. ⚠️ Deu
 problème s'il y en a un. Create Big Cannons : dans `world/serverconfig/createbigcannons-server.toml` (créé au premier
 démarrage), pense à limiter la destruction de blocs si tu ne veux pas voir les ruines de Saint-Aurèle rasées.
 
-## 6 ter. Zombies plus effrayants (mod 1.5.0)
+## 6 ter. Zombies plus effrayants (mod 1.6.0)
 
 - **Apparence** : peau cadavérique marbrée, ecchymoses, veines, plaies ouvertes, sang séché qui coule vers le bas,
   crasse aux jambes, orbites creuses, bouches arrachées. Les 15 zombies humains (citoyens, soldats, policier...) ont
@@ -155,7 +155,7 @@ démarrage), pense à limiter la destruction de blocs si tu ne veux pas voir les
   soldat et de la brute, **bond** du prisonnier, **sprint** du runner, **murmure** du stalker (+ obscurité),
   matraque du policier (sonné), **seringue** du médecin (poison + risque d'infection), clé à molette de l'ouvrier
   (projeté), hache du pompier (qui ne brûle plus).
-- À faire : `/mm reload` (ou redémarrage) et mettre `za_modeles-1.5.0.jar` dans le pack des joueurs (section 3).
+- À faire : `/mm reload` (ou redémarrage) et mettre `za_modeles-1.6.0.jar` dans le pack des joueurs (section 3).
 
 ## 6 quater. Le jour : les morts ne brûlent pas, ils rentrent au nid
 
@@ -182,15 +182,44 @@ démarrage), pense à limiter la destruction de blocs si tu ne veux pas voir les
 - À vérifier en jeu : la faction `ZA_Milice` et le sélecteur `otherfactionmonsters` de MythicMobs 5.7.2 (si les
   soldats restent passifs, me le dire : je passerai à `monsters`).
 
-## 7. Facultatif : voix
+## 6 sexies. Le monde s'agrandit (villages, routes, souterrains, hiver) et l'histoire se referme
 
-Les entractes des jours 2, 4 et 6 sont en texte seul. Si tu enregistres des voix, dépose des `.ogg` et je les
-branche (clés prévues : `voix.radio_j2`, `voix.radio_j4`, `voix.radio_j6`).
+Tout ce qui suit est dans le générateur (section 9) ou dans les scripts : rien à installer en plus, sauf le mod 1.6.0.
+- **Villages** : chaque village a maintenant une **école** (enfants infectés), une **clinique** (patients, médecin),
+  une **caserne de pompiers** (camion rouge, pompiers), une église, un dépanneur, un casse-croûte, un garage : chacun
+  a son nom à l'entrée et ses zombies.
+- **Routes** : **l'exode** (200 blocs de bouchon vers Montréal sur la 40), 9 **carambolages** (panneaux ACCIDENT),
+  3 **convois militaires** (camions, caisses de butin militaire, sacs de sable). **La nuit**, des files de morts
+  arrivent par la route et foncent sur les joueurs proches (`za_p76_routes.sk`, test : `/zaroute horde <joueur>`).
+- **Souterrains** (`za_p77_souterrains.sk`) : **NORDA — niveau -2** (kiosque « ACCÈS TECHNIQUE » à l'est du campus :
+  labos, cellules de confinement du programme Z-01), **bunker de commandement Bravo** (kiosque à l'est de la base :
+  commandement, dortoir, armurerie, infirmerie), **tunnels de service de Saint-Aurèle** (6 bouches d'égout = trappes
+  en fer dans les rues des ruines, canal d'eau, station de pompage). Dans le noir, les morts naissent dans les couloirs.
+- **Hiver** (`za_p78_hiver.sk`, avec Serene Seasons) : neige qui s'accumule (3 à 5 couches), **rivière Blanche qui
+  gèle** (on la traverse à pied), morts ralentis dehors, froid dans la température corporelle, Léa annonce la première
+  neige et le dégel. `/zahiver` (état), `/zahiver forcer 10` (tester le cœur de l'hiver), `/zahiver forcer` (annuler).
+  À vérifier : la commande `season set early_winter` de Serene Seasons (si la console dit « unknown », me le dire).
+- **La meute** (`za_p79_meute.sk`) : les morts **cognent aux portes** jusqu'à ce qu'elles cèdent (une porte renforcée
+  tient plus longtemps), **montent les uns sur les autres** si tu es en hauteur, **convergent** quand l'un d'eux mord.
+- **Fin de saison** (`za_p80_fin_norda.sk`) : après la cérémonie, cinématique + **vote de tous les joueurs** (`/choix
+  detruire|verite|remede`, 10 min) avec de vraies conséquences (NORDA scellé et moins de mutants / titre « Témoin » /
+  morsures moins contagieuses et un antidote chacun). Test : `/zafin test`, puis `/choix ...`, puis `/zafin resultat`.
+- **Les dix premières minutes** (`za_p81_guide.sk`) : un fil discret en barre d'action (flèche + distance + boussole)
+  de l'autobus jusqu'à l'appartement 2A, puis vers un abri. `/fil off` pour le couper.
+
+## 7. Voix (FAIT : voix de synthèse)
+
+Les entractes des jours 2, 4 et 6, les annonces de l'hiver et des nids, et toute la fin de saison ont maintenant une
+**voix de Léa** (synthèse Piper, voix « siwis », passée dans un filtre radio : bande étroite, souffle). Elles sont dans le
+mod 1.6.0 (`voix.radio_j2`, `voix.fin_intro`...). Si tu enregistres de vraies voix plus tard, garde les mêmes noms de
+fichiers : `ZA_sources/modeles_generateur/extension_1_6.py` les remplace.
 
 ## 8. Ce qui n'a PAS été testé
 
-Tout ce qui est en jeu : chargement réel des 81 scripts par Skript, les commandes, la pose des ruines, les modèles
-et animations EMF du mod 1.5.0, les capacités MythicMobs de `Skills/ZA_Horreur.yml`, les sons, la lecture de la redstone des machines Create/CCA/IE par Skript sur
+Tout ce qui est en jeu : chargement réel des 88 scripts par Skript, les commandes, la pose des ruines, les modèles
+et animations EMF du mod 1.6.0, les capacités MythicMobs de `Skills/ZA_Horreur.yml`, les soldats (`Mobs/ZA_Defense.yml`, faction
+et sélecteur de cibles), les silhouettes 1.5.0 (sous-modèles mâchoire / avant-bras), la commande `season set` de Serene
+Seasons, les poussées de la pyramide et les portes qui cèdent, les sons, la lecture de la redstone des machines Create/CCA/IE par Skript sur
 Arclight. Le détail des risques est dans `docs/RAPPORTS_PHASES.md`, phase par phase.
 
 ## 9. Le nouveau monde : la région de Saint-Aurèle (10 000 × 10 000)

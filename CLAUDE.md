@@ -10,7 +10,7 @@ Phase 1 = analyse seule, aucune modification.
 
 ## Pile technique
 - `arclight-5dc8683.jar` : Forge 1.20.1 + API Bukkit/Spigot dans le même serveur.
-- Skript 2.9.5 : presque toute la logique de jeu (`plugins/Skript/scripts/za_*.sk`, 78 fichiers).
+- Skript 2.9.5 : presque toute la logique de jeu (`plugins/Skript/scripts/za_*.sk`, 88 fichiers).
 - MythicMobs 5.7.2 : zombies et PNJ (`plugins/MythicMobs/Mobs|Skills|Items|RandomSpawns/`).
 - Plugin maison `plugins/ZAMonde.jar` : ville, PNJ, props, HUD, caméras (données dans `plugins/ZAMonde/`).
 - ~64 mods Forge (liste et SHA-1 dans [JARS.txt](JARS.txt), dont 16 mods décoratifs Macaw's / Handcrafted / Supplementaries / Create Deco utilisés par la ville, et des add-ons Create : voir docs/A_INSTALLER.md §6 bis ; Design Decor 0.4.0b et Create D&D 0.1b sont INCOMPATIBLES avec Create 6), configs dans `config/`, `defaultconfigs/`, `world/serverconfig/`.
@@ -51,15 +51,19 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
 
 ## Pièges connus
 - Numéros en double : `za_p7_economie` / `za_p7_progression`, `za_p38_lieux` / `za_p38_prologue`.
-- LISEZMOI.txt annonce 41 scripts : il y en a 81.
+- LISEZMOI.txt annonce 41 scripts : il y en a 88.
 - Colin utilise Java 25 en local, alors que le serveur exige Java 17 ou 21.
 
 ## Travail des phases 2 à 15 (voir docs/RAPPORTS_PHASES.md)
 - Nouveaux modules : `za_p61_electricite` (sous-stations Create/CCA/IE), `za_p63_echos` (personnages du prologue),
   `za_p65_zombies_vivants`, `za_p66_ruines` (+ `_donnees`, généré), `za_p67_diplomatie`, `za_p68_cours`,
   `za_p69_exploration` (dossier Arel), `za_p70_ondes` (bulletin de Léa, téléphone), `za_p71_chronique`, `za_p72_archives`, `za_p73_sites` (lieux du monde généré), `za_p74_aube` (retraite au nid à l'aube, réveil
-  au crépuscule ; aucun monstre ne brûle : `za_p32_soleil`).
-- Mod client : `pack_joueurs/za_modeles-1.5.0.jar` = `extension_1_5.py` (silhouettes : mâchoire, côtes, vertèbres,
+  au crépuscule ; aucun monstre ne brûle : `za_p32_soleil` ; infectés de zombie_extreme : datapack `za_aube`),
+  `za_p75_defense` (soldats de la milice, `MythicMobs/Mobs/ZA_Defense.yml`), `za_p76_routes` (hordes de la nuit sur les
+  routes), `za_p77_souterrains`, `za_p78_hiver` (Serene Seasons), `za_p79_meute` (portes, pyramide, ralliement),
+  `za_p80_fin_norda` (vote de fin de saison /choix), `za_p81_guide` (/fil, dix premières minutes).
+- Mod client : `pack_joueurs/za_modeles-1.6.0.jar` = `extension_1_6.py` (voix de synthèse, `voix_generer.py` : Piper
+  + filtre radio) sur le jar 1.5.0 = `extension_1_5.py` (silhouettes : mâchoire, côtes, vertèbres,
   bras cassé ; peaux humaines 64x96) sur le jar 1.4.0 (git) = `build.py` (16 zombies de base, peintre `zagen_lib.py`) +
   `extension_1_4.py` sur le jar 1.3.0 (passe horreur des peaux humaines, animations, sons).
   1.3.0 venait de `extension_1_3.py` sur le jar 1.2.0. Capacités « horreur » : `MythicMobs/Skills/ZA_Horreur.yml`.
@@ -74,6 +78,8 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
   `ZA_sources/ville`), `generer.py` (lanceur multiprocessus, reprise, `--vanille` pour tester sur un serveur vanilla).
 - `generer.py` produit aussi `plugins/ZAMonde/placements.yml` (fichier du serveur, non versionné) et
   `za_p73_sites_donnees.sk` (versionné, généré : ne pas modifier à la main). Module de jeu : `za_p73_sites.sk`.
+  Aussi : `epaves.py` (exode, carambolages, convois), `souterrains.py` (NORDA -2, bunker Bravo, tunnels ; vide de
+  structure), `signalisation.py` (panneaux), bâtiments de village dans `batisse.py` (école, clinique, caserne).
 - Lost Cities retiré de l'overworld : `world/serverconfig/lostcities-server.toml` `selectedProfile = ""`.
 - Ville moddée : `ZA_sources/ville/blocs_mods.json.gz` (extrait des jars par `extraire_blocs_mods.py`) permet à
   `za_blocs.S()` d'accepter les blocs moddés (propriétés partielles) ; `za_meubles.py` (meubles) et `za_moderne.py`
