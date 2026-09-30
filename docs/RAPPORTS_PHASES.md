@@ -73,3 +73,56 @@ Ce qui manquait : le devenir des **personnages secondaires** du prologue.
 **TESTS** : statiques. En jeu : `/zaecho lancer ginette <toi>`, suivre l'indice radio, s'approcher à moins de 6 blocs.
 
 **RESTE À FAIRE** : rien de bloquant.
+
+---
+
+## PHASES 4 et 5 — Système électrique Create, relié à la ville et aux bases
+
+**NOUVEAUX FICHIERS** : `plugins/Skript/scripts/za_p61_electricite.sk`
+
+**MODIFICATIONS**
+- `za_p50_reseau.sk` : 3 lignes dans `za_reseau_appliquer` : un quartier est aussi allumé quand les sous-stations
+  l'alimentent (`{za::elec2::alim::<quartier>}`). Tous les effets existants (postes de soins, armoires de police,
+  prix, sanité…) marchent donc avec la vraie énergie, sans rien dupliquer.
+- `za_p10_finition.sk` (/aide) et `za_p60_parcours.sk` (commandes du niveau 6) : mention de `/electricite`.
+
+**SYSTÈMES AJOUTÉS**
+- **Sous-stations réelles** : le joueur construit un tableau (n'importe quel bloc) et y amène le signal d'une vraie
+  machine : accumulateur Create Crafts & Additions, compteur de vitesse ou stressomètre Create, condensateur Immersive
+  Engineering → comparateur → fil de redstone collé au tableau. La puissance du fil (0-15) donne 0 à 5 unités. Pas de
+  machine Create/CCA/IE à 4 blocs = 0 unité (anti-torche). Chunk déchargé = dernière mesure gardée.
+- **Chaîne CENTRALE → SOUS-STATION → QUARTIER → BÂTIMENTS** : les sous-stations « ville » (posées par l'admin dans les
+  ruines, voir phase 8) relaient la centrale historique (4 unités quand elle tourne) mais démarrent **endommagées** :
+  objectif « Réparer la sous-station nord ».
+- **Réserve partagée + priorités** (MISSION §18) : hôpital > police > résidentiel > commerce par défaut, modifiable par
+  ceux qui font tourner une sous-station (`/electricite priorite …`). En cas de manque, les derniers sont coupés.
+- **États par quartier** : ALIMENTÉ / PARTIEL / PANNE / BLACKOUT, annoncés par CKZA et inscrits dans la mémoire du monde.
+- **Production / consommation** (MISSION §16-17) : petits générateurs = `za_p14` (base), moyenne = machines Create
+  (sous-station joueur, jusqu'à 5 u.), grande = centrale (via sous-stations de ville) ; conso hôpital 4, police 3,
+  résidentiel 3, commerce 2.
+- **Pannes et réparations** (MISSION §19-20) : surcharge quotidienne (8 %, 15 % au-delà de 4 u.), foudre pendant les
+  tempêtes (`za_p55`). Réparer = 2 Composants électroniques (1 pour l'ingénieur) + 4 lingots de cuivre, 20 s immobile,
+  des zombies arrivent : il faut défendre. Stat `reparations_reseau`.
+- **Bases** (phase 5) : base sous tension si une sous-station produit à 48 blocs ou si un générateur `za_p14` tourne.
+- **Lumière et zombies** (MISSION §21-22) : la nuit, zone alimentée (base, bâtiment d'un quartier alimenté, sous-station)
+  = les zombies à 28 blocs deviennent visibles (brillance) et la sanité remonte ; quartier en blackout = message
+  d'obscurité. Chaque sous-station qui produit ajoute de l'activité (`za_activite_ajouter`) : hordes attirées.
+
+**COMMANDES** : `/electricite` (alias `/elec`, `/courant`) `[installer [quartier] | retirer | reparer | priorite … | aide]`,
+admin `/zaelec etat | panne <id> | reparer <id> | supprimer <id> | ville <x> <y> <z> <monde> <quartier> <nom_souligné> | tick`.
+
+**VARIABLES** : `{za::elec2::ss::<id>::loc|nom|quartier|type|etat|prod|fil|proprio|triche}`, `{za::elec2::ss::liste::*}`,
+`{za::elec2::alim|etat::<quartier>}`, `{za::elec2::base::<uuid>}`, `{za::elec2::reserve|surplus|prio::*|jour}`.
+
+**DÉPENDANCES** : aucune nouvelle (Create, CCA, IE déjà installés).
+
+**RISQUES**
+- Détection des blocs moddés par leur nom de type (« create », « immersive » + mot-clé), comme `za_p17_usines` :
+  si `/electricite` affiche « aucune machine à 4 blocs » alors qu'il y en a une, envoyer le nom affiché par `/zaelec`.
+- Lecture de la puissance par `block data` du fil de redstone (texte `power=N`) : à vérifier sur Arclight.
+- Condition `is redstone powered` : syntaxe Skript 2.9 standard, non testée ici.
+
+**TESTS** : statiques. En jeu : poser un accumulateur CCA chargé, un comparateur, un fil, un bloc de laine au bout,
+`/electricite installer`, attendre 15 s, `/electricite`. Puis `/zaelec panne <id>` et `/electricite reparer`.
+
+**RESTE À FAIRE** : placer les sous-stations de ville quand les ruines seront posées (phase 8, commandes fournies).
