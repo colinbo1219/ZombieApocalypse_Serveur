@@ -16,7 +16,11 @@ on join:
     if {za::temp::%player's uuid%} is not set:
         set {za::temp::%player's uuid%} to 50
 
+# température visée : biome, moins le froid de l'hiver (za_p78_hiver)
 function za_biome_cible(b: text) :: number:
+    return za_biome_cible_base({_b}) - ({za::hiver::froid} ? 0)
+
+function za_biome_cible_base(b: text) :: number:
     if {_b} contains "desert":
         return 85
     if {_b} contains "badlands":
