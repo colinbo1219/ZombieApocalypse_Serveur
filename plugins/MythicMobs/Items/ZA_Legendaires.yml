@@ -1,0 +1,45 @@
+# ZombieApocalypse - OBJETS LÉGENDAIRES : un par boss régional (et quelques reliques de l'histoire).
+# Leur découverte est enregistrée par za_p83 (légende, chronique, « Mon histoire »).
+ZA_Couperet_Boucher:
+  Id: IRON_AXE
+  Display: '&4&lCouperet du Boucher'
+  Lore:
+  - '&7Il pendait les morts aux crochets de l''abattoir'
+  - '&7du parc industriel. Maintenant, c''est ton tour.'
+  - '&8Objet légendaire — un seul par saison.'
+  Enchantments:
+  - DAMAGE_ALL:4
+  - DURABILITY:3
+ZA_Medaillon_Matriarche:
+  Id: CLOCK
+  Display: '&5&lMédaillon de la Matriarche'
+  Lore:
+  - '&7Une photo de famille à l''intérieur. Cinq enfants.'
+  - '&7Elle les cherchait encore, à l''hôpital.'
+  - '&8Objet légendaire — un seul par saison.'
+  Enchantments:
+  - DURABILITY:1
+  Hide:
+  - ENCHANTS
+ZA_Plaque_Gardien:
+  Id: NAME_TAG
+  Display: '&2&lPlaque du Gardien'
+  Lore:
+  - '&7« Adj. M. Tremblay — Bravo-1 ».'
+  - '&7Il n''a jamais quitté son poste. Même mort.'
+  - '&8Objet légendaire — un seul par saison.'
+  Enchantments:
+  - DURABILITY:1
+  Hide:
+  - ENCHANTS
+ZA_Casque_Brule:
+  Id: GOLDEN_HELMET
+  Display: '&6&lCasque fondu du Brûlé'
+  Lore:
+  - '&7Le casque de chantier du dernier ouvrier du barrage.'
+  - '&7Le métal a fondu sur son crâne.'
+  - '&8Objet légendaire — un seul par saison.'
+  Enchantments:
+  - PROTECTION_FIRE:4
+  - PROTECTION_ENVIRONMENTAL:2
+  - DURABILITY:3
