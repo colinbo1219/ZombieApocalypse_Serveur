@@ -78,6 +78,8 @@ function za_noms_disparus():
     za_diffuser("&7Les noms reviennent.")
 
 on chat:
+    if za_pro(player) is true:
+        stop
     if {za::evt::noms} is true:
         cancel the event
         za_diffuser("&8??? : &7%message%")
