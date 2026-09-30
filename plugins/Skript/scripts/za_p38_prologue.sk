@@ -122,7 +122,7 @@ function za_pro_ville(p: player, n: number):
     if {_n} > 1:
         send "&8[Saint-Aurèle] &7La ville passe en état : %za_pro_ville_nom({_n})%" to {_p}
 
-# entractes des jours 2, 4 et 6 (texte seul, pas de voix) puis chapitre suivant
+# entractes des jours 2, 4 et 6 (voix de Léa : voix.radio_j2/j4/j6, pack 1.6.0) puis chapitre suivant
 function za_pro_vers(p: player, run: number, jour: number):
     set {_u} to "%{_p}'s uuid%"
     set {za::pro::attend::%{_u}%} to "occupe"
@@ -146,6 +146,7 @@ function za_pro_vers(p: player, run: number, jour: number):
         if za_pro_ok({_p}, {_run}) is false:
             stop
         send "&8[&3♫ CKZA 98,5&8] &bLéa &8» &7La direction de la santé publique parle d'une « grippe sévère ». On nous demande de ne pas employer d'autre mot." to {_p}
+        za_zm("son %{_p}% za_modeles:voix.radio_j2 1 1")
     else if {_jour} is 4:
         send "&8&oLes stations-service sont à sec. Sur la 117, des autos abandonnées, portières ouvertes, clés dans le contact." to {_p}
         wait 4 seconds
@@ -156,6 +157,7 @@ function za_pro_vers(p: player, run: number, jour: number):
         if za_pro_ok({_p}, {_run}) is false:
             stop
         send "&8[&3♫ CKZA 98,5&8] &bLéa &8» &7On ne me laisse plus lire les chiffres. Alors ce soir, je vais lire des noms." to {_p}
+        za_zm("son %{_p}% za_modeles:voix.radio_j4 1 1")
     else:
         send "&8&oDes camions verts sur la rue Principale. Des hommes en masque à gaz. Personne n'explique rien." to {_p}
         za_pro_sfx({_p}, "camion", 0.6)
@@ -167,6 +169,7 @@ function za_pro_vers(p: player, run: number, jour: number):
         if za_pro_ok({_p}, {_run}) is false:
             stop
         send "&8[&3♫ CKZA 98,5&8] &bLéa &8» &7Sergent Vega, si vous m'écoutez : il reste des gens dans les tours de la rue des Érables." to {_p}
+        za_zm("son %{_p}% za_modeles:voix.radio_j6 1 1")
     wait 4 seconds
     if za_pro_ok({_p}, {_run}) is false:
         stop

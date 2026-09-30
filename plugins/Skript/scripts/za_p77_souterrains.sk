@@ -25,6 +25,10 @@ function za_sout_tick(p: player):
         stop
     if {za::site::d::%{_k}%::type} does not start with "sous_":
         stop
+    # niveau -2 de NORDA détruit par le choix de fin de saison (za_p80) : plus rien n'y naît
+    if {_k} is "norda_sous_sol":
+        if {za::fin::norda_scelle} is set:
+            stop
     set {_l} to location of {_p}
     # ambiance
     if chance of 12%:

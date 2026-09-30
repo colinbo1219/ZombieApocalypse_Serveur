@@ -55,12 +55,12 @@ function za_hiver_appliquer():
     if {za::hiver::dernier} is not {_i}:
         set {za::hiver::dernier} to {_i}
         if {_i} is 9:
-            za_radio("&bLéa", "Première neige sur Saint-Aurèle. Rentrez du bois. Les morts ralentissent dans le froid... nous aussi.")
+            za_radio_voix("&bLéa", "Première neige sur Saint-Aurèle. Rentrez du bois. Les morts ralentissent dans le froid... nous aussi.", "lea_premiere_neige")
             za_journal("Première neige.")
         else if {_i} is 10:
-            za_radio("&bLéa", "Moins trente cette nuit. La rivière Blanche est prise : on peut la traverser à pied. Eux aussi.")
+            za_radio_voix("&bLéa", "Moins trente cette nuit. La rivière Blanche est prise : on peut la traverser à pied. Eux aussi.", "lea_grand_froid")
         else if {_i} is 0:
-            za_radio("&bLéa", "Le dégel. L'eau reprend la rivière, et les morts reprennent leur pas. Profitez des derniers jours calmes.")
+            za_radio_voix("&bLéa", "Le dégel. L'eau reprend la rivière, et les morts reprennent leur pas. Profitez des derniers jours calmes.", "lea_degel")
             za_journal("Le dégel.")
 
 on load:

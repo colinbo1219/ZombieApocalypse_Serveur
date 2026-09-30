@@ -157,7 +157,7 @@ def norda(plan):
     ch.coffre(cx - 47, Y, cz, SI.LOOT_LABO)
     # panneaux du couloir
     for (x, lignes) in ((cx - 38, ['CONFINEMENT', 'Sujets Z', 'NE PAS OUVRIR', '']),
-                        (cx - 5, ['PROJET ARÈS', 'Laboratoires', 'B1 à B5', '']),
+                        (cx - 5, ['PROGRAMME Z-01', 'Laboratoires', 'B1 à B5', '']),
                         (kx - 3, ['Niveau -2', '→ Sortie', 'Puits technique', ''])):
         m.set(x, Y + 2, cz - 1, S('oak_wall_sign', facing='south', waterlogged=False))
         m.sign(x, Y + 2, cz - 1, lignes, 'red' if 'CONF' in lignes[0] else 'black')

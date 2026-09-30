@@ -114,7 +114,7 @@ every 10 seconds:
             set {za::aube::crep} to {za::serveur::jours}
             za_aube_crepuscule()
             if size of {za::nid::liste::*} > 0:
-                za_radio("&bLéa", "Le soleil tombe. Les nids se vident. Rentrez, ou barricadez-vous.")
+                za_radio_voix("&bLéa", "Le soleil tombe. Les nids se vident. Rentrez, ou barricadez-vous.", "lea_nids")
 
 command /zaaube [<text>]:
     permission: za.admin

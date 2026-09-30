@@ -90,6 +90,8 @@ command /zainfect <player> <number>:
         add za_param(za_souche_id(arg-1), "bonus") to {_c}
         if {za::resist::%arg-1's uuid%} is set:
             remove ({za::resist::%arg-1's uuid%} * 2) from {_c}
+        # fin de saison « remède » (za_p80) : les données Z-01 de Lefort rendent les morsures moins contagieuses
+        remove ({za::fin::remede} ? 0) from {_c}
         if arg-1 doesn't have permission "za.immune":
             if chance of {_c}%:
                 za_infecter(arg-1)

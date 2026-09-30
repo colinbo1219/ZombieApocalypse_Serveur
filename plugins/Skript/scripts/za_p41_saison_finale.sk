@@ -163,6 +163,8 @@ function za_saison_ceremonie(heros: text):
     za_succes_finale_saison({_n})
     za_diffuser("&7La chronique de la saison est consignee : &e/chroniques")
     za_journal("Saison %{_n}% terminee. Heros : %{_heros}%.")
+    # l'arc NORDA se referme : cinématique et choix collectif (za_p80)
+    za_fin_norda()
 
 # qui a joué cette saison (pour le Hall)
 on join:

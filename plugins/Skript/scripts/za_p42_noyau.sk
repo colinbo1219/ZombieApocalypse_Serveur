@@ -163,6 +163,13 @@ function za_radio(qui: text, texte: text):
             send "&8[Radio] %{_qui}% &8» &7%{_texte}%" to loop-player
     za_journal("Radio (%uncolored {_qui}%) : %uncolored {_texte}%")
 
+# message radio + voix (za_modeles:voix.<cle>, pack joueurs 1.6.0 ; muet sans lui)
+function za_radio_voix(qui: text, texte: text, cle: text):
+    za_radio({_qui}, {_texte})
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_zm("son %loop-player% za_modeles:voix.%{_cle}% 0.9 1")
+
 # ---------------------------------------------------------------- lieu sûr au sol autour d'un point
 
 function za_sol(l: location) :: location:
