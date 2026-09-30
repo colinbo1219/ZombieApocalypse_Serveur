@@ -1,0 +1,199 @@
+# =====================================================================
+#  ZombieApocalypse - AMBIANCES RÉGIONALES et CINÉMATIQUES « PREMIÈRE FOIS »
+#  AMBIANCES (particules visibles par TOI seulement, toutes les 5 s, légères) :
+#    Saint-Aurèle (300 blocs autour de 0,0) : cendre qui tombe · NORDA et son sous-sol : lueur froide, poussière
+#    blanche · industriel, carrière, garage : fumée · territoire d'un Alpha (za_p87) : spores rouges ·
+#    carambolages, exode : cendre et fumée · hiver (za_p78) : flocons · forêt, taïga, marais : brume au sol.
+#    S'ajoutent aux particules de la souche (za_p31). /ambiance off|on pour les couper (ordinateurs lents).
+#  CINÉMATIQUES (une seule fois par joueur, quelques secondes, pas de téléportation) :
+#    premier mort abattu · première horde (10 morts ou plus autour de toi) · premier Alpha · NORDA découvert.
+#    Écran qui s'assombrit, son, titres en trois temps ; puis un souvenir (za_p58) et une page de /monhistoire.
+#  Admin : /zacine <id> [joueur] (rejouer : tue, horde, alpha, norda)
+# =====================================================================
+
+# ---------------------------------------------------------------- ambiances
+
+function za_amb_type(p: player) :: text:
+    set {_l} to location of {_p}
+    if za_tmort_ici({_l}) is not 0:
+        return "alpha"
+    set {_k} to za_site_ici({_l})
+    if {_k} is not "":
+        set {_t} to {za::site::d::%{_k}%::type}
+        if {_t} is "norda" or "sous_norda" or "sous_bunker":
+            return "norda"
+        if {_t} is "industriel" or "carriere" or "garage" or "caserne":
+            return "fumee"
+        if {_t} is "carambolage" or "exode" or "convoi":
+            return "epave"
+    if "%world of {_p}%" is "world":
+        if abs(x-coordinate of {_l}) < 300:
+            if abs(z-coordinate of {_l}) < 300:
+                return "ville"
+    if za_hiver() is true:
+        return "hiver"
+    set {_b} to "%biome at {_l}%"
+    if {_b} contains "forest" or "taiga" or "swamp" or "grove":
+        return "foret"
+    return ""
+
+function za_amb_particule(p: player, pt: text, dy: number, dxz: number, n: number, v: number):
+    set {_l} to location of {_p}
+    set {_x} to x-coordinate of {_l}
+    set {_y} to (y-coordinate of {_l}) + {_dy}
+    set {_z} to z-coordinate of {_l}
+    execute console command "execute in %za_dim(world of {_p})% run particle %{_pt}% %{_x}% %{_y}% %{_z}% %{_dxz}% 2 %{_dxz}% %{_v}% %{_n}% normal %{_p}%"
+
+every 5 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if za_pro({_p}) is false:
+            if {za::amb::off::%{_p}'s uuid%} is not set:
+                set {_t} to za_amb_type({_p})
+                if {_t} is "ville":
+                    za_amb_particule({_p}, "minecraft:ash", 4, 10, 40, 0)
+                else if {_t} is "norda":
+                    za_amb_particule({_p}, "minecraft:white_ash", 1, 6, 25, 0)
+                    za_amb_particule({_p}, "minecraft:end_rod", 2, 6, 3, 0.01)
+                else if {_t} is "fumee":
+                    za_amb_particule({_p}, "minecraft:campfire_cosy_smoke", 3, 10, 4, 0.01)
+                else if {_t} is "epave":
+                    za_amb_particule({_p}, "minecraft:smoke", 1, 8, 20, 0.01)
+                    za_amb_particule({_p}, "minecraft:ash", 3, 8, 20, 0)
+                else if {_t} is "alpha":
+                    za_amb_particule({_p}, "minecraft:crimson_spore", 1, 8, 30, 0)
+                else if {_t} is "hiver":
+                    za_amb_particule({_p}, "minecraft:snowflake", 5, 10, 30, 0.02)
+                else if {_t} is "foret":
+                    set {_h} to time in world of {_p}
+                    if {_h} is greater than 18:00:
+                        za_amb_particule({_p}, "minecraft:cloud", 0, 10, 6, 0)
+                    else if {_h} is less than 7:00:
+                        za_amb_particule({_p}, "minecraft:cloud", 0, 10, 6, 0)
+
+command /ambiance [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        if arg-1 is "off":
+            set {za::amb::off::%player's uuid%} to true
+            send "&7Ambiances régionales coupées. &8(/ambiance on)" to player
+        else if arg-1 is "on":
+            delete {za::amb::off::%player's uuid%}
+            send "&7Ambiances régionales rétablies." to player
+        else:
+            set {_t} to za_amb_type(player)
+            if {_t} is "":
+                set {_t} to "aucune"
+            send "&7Ambiance ici : &f%{_t}% &8· /ambiance off|on" to player
+
+# ---------------------------------------------------------------- cinématiques
+
+function za_cine_son(p: player, s: text, v: number, h: number):
+    execute console command "execute as %{_p}% at @s run playsound %{_s}% master @s ~ ~ ~ %{_v}% %{_h}%"
+
+# une cinématique ne se joue qu'une fois par joueur (sauf forcer)
+function za_cine(p: player, id: text, forcer: boolean):
+    set {_u} to "%{_p}'s uuid%"
+    if {_forcer} is false:
+        if {za::cine::%{_u}%::%{_id}%} is set:
+            stop
+        # pas deux cinématiques en même temps
+        if {za::cine::encours::%{_u}%} is set:
+            if difference between {za::cine::encours::%{_u}%} and now < 12 seconds:
+                stop
+    set {za::cine::%{_u}%::%{_id}%} to {za::serveur::jours} ? 0
+    set {za::cine::encours::%{_u}%} to now
+    if {_id} is "tue":
+        set {_t1} to "&7Il avait un nom."
+        set {_t2} to "&8Une famille. Un emploi. Un matin comme les autres."
+        set {_t3} to "&fTu ne le sauras jamais."
+        set {_s} to "minecraft:entity.warden.heartbeat"
+        set {_souv} to "J'ai abattu mon premier mort. Je me souviens encore de ses souliers."
+    else if {_id} is "horde":
+        set {_t1} to "&cIls sont trop nombreux."
+        set {_t2} to "&7Ils ne courent pas. Ils n'ont pas besoin."
+        set {_t3} to "&fCOURS."
+        set {_s} to "minecraft:entity.warden.roar"
+        set {_souv} to "La première horde. J'ai compris ce jour-là qu'on ne se bat pas contre la mer."
+    else if {_id} is "alpha":
+        set {_t1} to "&4Celui-là est différent."
+        set {_t2} to "&7Les autres s'écartent sur son passage."
+        set {_t3} to "&fIl t'a vu."
+        set {_s} to "minecraft:entity.ravager.roar"
+        set {_souv} to "J'ai vu un Alpha. Les autres lui obéissaient."
+    else if {_id} is "norda":
+        set {_t1} to "&bNORDA Biotech."
+        set {_t2} to "&7« Programme Z-01 ». Les lettres sont encore sur la clôture."
+        set {_t3} to "&fC'est ici que tout a commencé."
+        set {_s} to "minecraft:ambient.basalt_deltas.mood"
+        set {_souv} to "J'ai trouvé NORDA. Le Programme Z-01. Tout a commencé là."
+    else:
+        stop
+    # l'écran se ferme, le son monte
+    apply potion of darkness of tier 1 to {_p} for 5 seconds
+    apply potion of slowness of tier 2 to {_p} for 3 seconds
+    za_cine_son({_p}, {_s}, 1, 0.8)
+    send title "%{_t1}%" to {_p} for 3 seconds
+    wait 2.5 seconds
+    if {_p} is not online:
+        stop
+    send title "" with subtitle "%{_t2}%" to {_p} for 3 seconds
+    wait 3 seconds
+    if {_p} is not online:
+        stop
+    za_cine_son({_p}, "minecraft:block.bell.resonate", 0.6, 0.5)
+    send title "%{_t3}%" to {_p} for 2 seconds
+    za_souvenir_ajouter({_u}, "cine:%{_id}%", "decouverte", {_souv})
+    delete {za::cine::encours::%{_u}%}
+
+on death of zombie:
+    if attacker is not a player:
+        stop
+    set {_a} to attacker
+    if za_pro({_a}) is true:
+        stop
+    if {za::cine::%{_a}'s uuid%::tue} is set:
+        stop
+    za_cine({_a}, "tue", false)
+
+every 5 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value-1
+        if za_pro({_p}) is false:
+            set {_u} to "%{_p}'s uuid%"
+            set {_manque} to 0
+            if {za::cine::%{_u}%::horde} is not set:
+                add 1 to {_manque}
+            if {za::cine::%{_u}%::alpha} is not set:
+                add 1 to {_manque}
+            if {za::cine::%{_u}%::norda} is not set:
+                add 1 to {_manque}
+            if {_manque} > 0:
+                if {za::cine::%{_u}%::norda} is not set:
+                    set {_k} to za_site_ici(location of {_p})
+                    if {_k} is not "":
+                        if {za::site::d::%{_k}%::type} is "norda" or "sous_norda":
+                            za_cine({_p}, "norda", false)
+                set {_n} to 0
+                set {_alpha} to false
+                loop all zombies in radius 24 around {_p}:
+                    add 1 to {_n}
+                    if uncolored name of loop-value-2 is "Alpha":
+                        set {_alpha} to true
+                if {_alpha} is true:
+                    if {za::cine::%{_u}%::alpha} is not set:
+                        za_cine({_p}, "alpha", false)
+                if {_n} >= 10:
+                    if {za::cine::%{_u}%::horde} is not set:
+                        za_cine({_p}, "horde", false)
+
+command /zacine <text> [<player>]:
+    permission: za.admin
+    trigger:
+        set {_p} to arg-2 ? player
+        if {_p} is not set:
+            send "&7/zacine tue|horde|alpha|norda <joueur>" to sender
+            stop
+        za_cine({_p}, arg-1, true)
+        send "&7Cinématique « %arg-1% » jouée pour %{_p}%." to sender
