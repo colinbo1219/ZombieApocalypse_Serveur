@@ -1,0 +1,59 @@
+# ZombieApocalypse — serveur Minecraft (Arclight 1.20.1)
+
+Serveur de survie zombie francophone (Québec). Propriétaire : Colin. Tout le texte vu par les joueurs est en
+**français avec accents** ; commentaires de code en français, courts.
+
+## Mission en cours
+Lire **[MISSION.md](MISSION.md)** en entier avant tout travail. Elle fixe l'objectif (Saint-Aurèle : une ville normale
+qui tombe sous les yeux du joueur), l'ordre obligatoire des 15 phases et le format du rapport de fin de phase.
+Phase 1 = analyse seule, aucune modification.
+
+## Pile technique
+- `arclight-5dc8683.jar` : Forge 1.20.1 + API Bukkit/Spigot dans le même serveur.
+- Skript 2.9.5 : presque toute la logique de jeu (`plugins/Skript/scripts/za_*.sk`, 67 fichiers).
+- MythicMobs 5.7.2 : zombies et PNJ (`plugins/MythicMobs/Mobs|Skills|Items|RandomSpawns/`).
+- Plugin maison `plugins/ZAMonde.jar` : ville, PNJ, props, HUD, caméras (données dans `plugins/ZAMonde/`).
+- 37 mods Forge (liste et SHA-1 dans [JARS.txt](JARS.txt)), configs dans `config/`, `defaultconfigs/`, `world/serverconfig/`.
+- Datapacks : `world/datapacks/za_*`.
+
+## Ce que le dépôt ne contient pas
+- **Les jars publics** : exclus par `.gitignore`, voir JARS.txt. Seuls `ZAMonde.jar`, `ZAPaperCompat.jar` et
+  `zombie_extreme-0.2.6.5-za2.jar` sont versionnés (introuvables ailleurs).
+- **Pas de serveur de test ici** : impossible de lancer le serveur dans cette session. Validation = relecture statique
+  rigoureuse (syntaxe Skript, références, doublons). Colin teste lui-même en jeu. Dire clairement ce qui n'a pas été testé.
+- Monde et données joueurs (`variables.csv`, LuckPerms, CoreProtect).
+
+## Sources complémentaires
+`ZA_sources_build.zip` contient les sources : plugin ZAMonde (Java), générateurs Python de la ville, générateur du mod
+client de modèles `za_modeles`, specs et **BRIEF_AGENTS.md** (règles Skript + fonctions partagées : à lire).
+Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ignoré par git.
+- Les chemins cités dans BRIEF_AGENTS.md (`/home/claude/za_build`, serveur de test `arc`) viennent d'un ancien
+  environnement et n'existent pas ici.
+- La vérité pour les scripts est `plugins/Skript/scripts/` (version déployée). `ZA_sources/skript/` peut être plus ancien.
+
+## À ne jamais casser (sinon le serveur gèle ou tue les joueurs)
+- `plugins/MythicMobs/config/config-spawning.yml` : `Generator` doit rester `NONE`. Les apparitions aléatoires sont
+  gérées par `za_p36_apparitions.sk`.
+- Ne pas remplacer `mods/zombie_extreme-0.2.6.5-za2.jar` par l'original (biome radioactif mortel).
+- MythicMobs reste en 5.7.2 avec `ZAPaperCompat.jar`. **Pas de MythicMobs 5.11 ni de ModelEngine** (incompatibles
+  Arclight). Les apparences custom des zombies/PNJ passent par le mod client `za_modeles` (pack CurseForge des joueurs) :
+  toute modif visuelle implique de régénérer ce mod et de mettre à jour le pack joueurs.
+
+## Règles Skript essentielles (détails dans BRIEF_AGENTS.md)
+- Tout événement joueur/entité commence par `if za_pro(player) is true: stop` : le monde `za_prologue` est une
+  instance d'histoire privée que les systèmes de survie ne doivent pas toucher.
+- `za_monde_joueurs()` au lieu de `all players`, `za_diffuser("...")` au lieu de `broadcast`.
+- Variables globales `{za::<module>::...}`, données joueur indexées par UUID. Chercher (grep) avant de créer un nom.
+- `%` s'écrit `%%` dans les chaînes. `every N seconds` ≥ 5 s, jamais de boucle sur toutes les entités.
+- Une fonction qui atteint un `wait` rend la main tout de suite à l'appelant.
+- Objets nommés via `za_item(...)`, menus via `za_menu(...)`, radio via `za_radio(...)`.
+- Ne jamais recommander `sk reload all` (gèle ~60 s) : `sk reload <fichier>`.
+
+## Pièges connus
+- Numéros en double : `za_p7_economie` / `za_p7_progression`, `za_p38_lieux` / `za_p38_prologue`.
+- LISEZMOI.txt annonce 41 scripts : il y en a 67.
+- Colin utilise Java 25 en local, alors que le serveur exige Java 17 ou 21.
+
+## Façon de travailler
+- Commits petits et clairs, en français, poussés sur GitHub pour que Colin puisse récupérer et tester.
+- Avant de créer une commande, variable, fonction ou événement : grep dans tous les `.sk` et les `.yml` MythicMobs.

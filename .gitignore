@@ -5,6 +5,9 @@
 !plugins/ZAPaperCompat.jar
 !mods/zombie_extreme-0.2.6.5-za2.jar
 
+# Sources extraites de ZA_sources_build.zip (le zip, lui, est versionne)
+ZA_sources/
+
 # Genere par Arclight / Forge au demarrage
 logs/
 crash-reports/
