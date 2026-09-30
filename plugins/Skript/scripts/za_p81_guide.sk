@@ -1,0 +1,127 @@
+# =====================================================================
+#  ZombieApocalypse - LES DIX PREMIÈRES MINUTES : un fil discret de l'autobus jusqu'à chez soi
+#  Après le réveil à l'autobus du Jour 8 (za_p38, za_intro_survie), une ligne grise en barre d'action, toutes les
+#  8 secondes, avec une flèche et une distance (et la boussole pointe au même endroit). Pas de fenêtre, pas de quête :
+#    1. Fouiller l'autobus (coffre de départ)            -> dès qu'un coffre/baril est ouvert près de l'autobus
+#    2. Suivre l'autoroute vers l'ouest (panneau vert)   -> arrivé à 250 blocs de la ville
+#    3. Entrer dans Saint-Aurèle                          -> dans les ruines
+#    4. Rentrer chez soi : l'Immeuble des Érables, 2A     -> le mot de Maman trouvé (za_p66)
+#    5. Un abri avant la nuit (/base definir)            -> base définie, ou la première nuit passée
+#  Seulement sur le monde généré (/zasites installer fait). /fil off pour le couper, /fil pour le reprendre.
+# =====================================================================
+
+function za_guide_texte(e: number) :: text:
+    if {_e} is 1:
+        return "Fouille l'autobus. Il reste peut-être quelque chose."
+    if {_e} is 2:
+        return "Rejoins l'autoroute. Vers l'ouest : Saint-Aurèle."
+    if {_e} is 3:
+        return "Saint-Aurèle. Ta ville. Ce qu'il en reste."
+    if {_e} is 4:
+        return "Rentre chez toi : Immeuble des Érables, appartement 2A."
+    return "La nuit approche. Trouve un abri : /base definir"
+
+# où pointe l'étape (rien pour la dernière)
+function za_guide_cible(e: number) :: location:
+    set {_w} to world("world")
+    if {_e} is 1:
+        return location(({za::site::d::arrivee::x} ? 640) + 1, ({za::site::d::arrivee::y} ? 70), ({za::site::d::arrivee::z} ? 296) + 3, {_w})
+    if {_e} is 2:
+        return location(({za::site::d::arrivee::x} ? 640) - 40, ({za::site::d::arrivee::y} ? 70), 330, {_w})
+    if {_e} is 3:
+        if {za::ruines::base} is set:
+            return location((x-coordinate of {za::ruines::base}) + 76, 65, (z-coordinate of {za::ruines::base}) + 76, {_w})
+        return location(0, 65, 0, {_w})
+    if {_e} is 4:
+        set {_l} to za_ruines_poi("entree_immeuble")
+        if {_l} is set:
+            return {_l}
+        return location(0, 65, 0, {_w})
+
+# flèche selon l'angle entre le regard du joueur et la cible
+function za_guide_fleche(p: player, c: location) :: text:
+    set {_dx} to (x-coordinate of {_c}) - (x-coordinate of {_p})
+    set {_dz} to (z-coordinate of {_c}) - (z-coordinate of {_p})
+    # lacet Minecraft : 0 = sud (+z), 90 = ouest (-x)
+    set {_cible} to atan2({_dz}, 0 - {_dx})
+    set {_a} to mod({_cible} - (yaw of {_p}) + 360 + 22.5, 360)
+    set {_f::*} to "↑", "↗", "→", "↘", "↓", "↙", "←" and "↖"
+    return {_f::%floor({_a} / 45) + 1%}
+
+function za_guide_debut(p: player):
+    if {za::site::installe} is not set:
+        stop
+    set {za::guide::%{_p}'s uuid%} to 1
+
+function za_guide_etape(p: player) :: number:
+    set {_u} to "%{_p}'s uuid%"
+    set {_e} to {za::guide::%{_u}%} ? 0
+    if {_e} <= 0:
+        return 0
+    set {_l} to location of {_p}
+    # avancer quand l'objectif est atteint (plusieurs d'un coup si le joueur a pris un raccourci)
+    if {_e} is 2:
+        if distance between {_l} and za_guide_cible(3) < 250:
+            set {_e} to 3
+    if {_e} is 3:
+        if za_ruines_dans({_l}, 0) is true:
+            set {_e} to 4
+    if {_e} is 4:
+        if {za::ruines::maman::%{_u}%} is set:
+            set {_e} to 5
+    if {_e} is 5:
+        if {za::base::%{_u}%} is set:
+            set {_e} to 6
+    if {_e} is not {za::guide::%{_u}%}:
+        set {za::guide::%{_u}%} to {_e}
+    return {_e}
+
+on inventory open:
+    if za_pro(player) is true:
+        stop
+    if ({za::guide::%player's uuid%} ? 0) is 1:
+        if distance between player and za_guide_cible(1) < 12:
+            set {za::guide::%player's uuid%} to 2
+
+every 8 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if za_pro({_p}) is false:
+            set {_e} to za_guide_etape({_p})
+            if {_e} >= 6:
+                delete {za::guide::%{_p}'s uuid%}
+                send action bar "&8Tu as un toit. Pour cette nuit. &7— /aide si tu es perdu." to {_p}
+            else if {_e} >= 1:
+                if {_e} is 5:
+                    # première nuit passée sans base : le fil s'efface
+                    set {_fin} to false
+                    if za_nuit({_p}) is false:
+                        if {za::guide::nuit::%{_p}'s uuid%} is set:
+                            delete {za::guide::%{_p}'s uuid%}
+                            delete {za::guide::nuit::%{_p}'s uuid%}
+                            set {_fin} to true
+                    else:
+                        set {za::guide::nuit::%{_p}'s uuid%} to true
+                    if {_fin} is false:
+                        send action bar "&7%za_guide_texte(5)%" to {_p}
+                else:
+                    set {_c} to za_guide_cible({_e})
+                    if {_c} is set:
+                        if world of {_c} is world of {_p}:
+                            set compass target of {_p} to {_c}
+                            set {_d} to round(distance between {_c} and {_p})
+                            send action bar "&7%za_guide_texte({_e})% &8%za_guide_fleche({_p}, {_c})% %{_d}% m" to {_p}
+
+command /fil [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        if arg-1 is "off":
+            delete {za::guide::%player's uuid%}
+            send "&7Le fil est coupé. Tu te débrouilles." to player
+        else:
+            if {za::site::installe} is not set:
+                send "&7Pas de fil sur ce monde." to player
+                stop
+            set {za::guide::%player's uuid%} to max(2, {za::guide::%player's uuid%} ? 2)
+            send "&7Le fil reprend. &8(/fil off pour le couper)" to player

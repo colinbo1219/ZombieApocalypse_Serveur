@@ -29,6 +29,7 @@ def chaines(ligne):
 
 def verifier(fichiers):
     erreurs, defs, appels = [], set(), {}
+    commandes, fonctions = {}, {}
     for f in fichiers:
         lignes = open(f, encoding='utf-8').read().split('\n')
         prec_bloc, prec_ind = False, 0
@@ -55,8 +56,18 @@ def verifier(fichiers):
             cs = code.rstrip()
             prec_bloc = cs.endswith(':') and not cs.startswith('#')
             prec_ind = ind
+            mc = re.match(r'command /([\w-]+)', s) if ind == 0 else None
+            if mc:
+                nom = mc.group(1).lower()
+                if nom in commandes:
+                    erreurs.append(f'{f}:{n}: commande /{nom} déjà définie ({commandes[nom]})')
+                commandes.setdefault(nom, f'{f}:{n}')
             m = re.match(r'function (\w+)\(', s)
             if m:
+                if ind == 0 and m.group(1) in fonctions:
+                    erreurs.append(f'{f}:{n}: fonction {m.group(1)} déjà définie ({fonctions[m.group(1)]})')
+                if ind == 0:
+                    fonctions.setdefault(m.group(1), f'{f}:{n}')
                 defs.add(m.group(1))
                 fonction_retour = ind == 0 and '::' in s.split(')')[-1]
             elif ind == 0:

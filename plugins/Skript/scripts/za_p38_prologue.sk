@@ -1082,6 +1082,8 @@ function za_pro_recap(p: player):
 function za_intro_survie(p: player):
     set {_u} to "%{_p}'s uuid%"
     set {za::intro::%{_u}%} to true
+    # fil discret des dix premières minutes (za_p81_guide)
+    za_guide_debut({_p})
     wait 3 seconds
     if {_p} is not online:
         stop
