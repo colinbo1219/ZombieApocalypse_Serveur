@@ -1,0 +1,289 @@
+# =====================================================================
+#  ZombieApocalypse - SAINT-AURÈLE EN RUINES : la même ville, après (MISSION §31-32)
+#  « Le monde n'était pas détruit quand vous êtes arrivés. Vous étiez là quand il est tombé. »
+#  La ville du prologue est posée dans le monde principal telle qu'elle était au soir du Jour 8 : quarantaine, barrages,
+#  checkpoint, station-service incendiée, vitres brisées, lampes éteintes, panneaux réécrits (structure « ruines » de
+#  ZAMonde, générée par ZA_sources/ville/gen_ruines.py). Le joueur reconnaît les lieux :
+#    * souvenirs sur place : ton appartement, le dépanneur de Ginette, l'hôpital, le checkpoint... selon TES choix
+#    * lieux inscrits dans la mémoire du monde (za_p62) ; zombies du lieu (za_p36 : patients, policiers, citoyens...)
+#    * 4 sous-stations de ville (za_p61), endommagées : les réparer + centrale en marche = le quartier revient
+#    * quand un quartier a du courant (za_p50/za_p61), SES lampadaires se rallument pour de vrai
+#  Admin : /zaville installer (là où tu te tiens = centre de la ville) | etat | lampes | oublier
+# =====================================================================
+
+options:
+    # centre de la ville dans les coordonnées de la structure (intersection de la rue Principale)
+    centre_x: 76
+    centre_z: 76
+    sol: 64
+
+# ---------------------------------------------------------------- positions
+
+function za_ruines_ok() :: boolean:
+    if {za::ruines::base} is set:
+        return true
+    return false
+
+# point du prologue (za_p38_lieux) transposé dans les ruines
+function za_ruines_poi(n: text) :: location:
+    if {za::ruines::base} is not set:
+        stop
+    set {_v} to {za::pro::p::%{_n}%}
+    if {_v} is not set:
+        stop
+    set {_c::*} to split {_v} at ";"
+    set {_b} to {za::ruines::base}
+    return location((x-coordinate of {_b}) + ({_c::1} parsed as number), (y-coordinate of {_b}) + ({_c::2} parsed as number), (z-coordinate of {_b}) + ({_c::3} parsed as number), world of {_b})
+
+function za_ruines_dans(l: location, marge: number) :: boolean:
+    if {za::ruines::base} is not set:
+        return false
+    set {_b} to {za::ruines::base}
+    if world of {_l} is not world of {_b}:
+        return false
+    set {_x} to (x-coordinate of {_l}) - (x-coordinate of {_b})
+    set {_z} to (z-coordinate of {_l}) - (z-coordinate of {_b})
+    if {_x} < -64 - {_marge}:
+        return false
+    if {_x} > 224 + {_marge}:
+        return false
+    if {_z} < -64 - {_marge}:
+        return false
+    if {_z} > 224 + {_marge}:
+        return false
+    return true
+
+# quartier des ruines le plus proche d'un lieu ("" hors de la ville)
+function za_ruines_quartier(l: location) :: text:
+    if za_ruines_dans({_l}, 0) is false:
+        return ""
+    set {_best} to "residentiel"
+    set {_bd} to 99999
+    loop "hopital_entree", "ambulance_baie", "police_entree", "checkpoint_vega", "depanneur_porte", "station_service", "cafe_comptoir", "entree_immeuble", "maison2" and "parc_banc":
+        set {_p} to za_ruines_poi(loop-value)
+        if {_p} is set:
+            set {_d} to distance between {_p} and {_l}
+            if {_d} < {_bd}:
+                set {_bd} to {_d}
+                set {_best} to loop-value
+    if {_best} is "hopital_entree" or "ambulance_baie":
+        return "hopital"
+    if {_best} is "police_entree" or "checkpoint_vega":
+        return "police"
+    if {_best} is "depanneur_porte" or "station_service" or "cafe_comptoir":
+        return "commerce"
+    return "residentiel"
+
+# type de zombie des ruines (appelé par za_p36_apparitions)
+function za_ruines_type(l: location) :: text:
+    set {_q} to za_ruines_quartier({_l})
+    if {_q} is "":
+        return ""
+    if {_q} is "hopital":
+        return random element out of "ZA_Patient_Infecte", "ZA_Patient_Infecte", "ZA_Medecin_Infecte" and "ZA_Crawler"
+    if {_q} is "police":
+        return random element out of "ZA_Policier_Infecte", "ZA_Soldat_Infecte", "ZA_Prisonnier_Infecte" and "ZA_Citoyen_Infecte"
+    if {_q} is "commerce":
+        return random element out of "ZA_Citoyen_Infecte", "ZA_Citoyen_Infecte", "ZA_Pompier_Infecte" and "ZA_Runner"
+    return random element out of "ZA_Citoyen_Infecte", "ZA_Citoyen_Infecte", "ZA_Shambler" and "ZA_Child"
+
+# ---------------------------------------------------------------- installation
+
+function za_ruines_lieux():
+    set {_n::*} to "hopital_entree|sa:hopital|hopital|Hôpital de Saint-Aurèle", "police_entree|sa:police|police|Poste de police de Saint-Aurèle", "depanneur_porte|sa:depanneur|super|Dépanneur Chez Ginette", "station_service|sa:station|station|Gaz Bar Saint-Aurèle", "entree_immeuble|sa:immeuble|residentiel|Immeuble des Érables (1250)", "cafe_comptoir|sa:cafe|super|Café du Coin", "ecole_entree|sa:ecole|ecole|École de Saint-Aurèle" and "parc_banc|sa:parc|parc|Parc des Érables"
+    loop {_n::*}:
+        set {_c::*} to split loop-value at "|"
+        set {_l} to za_ruines_poi({_c::1})
+        if {_l} is set:
+            za_lieu_creer({_c::2}, {_c::3}, {_c::4}, {_l}, false)
+            za_lieu_evt({_c::2}, "Jour 8 : tout s'est arrêté ici. %{_c::4}% est resté tel que les derniers l'ont laissé.", 0, "naissance")
+
+function za_ruines_sous_stations():
+    set {_n::*} to "ambulance_baie|hopital|sous-station de l'hôpital", "police_comptoir|police|sous-station du poste de police", "abribus|commerce|sous-station de la rue Principale" and "parc_kiosque|residentiel|sous-station des Érables"
+    loop {_n::*}:
+        set {_c::*} to split loop-value at "|"
+        set {_l} to za_ruines_poi({_c::1})
+        if {_l} is set:
+            add 2 to x-coordinate of {_l}
+            set {_i} to za_elec_creer({_l}, {_c::2}, "ville", {_c::3}, "")
+            set {za::elec2::ss::%{_i}%::etat} to "endommagee"
+            set {za::elec2::ss::%{_i}%::ruines} to true
+            add {_i} to {za::ruines::ss::*}
+
+function za_ruines_installer(p: player):
+    set {_bx} to floor(x-coordinate of {_p}) - {@centre_x}
+    set {_by} to floor(y-coordinate of {_p}) - {@sol}
+    set {_bz} to floor(z-coordinate of {_p}) - {@centre_z}
+    set {za::ruines::base} to location({_bx}, {_by}, {_bz}, world of {_p})
+    za_zm("placer ruines %world of {_p}% %{_bx}% %{_by}% %{_bz}% degager")
+    send "&6[Saint-Aurèle] &7Pose des ruines lancée (288 x 48 x 288, base %{_bx}% %{_by}% %{_bz}%). Suivi : &e/zamonde etat" to {_p}
+    za_ruines_lieux()
+    za_ruines_sous_stations()
+    za_journal("Saint-Aurèle en ruines apparaît sur les cartes des survivants.")
+    za_monde_legende("Saint-Aurèle, la ville du Jour 0, est retrouvée. Morte, mais debout.")
+
+# ---------------------------------------------------------------- lampadaires qui se rallument
+
+function za_ruines_lampes_appliquer(q: text, on: boolean, forcer: boolean):
+    set {_b} to {za::ruines::base}
+    if {_b} is not set:
+        stop
+    set {_wd} to za_dim(world of {_b})
+    loop za_ruines_lampes({_q}):
+        set {_c::*} to split loop-value at ";"
+        set {_x} to (x-coordinate of {_b}) + ({_c::1} parsed as number)
+        set {_y} to (y-coordinate of {_b}) + ({_c::2} parsed as number)
+        set {_z} to (z-coordinate of {_b}) + ({_c::3} parsed as number)
+        set {_l} to location({_x}, {_y}, {_z}, world of {_b})
+        if chunk at {_l} is loaded:
+            if {_on} is true:
+                execute console command "execute in %{_wd}% run setblock %{_x}% %{_y}% %{_z}% %{_c::4}%"
+            else:
+                execute console command "execute in %{_wd}% run setblock %{_x}% %{_y}% %{_z}% %{_c::5}%"
+
+every 30 seconds:
+    if za_ruines_ok() is false:
+        stop
+    # un joueur dans la ville ? (sinon les tronçons sont déchargés : on réessaiera)
+    set {_present} to false
+    loop za_monde_joueurs():
+        if za_ruines_dans(location of loop-value, 32) is true:
+            set {_present} to true
+    if {_present} is false:
+        stop
+    loop za_reseau_quartiers():
+        set {_q} to loop-value-1
+        set {_on} to za_reseau_actif({_q})
+        if {za::ruines::lum::%{_q}%} is not {_on}:
+            set {za::ruines::lum::%{_q}%} to {_on}
+            za_ruines_lampes_appliquer({_q}, {_on}, false)
+            if {_on} is true:
+                loop za_monde_joueurs():
+                    if za_ruines_dans(location of loop-value-2, 32) is true:
+                        send "&e&o(Un bourdonnement. Puis, un à un, les lampadaires du %za_reseau_nom({_q})% se rallument. Saint-Aurèle respire.)" to loop-value-2
+                        za_zm("son %loop-value-2% za_modeles:sfx.bourdon_electrique 0.8 1")
+
+# rattrapage : toutes les 5 minutes, les lampes des tronçons chargés reprennent l'état de leur quartier
+every 5 minutes:
+    if za_ruines_ok() is true:
+        loop za_reseau_quartiers():
+            if {za::ruines::lum::%loop-value%} is true:
+                za_ruines_lampes_appliquer(loop-value, true, true)
+
+# ---------------------------------------------------------------- souvenirs sur place
+
+function za_ruines_souvenir(p: player, n: text) :: text:
+    set {_u} to "%{_p}'s uuid%"
+    if {_n} is "depanneur_porte":
+        return "Le dépanneur Chez Ginette. La pancarte « Fermé pour cause de maladie » est encore dans la vitrine. Le lait que Maman voulait est tourné depuis longtemps."
+    if {_n} is "entree_immeuble":
+        return "Le 1250, rue des Érables. Ton immeuble. La porte de l'entrée bat au vent, comme le soir du Jour 7."
+    if {_n} is "porte_2A":
+        return "Ton appartement. La radio est encore sur la table. Dans le coffre, un papier plié en quatre que tu n'as jamais vu."
+    if {_n} is "lit_2B":
+        if za_choix({_u}, "theo") is "appele":
+            return "L'appartement de Mme Gagnon. Le téléphone est décroché. Théo a répondu, ce jour-là. Tu t'accroches à ça."
+        return "L'appartement de Mme Gagnon. Tu ne regardes pas le lit."
+    if {_n} is "hopital_entree":
+        if za_choix({_u}, "hopital") is "aide":
+            return "L'hôpital. Les barrières de quarantaine sont toujours là. Tu as porté des caisses de soluté par cette porte, il y a une éternité."
+        if za_choix({_u}, "hopital") is "fui":
+            return "L'hôpital. Le Dr Lefort poussait seul son chariot ici. Tu étais déjà de l'autre côté de la rue."
+        return "L'hôpital de Saint-Aurèle. Personne n'a refermé la porte de l'urgence."
+    if {_n} is "hopital_barriere":
+        if za_choix({_u}, "leblanc") is "sauvee":
+            return "La barrière. C'est ici que tu as relevé l'infirmière Leblanc. La tache au sol n'est pas la sienne."
+        if za_choix({_u}, "leblanc") is "perdue":
+            return "La barrière. C'est ici que Leblanc est tombée. Tu as reculé. Tu recules encore, un peu, en passant."
+        return ""
+    if {_n} is "checkpoint_vega":
+        if za_choix({_u}, "vega") is "clandestin":
+            return "Le checkpoint de Vega. La ruelle par où tu as filé est juste là, derrière les sacs de sable."
+        return "Le checkpoint de Vega. Des douilles partout. Les sacs de sable n'ont arrêté personne."
+    if {_n} is "station_service":
+        return "La station-service. C'est d'ici que partaient les autobus d'évacuation. Il n'en reste qu'une carcasse noircie."
+    if {_n} is "police_entree":
+        return "Le poste de police. L'Agent Roy te disait de circuler, juste ici."
+    if {_n} is "parc_banc":
+        return "Le parc des Érables. Les balançoires grincent toutes seules."
+    if {_n} is "cafe_comptoir":
+        return "Le Café du Coin. Samuel Arel toussait à cette table, le matin du Jour 0. Personne n'y a prêté attention."
+    return ""
+
+every 10 seconds:
+    if za_ruines_ok() is false:
+        stop
+    loop za_monde_joueurs():
+        set {_p} to loop-value-1
+        if za_ruines_dans(location of {_p}, 0) is true:
+            set {_u} to "%{_p}'s uuid%"
+            if {za::ruines::entre::%{_u}%} is not set:
+                set {za::ruines::entre::%{_u}%} to true
+                za_zm("titre %{_p}% 20 70 30 &7SAINT-AURÈLE &8Population :_0")
+                za_zm("son %{_p}% za_modeles:sfx.vent_ruines 0.8 1")
+                za_souvenir_ajouter({_u}, "sa:immeuble", "retour", "Revenu à Saint-Aurèle, après.")
+            loop "depanneur_porte", "entree_immeuble", "porte_2A", "lit_2B", "hopital_entree", "hopital_barriere", "checkpoint_vega", "station_service", "police_entree", "parc_banc" and "cafe_comptoir":
+                set {_n} to loop-value-2
+                if {za::ruines::vu::%{_n}%::%{_u}%} is not set:
+                    set {_l} to za_ruines_poi({_n})
+                    if {_l} is set:
+                        if distance between {_p} and {_l} < 7:
+                            set {za::ruines::vu::%{_n}%::%{_u}%} to true
+                            set {_t} to za_ruines_souvenir({_p}, {_n})
+                            if {_t} is not "":
+                                send "&8&o%{_t}%" to {_p}
+                                za_zm("son %{_p}% za_modeles:sfx.sting_revelation 0.35 0.8")
+                                za_souvenir_ajouter({_u}, "sa:immeuble", "retour", {_t})
+
+# le mot de Maman (coffre de l'appartement 2A)
+on right click with paper:
+    if za_pro(player) is true:
+        stop
+    if uncolored name of player's tool is "Mot de Maman":
+        cancel the event
+        send "&f&o« Je suis passée. Tu n'étais pas là. La porte était ouverte, j'ai eu peur." to player
+        send "&f&oLes soldats nous emmènent vers le nord, en autobus. Ils disent que c'est temporaire." to player
+        send "&f&oMange quelque chose. Reste en vie. Je t'aime gros comme la maison. — Maman »" to player
+        if {za::ruines::maman::%player's uuid%} is not set:
+            set {za::ruines::maman::%player's uuid%} to true
+            za_souvenir_ajouter("%player's uuid%", "sa:immeuble", "retour", "Trouvé le mot de Maman dans l'appartement 2A.")
+            za_zm("son %player% za_modeles:musique.premiere_nuit 0.4 1")
+
+# ---------------------------------------------------------------- admin
+
+command /zaville [<text>] [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "installer":
+            if sender is console:
+                send "À faire en jeu : tiens-toi au centre voulu (la rue Principale sera à tes pieds)." to sender
+                stop
+            if za_ruines_ok() is true:
+                if arg-2 is not "forcer":
+                    send "&cLes ruines sont déjà posées. &7/zaville installer forcer &8pour les reposer ici (les anciennes restent en place)." to sender
+                    stop
+            za_ruines_installer(player)
+        else if arg-1 is "lampes":
+            set {_q} to za_reseau_norm(arg-2 ? "")
+            if {_q} is "":
+                send "/zaville lampes <hopital|police|commerce|residentiel> <on|off>" to sender
+                stop
+            if arg-3 is "on":
+                za_ruines_lampes_appliquer({_q}, true, true)
+            else:
+                za_ruines_lampes_appliquer({_q}, false, true)
+            set {_e} to arg-3 ? "off"
+            send "Lampes %{_q}% : %{_e}%" to sender
+        else if arg-1 is "oublier":
+            delete {za::ruines::*}
+            send "Données des ruines effacées (les blocs restent)." to sender
+        else:
+            if za_ruines_ok() is false:
+                send "&7Ruines non posées. &e/zaville installer &7en jeu, au centre voulu (terrain plat, pré-généré avec Chunky)." to sender
+                stop
+            send "&6Saint-Aurèle en ruines &7: base %{za::ruines::base}%" to sender
+            loop za_reseau_quartiers():
+                set {_lu} to {za::ruines::lum::%loop-value%} ? false
+                send " %loop-value% : lampes %{_lu}% ; réseau %za_elec_etat(loop-value)%" to sender
+            send "&7Sous-stations de ville : %{za::ruines::ss::*}%" to sender
+            send "/zaville installer [forcer] | lampes <quartier> <on|off> | oublier" to sender

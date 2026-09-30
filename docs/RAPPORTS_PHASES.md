@@ -174,3 +174,48 @@ admin `/zaelec etat | panne <id> | reparer <id> | supprimer <id> | ville <x> <y>
 planche des 6 textures contrôlée visuellement. En jeu : `/mm mobs spawn ZA_Policier_Infecte`, `/zazv scene regard`.
 
 **RESTE À FAIRE** : mettre le jar dans le pack CurseForge des joueurs (voir `docs/A_INSTALLER.md`).
+
+---
+
+## PHASE 8 — La ville avant / après
+
+**NOUVEAUX FICHIERS**
+- `plugins/ZAMonde/ruines.json.gz` + `ruines_pois.json` : **Saint-Aurèle en ruines**, structure ZAMonde (288×48×288,
+  791 182 blocs, 570 états de bloc tous validés contre le rapport officiel 1.20.1).
+- `plugins/Skript/scripts/za_p66_ruines.sk` : la ville dans le monde de survie.
+- `plugins/Skript/scripts/za_p66_ruines_donnees.sk` : lampes par quartier (généré, ne pas éditer).
+- `ZA_sources/ville/gen_ruines.py` (dans le zip des sources) : générateur déterministe.
+
+**MODIFICATIONS** : `za_p36_apparitions.sk` (zombies des ruines selon le quartier).
+
+**SYSTÈMES AJOUTÉS**
+- **Même ville, après** (MISSION §32) : la ville du prologue figée au soir du Jour 8 — les calques du prologue
+  (dépanneur fermé, quarantaine, incident, chaos, checkpoint) deviennent de vrais blocs ; toutes les lampes éteintes ;
+  ~50 % des vitres brisées (toiles d'araignée) ; vignes sur les façades ; herbes et fissures dans les rues ; débris ;
+  station-service incendiée avec cratère ; panneaux réécrits (« ZONE MILITAIRE — Ordre de tirer à vue »,
+  « NE PAS ENTRER — MORTS À L'INTÉRIEUR », « ILS SONT DEDANS », « Z-01 : OUVERT »…).
+- **Reconnaissance** (MISSION §50) : 11 lieux du prologue déclenchent un souvenir la première fois qu'on s'en approche
+  (ton appartement, le lit de Mme Gagnon, la barrière où Leblanc est tombée, la ruelle du checkpoint…), le texte
+  dépend de **tes** choix. Titre « SAINT-AURÈLE — Population : 0 » à l'entrée. **Mot de Maman** dans le coffre du 2A.
+- **Mémoire du monde** : 8 lieux inscrits (`sa:hopital`, `sa:police`, `sa:depanneur`, `sa:station`, `sa:immeuble`,
+  `sa:cafe`, `sa:ecole`, `sa:parc`) : ils vivent ensuite comme tous les lieux de `za_p62` (contamination, chute…).
+- **Électricité dans la ville** (fin de la phase 5) : 4 sous-stations de ville (hôpital, police, rue Principale,
+  Érables) créées **endommagées** ; une fois réparées et la centrale relancée, le quartier est alimenté et **ses
+  lampadaires se rallument pour de vrai** (321 lampes réparties par quartier).
+- **Zombies des ruines** : patients / médecins / crawlers à l'hôpital, policiers / soldats / prisonniers au poste,
+  citoyens / pompiers / runners rue Principale, citoyens / enfants dans le quartier résidentiel.
+
+**INSTALLATION (à faire une fois, en jeu)** : pré-générer la zone avec Chunky, se placer au centre voulu (terrain
+plat, idéalement à 150-300 blocs de l'autobus d'arrivée), puis `/zaville installer`. Suivi : `/zamonde etat`.
+
+**DÉPENDANCES** : aucune.
+
+**RISQUES**
+- La pose remplace 288×48×288 blocs (`degager`) : choisir un endroit sans construction de joueur. Sauvegarder avant.
+- Les lampes ne changent que dans les tronçons chargés (rattrapage toutes les 5 min quand un joueur est dans la ville).
+- Chaque changement de lampes écrit une ligne `setblock` par lampe dans la console (bruit de log, sans danger).
+
+**TESTS** : génération exécutée (5,9 s), palette validée (0 état invalide), aperçu du dessus avant/après contrôlé,
+vérificateur Skript OK. Non testé en jeu : la pose, les souvenirs, les lampes.
+
+**RESTE À FAIRE** : `/zaville installer` sur le serveur.

@@ -19,6 +19,10 @@ function za_nuit(p: player) :: boolean:
 
 # zombies du lieu (MISSION §25) : près d'un bâtiment spécial (za_p35), les morts ressemblent à ceux qui y vivaient
 function za_type_lieu(l: location) :: text:
+    # Saint-Aurèle en ruines (za_p66) : patients à l'hôpital, policiers au poste, citoyens dans les rues
+    set {_r} to za_ruines_type({_l})
+    if {_r} is not "":
+        return {_r}
     set {_k} to za_bat_proche({_l}, 45)
     if {_k} is "":
         # zone très contaminée (za_p5) : mutations avancées
