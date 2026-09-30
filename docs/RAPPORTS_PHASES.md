@@ -336,3 +336,50 @@ légende pour le premier). 4 documents au format §45. Admin `/zaexpl <joueur> [
 événements encore présents sont lus.
 
 **TESTS** : statiques. En jeu : `/zatel <toi> donner`, `/telephone`, `/zacamp attaque <id> zombies`.
+
+---
+
+## PHASE 14 — Mémoire du monde
+
+Constat : mémoire des lieux (`za_p62`), des morts (`za_p58`), légendes (`za_p64`), nids, labos, camps, territoires
+existent déjà. Manquaient : les hordes, l'Overlord hors finale, la relance de la centrale, les survivants du
+prologue, et une mémoire plus large des personnages (MISSION §47).
+
+**NOUVEAUX FICHIERS** : `plugins/Skript/scripts/za_p71_chronique.sk`
+
+**MODIFICATIONS** (une ligne d'appel chacune) : `za_horde.sk` (`za_horde_fin`), `za_boss.sk` (`/zaboss mort`),
+`za_p62_memoire_monde.sk` (`za_souvenir_ligne` complète avec `za_pnj_memoire` quand elle n'a rien à dire).
+
+**SYSTÈMES AJOUTÉS**
+- Monde : horde repoussée / subie (légende au-delà de 150 morts), Overlord abattu hors finale, centrale relancée —
+  avec témoins et souvenirs (`za_monde_evt`).
+- Registre des **survivants de Saint-Aurèle** : `{za::memoire::sa::<uuid>}` = nom, jour, choix (lu par les archives).
+- Lefort, Vega et Léa se souviennent, une fois chacun : du dossier Arel, des personnes sauvées (par tranche de 3),
+  du courant rendu, des gens de Saint-Aurèle retrouvés, de tes fréquentations (Pilleurs, Scientifiques, Milice).
+- Admin `/zachronique`.
+
+**TESTS** : statiques.
+
+---
+
+## PHASE 15 — Saison + après-saison
+
+Constat : fin de saison (révélation, finale Overlord en 4 phases, cérémonie, Hall), après-saison (chronologie J+0 à
+J+8, thèmes, chroniques, livre) existent (`za_p22`, `za_p41`, `za_p59`). Ajout : ce qui manquait aux archives.
+
+**NOUVEAUX FICHIERS** : `plugins/Skript/scripts/za_p72_archives.sk`
+
+**MODIFICATIONS** : `za_p59_saisons.sk` : 4 appels (archivage, page 2 de `/chroniques`, monologue de Léa, début de
+saison).
+
+**SYSTÈMES AJOUTÉS**
+- Archivés par saison : état de Lefort / Vega / Léa et des 6 gens de Saint-Aurèle, sous-stations en service / hors
+  service, quartiers éclairés, nombre de survivants de Saint-Aurèle, premier à percer le dossier Arel, guerres et
+  alliances entre factions, porteur de la relique.
+- Relus : page 2 des chroniques ; une phrase de plus dans le monologue de Léa à l'ouverture de la saison suivante.
+- Séquelles : l'hiver entre deux saisons endommage la moitié des sous-stations (nouveaux objectifs de réparation) ;
+  les gens de Saint-Aurèle disparus peuvent être recroisés tout de suite.
+
+**RISQUES** : la moitié des sous-stations tombe en panne à chaque nouvelle saison : voulu, à ajuster si trop dur.
+
+**TESTS** : statiques. En jeu : `/zasaison enregistrer`, puis `/chroniques <n> 2`.

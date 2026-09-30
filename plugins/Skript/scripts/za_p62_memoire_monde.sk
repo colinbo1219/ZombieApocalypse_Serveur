@@ -362,7 +362,7 @@ function za_souvenir_ligne(p: player, npc: text) :: text:
         set {_e::*} to split {za::souv::%{_u}%::%{_i::%{_n}%}%} at "|"
         set {_jour} to {_e::1} parsed as number
         if {za::serveur::jours} - {_jour} > 30:
-            return ""
+            return za_pnj_memoire({_p}, {_npc})
         set {_k} to {_e::2}
         set {_cat} to {_e::3}
         if {_cat} is "chute", "abandon", "defense" or "legende":
@@ -395,7 +395,8 @@ function za_souvenir_ligne(p: player, npc: text) :: text:
                     return "J'ai appris pour %{_nom}%. J'y avais soigné des gens, tu sais. Des bons."
                 return "J'ai encore leur fréquence, pour %{_nom}%. Plus personne ne répond."
         remove 1 from {_n}
-    return ""
+    # le reste de ce que le personnage a retenu (za_p71_chronique)
+    return za_pnj_memoire({_p}, {_npc})
 
 # ---------------------------------------------------------------- résumé pour la chronique de saison (za_p59)
 

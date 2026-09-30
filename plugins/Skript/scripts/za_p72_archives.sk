@@ -1,0 +1,126 @@
+# =====================================================================
+#  ZombieApocalypse - ARCHIVES DE SAISON : ce que la saison suivante peut lire (MISSION §48-49)
+#  Complète la chronique de za_p59 (héros, camps, territoires, disparus, moments...) avec ce qui manquait :
+#    * PERSONNAGES : Dr Lefort, Sgt Vega, Léa, et les gens de Saint-Aurèle retrouvés (za_p63) : vivants, morts, disparus
+#    * RÉSEAU : sous-stations en service / endommagées, quartiers alimentés à la fin de la saison (za_p61)
+#    * SAINT-AURÈLE : survivants du prologue inscrits (za_p71), premier à percer le dossier Arel (za_p69)
+#    * FACTIONS : guerres et alliances (za_p67) · RELIQUE : le carnet de Samuel Arel (za_p64)
+#  Lu par : /chroniques (page 2), le monologue de Léa au début de la saison suivante.
+#  Séquelles au début d'une nouvelle saison : l'hiver entre les saisons endommage la moitié des sous-stations
+#  (nouveaux objectifs de réparation), et Léa rappelle qui manque.
+#  Données : {za::histoire::saison::<n>::pnj::<id>}, ::ss_ok, ::ss_hs, ::quartiers, ::sa_survivants, ::arel,
+#            ::guerres::*, ::alliances::*, ::relique
+# =====================================================================
+
+function za_arch_etat_pnj(id: text) :: text:
+    if {_id} is "vega":
+        if {za::pnj::mort::vega} is set:
+            return "mort"
+        return "vivant"
+    if {_id} is "lefort" or "lea":
+        if {za::pnj::mort::%{_id}%} is set:
+            return "mort"
+        return "vivant"
+    return {za::echo::%{_id}%::etat} ? "jamais retrouvé"
+
+# appelé à la fin de za_hist_enregistrer (za_p59)
+function za_hist_extra(n: number):
+    loop "lefort", "vega" and "lea":
+        set {za::histoire::saison::%{_n}%::pnj::%loop-value%} to za_arch_etat_pnj(loop-value)
+    loop za_echo_ids():
+        set {za::histoire::saison::%{_n}%::pnj::%loop-value%} to za_arch_etat_pnj(loop-value)
+    set {_ok} to 0
+    set {_hs} to 0
+    loop {za::elec2::ss::liste::*}:
+        if {za::elec2::ss::%loop-value%::etat} is "endommagee":
+            add 1 to {_hs}
+        else:
+            add 1 to {_ok}
+    set {za::histoire::saison::%{_n}%::ss_ok} to {_ok}
+    set {za::histoire::saison::%{_n}%::ss_hs} to {_hs}
+    delete {_q::*}
+    loop za_reseau_quartiers():
+        if za_reseau_actif(loop-value) is true:
+            add za_reseau_court(loop-value) to {_q::*}
+    set {za::histoire::saison::%{_n}%::quartiers} to join {_q::*} with ", "
+    set {za::histoire::saison::%{_n}%::sa_survivants} to size of {za::memoire::sa::liste::*}
+    set {za::histoire::saison::%{_n}%::arel} to {za::expl::sa::premier} ? ""
+    delete {za::histoire::saison::%{_n}%::guerres::*}
+    delete {za::histoire::saison::%{_n}%::alliances::*}
+    loop za_diplo_facs():
+        loop za_diplo_facs():
+            if za_diplo_rang(loop-value-1) < za_diplo_rang(loop-value-2):
+                set {_d} to za_diplo(loop-value-1, loop-value-2)
+                set {_paire} to "%uncolored za_faction_nom(loop-value-1)% / %uncolored za_faction_nom(loop-value-2)%"
+                if {_d} <= -40:
+                    add {_paire} to {za::histoire::saison::%{_n}%::guerres::*}
+                else if {_d} >= 40:
+                    add {_paire} to {za::histoire::saison::%{_n}%::alliances::*}
+    set {_rq} to {za::leg::relique::porteur} ? "personne"
+    set {za::histoire::saison::%{_n}%::relique} to "%{_rq}%"
+
+# lignes ajoutées à la page 2 de /chroniques
+function za_hist_extra_lignes(n: number) :: texts:
+    if {za::histoire::saison::%{_n}%::ss_ok} is not set:
+        return {_rien::*}
+    set {_p} to ""
+    loop "lefort", "vega" and "lea":
+        set {_e} to {za::histoire::saison::%{_n}%::pnj::%loop-value%} ? "?"
+        set {_p} to "%{_p}%%za_rel_nom(loop-value)% &8(%{_e}%)&7, "
+    add "&dPersonnages : &7%{_p}%" to {_l::*}
+    set {_ech} to ""
+    loop za_echo_ids():
+        set {_e} to {za::histoire::saison::%{_n}%::pnj::%loop-value%} ? "?"
+        if {_e} is not "jamais retrouvé":
+            set {_ech} to "%{_ech}%%za_echo_vnom(loop-value)% (%{_e}%), "
+    if {_ech} is not "":
+        add "&dGens de Saint-Aurèle : &7%{_ech}%" to {_l::*}
+    set {_qs} to {za::histoire::saison::%{_n}%::quartiers} ? ""
+    if {_qs} is "":
+        set {_qs} to "aucun"
+    add "&eRéseau : &f%{za::histoire::saison::%{_n}%::ss_ok}% &7sous-station(s) en service, &f%{za::histoire::saison::%{_n}%::ss_hs}% &7hors service &8| &7quartiers éclairés : &f%{_qs}%" to {_l::*}
+    set {_sa} to {za::histoire::saison::%{_n}%::sa_survivants} ? 0
+    add "&7Survivants de Saint-Aurèle : &f%{_sa}%" to {_l::*}
+    set {_ar} to {za::histoire::saison::%{_n}%::arel} ? ""
+    if {_ar} is not "":
+        add "&bDossier Arel : &7percé par &f%{_ar}%" to {_l::*}
+    if {za::histoire::saison::%{_n}%::guerres::*} is set:
+        set {_g} to join {za::histoire::saison::%{_n}%::guerres::*} with ", "
+        add "&cEn guerre : &f%{_g}%" to {_l::*}
+    if {za::histoire::saison::%{_n}%::alliances::*} is set:
+        set {_a} to join {za::histoire::saison::%{_n}%::alliances::*} with ", "
+        add "&aAlliés : &f%{_a}%" to {_l::*}
+    return {_l::*}
+
+# une phrase de plus dans le monologue de Léa (saison p = précédente)
+function za_hist_extra_monologue(p: number) :: text:
+    if {za::histoire::saison::%{_p}%::ss_ok} is not set:
+        return ""
+    set {_t} to ""
+    if {za::histoire::saison::%{_p}%::pnj::vega} is "mort":
+        set {_t} to "La fréquence de Vega reste muette. Je la laisse ouverte quand même."
+    set {_ok} to {za::histoire::saison::%{_p}%::ss_ok}
+    if {_ok} > 0:
+        set {_t} to "%{_t}% Vous aviez rallumé %{_ok}% sous-station(s). L'hiver en a abîmé une partie : il faudra y retourner."
+    else:
+        set {_t} to "%{_t}% Pas une lumière allumée par les vivants, la saison dernière. Le noir, on s'y habitue. Il ne faut pas."
+    set {_ar} to {za::histoire::saison::%{_p}%::arel} ? ""
+    if {_ar} is not "":
+        set {_t} to "%{_t}% Et n'oubliez pas ce que %{_ar}% a trouvé dans le casier 0731."
+    return {_t}
+
+# séquelles au début d'une nouvelle saison (appelé par za_saison_nouvelle, za_p59)
+function za_saison_suite_monde(n: number):
+    set {_k} to 0
+    loop {za::elec2::ss::liste::*}:
+        if {za::elec2::ss::%loop-value%::etat} is not "endommagee":
+            if chance of 50%:
+                set {za::elec2::ss::%loop-value%::etat} to "endommagee"
+                set {za::elec2::ss::%loop-value%::prod} to 0
+                add 1 to {_k}
+    if {_k} > 0:
+        za_journal("L'hiver entre les saisons a endommagé %{_k}% sous-station(s).")
+    # les gens de Saint-Aurèle disparus peuvent être recroisés tout de suite
+    loop za_echo_ids():
+        if {za::echo::%loop-value%::etat} is "disparu":
+            set {za::echo::%loop-value%::jour} to -10

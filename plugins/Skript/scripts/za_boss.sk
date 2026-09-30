@@ -46,3 +46,4 @@ command /zaboss <text>:
         if arg-1 is "mort":
             set {za::boss::vivant} to false
             za_diffuser("&a&lL'UNDEAD OVERLORD EST TOMBE !")
+            za_chronique_boss()

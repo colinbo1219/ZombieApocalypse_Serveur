@@ -10,6 +10,8 @@ options:
 
 function za_horde_fin(gagnee: boolean):
     set {za::horde::actif} to false
+    # mémoire du monde (za_p71_chronique)
+    za_chronique_horde({_gagnee})
     if {_gagnee} is true:
         za_diffuser("&a&lVICTOIRE ! &7La horde est repoussee.")
         loop all players:
