@@ -166,6 +166,19 @@ démarrage), pense à limiter la destruction de blocs si tu ne veux pas voir les
 - Test : `/time set 23500` (juste avant l'aube) près de quelques zombies dehors, attends ~30 s, puis `/zaaube`
   (compteur). `/zaaube aube` et `/zaaube crepuscule` forcent chaque moment.
 
+## 6 quinquies. Défendre sa base : soldats et tourelles
+
+- **Soldats de la milice** (`za_p75_defense.sk`, `MythicMobs/Mobs/ZA_Defense.yml`) : `/garde recruter [arbalete|hache]`
+  à ta base (40 ou 30 jetons, 3 max). Ils tiennent leur poste (`/garde poste`), tirent sur tous les morts (zombies
+  MythicMobs, vanilla, zombie_extreme), jamais sur les joueurs, se soignent lentement. S'ils tombent, tu es prévenu.
+  `/garde liste`, `/garde renvoyer <n°>`.
+- **Tourelles** (`za_p16_tourelles.sk`) : visent le mort le plus proche ; **niveaux** (accroupi + clic droit avec
+  2 Composants électroniques : niveau 2 = 18 blocs, 2 cibles ; niveau 3 = 22 blocs, 3 cibles, 6 dégâts) ;
+  **alimentées** par une sous-station à 48 blocs : plus besoin de flèches.
+- Test : `/base definir`, `/jetons` si besoin, `/garde recruter`, puis `/mm mobs spawn ZA_Shambler` à 15 blocs.
+- À vérifier en jeu : la faction `ZA_Milice` et le sélecteur `otherfactionmonsters` de MythicMobs 5.7.2 (si les
+  soldats restent passifs, me le dire : je passerai à `monsters`).
+
 ## 7. Facultatif : voix
 
 Les entractes des jours 2, 4 et 6 sont en texte seul. Si tu enregistres des voix, dépose des `.ogg` et je les
