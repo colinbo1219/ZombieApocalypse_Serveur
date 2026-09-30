@@ -6,6 +6,7 @@
 #
 #  * Sous-station « joueur » : /electricite installer [quartier] en regardant un bloc = le TABLEAU. Il mesure le courant :
 #      - un fil de redstone collé au tableau : puissance du fil 0-15 -> 0 à 5 unités (ex. accumulateur CCA -> comparateur -> fil,
+#        moteur diesel (Create Diesel Generators) ou générateur / énergiseur (Create New Age) à côté du tableau,
 #        compteur de vitesse / stressomètre Create -> comparateur -> fil, condensateur IE -> comparateur -> fil)
 #      - sinon, tableau alimenté directement par un comparateur : 3 unités
 #      - il faut au moins une machine électrique/cinétique (Create, CCA, IE) à 4 blocs du tableau (pas de torche magique)
@@ -135,7 +136,7 @@ function za_elec_machine(l: location) :: boolean:
     loop blocks in radius {@rayon_machine} around {_l}:
         set {_t} to "%type of loop-block%" in lowercase
         if {_t} contains "create" or "immersive":
-            if {_t} contains "accumul" or "capacit" or "meter" or "alternat" or "dynamo" or "generat" or "motor" or "battery" or "mill" or "wheel" or "engine" or "bearing" or "relay" or "connector" or "coil" or "transformer" or "shaft" or "gearbox":
+            if {_t} contains "accumul" or "capacit" or "meter" or "alternat" or "dynamo" or "generat" or "motor" or "battery" or "mill" or "wheel" or "engine" or "bearing" or "relay" or "connector" or "coil" or "transformer" or "shaft" or "gearbox" or "diesel" or "energis" or "stirling" or "reactor" or "brush" or "magnet" or "solar":
                 return true
     return false
 

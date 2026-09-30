@@ -101,6 +101,39 @@ Supplementaries. Les lampadaires restent vanilla car le blackout du prologue les
 Côté joueurs seulement (ambiance, facultatif) : **Sound Physics Remastered**, **AmbientSounds** (+ CreativeCore).
 À éviter : **Fresh Animations** (écraserait les modèles de zombies de `za_modeles`).
 
+## 6 bis. Add-ons Create (vérifiés le 30 sept.)
+
+J'ai comparé chaque jar à ceux du serveur (SHA-1), lu ses dépendances et vérifié qu'il n'utilise aucune classe de
+Create disparue dans **Create 6.0.8** (ta version).
+
+**✅ À installer (serveur ET pack des joueurs)** — compatibles Create 6.0.8 :
+Create Big Cannons 5.11.4 (+ Ritchie's Projectile Lib 2.1.1), Copycats+ 3.0.10, Create Connected 1.2.3,
+Create Diesel Generators 1.3.12, Slice and Dice 3.6.0, Create Enchantment Industry 1.4.1, Create Central Kitchen
+1.5.1, Bells & Whistles 0.4.5, Interiors 0.6.0, Create New Age 1.2.0.
+
+**⚠️ Il manque 2 bibliothèques** (sinon le serveur refuse de démarrer) :
+- **Kotlin for Forge** ≥ 4.3.0 (pour Slice and Dice) — la version 4.x pour 1.20.1 ;
+- **Energy Storage Lib 1.1.3** (modId `esl`, Antarctic Gardens) pour Create New Age — version **exactement** 1.1.3.
+
+**❌ À NE PAS installer** — faits pour l'ancien Create 0.5, ils feraient planter le serveur au démarrage :
+- **Design Decor 0.4.0b** (28 classes de Create introuvables dans 6.0.8) ;
+- **Create: Dreams & Desires 0.1b Early Dev** (49 classes introuvables). Cherche des versions « pour Create 6 ».
+
+**Doublons dans ce que tu m'as envoyé** (même fichier exact, n'en garde qu'un) : Ritchie's Projectile Lib (×2),
+Create Big Cannons (×2), Slice and Dice (×2), Create Deco (×2). Déjà sur le serveur, rien à faire :
+Create 6.0.8, Steam 'n' Rails 1.7.3, Create Crafts & Additions 1.3.3. ⚠️ Deux jars du même mod dans `mods/`
+= le serveur ne démarre pas.
+
+**Intégration au jeu (faite)** :
+- Moteurs diesel (Diesel Generators) et générateurs / énergiseurs / moteurs (Create New Age) comptent comme vraies
+  machines pour les sous-stations (`/electricite`) et pour le bruit des usines (`za_p17`).
+- Toute explosion (obus de Create Big Cannons, TNT, creeper) s'entend de loin : activité + bruit pour les joueurs à
+  60 blocs → les morts convergent. Un canon défend une base, mais il appelle la horde.
+
+**Conseil Arclight** : ajoute ces mods **par petits groupes** et redémarre entre chaque, pour savoir lequel pose
+problème s'il y en a un. Create Big Cannons : dans `world/serverconfig/createbigcannons-server.toml` (créé au premier
+démarrage), pense à limiter la destruction de blocs si tu ne veux pas voir les ruines de Saint-Aurèle rasées.
+
 ## 7. Facultatif : voix
 
 Les entractes des jours 2, 4 et 6 sont en texte seul. Si tu enregistres des voix, dépose des `.ogg` et je les

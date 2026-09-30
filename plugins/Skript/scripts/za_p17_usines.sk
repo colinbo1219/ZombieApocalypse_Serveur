@@ -22,7 +22,7 @@ function za_est_machine(s: text) :: boolean:
         set {_mod} to true
     if {_mod} is false:
         return false
-    set {_kw::*} to "press", "mixer", "crusher", "millstone", "saw", "drill", "harvester", "deployer", "fan", "wheel", "windmill", "engine", "motor", "generator", "alternator", "furnace", "assembler", "pump", "refinery", "turbine", "dynamo", "lathe", "arc"
+    set {_kw::*} to "press", "mixer", "crusher", "millstone", "saw", "drill", "harvester", "deployer", "fan", "wheel", "windmill", "engine", "motor", "generator", "alternator", "furnace", "assembler", "pump", "refinery", "turbine", "dynamo", "lathe", "arc", "diesel", "pumpjack", "distillation", "energiser", "stirling", "reactor", "cannon"
     loop {_kw::*}:
         if {_s} contains loop-value:
             return true

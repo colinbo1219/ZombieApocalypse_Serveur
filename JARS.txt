@@ -62,3 +62,16 @@ mods/mcw-trapdoors-1.1.5-mc1.20.1forge.jar | 604510 | 1b3b4b40041346b19bc9ab280b
 mods/moonlight-1.20-2.16.35-forge.jar | 1425229 | a7885d318f5a6810b0ef543cd1cce7d4308f10e6
 mods/resourcefullib-forge-1.20.1-2.1.29.jar | 432753 | 6fc590a7c56a720fec57e290cbb0a106efbb3ffa
 mods/supplementaries-1.20-3.1.43-forge.jar | 13667742 | 326d65a29981de28016e3828370d68a8f63e1798
+
+# Add-ons Create ajoutés le 30 sept. (serveur ET pack des joueurs). Manquent encore : Kotlin for Forge >= 4.3.0 (Slice and Dice), Energy Storage Lib 1.1.3 (Create New Age)
+mods/bellsandwhistles-0.4.5-1.20.x-Create6.0.jar | 199902 | 2487eea5f1368d70e16c7c6a08c18be3b5d3c0d0
+mods/copycats-3.0.10mc.1.20.1-forge.jar | 2003713 | 939d4ca4ac42b93c05a5fb92e629fb8cff060dc9
+mods/create-new-age-1.2.0forge-mc1.20.1.jar | 1206077 | d84322b22219888a55ad0520150ad3ef784d208a
+mods/create_central_kitchen-1.20.1-for-create-6.0.8-1.5.1.jar | 1499795 | 0b086193c1df819730ca6c06d5de3c7a8ed3b4f3
+mods/create_connected-1.2.3-mc1.20.1-all.jar | 6791072 | 98b4a41c452476496713df16ce4d52fc9f476508
+mods/create_enchantment_industry-1.4.1-for-create-6.0.8.jar | 503399 | 253b76be7c97bd658d709c0a7418b8bca43c1221
+mods/createbigcannons-5.11.4-mc.1.20.1-forge.jar | 4058306 | d9be0ace572fe54be904da1bb0b0cc8711db3b70
+mods/createdieselgenerators-1.20.1-1.3.12.jar | 3128610 | 416ea3d5c1190246369bbcfa32e5e86597402264
+mods/interiors-1.20.1-forge-0.6.0.jar | 489265 | 3371c5ab69a1169f74bee7ab6349bc0f5d6e69bb
+mods/ritchiesprojectilelib-2.1.1mc.1.20.1-forge.jar | 78625 | 3e13ad86b2cc4107b8a18eec1d980ed19cdc37aa
+mods/sliceanddice-forge-3.6.0.jar | 588268 | a4e47dbf4382ebe092b6c2cb71919e412b456d84

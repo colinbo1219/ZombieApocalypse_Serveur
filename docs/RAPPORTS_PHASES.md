@@ -409,3 +409,18 @@ Macaw's (Handcrafted vérifié sur le modèle 3D de la chaise), acceptation des 
 
 **RISQUES** : si Arclight refuse un bloc moddé, ZAMonde l'ignore (trou) et l'écrit dans la console. Les mods
 deviennent obligatoires côté serveur et côté joueurs.
+
+---
+
+## COMPLÉMENT — Add-ons Create (30 sept.)
+
+**MODIFICATIONS** : `za_p17_usines.sk` (mots-clés de machines : diesel, pumpjack, distillation, energiser, stirling,
+reactor, cannon), `za_p61_electricite.sk` (sources d'énergie reconnues : diesel, énergiseur, stirling, réacteur,
+balais, aimants, solaire), `za_p56_zombies_ia.sk` (une explosion ajoute de l'activité et du bruit à 60 blocs),
+`JARS.txt`, `docs/A_INSTALLER.md` (§6 bis), `CLAUDE.md`.
+
+**VÉRIFICATIONS** : doublons par SHA-1 ; dépendances obligatoires de chaque mod ; références de chaque add-on aux
+classes de Create 6.0.8 (+ Flywheel, Ponder inclus). Résultat : Design Decor 0.4.0b et Create D&D 0.1b
+incompatibles ; Kotlin for Forge et Energy Storage Lib 1.1.3 manquants.
+
+**TESTS** : vérificateur Skript OK. Non testé : démarrage réel avec ces mods sur Arclight.
