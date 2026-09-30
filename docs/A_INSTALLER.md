@@ -207,6 +207,22 @@ Tout ce qui suit est dans le générateur (section 9) ou dans les scripts : rien
 - **Les dix premières minutes** (`za_p81_guide.sk`) : un fil discret en barre d'action (flèche + distance + boussole)
   de l'autobus jusqu'à l'appartement 2A, puis vers un abri. `/fil off` pour le couper.
 
+## 6 septies. Le niveau supérieur (scripts p82 à p91, mod 1.7.0)
+
+Après `/mm reload` (ou redémarrage) et la mise à jour du pack joueurs en **1.7.0** :
+- **Évolution du virus** (`za_p82`) : `/evolution` ; admin `/zaevo etat|niveau <1-5>|points`. Variants mutés et Colosse.
+- **Boss régionaux** (`za_p83`) : Boucher (parc industriel), Matriarche (hôpital), Gardien (bunker Bravo), Brûlé
+  (barrage). `/lieutenants` ; admin `/zaregboss etat|reveiller <id>|oublier <id>`. Objets légendaires en récompense.
+- **Refuges** (`za_p84`) : `/refuges` ; admin `/zarefuge etat`. **Radio** (`za_p85`) : `/frequence <valeur>|liste|off`,
+  silence radio dans les souterrains, zones mortes et NORDA ; admin `/zafreq <joueur> tout|reset`.
+- **Stress et poids** (`za_p86`) : `/stress`, `/poids`. **Territoires** (`za_p87`) : `/zones` ; admin `/zamorts`.
+- **Cimetière** (`za_p88`) : `/cimetiere`, `/epitaphe <texte>`. **Familles** (`za_p89`) : `/monhistoire [2]` ;
+  admin `/zafamille <id survivant>`.
+- **Infrastructures** (`za_p90`) : `/infra construire mirador|tour|infirmerie|antenne`, `/ligne couper|retablir|saboter|deriver|liste`.
+- **Ambiances et cinématiques** (`za_p91`) : `/ambiance on|off` ; admin `/zacine tue|horde|alpha|norda <joueur>`.
+- **Apparences (1.7.0)** : 4 boss avec modèle et peau propres, zombies mutés aux veines qui luisent, et les zombies
+  humains tirés au hasard entre 4 états (décomposé, frais, très décomposé, mutilé). Nécessite ETF (déjà requis par EMF).
+
 ## 7. Voix (FAIT : voix de synthèse)
 
 Les entractes des jours 2, 4 et 6, les annonces de l'hiver et des nids, et toute la fin de saison ont maintenant une
@@ -216,7 +232,7 @@ fichiers : `ZA_sources/modeles_generateur/extension_1_6.py` les remplace.
 
 ## 8. Ce qui n'a PAS été testé
 
-Tout ce qui est en jeu : chargement réel des 88 scripts par Skript, les commandes, la pose des ruines, les modèles
+Tout ce qui est en jeu : chargement réel des 98 scripts par Skript, les commandes, la pose des ruines, les modèles
 et animations EMF du mod 1.6.0, les capacités MythicMobs de `Skills/ZA_Horreur.yml`, les soldats (`Mobs/ZA_Defense.yml`, faction
 et sélecteur de cibles), les silhouettes 1.5.0 (sous-modèles mâchoire / avant-bras), la commande `season set` de Serene
 Seasons, les poussées de la pyramide et les portes qui cèdent, les sons, la lecture de la redstone des machines Create/CCA/IE par Skript sur

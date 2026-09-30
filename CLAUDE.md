@@ -10,7 +10,7 @@ Phase 1 = analyse seule, aucune modification.
 
 ## Pile technique
 - `arclight-5dc8683.jar` : Forge 1.20.1 + API Bukkit/Spigot dans le même serveur.
-- Skript 2.9.5 : presque toute la logique de jeu (`plugins/Skript/scripts/za_*.sk`, 88 fichiers).
+- Skript 2.9.5 : presque toute la logique de jeu (`plugins/Skript/scripts/za_*.sk`, 98 fichiers).
 - MythicMobs 5.7.2 : zombies et PNJ (`plugins/MythicMobs/Mobs|Skills|Items|RandomSpawns/`).
 - Plugin maison `plugins/ZAMonde.jar` : ville, PNJ, props, HUD, caméras (données dans `plugins/ZAMonde/`).
 - ~64 mods Forge (liste et SHA-1 dans [JARS.txt](JARS.txt), dont 16 mods décoratifs Macaw's / Handcrafted / Supplementaries / Create Deco utilisés par la ville, et des add-ons Create : voir docs/A_INSTALLER.md §6 bis ; Design Decor 0.4.0b et Create D&D 0.1b sont INCOMPATIBLES avec Create 6), configs dans `config/`, `defaultconfigs/`, `world/serverconfig/`.
@@ -51,7 +51,7 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
 
 ## Pièges connus
 - Numéros en double : `za_p7_economie` / `za_p7_progression`, `za_p38_lieux` / `za_p38_prologue`.
-- LISEZMOI.txt annonce 41 scripts : il y en a 88.
+- LISEZMOI.txt annonce 41 scripts : il y en a 98.
 - Colin utilise Java 25 en local, alors que le serveur exige Java 17 ou 21.
 
 ## Travail des phases 2 à 15 (voir docs/RAPPORTS_PHASES.md)
@@ -61,8 +61,15 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
   au crépuscule ; aucun monstre ne brûle : `za_p32_soleil` ; infectés de zombie_extreme : datapack `za_aube`),
   `za_p75_defense` (soldats de la milice, `MythicMobs/Mobs/ZA_Defense.yml`), `za_p76_routes` (hordes de la nuit sur les
   routes), `za_p77_souterrains`, `za_p78_hiver` (Serene Seasons), `za_p79_meute` (portes, pyramide, ralliement),
-  `za_p80_fin_norda` (vote de fin de saison /choix), `za_p81_guide` (/fil, dix premières minutes).
-- Mod client : `pack_joueurs/za_modeles-1.6.0.jar` = `extension_1_6.py` (voix de synthèse, `voix_generer.py` : Piper
+  `za_p80_fin_norda` (vote de fin de saison /choix), `za_p81_guide` (/fil, dix premières minutes),
+  `za_p82_evolution` (niveaux du virus 1-5, `Mobs/ZA_Evolution.yml`), `za_p83_boss_regionaux` (Boucher, Matriarche,
+  Gardien, Brûlé : `Mobs/ZA_BossRegionaux.yml`, `Items/ZA_Legendaires.yml`), `za_p84_refuges`, `za_p85_radio`
+  (fréquences cachées, silence radio : `za_sans_signal`), `za_p86_stress` (stress, poids), `za_p87_territoires_morts`
+  (`{za::tmort::*}`, pas `{za::terr::*}` qui est aux factions p45 ; nature qui reprend), `za_p88_cimetiere`,
+  `za_p89_familles` (/monhistoire), `za_p90_infra` (/infra, /ligne, panne en cascade), `za_p91_ambiances`
+  (particules régionales, cinématiques « première fois »).
+- Mod client : `pack_joueurs/za_modeles-1.7.0.jar` = `extension_1_7.py` (boss `zamodels_boss.py`, zombies mutés, états
+  ETF des humains frais/décomposé/mutilé, voix `lea_evo_*`) sur le jar 1.6.0 = `extension_1_6.py` (voix de synthèse, `voix_generer.py` : Piper
   + filtre radio) sur le jar 1.5.0 = `extension_1_5.py` (silhouettes : mâchoire, côtes, vertèbres,
   bras cassé ; peaux humaines 64x96) sur le jar 1.4.0 (git) = `build.py` (16 zombies de base, peintre `zagen_lib.py`) +
   `extension_1_4.py` sur le jar 1.3.0 (passe horreur des peaux humaines, animations, sons).

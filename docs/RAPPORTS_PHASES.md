@@ -631,3 +631,35 @@ Fichiers : `batisse.py`, `epaves.py`, `souterrains.py`, `sites.py`.
 - Skript : `push ... horizontally towards` (pyramide), `yaw of` et `atan2` (flèche du guide), `on inventory open`.
 - Rendu des voix de synthèse dans le jeu.
 - Arclight avec les mods.
+
+## Lot « niveau supérieur » (scripts p82 à p91, mod 1.7.0)
+
+### Fait
+- Évolution mondiale du virus (p82), boss régionaux avec modèles, capacités, objets légendaires et histoire (p83),
+  refuges à états (p84), fréquences cachées et silence radio (p85), stress, trauma, encombrement, vision (p86),
+  territoires d'Alpha, tanières, nature qui reprend (p87), cimetière des survivants (p88), familles et « Mon histoire »
+  (p89), infrastructures et réseau électrique avancé (p90), ambiances régionales et cinématiques (p91).
+- Portes adaptatives (bois, renforcée, blindée, électrique, SecurityCraft) dans p79.
+- Mod 1.7.0 : 4 boss, 4 mutés, 3 états ETF pour 14 peaux humaines (Mme Gagnon exclue), voix de l'évolution.
+
+### Existait déjà (renforcé ou laissé tel quel)
+Dettes (p7, p9, p46), relations (p46), reliques (p30), enquêtes et cachettes (p54), incendies (p55), mémoire (p58,
+p62), chronique (p71), ateliers (p52), thèmes de saison (p59).
+
+### Pas faisable côté serveur
+Tremblement d'écran, champ de vision, vignette (remplacés par nausée, obscurité, givre) ; son 3D (conseillé : mod
+client Sound Physics Remastered).
+
+### Reporté
+Quêtes à plusieurs fins, enquête sur les disparitions, contrebande, missions secrètes et espionnage, dettes étendues,
+cachettes étendues, cartographie progressive, propagation des incendies, quartiers dynamiques, éclairage
+d'environnement, identité des saisons, événements historiques uniques, musée.
+
+### Tests
+- Vérificateur Skript : 98 scripts, aucune anomalie (4 avertissements connus et voulus).
+- Mod 1.7.0 : jar valide, 42 modèles JEM valides, 35 règles de nom.
+
+### Non testé en jeu
+Tout le lot : chargement réel par Skript, MythicMobs (boss, mutés, objets), rendu EMF/ETF des boss et des états,
+particules `normal <joueur>`, potion `darkness` par Skript, `lightning rod` et `type of` des lits, commandes `fill` des
+refuges détruits, voix de l'évolution.
