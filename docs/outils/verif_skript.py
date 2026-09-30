@@ -27,6 +27,9 @@ def chaines(ligne):
         i += 1
     return ''.join(code), ch, dans
 
+AVERTISSEMENTS = []
+
+
 def verifier(fichiers):
     erreurs, defs, appels = [], set(), {}
     commandes, fonctions = {}, {}
@@ -76,6 +79,17 @@ def verifier(fichiers):
                 erreurs.append(f'{f}:{n}: « wait » dans une fonction qui renvoie une valeur')
             for a in re.findall(r'\b(za_\w+)\(', code):
                 appels.setdefault(a, f'{f}:{n}')
+    # « delete {za::x::*} » efface tout un espace de noms : dangereux si un autre script y range ses données
+    usages = {}
+    for f in fichiers:
+        for m in re.finditer(r'\{za::([a-z0-9_]+)::', open(f, encoding='utf-8').read()):
+            usages.setdefault(m.group(1), set()).add(f)
+    for f in fichiers:
+        for n, l in enumerate(open(f, encoding='utf-8').read().split('\n'), 1):
+            m = re.search(r'delete \{za::([a-z0-9_]+)::\*\}', l)
+            if m and len(usages.get(m.group(1), ())) > 1:
+                autres = sorted(x.split('/')[-1] for x in usages[m.group(1)] if x != f)
+                AVERTISSEMENTS.append(f'{f}:{n}: « delete {{za::{m.group(1)}::*}} » touche aussi {", ".join(autres)} (voulu ?)')
     for a, ou in sorted(appels.items()):
         if a not in defs:
             erreurs.append(f'{ou}: fonction {a} appelée mais jamais définie')
@@ -83,5 +97,7 @@ def verifier(fichiers):
 
 if __name__ == '__main__':
     e = verifier(sys.argv[1:])
+    for a in AVERTISSEMENTS:
+        print('AVERTISSEMENT ' + a)
     print('\n'.join(e) if e else 'OK : aucune anomalie détectée')
     sys.exit(1 if e else 0)
