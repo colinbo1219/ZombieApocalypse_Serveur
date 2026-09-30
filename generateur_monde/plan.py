@@ -142,6 +142,18 @@ def construire(graine=GRAINE):
             n += 1
             site('camp_chasse_%d' % n, 'camp_chasse', 'Camp de chasse', x, z, 20, 18, graine=300 + n)
 
+    # refuges abandonnés : petites caches de survivants un peu partout (numérotées comme sur la carte de la milice)
+    # (générateur aléatoire à part : ajouter les refuges ne change ni les routes ni les autres lieux)
+    rr = random.Random(graine + 99)
+    n = 0
+    essais = 0
+    while n < 20 and essais < 4000:
+        essais += 1
+        x, z = rr.randint(-4700, 4700), rr.randint(-4700, 4700)
+        if libre(x, z, 140):
+            n += 1
+            site('refuge_%d' % n, 'refuge', 'Refuge %d' % (n + rr.randint(0, 3) * 20), x, z, 14, 14, graine=400 + n)
+
     # ---------------------------------------------------------------- routes
     routes = []
     a40 = [(-LIMITE - 100, 300)]
@@ -182,7 +194,7 @@ def construire(graine=GRAINE):
         if s['type'] in ('ruines', 'arrivee', 'station', 'checkpoint', 'motel'):
             continue
         genre = 'route' if s['type'] in ('militaire', 'norda', 'barrage', 'industriel', 'village') else 'rang'
-        if s['type'] == 'camp_chasse':
+        if s['type'] in ('camp_chasse', 'refuge'):
             continue
         relier(s, principaux + sum((r['points'] for r in routes[2:4]), []), genre)
     return {'graine': graine, 'limite': LIMITE, 'mer': MER, 'riviere': riv, 'lacs': LACS, 'routes': routes, 'sites': sites}

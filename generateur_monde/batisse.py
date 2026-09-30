@@ -814,3 +814,36 @@ def camp_chasse(site, plan):
     ch.m.set(5, 64, 5, S('campfire', facing='north', lit=False, signal_fire=False, waterlogged=False))
     ch.coffre(R, 5, 64, 1, 'south', SI.LOOT_MAISON)
     return ch.terminer(0.6)
+
+
+def refuge(site, plan):
+    """Refuge abandonné : cabane en bois ou abri de béton à moitié enterré ; lit, coffre, radio, mot sur le mur."""
+    ch = Chantier(site, 14, 14)
+    m, rng = ch.m, ch.rng
+    R = ch.rep(-3, -3, 'south')
+    beton = rng.random() < 0.45
+    mur = S('light_gray_concrete') if beton else S('spruce_planks')
+    R.fill(0, 59, 0, 6, 63, 6, S('stone'))
+    R.fill(0, 64, 0, 6, 67, 6, mur)
+    R.vide(1, 64, 1, 5, 66, 5)
+    R.fill(1, 63, 1, 5, 63, 5, S('spruce_planks') if not beton else S('polished_andesite'))
+    R.fill(0, 68, 0, 6, 68, 6, S('smooth_stone_slab', type='bottom') if beton else S('spruce_slab', type='bottom'))
+    if beton:
+        # à moitié enterré : terre contre les murs
+        for a in range(-1, 8):
+            for b in (-1, 7):
+                R.set(a, 64, b, S('coarse_dirt')); R.set(a, 65, b, S('grass_block', snowy=False))
+    else:
+        for (a, b) in ((0, 3), (6, 3), (3, 0)):
+            R.set(a, 65, b, S('glass_pane'))
+    ZM.porte(R, 3, 64, 6, 'north', 'iron' if beton else 'spruce')
+    ZM.lit(R, 1, 64, 2, 'north', rng.choice(['brown', 'gray', 'green']))
+    ch.coffre(R, 5, 64, 1, 'south', SI.LOOT_MAISON)
+    R.set(5, 64, 3, S('jukebox', has_record=False))                      # la radio du refuge
+    R.set(3, 64, 1, S('lectern', facing='south', has_book=False, powered=False))
+    R.set(1, 64, 5, S('candle', candles=3, lit=False, waterlogged=False))
+    x, z = R.xz(3, 7)
+    ch.panneau(x, 65, z, ['', site['nom'].upper(), 'Frappez 3 fois', ''], mur=R.d('south'))
+    ch.lieu(R, 7, 7, 'refuge', site['nom'])
+    return ch.terminer(0.35)
+

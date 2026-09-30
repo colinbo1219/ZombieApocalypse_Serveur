@@ -67,6 +67,9 @@ function za_tel_bat(p: player) :: number:
 function za_tel_signal(p: player) :: boolean:
     if za_pro({_p}) is true:
         return false
+    # silence radio (za_p85) : souterrains, zones mortes, NORDA
+    if za_sans_signal({_p}) is true:
+        return false
     if za_courant() is true:
         return true
     if za_elec_pres(location of {_p}, {@rayon_antenne}) is true:

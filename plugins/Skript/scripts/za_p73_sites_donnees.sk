@@ -117,6 +117,26 @@ function za_sites_donnees() :: texts:
     add "camp_chasse_20|camp_chasse|Camp de chasse|-1604|72|-1044|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
     add "camp_chasse_21|camp_chasse|Camp de chasse|4277|73|-1175|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
     add "camp_chasse_22|camp_chasse|Camp de chasse|4651|141|-3281|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "refuge_1|refuge|Refuge 41|-4612|66|121|15|15|" to {_r::*}
+    add "refuge_2|refuge|Refuge 42|890|76|1277|15|15|" to {_r::*}
+    add "refuge_3|refuge|Refuge 3|1562|74|-1520|15|15|" to {_r::*}
+    add "refuge_4|refuge|Refuge 24|-2760|67|3569|15|15|" to {_r::*}
+    add "refuge_5|refuge|Refuge 25|2233|99|-1855|15|15|" to {_r::*}
+    add "refuge_6|refuge|Refuge 6|3857|68|2877|15|15|" to {_r::*}
+    add "refuge_7|refuge|Refuge 67|-3059|125|-4192|15|15|" to {_r::*}
+    add "refuge_8|refuge|Refuge 48|-442|76|-975|15|15|" to {_r::*}
+    add "refuge_9|refuge|Refuge 9|4031|131|-3157|15|15|" to {_r::*}
+    add "refuge_10|refuge|Refuge 10|-643|67|169|15|15|" to {_r::*}
+    add "refuge_11|refuge|Refuge 51|456|127|-2645|15|15|" to {_r::*}
+    add "refuge_12|refuge|Refuge 32|4119|72|1720|15|15|" to {_r::*}
+    add "refuge_13|refuge|Refuge 73|3697|71|-1049|15|15|" to {_r::*}
+    add "refuge_14|refuge|Refuge 34|-2262|128|-3646|15|15|" to {_r::*}
+    add "refuge_15|refuge|Refuge 15|-1605|178|-4116|15|15|" to {_r::*}
+    add "refuge_16|refuge|Refuge 76|3018|70|2366|15|15|" to {_r::*}
+    add "refuge_17|refuge|Refuge 77|3248|125|-2943|15|15|" to {_r::*}
+    add "refuge_18|refuge|Refuge 18|4247|150|-3322|15|15|" to {_r::*}
+    add "refuge_19|refuge|Refuge 79|1626|68|4115|15|15|" to {_r::*}
+    add "refuge_20|refuge|Refuge 20|3719|69|1989|15|15|" to {_r::*}
     return {_r::*}
 
 function za_sites_apparitions() :: texts:
