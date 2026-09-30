@@ -51,13 +51,14 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
 
 ## Pièges connus
 - Numéros en double : `za_p7_economie` / `za_p7_progression`, `za_p38_lieux` / `za_p38_prologue`.
-- LISEZMOI.txt annonce 41 scripts : il y en a 80.
+- LISEZMOI.txt annonce 41 scripts : il y en a 81.
 - Colin utilise Java 25 en local, alors que le serveur exige Java 17 ou 21.
 
 ## Travail des phases 2 à 15 (voir docs/RAPPORTS_PHASES.md)
 - Nouveaux modules : `za_p61_electricite` (sous-stations Create/CCA/IE), `za_p63_echos` (personnages du prologue),
   `za_p65_zombies_vivants`, `za_p66_ruines` (+ `_donnees`, généré), `za_p67_diplomatie`, `za_p68_cours`,
-  `za_p69_exploration` (dossier Arel), `za_p70_ondes` (bulletin de Léa, téléphone), `za_p71_chronique`, `za_p72_archives`.
+  `za_p69_exploration` (dossier Arel), `za_p70_ondes` (bulletin de Léa, téléphone), `za_p71_chronique`, `za_p72_archives`, `za_p73_sites` (lieux du monde généré), `za_p74_aube` (retraite au nid à l'aube, réveil
+  au crépuscule ; aucun monstre ne brûle : `za_p32_soleil`).
 - Mod client : `pack_joueurs/za_modeles-1.4.0.jar` = `build.py` (16 zombies de base, peintre `zagen_lib.py`) +
   `extension_1_4.py` appliqué au jar 1.3.0 (git) : passe horreur des peaux humaines, animations, sons.
   1.3.0 venait de `extension_1_3.py` sur le jar 1.2.0. Capacités « horreur » : `MythicMobs/Skills/ZA_Horreur.yml`.

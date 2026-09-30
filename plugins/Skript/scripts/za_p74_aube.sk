@@ -1,0 +1,127 @@
+# =====================================================================
+#  ZombieApocalypse - L'AUBE : les morts ne brûlent pas, ils RENTRENT AU NID
+#  * À l'aube (5 h à 7 h, heure du jeu), les zombies à ciel ouvert se retirent : ceux qui sont loin des joueurs
+#    (plus de 24 blocs) disparaissent dans l'ombre et rejoignent le nid le plus proche (za_p39) ; ceux qui sont près
+#    d'un joueur restent, mais éblouis (lents, faibles) jusqu'à midi. Les morts à l'abri (sous un toit, dans un
+#    bâtiment, sous terre) ne bougent pas : explorer de jour reste dangereux.
+#  * Au crépuscule (18 h 30 à 19 h 30), chaque nid chargé relâche ceux qui y ont dormi. Léa prévient à la radio.
+#  * Pas touchés : boss, nids, PNJ, faux morts, Phototropes (attirés par la lumière), zombies qui chassent un joueur.
+#  Brûlure : za_p32_soleil (tous les monstres) + PreventSunburn (MythicMobs).
+#  Admin : /zaaube etat | aube | crepuscule
+# =====================================================================
+
+options:
+    rayon_scan: 80
+    distance_vue: 24
+    dormeurs_max: 30
+    reveil_max: 8
+
+# zombies concernés : types « ordinaires » (nom affiché MythicMobs) ou zombie vanilla sans nom
+function za_aube_type_ok(e: entity) :: boolean:
+    set {_n} to uncolored name of {_e}
+    if {_n} is not set:
+        return true
+    if {_n} is "Zombie":
+        # zombie vanilla (ou faux mort, qui rentre aussi s'il est loin de tout le monde)
+        return true
+    loop "Shambler", "Runner", "Crawler", "Spitter", "Bloater", "Leaper", "Brute", "Screamer", "Stalker", "Enfant infecté", "Citoyen infecte", "Patient infecte", "Soldat infecte", "Policier infecte", "Medecin infecte", "Ouvrier infecte", "Pompier infecte", "Prisonnier infecte", "Ouvrier brule", "Zombie blindé", "Zombie à bouclier" and "Charognard":
+        if {_n} is loop-value:
+            return true
+    return false
+
+# à ciel ouvert : rien au-dessus de sa tête
+function za_aube_dehors(l: location) :: boolean:
+    if y-coordinate of {_l} + 1 < y-coordinate of (location of (highest block at {_l})):
+        return false
+    return true
+
+function za_aube_retraite():
+    set {_n} to 0
+    loop za_monde_joueurs():
+        set {_p} to loop-value-1
+        loop all zombies in radius {@rayon_scan} around {_p}:
+            set {_z} to loop-value-2
+            if {_vu::%{_z}'s uuid%} is not set:
+                set {_vu::%{_z}'s uuid%} to true
+                if za_aube_type_ok({_z}) is true:
+                    if za_aube_dehors(location of {_z}) is true:
+                        # un zombie qui chasse quelqu'un de proche ne lâche pas sa proie
+                        set {_t} to target of {_z}
+                        set {_chasse} to false
+                        if {_t} is set:
+                            if distance between {_t} and {_z} < 16:
+                                set {_chasse} to true
+                        if {_chasse} is false:
+                            set {_proche} to false
+                            loop all players in radius {@distance_vue} around {_z}:
+                                if za_pro(loop-value-3) is false:
+                                    set {_proche} to true
+                            if {_proche} is true:
+                                # ébloui : lent et faible jusqu'à la fin de la matinée
+                                apply potion of slowness of tier 1 to {_z} for 5 minutes
+                                apply potion of weakness of tier 1 to {_z} for 5 minutes
+                            else:
+                                set {_l} to location of {_z}
+                                execute console command "execute in %za_dim(world of {_l})% run particle minecraft:large_smoke %x-coordinate of {_l}% %y-coordinate of {_l} + 1% %z-coordinate of {_l}% 0.3 0.6 0.3 0.01 12"
+                                set {_id} to za_nid_proche({_l}, 400)
+                                if {_id} is not 0:
+                                    add 1 to {za::nid::%{_id}%::dormeurs}
+                                    if {za::nid::%{_id}%::dormeurs} > {@dormeurs_max}:
+                                        set {za::nid::%{_id}%::dormeurs} to {@dormeurs_max}
+                                delete loop-zombie
+                                add 1 to {_n}
+    add {_n} to {za::aube::retires}
+
+function za_aube_crepuscule():
+    loop {za::nid::liste::*}:
+        set {_id} to loop-value
+        set {_c} to {za::nid::%{_id}%::loc}
+        set {_d} to {za::nid::%{_id}%::dormeurs} ? 0
+        if {_c} is set:
+            if {_d} > 0:
+                if chunk at {_c} is loaded:
+                    set {_k} to {_d}
+                    if {_k} > {@reveil_max}:
+                        set {_k} to {@reveil_max}
+                    loop {_k} times:
+                        set {_ty} to random element out of "ZA_Shambler", "ZA_Shambler", "ZA_Runner", "ZA_Crawler" and "ZA_Citoyen_Infecte"
+                        za_spawn_at({_c}, {_ty}, 3, 12)
+                    remove {_k} from {za::nid::%{_id}%::dormeurs}
+                    execute console command "execute in %za_dim(world of {_c})% run particle minecraft:sculk_soul %x-coordinate of {_c}% %y-coordinate of {_c} + 1% %z-coordinate of {_c}% 3 1 3 0.03 80 force"
+
+# ---------------------------------------------------------------- horloge (une fois par jour de jeu pour chaque moment)
+
+every 10 seconds:
+    set {_w} to world("world")
+    if {_w} is not set:
+        stop
+    set {_t} to time in {_w}
+    # aube : 5 h à 7 h (retraite répétée : ceux qui s'approchent pendant l'aube rentrent aussi)
+    if {_t} is between 5:00 and 7:00:
+        za_aube_retraite()
+        if {za::aube::jour} is not {za::serveur::jours}:
+            set {za::aube::jour} to {za::serveur::jours}
+            loop za_monde_joueurs():
+                send action bar "&7L'aube. Les morts se retirent dans l'ombre... pour l'instant." to loop-value
+    # crépuscule : 18 h 30 à 19 h 30
+    if {_t} is between 18:30 and 19:30:
+        if {za::aube::crep} is not {za::serveur::jours}:
+            set {za::aube::crep} to {za::serveur::jours}
+            za_aube_crepuscule()
+            if size of {za::nid::liste::*} > 0:
+                za_radio("&bLéa", "Le soleil tombe. Les nids se vident. Rentrez, ou barricadez-vous.")
+
+command /zaaube [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "aube":
+            za_aube_retraite()
+            send "&7Retraite forcée. Total depuis le début : %{za::aube::retires} ? 0% zombies rentrés au nid." to sender
+        else if arg-1 is "crepuscule":
+            za_aube_crepuscule()
+            send "&7Les nids relâchent leurs dormeurs." to sender
+        else:
+            send "&6[Aube] &7Zombies rentrés au nid : %{za::aube::retires} ? 0%" to sender
+            loop {za::nid::liste::*}:
+                send "&7 Nid %loop-value% : %{za::nid::%loop-value%::dormeurs} ? 0% dormeurs" to sender
+            send "&7/zaaube etat | aube | crepuscule" to sender

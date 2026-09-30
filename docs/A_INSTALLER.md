@@ -35,7 +35,7 @@ git pull
 
 1. Arrête le serveur, récupère les fichiers (étape 1), relance-le (`start.bat`).
    Un redémarrage est plus sûr que 11 `sk reload` (et **jamais** `sk reload all`).
-2. Regarde la console au démarrage : Skript affiche `Loaded 80 scripts`. S'il y a des lignes **error**, copie-les
+2. Regarde la console au démarrage : Skript affiche `Loaded 81 scripts`. S'il y a des lignes **error**, copie-les
    moi dans la prochaine session : je corrige.
 3. MythicMobs se recharge au démarrage (sinon `/mm reload`) : 6 nouveaux zombies (`ZA_Policier_Infecte`,
    `ZA_Medecin_Infecte`, `ZA_Ouvrier_Infecte`, `ZA_Ouvrier_Brule`, `ZA_Pompier_Infecte`, `ZA_Prisonnier_Infecte`).
@@ -154,6 +154,18 @@ démarrage), pense à limiter la destruction de blocs si tu ne veux pas voir les
   (projeté), hache du pompier (qui ne brûle plus).
 - À faire : `/mm reload` (ou redémarrage) et mettre `za_modeles-1.4.0.jar` dans le pack des joueurs (section 3).
 
+## 6 quater. Le jour : les morts ne brûlent pas, ils rentrent au nid
+
+- **Aucun monstre ne brûle au soleil** : zombies MythicMobs (`PreventSunburn`), et `za_p32_soleil.sk` couvre
+  maintenant tous les monstres vanilla (zombies, noyés, squelettes...).
+- **À l'aube** (5 h à 7 h du jeu, `za_p74_aube.sk`) : les zombies ordinaires à ciel ouvert et loin des joueurs
+  (plus de 24 blocs) disparaissent dans un nuage de fumée et **rentrent au nid** le plus proche. Ceux qui sont près
+  d'un joueur restent, **éblouis** (lents et faibles 5 min). Ceux qui chassent quelqu'un ne lâchent pas. Ceux qui sont
+  **à l'abri** (bâtiments, grottes) restent : explorer de jour reste dangereux. Boss, nids, PNJ, Phototropes : jamais.
+- **Au crépuscule** (18 h 30) : chaque nid relâche ceux qui y ont dormi (8 max par soir), Léa prévient à la radio.
+- Test : `/time set 23500` (juste avant l'aube) près de quelques zombies dehors, attends ~30 s, puis `/zaaube`
+  (compteur). `/zaaube aube` et `/zaaube crepuscule` forcent chaque moment.
+
 ## 7. Facultatif : voix
 
 Les entractes des jours 2, 4 et 6 sont en texte seul. Si tu enregistres des voix, dépose des `.ogg` et je les
@@ -161,7 +173,7 @@ branche (clés prévues : `voix.radio_j2`, `voix.radio_j4`, `voix.radio_j6`).
 
 ## 8. Ce qui n'a PAS été testé
 
-Tout ce qui est en jeu : chargement réel des 80 scripts par Skript, les commandes, la pose des ruines, les modèles
+Tout ce qui est en jeu : chargement réel des 81 scripts par Skript, les commandes, la pose des ruines, les modèles
 et animations EMF du mod 1.4.0, les capacités MythicMobs de `Skills/ZA_Horreur.yml`, les sons, la lecture de la redstone des machines Create/CCA/IE par Skript sur
 Arclight. Le détail des risques est dans `docs/RAPPORTS_PHASES.md`, phase par phase.
 

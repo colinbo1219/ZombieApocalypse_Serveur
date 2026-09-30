@@ -519,3 +519,31 @@ Testé sur le serveur vanilla : panneaux conservés après chargement et sauvega
 **NON TESTÉ** :
 - Rendu en jeu : EMF/ETF, émissif des peaux humaines, expressions d'animation ajoutées.
 - Capacités MythicMobs sur Arclight : `JUMP` niveau 128 (bloque le saut), `DARKNESS`, déclencheur `~onDamaged <30%`.
+
+---
+
+## COMPLÉMENT — Le jour : aucun monstre ne brûle, les morts rentrent au nid (30 sept.)
+
+**OBJECTIF** : demande de Colin : aucun zombie ne brûle, ou bien les zombies rentrent au nid au lever du jour. Les
+deux sont faits.
+
+**MODIFIÉ** :
+- `za_p32_soleil.sk` : la brûlure au soleil était déjà annulée pour les zombies vanilla ; elle l'est maintenant pour
+  tous les monstres (`event-entity is a monster`), squelettes compris.
+- Les zombies MythicMobs avaient déjà tous `PreventSunburn`. Vérifié : seul un exemple du plugin
+  (`ExampleMobs.yml`) ne l'a pas.
+
+**NOUVEAU** : `za_p74_aube.sk`.
+- **Retraite à l'aube** (5 h à 7 h), toutes les 10 s, autour de chaque joueur (rayon 80) :
+  - un zombie ordinaire à ciel ouvert, à plus de 24 blocs de tout joueur et qui ne chasse personne, disparaît dans la
+    fumée et compte comme « dormeur » du nid le plus proche (400 blocs, 30 maximum par nid) ;
+  - s'il est près d'un joueur, il reste mais est ébloui (lenteur et faiblesse, 5 min).
+- **Réveil au crépuscule** (18 h 30) : chaque nid chargé relâche jusqu'à 8 dormeurs et Léa prévient à la radio.
+- Commande `/zaaube etat|aube|crepuscule`.
+
+**TESTS** : vérificateur Skript OK (81 scripts).
+
+**NON TESTÉ** :
+- En jeu : `delete loop-zombie` (même forme que `za_p10_finition`), `target of`, comparaison `time is between`.
+- Les zombies des mods Forge (zombie_extreme) ne sont peut-être pas vus comme des « monster » ni des « zombies » par
+  Arclight. S'ils brûlent encore, il faudra régler cela dans la configuration de ce mod.
