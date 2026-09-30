@@ -91,3 +91,21 @@ ZA_Hache:
   - swingarm @self
   - effect:sound{s=item.axe.strip;v=1;p=0.6} @target
   - damage{a=3} @target
+# évolution du virus (za_p82) : sang acide à la mort (nuage empoisonné), frappe au sol du Colosse
+ZA_Sang_Acide:
+  Skills:
+  - effect:particles{p=happyVillager;a=30;hS=1.2;vS=0.6;s=0.02} @self
+  - effect:sound{s=block.lava.extinguish;v=1;p=0.7} @self
+  - potion{type=POISON;duration=80;level=0} @PIR{r=3}
+ZA_Frappe_Sol:
+  Cooldown: 8
+  Conditions:
+  - playerwithin{d=6} true
+  Skills:
+  - swingarm @self
+  - delay 12
+  - effect:sound{s=entity.generic.explode;v=1.5;p=0.5} @self
+  - effect:particles{p=explosion;a=4;hS=2;vS=0.2;s=0} @self
+  - damage{a=8} @PIR{r=5}
+  - throw{velocity=3;velocityY=4} @PIR{r=5}
+  - potion{type=SLOW;duration=60;level=1} @PIR{r=5}

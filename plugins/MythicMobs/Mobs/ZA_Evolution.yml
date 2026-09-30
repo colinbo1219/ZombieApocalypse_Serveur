@@ -1,0 +1,95 @@
+# ZombieApocalypse - variants de l'ÉVOLUTION DU VIRUS (za_p82_evolution.sk) : ils n'apparaissent qu'à partir d'un niveau
+# d'évolution mondial (2 à 5). Apparence : za_modeles 1.7.0 (règles de nom « ... muté », « Colosse »).
+ZA_Shambler_Mute:
+  Type: ZOMBIE
+  Display: '&4Shambler muté'
+  Health: 32
+  Damage: 5
+  Options:
+    MovementSpeed: 0.22
+    FollowRange: 40
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+  Skills:
+  - skill{s=ZA_Agrippe} @target ~onAttack 0.3
+  - skill{s=ZA_Sang_Acide} @self ~onDeath
+  - potion{type=REGENERATION;duration=60;level=0} @self ~onTimer:200
+  - effect:sound{s=za_modeles:zombie.shambler.rale;v=1;p=0.7} @self ~onTimer:160 0.4
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.5} @self ~onDamaged
+  - command{c="zakill ZA_Shambler";sync=true} @self ~onDeath
+  Drops:
+  - rotten_flesh 1to2 0.8
+  - ZA_Essence 1 0.25
+  - exp 8 1
+ZA_Runner_Mute:
+  Type: ZOMBIE
+  Display: '&4Runner muté'
+  Health: 20
+  Damage: 4
+  Options:
+    MovementSpeed: 0.38
+    FollowRange: 44
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+  Skills:
+  - skill{s=ZA_Sprint} @self ~onTimer:60
+  - skill{s=ZA_Bond} @Target ~onTimer:90
+  - effect:sound{s=za_modeles:zombie.runner.cri;v=1.2;p=0.8} @self ~onTimer:200 0.4
+  - effect:particles{p=crimson_spore;a=4;hS=0.3;vS=0.5;s=0.01} @self ~onTimer:10
+  - command{c="zakill ZA_Runner";sync=true} @self ~onDeath
+  Drops:
+  - ZA_Essence 1 0.25
+  - exp 8 1
+ZA_Spitter_Mute:
+  Type: ZOMBIE
+  Display: '&2Spitter muté'
+  Health: 26
+  Damage: 3
+  Options:
+    MovementSpeed: 0.24
+    FollowRange: 40
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+  Skills:
+  - skill{s=ZA_Spit} @Target ~onTimer:45
+  - skill{s=ZA_Sang_Acide} @self ~onDeath
+  - effect:sound{s=za_modeles:zombie.spitter.gargouille;v=1;p=0.7} @self ~onTimer:140 0.4
+  - command{c="zakill ZA_Spitter";sync=true} @self ~onDeath
+  Drops:
+  - ZA_SangInfecte 1 0.3
+  - exp 9 1
+ZA_Colosse:
+  Type: ZOMBIE
+  Display: '&4&lColosse'
+  Health: 160
+  Damage: 13
+  Armor: 8
+  Options:
+    MovementSpeed: 0.15
+    FollowRange: 40
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+    KnockbackResistance: 1.0
+  Skills:
+  - skill{s=ZA_Charge} @Target ~onTimer:120
+  - skill{s=ZA_Frappe_Sol} @Target ~onTimer:160
+  - skill{s=ZA_Frenesie} @self ~onDamaged <30%
+  - throw{velocity=5;velocityY=2} @Target ~onAttack 0.6
+  - effect:sound{s=za_modeles:zombie.brute.souffle;v=1.4;p=0.6} @self ~onTimer:100 0.6
+  - effect:sound{s=entity.ravager.hurt;v=1;p=0.5} @self ~onDamaged
+  - effect:sound{s=entity.ravager.death;v=1.5;p=0.5} @self ~onDeath
+  - command{c="zakill ZA_Brute";sync=true} @self ~onDeath
+  Drops:
+  - ZA_BruteHide 2to3 1
+  - ZA_Essence 2to3 1
+  - ZA_Composant 1 0.4
+  - ZA_Jeton 2to4 1
+  - exp 40 1

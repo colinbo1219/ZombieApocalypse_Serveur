@@ -1,0 +1,133 @@
+# =====================================================================
+#  ZombieApocalypse - ÉVOLUTION MONDIALE DU VIRUS : le virus apprend, la saison monte en puissance
+#  Un niveau mondial de 1 à 5, qui ne redescend jamais pendant une saison :
+#    1 Infection primitive · 2 Mutations · 3 Adaptation · 4 Mutation agressive · 5 Évolution critique
+#  Il monte avec les jours de saison, les morts abattus et les nids en vie (points = 2 x jours + morts / 150 + 4 x nids).
+#  À chaque palier : annonce mondiale (titre, voix de Léa), nouvelles zones contaminées autour des joueurs, et :
+#    * nouveaux variants (Mobs/ZA_Evolution.yml) : Shambler muté (2), Spitter muté (3), Runner muté (3), Colosse (5) ;
+#    * comportements : les apparitions remplacent une part des morts ordinaires par des variants (za_p36) ;
+#    * capacités : vitesse (3), force (4), régénération (5) données aux morts à leur apparition ;
+#    * apparences : les « mutés » ont leur propre peau (za_modeles 1.7.0) ;
+#    * zones : 3 chunks contaminés de plus par palier, près des joueurs.
+#  Remis à 1 à chaque nouvelle saison. Joueur : /evolution   Admin : /zaevo etat | niveau <1-5> | points
+# =====================================================================
+
+options:
+    seuils: 0, 15, 35, 60 and 90
+
+function za_evo_nom(n: number) :: text:
+    if {_n} <= 1:
+        return "Infection primitive"
+    if {_n} is 2:
+        return "Mutations"
+    if {_n} is 3:
+        return "Adaptation"
+    if {_n} is 4:
+        return "Mutation agressive"
+    return "Évolution critique"
+
+function za_evo_niveau() :: number:
+    return {za::evo::niveau} ? 1
+
+function za_evo_points() :: number:
+    set {_j} to za_saison_jours()
+    if {_j} < 0:
+        set {_j} to 0
+    return (2 * {_j}) + floor(({za::saison::kills} ? 0) / 150) + (4 * size of {za::nid::liste::*})
+
+# variant de remplacement pour une apparition ordinaire ("" = garder le type prévu)
+function za_evo_variant(t: text) :: text:
+    set {_n} to za_evo_niveau()
+    if {_n} < 2:
+        return ""
+    set {_ch} to ({_n} - 1) * 7
+    if chance of {_ch}%:
+        if {_t} is "ZA_Shambler":
+            return "ZA_Shambler_Mute"
+        if {_n} >= 3:
+            if {_t} is "ZA_Runner":
+                return "ZA_Runner_Mute"
+            if {_t} is "ZA_Spitter":
+                return "ZA_Spitter_Mute"
+        if {_n} >= 5:
+            if chance of 15%:
+                return "ZA_Colosse"
+    return ""
+
+function za_evo_palier(n: number):
+    set {za::evo::niveau} to {_n}
+    za_journal("Le virus a évolué : niveau %{_n}% (%za_evo_nom({_n})%).")
+    za_monde_legende("Saison %{za::saison::num} ? 1% : le virus atteint le niveau %{_n}%, « %za_evo_nom({_n})% ».")
+    loop za_monde_joueurs():
+        send title "&4LE VIRUS ÉVOLUE" with subtitle "&7Niveau %{_n}% : &c%za_evo_nom({_n})%" to loop-value for 5 seconds
+        za_zm("son %loop-value% za_modeles:sfx.horde_grondement 0.7 0.6")
+    za_radio_voix("&bLéa", za_evo_radio({_n}), "lea_evo_%{_n}%")
+    # nouvelles zones contaminées : autour de joueurs pris au hasard
+    loop 3 times:
+        if size of za_monde_joueurs() > 0:
+            set {_p} to random element out of za_monde_joueurs()
+            set {_l} to za_point_loin({_p}, 60, 160)
+            if {_l} is set:
+                set {_k} to za_ckey({_l})
+                add 120 + (20 * {_n}) to {za::contam::%{_k}%}
+
+function za_evo_radio(n: number) :: text:
+    if {_n} is 2:
+        return "Ils changent. Des peaux qui brillent, du sang qui ronge. Ce n'est plus le même virus qu'au Jour 8."
+    if {_n} is 3:
+        return "Ils s'adaptent. Ils courent plus vite, ils crachent plus loin. On dirait qu'ils apprennent de nous."
+    if {_n} is 4:
+        return "Mutation agressive. Les morts frappent plus fort. Ne sortez plus seuls, même le jour."
+    return "Évolution critique. Des choses énormes marchent dans les champs. Que Dieu nous garde."
+
+every 1 minute:
+    # nouvelle saison : on repart au niveau 1
+    if {za::evo::saison} is not ({za::saison::num} ? 1):
+        set {za::evo::saison} to {za::saison::num} ? 1
+        set {za::evo::niveau} to 1
+    set {_pts} to za_evo_points()
+    set {_s::*} to {@seuils}
+    set {_cible} to 1
+    loop 5 times:
+        if {_pts} >= {_s::%loop-number%}:
+            set {_cible} to loop-number
+    if {_cible} > za_evo_niveau():
+        za_evo_palier({_cible})
+
+# capacités données aux morts à leur apparition, selon le niveau
+on spawn of zombie:
+    if "%world of event-entity%" is "za_prologue":
+        stop
+    set {_n} to za_evo_niveau()
+    if {_n} >= 3:
+        apply potion of speed of tier 1 to event-entity for 10 minutes
+    if {_n} >= 4:
+        apply potion of strength of tier 1 to event-entity for 10 minutes
+    if {_n} >= 5:
+        apply potion of regeneration of tier 1 to event-entity for 10 minutes
+
+command /evolution:
+    aliases: /evo
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_n} to za_evo_niveau()
+        send "&4&l━━ ÉVOLUTION DU VIRUS ━━" to player
+        set {_i} to 1
+        while {_i} <= 5:
+            if {_i} < {_n}:
+                send "&8 %{_i}%. %za_evo_nom({_i})% &7(passé)" to player
+            else if {_i} is {_n}:
+                send "&c ▶ %{_i}%. %za_evo_nom({_i})%" to player
+            else:
+                send "&8 %{_i}%. ???" to player
+            add 1 to {_i}
+        send "&7Il monte avec les jours, les morts abattus et les nids en vie. Détruire les nids le ralentit." to player
+
+command /zaevo [<text>] [<number>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "niveau":
+            if arg-2 is set:
+                za_evo_palier(min(5, max(1, arg-2)))
+        send "&4[Évolution] &7niveau %za_evo_niveau()% (%za_evo_nom(za_evo_niveau())%), points %za_evo_points()% &8(paliers {@seuils})" to sender
