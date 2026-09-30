@@ -1,0 +1,690 @@
+# ZombieApocalypse - mobs (sans ModelEngine : les modeles 3D viennent du mod za_modeles chez les joueurs)
+ZA_Shambler:
+  Type: ZOMBIE
+  Display: '&2Shambler'
+  Health: 20
+  Damage: 3
+  Options:
+    MovementSpeed: 0.19
+    FollowRange: 36
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=0.65} @self ~onTimer:160 0.6
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
+  - command{c="zakill ZA_Shambler";sync=true} @self ~onDeath
+  - command{c="zacorps <target.l.w> <caster.l.x> <caster.l.y> <caster.l.z>";sync=true} @self ~onDeath 0.12
+  Drops:
+  - rotten_flesh 1to2 0.8
+  - ZA_Essence 1 0.10
+  - exp 4 1
+ZA_Runner:
+  Type: ZOMBIE
+  Display: '&cRunner'
+  Health: 14
+  Damage: 2.5
+  Options:
+    MovementSpeed: 0.34
+    FollowRange: 36
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+    KnockbackResistance: 0.1
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=1.15} @self ~onTimer:120 0.5
+  - effect:sound{s=entity.zombie.hurt;v=1;p=1.2} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=1.1} @self ~onDeath
+  - effect:particles{p=smoke;a=2;hS=0.3;vS=0.3;s=0.01} @self ~onTimer:10
+  - command{c="zakill ZA_Runner";sync=true} @self ~onDeath
+  - command{c="zacorps <target.l.w> <caster.l.x> <caster.l.y> <caster.l.z>";sync=true} @self ~onDeath 0.12
+  Drops:
+  - rotten_flesh 1 0.5
+  - ZA_Essence 1 0.12
+  - exp 4 1
+ZA_Crawler:
+  Type: ZOMBIE
+  Display: '&8Crawler'
+  Health: 10
+  Damage: 2
+  Options:
+    MovementSpeed: 0.27
+    FollowRange: 36
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+    Baby: true
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=1.4} @self ~onTimer:140 0.5
+  - effect:sound{s=entity.zombie.hurt;v=1;p=1.5} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=1.4} @self ~onDeath
+  - command{c="zakill ZA_Crawler";sync=true} @self ~onDeath
+  - command{c="zacorps <target.l.w> <caster.l.x> <caster.l.y> <caster.l.z>";sync=true} @self ~onDeath 0.12
+  - addscoreboardtag{tag=za_climb} @self ~onSpawn
+  Drops:
+  - rotten_flesh 1 0.5
+  - ZA_Essence 1 0.08
+  - exp 3 1
+ZA_Spitter:
+  Type: ZOMBIE
+  Display: '&aSpitter'
+  Health: 18
+  Damage: 2
+  Options:
+    MovementSpeed: 0.2
+    FollowRange: 36
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=0.65} @self ~onTimer:160 0.6
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
+  - skill{s=ZA_Spit} @Target ~onTimer:70
+  - command{c="zakill ZA_Spitter";sync=true} @self ~onDeath
+  Drops:
+  - ZA_AcidGland 1 0.35
+  - rotten_flesh 1 0.5
+  - exp 6 1
+  - ZA_SangInfecte 1 0.10
+ZA_Bloater:
+  Type: ZOMBIE
+  Display: '&2&lBloater'
+  Health: 34
+  Damage: 4
+  Options:
+    MovementSpeed: 0.15
+    FollowRange: 36
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=0.45} @self ~onTimer:150 0.6
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.5} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.4} @self ~onDeath
+  - skill{s=ZA_BloaterBurst} @self ~onDeath
+  - command{c="zakill ZA_Bloater";sync=true} @self ~onDeath
+  Drops:
+  - ZA_GasSac 1 0.5
+  - rotten_flesh 2 0.7
+  - exp 8 1
+  - ZA_SangInfecte 1 0.40
+ZA_Leaper:
+  Type: ZOMBIE
+  Display: '&6Leaper'
+  Health: 22
+  Damage: 4
+  Options:
+    MovementSpeed: 0.27
+    FollowRange: 36
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=1.0} @self ~onTimer:130 0.5
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
+  - skill{s=ZA_Lunge} @Target ~onTimer:60
+  - command{c="zakill ZA_Leaper";sync=true} @self ~onDeath
+  - addscoreboardtag{tag=za_climb} @self ~onSpawn
+  Drops:
+  - ZA_LeaperClaw 1 0.3
+  - rotten_flesh 1 0.5
+  - exp 6 1
+  - ZA_Jeton 1 0.05
+ZA_Brute:
+  Type: ZOMBIE
+  Display: '&4&lBrute'
+  Health: 70
+  Damage: 9
+  Armor: 4
+  Options:
+    MovementSpeed: 0.16
+    FollowRange: 36
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+    KnockbackResistance: 0.7
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=0.4} @self ~onTimer:170 0.6
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.4} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.35} @self ~onDeath
+  - throw{velocity=4;velocityY=2} @Target ~onAttack 0.5
+  - effect:sound{s=entity.iron_golem.hurt;v=1;p=0.6} @self ~onAttack 0.5
+  - command{c="zakill ZA_Brute";sync=true} @self ~onDeath
+  Drops:
+  - ZA_BruteHide 1to2 0.6
+  - ZA_Essence 1to2 0.4
+  - exp 15 1
+  - ZA_Jeton 1 0.25
+  - ZA_Carburant 1 0.10
+ZA_Screamer:
+  Type: ZOMBIE
+  Display: '&fScreamer'
+  Health: 16
+  Damage: 2
+  Options:
+    MovementSpeed: 0.22
+    FollowRange: 36
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=1.3} @self ~onTimer:200 0.4
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
+  - skill{s=ZA_Scream} @self ~onTimer:100
+  - command{c="zakill ZA_Screamer";sync=true} @self ~onDeath
+  Drops:
+  - ZA_Essence 1 0.25
+  - rotten_flesh 1 0.5
+  - exp 8 1
+  - ZA_Jeton 1 0.10
+  - ZA_SangInfecte 1 0.25
+ZA_Stalker:
+  Type: ZOMBIE
+  Display: '&8&lStalker'
+  Health: 26
+  Damage: 5
+  Options:
+    MovementSpeed: 0.3
+    FollowRange: 36
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=0.8} @self ~onTimer:220 0.3
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
+  - potion{type=BLINDNESS;duration=60;level=0} @Target ~onAttack 0.5
+  - potion{type=WEAKNESS;duration=100;level=0} @Target ~onAttack 0.5
+  - command{c="zakill ZA_Stalker";sync=true} @self ~onDeath
+  - effect:sound{s=block.wooden_door.open;v=1;p=0.9} @self ~onTimer:300 0.3
+  - addscoreboardtag{tag=za_climb} @self ~onSpawn
+  Drops:
+  - ZA_Essence 1to2 0.4
+  - rotten_flesh 1 0.5
+  - exp 10 1
+  - ZA_Jeton 1 0.15
+  - ZA_Composant 1 0.15
+ZA_Overlord:
+  Type: ZOMBIE
+  Display: '&4&lUndead Overlord'
+  Health: 600
+  Damage: 14
+  Armor: 10
+  Options:
+    MovementSpeed: 0.22
+    FollowRange: 64
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+    KnockbackResistance: 1.0
+    Despawn: false
+    MaxCombatDistance: 80
+  # barre de boss MythicMobs desactivee: elle plante sur Arclight. Barre vanilla geree par za_p37_barre_boss.sk
+  BossBar:
+    Enabled: false
+    Title: '&4&lUndead Overlord'
+    Range: 70
+    Color: RED
+    Style: SEGMENTED_10
+    CreateFog: false
+    DarkenSky: false
+    PlayMusic: false
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=0.3} @self ~onTimer:240 1
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.3} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.25} @self ~onDeath
+  - skill{s=ZA_Overlord_Spawn} @self ~onSpawn
+  - skill{s=ZA_Overlord_Slam} @Target ~onTimer:140
+  - skill{s=ZA_Overlord_Roar} @self ~onTimer:420
+  - skill{s=ZA_Overlord_Phase2} @self ~onDamaged =66%
+  - skill{s=ZA_Overlord_Phase3} @self ~onDamaged =33%
+  - command{c="zafinale phase4 <target.l.w> <caster.l.x> <caster.l.y> <caster.l.z>";sync=true} @self ~onDamaged <10%
+  - skill{s=ZA_Overlord_Death} @self ~onDeath
+  - command{c="zakill ZA_Overlord";sync=true} @self ~onDeath
+  Drops:
+  - ZA_OverlordHeart 1 1
+  - ZA_Banner 1 1
+  - ZA_Essence 4to8 1
+  - ZA_Antidote 1 0.5
+  - exp 500 1
+  - ZA_Jeton 8to15 1
+  - ZA_Serum 1 0.5
+ZA_Child:
+  Type: ZOMBIE
+  Display: '&eEnfant infecté'
+  Health: 8
+  Damage: 2
+  Options:
+    MovementSpeed: 0.38
+    FollowRange: 36
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+    KnockbackResistance: 0.0
+    Baby: true
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=1.6} @self ~onTimer:110 0.5
+  - effect:sound{s=entity.zombie.hurt;v=1;p=1.7} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=1.6} @self ~onDeath
+  - command{c="zakill ZA_Child";sync=true} @self ~onDeath
+  - addscoreboardtag{tag=za_climb} @self ~onSpawn
+  Drops:
+  - rotten_flesh 1 0.4
+  - ZA_Essence 1 0.06
+  - exp 3 1
+ZA_Alpha:
+  Type: ZOMBIE
+  Display: '&c&lAlpha'
+  Health: 60
+  Damage: 6
+  Armor: 2
+  Options:
+    MovementSpeed: 0.24
+    FollowRange: 36
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=0.5} @self ~onTimer:200 0.6
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
+  - skill{s=ZA_AlphaBuff} @self ~onTimer:120
+  - command{c="zakill ZA_Alpha";sync=true} @self ~onDeath
+  Drops:
+  - ZA_Essence 1to3 0.6
+  - ZA_Antidote 1 0.15
+  - rotten_flesh 2 0.8
+  - exp 20 1
+  - ZA_Jeton 1to2 0.40
+  - ZA_SangInfecte 1 0.30
+  - ZA_Carburant 1 0.10
+ZA_Armored:
+  Type: ZOMBIE
+  Display: '&7Zombie blindé'
+  Health: 30
+  Damage: 4
+  Armor: 8
+  Options:
+    MovementSpeed: 0.18
+    FollowRange: 36
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+    KnockbackResistance: 0.3
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=0.65} @self ~onTimer:160 0.6
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
+  - command{c="zakill ZA_Armored";sync=true} @self ~onDeath
+  Drops:
+  - iron_nugget 1to3 0.6
+  - ZA_Essence 1 0.2
+  - rotten_flesh 1 0.6
+  - exp 8 1
+  - ZA_Jeton 1 0.12
+  - ZA_Composant 1 0.15
+ZA_Shielded:
+  Type: ZOMBIE
+  Display: '&7Zombie à bouclier'
+  Health: 30
+  Damage: 4
+  Armor: 4
+  Options:
+    MovementSpeed: 0.18
+    FollowRange: 36
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+    KnockbackResistance: 0.3
+  DamageModifiers:
+  - PROJECTILE 0.3
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=0.65} @self ~onTimer:160 0.6
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
+  - command{c="zakill ZA_Shielded";sync=true} @self ~onDeath
+  Drops:
+  - iron_nugget 1to2 0.5
+  - ZA_Essence 1 0.2
+  - rotten_flesh 1 0.6
+  - exp 8 1
+  - ZA_Jeton 1 0.12
+  - ZA_Composant 1 0.15
+ZA_FakeDead:
+  Type: ZOMBIE
+  Display: '&2Zombie'
+  Health: 20
+  Damage: 3
+  Options:
+    MovementSpeed: 0.0
+    FollowRange: 36
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+  Skills:
+  - potion{type=SLOW;duration=999999;level=10} @self ~onSpawn
+  - skill{s=ZA_FakeDead_Rise} @self ~onTimer:10
+  - skill{s=ZA_FakeDead_Rise} @self ~onDamaged
+ZA_Observer:
+  Type: ZOMBIE
+  Display: '&8???'
+  Health: 20
+  Damage: 0
+  Options:
+    MovementSpeed: 0
+    Silent: true
+    PreventSunburn: true
+    PreventOtherDrops: true
+    KnockbackResistance: 1
+    FollowRange: 40
+  Skills:
+  - skill{s=ZA_Observer_Vanish} @self ~onTimer:10
+  - command{c="zaobs fin";sync=true} @self ~onDeath
+ZA_Blesse:
+  Type: VILLAGER
+  Display: '&cSurvivant blesse'
+  Health: 40
+  Options:
+    NoAI: true
+    Silent: true
+    Invincible: true
+    Interactable: true
+    AlwaysShowName: true
+    Despawn: false
+    PreventOtherDrops: true
+    Profession: NITWIT
+    Level: 2
+    HasTrades: false
+ZA_Survivant_Lefort:
+  Type: VILLAGER
+  Display: '&aDr Lefort'
+  Health: 40
+  Options:
+    NoAI: true
+    Silent: true
+    Invincible: true
+    Interactable: true
+    AlwaysShowName: true
+    Despawn: false
+    PreventOtherDrops: true
+    Profession: CLERIC
+    Level: 2
+    HasTrades: false
+ZA_Survivant_Vega:
+  Type: VILLAGER
+  Display: '&6Sergent Vega'
+  Health: 40
+  Options:
+    NoAI: true
+    Silent: true
+    Invincible: true
+    Interactable: true
+    AlwaysShowName: true
+    Despawn: false
+    PreventOtherDrops: true
+    Profession: ARMORER
+    Level: 2
+    HasTrades: false
+ZA_Survivant_Lea:
+  Type: VILLAGER
+  Display: '&bLea (radio)'
+  Health: 40
+  Options:
+    NoAI: true
+    Silent: true
+    Invincible: true
+    Interactable: true
+    AlwaysShowName: true
+    Despawn: false
+    PreventOtherDrops: true
+    Profession: CARTOGRAPHER
+    Level: 2
+    HasTrades: false
+ZA_Leurre:
+  Type: VILLAGER
+  Display: '&8Leurre'
+  Health: 40
+  Options:
+    NoAI: true
+    Silent: true
+    Invincible: true
+    Despawn: false
+    PreventOtherDrops: true
+    Profession: NITWIT
+    Level: 1
+    HasTrades: false
+ZA_Marchand_Charognard:
+  Type: VILLAGER
+  Display: '&6Le Charognard'
+  Health: 40
+  Options:
+    NoAI: true
+    Silent: true
+    Invincible: true
+    Interactable: true
+    AlwaysShowName: true
+    Despawn: false
+    PreventOtherDrops: true
+    Profession: NITWIT
+    Level: 2
+    HasTrades: false
+ZA_Marchand_Medecin:
+  Type: VILLAGER
+  Display: '&aLe Medecin de rue'
+  Health: 40
+  Options:
+    NoAI: true
+    Silent: true
+    Invincible: true
+    Interactable: true
+    AlwaysShowName: true
+    Despawn: false
+    PreventOtherDrops: true
+    Profession: CLERIC
+    Level: 2
+    HasTrades: false
+ZA_Marchand_Trafiquant:
+  Type: VILLAGER
+  Display: '&cLe Trafiquant d''armes'
+  Health: 40
+  Options:
+    NoAI: true
+    Silent: true
+    Invincible: true
+    Interactable: true
+    AlwaysShowName: true
+    Despawn: false
+    PreventOtherDrops: true
+    Profession: WEAPONSMITH
+    Level: 2
+    HasTrades: false
+ZA_Marchand_Collectionneur:
+  Type: VILLAGER
+  Display: '&bLe Collectionneur'
+  Health: 40
+  Options:
+    NoAI: true
+    Silent: true
+    Invincible: true
+    Interactable: true
+    AlwaysShowName: true
+    Despawn: false
+    PreventOtherDrops: true
+    Profession: LIBRARIAN
+    Level: 2
+    HasTrades: false
+ZA_Marchand_Mecano:
+  Type: VILLAGER
+  Display: '&eLe Mecano'
+  Health: 40
+  Options:
+    NoAI: true
+    Silent: true
+    Invincible: true
+    Interactable: true
+    AlwaysShowName: true
+    Despawn: false
+    PreventOtherDrops: true
+    Profession: TOOLSMITH
+    Level: 2
+    HasTrades: false
+# ===================== PROLOGUE (Saint-Aurele) et arcs narratifs =====================
+# Prologue : pas de zakill / zacorps (ces morts ne comptent pas pour la saison)
+ZA_Gagnon:
+  Type: ZOMBIE
+  Display: '&7Mme Gagnon'
+  Health: 14
+  Damage: 2
+  Options:
+    MovementSpeed: 0.17
+    FollowRange: 24
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    PreventItemPickup: true
+    Silent: true
+    AlwaysShowName: false
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=0.55} @self ~onTimer:80 0.8
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.7} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.6} @self ~onDeath
+  - command{c="zapro gagnon_morte";sync=true} @self ~onDeath
+ZA_Citoyen_Infecte:
+  Type: ZOMBIE
+  Display: '&7Citoyen infecte'
+  Health: 12
+  Damage: 2
+  Options:
+    MovementSpeed: 0.2
+    FollowRange: 24
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    PreventItemPickup: true
+    Silent: true
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=0.7} @self ~onTimer:120 0.6
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.75} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.6} @self ~onDeath
+ZA_Patient_Infecte:
+  Type: ZOMBIE
+  Display: '&7Patient infecte'
+  Health: 18
+  Damage: 3
+  Options:
+    MovementSpeed: 0.24
+    FollowRange: 32
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=0.8} @self ~onTimer:100 0.6
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.8} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.7} @self ~onDeath
+  - command{c="zakill ZA_Patient_Infecte";sync=true} @self ~onDeath
+  Drops:
+  - ZA_SangInfecte 1 0.25
+  - rotten_flesh 1 0.5
+  - exp 5 1
+# L'escouade Bravo-3 du Sergent Vega : soldats infectes (plaques d'identite)
+ZA_Soldat_Infecte:
+  Type: ZOMBIE
+  Display: '&7Soldat infecte'
+  Health: 36
+  Damage: 5
+  Armor: 6
+  Options:
+    MovementSpeed: 0.22
+    FollowRange: 40
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+    KnockbackResistance: 0.3
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=0.55} @self ~onTimer:140 0.6
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
+  - command{c="zakill ZA_Soldat_Infecte";sync=true} @self ~onDeath
+  - command{c="zaarc plaque <target.l.w> <caster.l.x> <caster.l.y> <caster.l.z>";sync=true} @self ~onDeath
+  Drops:
+  - ZA_Essence 1 0.3
+  - iron_nugget 1to3 0.7
+  - exp 12 1
+  - ZA_Jeton 1to2 0.3
+ZA_Caporal_Dumas:
+  Type: ZOMBIE
+  Display: '&4&lCaporal Dumas'
+  Health: 220
+  Damage: 9
+  Armor: 10
+  Options:
+    MovementSpeed: 0.24
+    FollowRange: 48
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+    KnockbackResistance: 0.8
+    Despawn: false
+  Skills:
+  - effect:sound{s=entity.ravager.roar;v=2;p=0.6} @self ~onSpawn
+  - effect:sound{s=entity.zombie.ambient;v=1.5;p=0.4} @self ~onTimer:120 0.8
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.45} @self ~onDamaged
+  - skill{s=ZA_Dumas_Appel} @self ~onTimer:400
+  - skill{s=ZA_Overlord_Slam} @Target ~onTimer:160
+  - command{c="zakill ZA_Caporal_Dumas";sync=true} @self ~onDeath
+  - command{c="zaarc dumas_mort <target.l.w> <caster.l.x> <caster.l.y> <caster.l.z>";sync=true} @self ~onDeath
+  Drops:
+  - ZA_Essence 3to5 1
+  - ZA_Jeton 6to10 1
+  - ZA_SangInfecte 1to2 1
+  - exp 150 1
+# Nid : le coeur (immobile) et ses gardiens
+ZA_Coeur_Nid:
+  Type: MAGMA_CUBE
+  Display: '&4&lCoeur du nid'
+  Health: 160
+  Damage: 0
+  Armor: 6
+  Options:
+    Size: 4
+    MovementSpeed: 0
+    FollowRange: 1
+    PreventOtherDrops: true
+    PreventSlimeSplit: true
+    Silent: true
+    KnockbackResistance: 1
+    Despawn: false
+    NoAI: true
+    AlwaysShowName: true
+  Skills:
+  - potion{type=SLOW;duration=999999;level=10} @self ~onSpawn
+  - effect:particles{p=sculk_soul;a=12;hS=1.5;vS=1;s=0.02} @self ~onTimer:20
+  - effect:sound{s=entity.warden.heartbeat;v=2;p=0.6} @self ~onTimer:40
+  - command{c="zanid coeur_mort <target.l.w> <caster.l.x> <caster.l.y> <caster.l.z>";sync=true} @self ~onDeath
+  Drops:
+  - ZA_Essence 4to8 1
+  - ZA_SangInfecte 2to3 1
+  - ZA_Jeton 4to8 1
+  - exp 80 1

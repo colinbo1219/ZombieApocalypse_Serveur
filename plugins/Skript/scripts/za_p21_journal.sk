@@ -1,0 +1,68 @@
+# =====================================================================
+#  ZombieApocalypse - JOURNAL DE BORD DU SERVEUR
+#  Chaque mort, chaque evenement important, chaque mutation ecrit une ligne. Le lore vit avec les joueurs.
+#  /journal          : les 8 dernieres lignes
+#  /journal livre    : un livre avec les 12 dernieres lignes
+#  Fichier complet : plugins/Skript/logs/za_journal.log
+#  (Les lignes n'ont ni apostrophe ni guillemet : elles doivent tenir dans un livre.)
+# =====================================================================
+
+function za_journal(txt: text):
+    set {_j} to {za::serveur::jours}
+    if {_j} is not set:
+        set {_j} to 0
+    add "Jour %{_j}% - %{_txt}%" to {za::journal::*}
+    if size of {za::journal::*} > 200:
+        set {_first} to first element of {za::journal::*}
+        remove {_first} from {za::journal::*}
+    log "%{_txt}%" to file "za_journal.log"
+
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        za_journal("%victim% a ete tue par %attacker%.")
+    else if attacker is set:
+        za_journal("%victim% est tombe face aux morts.")
+    else:
+        za_journal("%victim% est mort.")
+
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    if uncolored name of victim contains "Overlord":
+        za_journal("L Undead Overlord est tombe.")
+
+command /journal [<text>]:
+    trigger:
+        set {_n} to size of {za::journal::*}
+        if {_n} is 0:
+            send "&7Le journal est vide pour l instant." to player
+        else if arg-1 is "livre":
+            set {_all} to ""
+            set {_page} to ""
+            set {_i} to 0
+            set {_c} to 0
+            loop {za::journal::*}:
+                add 1 to {_i}
+                if {_i} > {_n} - 12:
+                    set {_page} to "%{_page}% %loop-value% --"
+                    add 1 to {_c}
+                    if {_c} is 3:
+                        if {_all} is not "":
+                            set {_all} to "%{_all}%,"
+                        set {_all} to "%{_all}%'{""text"":""%{_page}%""}'"
+                        set {_page} to ""
+                        set {_c} to 0
+            if {_page} is not "":
+                if {_all} is not "":
+                    set {_all} to "%{_all}%,"
+                set {_all} to "%{_all}%'{""text"":""%{_page}%""}'"
+            execute console command "give %player% written_book{title:""Journal du serveur"",author:""Les survivants"",pages:[%{_all}%]}"
+        else:
+            send "&6&lJOURNAL DE BORD" to player
+            set {_i} to 0
+            loop {za::journal::*}:
+                add 1 to {_i}
+                if {_i} > {_n} - 8:
+                    send "&7%loop-value%" to player

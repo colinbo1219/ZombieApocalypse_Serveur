@@ -1,0 +1,536 @@
+# =====================================================================
+#  ZombieApocalypse - RESSOURCES STRATÉGIQUES DE SAISON (#6)
+#  Chaque saison a une ressource rare (cycle de 4) : 1 Composant electronique · 2 Échantillon viral ·
+#  3 Carburant militaire · 4 Matériau expérimental. Publiée dans {za::ressource::nom}.
+#  * Sources : Alpha / Brute / Soldat infecté / Zombie blindé (5-10 %), 1er coffre ouvert du jour dans un bâtiment (za_p35)
+#    ou un labo, caisses de convoi (za_p39 appelle « zaress coffre »).
+#  * « Dépôt de saison » collectif : /ressource deposer [n] au Marché de la Trêve ou dans un camp vivant.
+#    Paliers 25 / 50 / 100 / 200 : prix -5 %, camps sécurité +10, largage de ravitaillement supplémentaire, bonus de fin de saison.
+#  * /ressource : ressource, pourquoi elle compte, où la trouver, ton compte, progression, top 3.
+#  * Fin de saison : le meilleur pourvoyeur reçoit le titre « Pourvoyeur de la saison » ({za::ressource::top::<saison>}).
+#  Variables publiées : {za::ressource::nom} {za::ressource::depot} {za::ressource::contrib::<uuid>}
+#    {za::ressource::bonus_prix} (true/false) {za::ressource::bonus_camps} (0 ou 10) {za::ressource::bonus_pct} (0 à 10, à ajouter au % de saison)
+#    {za::ressource::top::<saison>} (nom du joueur) {za::ressource::topuuid::<saison>}
+#  Fonction : za_ressource_item(n) -> n unités de la ressource courante.   Console : zaress donner <joueur> [n]
+#  Admin : /zaress <donner|coffre|depot|etat|reset|saison|top>
+# =====================================================================
+
+options:
+    remise_prix: 0.95
+
+on load:
+    za_ress_verifier()
+
+# ---------------------------------------------------------------- définition des ressources
+
+function za_ress_nom_saison(n: number) :: text:
+    set {_m} to mod({_n} - 1, 4)
+    if {_m} is 0:
+        return "Composant electronique"
+    if {_m} is 1:
+        return "Échantillon viral"
+    if {_m} is 2:
+        return "Carburant militaire"
+    return "Matériau expérimental"
+
+function za_ress_couleur(nom: text) :: text:
+    if {_nom} is "Composant electronique":
+        return "&b"
+    if {_nom} is "Échantillon viral":
+        return "&2"
+    if {_nom} is "Carburant militaire":
+        return "&6"
+    return "&d"
+
+function za_ress_matiere(nom: text) :: text:
+    if {_nom} is "Composant electronique":
+        return "comparator"
+    if {_nom} is "Échantillon viral":
+        return "fermented spider eye"
+    if {_nom} is "Carburant militaire":
+        return "fire charge"
+    return "echo shard"
+
+function za_ress_pourquoi(nom: text) :: text:
+    if {_nom} is "Composant electronique":
+        return "Sans circuits, la centrale ne redémarre pas, les génératrices restent muettes et les ateliers du réseau ne se relèvent pas. Chaque composant rallume un morceau de la ville."
+    if {_nom} is "Échantillon viral":
+        return "NORDA Biotech a laissé des cultures partout. Le Dr Lefort et les Scientifiques en tirent des sérums, des antidotes, et peut-être un vaccin. Sans échantillons, ils travaillent à l'aveugle."
+    if {_nom} is "Carburant militaire":
+        return "Les camions de la Milice, les hélicos d'extraction et les groupes électrogènes des camps tournent à ça. Sans carburant, plus de convois, plus d'évacuations, plus de lumière la nuit."
+    return "Un alliage sorti des labos de NORDA. Les ateliers avancés, les blindages des camps et les armes expérimentales en ont besoin. Personne ne sait vraiment ce que c'est... mais tout le monde en veut."
+
+function za_ress_ou(nom: text) :: text:
+    return "sur les Alpha, Brutes, Soldats infectés et Zombies blindés (rare), dans le 1er coffre ouvert chaque jour d'un bâtiment (hôpital, caserne, labo, poste de police...), dans les laboratoires et les caisses des convois militaires."
+
+# n unités de la ressource de la saison en cours
+function za_ressource_item(n: number) :: itemtype:
+    set {_nom} to "%{za::ressource::nom}%"
+    if {za::ressource::nom} is not set:
+        set {_nom} to za_ress_nom_saison({za::saison::num})
+    set {_it} to za_item(za_ress_matiere({_nom}), {_nom}, za_ress_couleur({_nom}), {_n})
+    set lore of {_it} to "&7Ressource stratégique de la saison." and "&8Dépôt collectif : &e/ressource deposer" and "&8Très recherchée au Marché."
+    return {_it}
+
+# ---------------------------------------------------------------- saison : nom courant, changement de saison, top pourvoyeur
+
+function za_ress_verifier():
+    set {_n} to {za::saison::num}
+    if {_n} is not set:
+        set {_n} to 1
+    if {za::ressource::saison} is not set:
+        set {za::ressource::saison} to {_n}
+        if {za::ressource::depot} is not set:
+            set {za::ressource::depot} to 0
+    else if {za::ressource::saison} is not {_n}:
+        za_ress_cloturer({za::ressource::saison})
+        set {za::ressource::saison} to {_n}
+    set {za::ressource::nom} to za_ress_nom_saison({_n})
+    if {za::ressource::bonus_pct} is not set:
+        set {za::ressource::bonus_pct} to 0
+    if {za::ressource::bonus_camps} is not set:
+        set {za::ressource::bonus_camps} to 0
+
+# classement (uuid triés par dépôt décroissant)
+function za_ress_classement() :: texts:
+    loop {za::ressource::contrib::*}:
+        add loop-index to {_ids::*}
+    sort {_ids::*} by 0 - {za::ressource::contrib::%input%}
+    return {_ids::*}
+
+# fin de saison : palmarès, titre, récompenses, remise à zéro
+function za_ress_cloturer(s: number):
+    set {_cl::*} to za_ress_classement()
+    set {_i} to 0
+    loop {_cl::*}:
+        add 1 to {_i}
+        set {_u} to loop-value
+        set {_pseudo} to {za::ressource::pseudo::%{_u}%}
+        if {_pseudo} is not set:
+            set {_pseudo} to "un survivant"
+        if {_i} is 1:
+            set {za::ressource::top::%{_s}%} to {_pseudo}
+            set {za::ressource::topuuid::%{_s}%} to {_u}
+            set {za::ressource::topn::%{_s}%} to {za::ressource::contrib::%{_u}%}
+            add 100 to {za::jetons::%{_u}%}
+            set {_t} to {za::titre::special::%{_u}%}
+            if {_t} is not set:
+                set {za::titre::special::%{_u}%} to "&bPourvoyeur de la saison %{_s}%"
+            else if "%{_t}%" starts with "&bPourvoyeur":
+                set {za::titre::special::%{_u}%} to "&bPourvoyeur de la saison %{_s}%"
+            za_journal("%{_pseudo}% est le Pourvoyeur de la saison %{_s}% (%{za::ressource::contrib::%{_u}%}% unites deposees).")
+        else if {_i} is 2:
+            add 50 to {za::jetons::%{_u}%}
+        else if {_i} is 3:
+            add 25 to {za::jetons::%{_u}%}
+    set {_nom} to za_ress_nom_saison({_s})
+    set {_tot} to {za::ressource::depot}
+    if {_tot} is not set:
+        set {_tot} to 0
+    if {za::ressource::top::%{_s}%} is set:
+        za_radio("&bLéa", "Bilan de la saison : %{_tot}% unités de %{_nom}% au dépôt. Un merci tout spécial à %{za::ressource::top::%{_s}%}% (%{za::ressource::topn::%{_s}%}% unités), Pourvoyeur de la saison. Les camps ne l'oublieront pas.")
+    else:
+        za_radio("&bLéa", "Bilan de la saison : personne n'a rempli le dépôt de %{_nom}%. La prochaine sera plus dure.")
+    # remise à zéro : le dépôt, les bonus (prix restaurés par la synchro), les contributions
+    delete {za::ressource::contrib::*}
+    delete {za::ressource::pseudo::*}
+    delete {za::ressource::palier::*}
+    delete {za::ress::coffre::*}
+    set {za::ressource::depot} to 0
+    set {za::ressource::bonus_prix} to false
+    set {za::ressource::bonus_camps} to 0
+    set {za::ressource::bonus_pct} to 0
+    set {za::ressource::extra} to 0
+    za_ress_eco_sync()
+
+every 20 seconds:
+    za_ress_verifier()
+
+# ---------------------------------------------------------------- prix -5 % : synchronisation prudente avec {za::eco::mult}
+#  {za::eco::mult} est posé en absolu par d'autres modules (pénurie 1.6, courant 0.9, retour à 1). On mémorise ce que NOUS avons écrit
+#  ({za::ressource::eco_vu}) : si la valeur change ailleurs, c'est la nouvelle base et on réapplique -5 % par-dessus.
+#  Si un jour za_prix lit directement {za::ressource::prix_mult}, poser {za::ressource::eco_direct} à false : la synchro se retire.
+function za_ress_eco_sync():
+    set {_want} to false
+    if {za::ressource::bonus_prix} is true:
+        set {_want} to true
+    if {za::ressource::eco_direct} is false:
+        set {_want} to false
+    if {_want} is true:
+        set {za::ressource::prix_mult} to {@remise_prix}
+    else:
+        set {za::ressource::prix_mult} to 1
+    set {_cur} to {za::eco::mult}
+    if {_cur} is not set:
+        set {_cur} to 1
+    set {_cour} to za_courant()
+    if {_want} is true:
+        if {za::ressource::eco_vu} is set:
+            if {_cur} is {za::ressource::eco_vu}:
+                # inchangé depuis notre écriture : seul le courant de la centrale peut avoir changé (za_p39 ne peut plus le voir)
+                if {_cour} is {za::ressource::eco_cour}:
+                    stop
+                set {za::ressource::eco_cour} to {_cour}
+                if {za::ressource::eco_base} is 1:
+                    if {_cour} is true:
+                        set {za::ressource::eco_base} to 0.9
+                else if {za::ressource::eco_base} is 0.9:
+                    if {_cour} is false:
+                        set {za::ressource::eco_base} to 1
+                        za_diffuser("&6[Radio] &7Le réseau est retombé. Noir complet.")
+            else:
+                # valeur posée par un autre module : nouvelle base
+                set {za::ressource::eco_base} to {_cur}
+                set {za::ressource::eco_cour} to {_cour}
+        else:
+            set {za::ressource::eco_base} to {_cur}
+            set {za::ressource::eco_cour} to {_cour}
+        set {za::eco::mult} to floor({za::ressource::eco_base} * {@remise_prix} * 1000 + 0.5) / 1000
+        set {za::ressource::eco_vu} to {za::eco::mult}
+    else if {za::ressource::eco_vu} is set:
+        if {_cur} is {za::ressource::eco_vu}:
+            set {za::eco::mult} to {za::ressource::eco_base}
+        delete {za::ressource::eco_vu}
+        delete {za::ressource::eco_base}
+        delete {za::ressource::eco_cour}
+
+every 15 seconds:
+    za_ress_eco_sync()
+
+# ---------------------------------------------------------------- dépôt collectif et paliers
+
+function za_ress_prochain(d: number) :: number:
+    if {_d} < 25:
+        return 25
+    if {_d} < 50:
+        return 50
+    if {_d} < 100:
+        return 100
+    if {_d} < 200:
+        return 200
+    return (floor({_d} / 100) + 1) * 100
+
+function za_ress_barre(v: number, m: number) :: text:
+    set {_n} to floor(({_v} / {_m}) * 20)
+    if {_n} > 20:
+        set {_n} to 20
+    set {_a} to ""
+    set {_b} to ""
+    loop 20 times:
+        if loop-number <= {_n}:
+            set {_a} to "%{_a}%▌"
+        else:
+            set {_b} to "%{_b}%▌"
+    return "&b%{_a}%&8%{_b}%"
+
+# un palier est atteint : effets pour tout le serveur
+function za_ress_palier(m: number):
+    set {_nom} to "%{za::ressource::nom}%"
+    set {za::ressource::palier::%{_m}%} to true
+    if {_m} is 25:
+        set {za::ressource::bonus_pct} to 2
+        set {za::ressource::bonus_prix} to true
+        za_ress_eco_sync()
+        za_radio("&bLéa", "Le dépôt de saison a franchi le palier des 25 ! Les marchands baissent leurs prix de 5 %%. Continuez à ramener du %{_nom}%.")
+        set {_sous} to "Prix des marchands -5 %%"
+    else if {_m} is 50:
+        set {za::ressource::bonus_pct} to 4
+        set {za::ressource::bonus_camps} to 10
+        loop {za::camp::liste::*}:
+            if {za::camp::%loop-value%::etat} is "vivant":
+                set {_sec} to {za::camp::%loop-value%::securite}
+                if {_sec} is not set:
+                    set {_sec} to 0
+                set {za::camp::%loop-value%::securite} to min(100, {_sec} + 10)
+        za_radio("&bLéa", "50 unités au dépôt ! Les camps renforcent leurs palissades avec votre %{_nom}% : sécurité +10 partout.")
+        set {_sous} to "Camps : sécurité +10"
+    else if {_m} is 100:
+        set {za::ressource::bonus_pct} to 7
+        za_radio("&bLéa", "Cent unités de %{_nom}% ! La Milice largue une cargaison de ravitaillement en remerciement. Ouvrez l'oeil.")
+        set {_sous} to "Largage de ravitaillement"
+        za_cargaison()
+    else if {_m} is 200:
+        set {za::ressource::bonus_pct} to 10
+        za_radio("&bLéa", "Deux cents ! Vous avez retourné la saison, survivants. Le monde tient un peu mieux debout, et la fin de saison se rapproche.")
+        set {_sous} to "Fin de saison accélérée +10 %%"
+    else:
+        add 1 to {za::ressource::extra}
+        za_radio("&bLéa", "Encore une centaine d'unités au dépôt (%{_m}%) ! Un nouveau largage de ravitaillement est en route.")
+        set {_sous} to "Largage supplémentaire"
+        za_cargaison()
+    loop all players:
+        if za_pro(loop-player) is false:
+            send title "&b&lPALIER %{_m}%" with subtitle "&7%{_sous}%" to loop-player for 4 seconds
+            za_zm("son %loop-player% minecraft:ui.toast.challenge_complete 0.7 1")
+    za_journal("Le depot de la saison atteint %{_m}% unites de %{_nom}%.")
+
+function za_ress_verifier_paliers():
+    set {_d} to {za::ressource::depot}
+    loop 4 times:
+        set {_m} to 25
+        if loop-number is 2:
+            set {_m} to 50
+        else if loop-number is 3:
+            set {_m} to 100
+        else if loop-number is 4:
+            set {_m} to 200
+        if {_d} >= {_m}:
+            if {za::ressource::palier::%{_m}%} is not true:
+                za_ress_palier({_m})
+    # au-delà de 200 : un largage de plus toutes les 100 unités
+    set {_k} to 300
+    while {_k} <= {_d}:
+        if {za::ressource::palier::%{_k}%} is not true:
+            za_ress_palier({_k})
+        add 100 to {_k}
+
+function za_ress_deposer(p: player, n: number):
+    if za_pro({_p}) is true:
+        stop
+    set {_nom} to "%{za::ressource::nom}%"
+    set {_lieu} to za_mk_lieu(location of {_p})
+    if {_lieu} is "":
+        send "&c[Ressource] Le dépôt de saison est au &6Marché de la Trêve &cou dans un &acamp &c(près du chef). Tu n'y es pas." to {_p}
+        stop
+    set {_a} to za_count_named({_p}, {_nom})
+    if {_a} < 1:
+        send "&c[Ressource] Tu ne portes aucun &f%{_nom}% &c(la ressource de cette saison). &7Tape &e/ressource &7pour savoir où en trouver." to {_p}
+        stop
+    set {_q} to {_n}
+    if {_q} < 1:
+        set {_q} to {_a}
+    if {_q} > {_a}:
+        set {_q} to {_a}
+    if za_take_named({_p}, {_nom}, {_q}) is false:
+        stop
+    set {_u} to {_p}'s uuid
+    set {_avant} to {za::ressource::depot}
+    if {_avant} is not set:
+        set {_avant} to 0
+    add {_q} to {za::ressource::depot}
+    add {_q} to {za::ressource::contrib::%{_u}%}
+    set {za::ressource::pseudo::%{_u}%} to "%{_p}%"
+    za_stat_ajouter({_u}, "camps_aides", 0)
+    if {_lieu} is not "Marché de la Trêve":
+        za_stat_ajouter({_u}, "camps_aides", 1)
+    za_faction_ajouter({_p}, "survivants", min(5, {_q}))
+    set {_apres} to {za::ressource::depot}
+    set {_pm} to za_ress_prochain({_apres})
+    send "&b[Dépôt] &7Tu déposes &f%{_q}% %{_nom}% &7à &f%{_lieu}%&7. Dépôt collectif : &e%{_apres}%&8/&e%{_pm}% &7— merci, tout le monde en profite." to {_p}
+    za_zm("son %{_p}% minecraft:block.beacon.power_select 0.7 1.4")
+    za_ress_verifier_paliers()
+
+# ---------------------------------------------------------------- sources : kills
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        set {_n} to uncolored name of victim
+        set {_ch} to 0
+        if {_n} is "Alpha":
+            set {_ch} to 10
+        else if {_n} is "Brute":
+            set {_ch} to 7
+        else if {_n} is "Soldat infecte" or "Soldat infecté":
+            set {_ch} to 6
+        else if {_n} is "Zombie blindé":
+            set {_ch} to 5
+        if {_ch} > 0:
+            if chance of {_ch}%:
+                drop za_ressource_item(1) at location of victim
+                send action bar "&b[Ressource] &7Le cadavre porte un(e) &f%{za::ressource::nom}%&7." to attacker
+
+# ---------------------------------------------------------------- sources : 1er coffre ouvert du jour (bâtiments et labos)
+
+function za_ress_labo_proche(l: location) :: boolean:
+    loop {za::labo::liste::*}:
+        set {_id} to loop-value
+        if "%world of {_l}%" is {za::labo::%{_id}%::monde}:
+            set {_c} to location({za::labo::%{_id}%::bx} + 8, {za::labo::%{_id}%::gy} + 1, {za::labo::%{_id}%::bz} + 8, world of {_l})
+            if distance between {_c} and {_l} < 16:
+                return true
+    return false
+
+function za_ress_coffre(p: player, b: block):
+    set {_l} to location of {_b}
+    if "%world of {_l}%" is "za_prologue":
+        stop
+    set {_k} to "%world of {_l}%_%floor(x-coordinate of {_l})%_%floor(y-coordinate of {_l})%_%floor(z-coordinate of {_l})%"
+    if {za::ress::coffre::%{_k}%} is {za::serveur::jours}:
+        stop
+    set {_ch} to 0
+    if za_ress_labo_proche({_l}) is true:
+        set {_ch} to 60
+    else:
+        set {_bat} to za_bat_proche({_l}, 12)
+        if {_bat} is not "":
+            set {_ch} to 30
+    if {_ch} is 0:
+        stop
+    set {za::ress::coffre::%{_k}%} to {za::serveur::jours}
+    if chance of {_ch}%:
+        add za_ressource_item(1) to inventory of {_b}
+        set {za::ress::note::%{_p}'s uuid%} to {_k}
+
+on right click on chest:
+    if za_pro(player) is true:
+        stop
+    za_ress_coffre(player, event-block)
+
+on right click on barrel:
+    if za_pro(player) is true:
+        stop
+    za_ress_coffre(player, event-block)
+
+every 10 minutes:
+    if size of {za::ress::coffre::*} > 300:
+        loop {za::ress::coffre::*}:
+            if loop-value < {za::serveur::jours} - 1:
+                delete {za::ress::coffre::%loop-index%}
+
+# ---------------------------------------------------------------- /ressource
+
+function za_ress_info(p: player):
+    set {_nom} to "%{za::ressource::nom}%"
+    set {_u} to {_p}'s uuid
+    set {_s} to {za::ressource::saison}
+    set {_d} to {za::ressource::depot}
+    if {_d} is not set:
+        set {_d} to 0
+    set {_col} to za_ress_couleur({_nom})
+    send "&6&l━━ RESSOURCE DE LA SAISON %{_s}% ━━" to {_p}
+    send "%{_col}%&l%{_nom}%" to {_p}
+    set {_w::*} to za_wrap("Pourquoi ça compte : %za_ress_pourquoi({_nom})%")
+    loop {_w::*}:
+        send loop-value to {_p}
+    send "&7Où en trouver : &8%za_ress_ou({_nom})%" to {_p}
+    set {_a} to za_count_named({_p}, {_nom})
+    set {_c} to {za::ressource::contrib::%{_u}%}
+    if {_c} is not set:
+        set {_c} to 0
+    send "&7Tu en portes : &f%{_a}% &8· &7Déjà déposé par toi : &f%{_c}%" to {_p}
+    set {_pm} to za_ress_prochain({_d})
+    send "&7Dépôt collectif : &e%{_d}%&8/&e%{_pm}%  %za_ress_barre({_d}, {_pm})%" to {_p}
+    set {_l} to ""
+    set {_pal::*} to 25, 50, 100 and 200
+    set {_desc::1} to "prix -5 %%"
+    set {_desc::2} to "camps sécurité +10"
+    set {_desc::3} to "largage de ravitaillement"
+    set {_desc::4} to "fin de saison accélérée"
+    set {_i} to 0
+    loop {_pal::*}:
+        add 1 to {_i}
+        if {_d} >= loop-value:
+            set {_l} to "%{_l}%&a✔ %loop-value% &7%{_desc::%{_i}%}%  "
+        else:
+            set {_l} to "%{_l}%&8✖ %loop-value% %{_desc::%{_i}%}%  "
+    send "&7Paliers : %{_l}%" to {_p}
+    send "&7Bonus en cours : &f+%{za::ressource::bonus_pct}% %% de saison" to {_p}
+    set {_cl::*} to za_ress_classement()
+    if size of {_cl::*} is 0:
+        send "&7Top pourvoyeurs : &8personne pour l'instant. Sois le premier." to {_p}
+    else:
+        set {_t} to ""
+        set {_i} to 0
+        loop {_cl::*}:
+            add 1 to {_i}
+            if {_i} <= 3:
+                set {_t} to "%{_t}%&6%{_i}%. &f%{za::ressource::pseudo::%loop-value%}% &7(%{za::ressource::contrib::%loop-value%}%)  "
+        send "&7Top pourvoyeurs : %{_t}%" to {_p}
+    set {_prev} to {_s} - 1
+    if {za::ressource::top::%{_prev}%} is set:
+        send "&8Pourvoyeur de la saison %{_prev}% : %{za::ressource::top::%{_prev}%}% (%{za::ressource::topn::%{_prev}%}%)" to {_p}
+    send "&8Dépose avec &e/ressource deposer [n] &8au Marché de la Trêve ou dans un camp. Le titre « Pourvoyeur de la saison » va au n°1 en fin de saison." to {_p}
+
+command /ressource [<text>] [<number>]:
+    executable by: players
+    trigger:
+        if za_pro(player) is true:
+            send "&7Il n'y a pas encore de ressource à chercher dans ce monde." to player
+            stop
+        if arg-1 is "deposer" or "déposer" or "depot" or "dépôt":
+            za_ress_deposer(player, arg-2)
+        else if arg-1 is set:
+            if arg-1 is "info":
+                za_ress_info(player)
+            else if arg-1 is "top":
+                za_ress_info(player)
+            else:
+                send "&cUsage : /ressource &7(infos) &c| /ressource deposer [n]" to player
+        else:
+            za_ress_info(player)
+
+# ---------------------------------------------------------------- admin / hooks
+command /zaress <text> [<text>] [<text>] [<text>] [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        set {_sub} to arg-1
+        if {_sub} is "donner":
+            # zaress donner <joueur> [n]
+            set {_pl} to arg-2 parsed as player
+            if {_pl} is not set:
+                send "&cJoueur introuvable : %arg-2%" to sender
+                stop
+            set {_n} to arg-3 parsed as number
+            if {_n} is not set:
+                set {_n} to 1
+            give za_ressource_item({_n}) to {_pl}
+            send "&a[zaress] %{_n}% x %{za::ressource::nom}% donné à %{_pl}%." to sender
+            if {_pl} is not sender:
+                send "&b[Ressource] &7Tu obtiens &f%{_n}% %{za::ressource::nom}%&7." to {_pl}
+        else if {_sub} is "coffre":
+            # zaress coffre <x> <y> <z> <monde> [n]
+            set {_x} to arg-2 parsed as number
+            set {_y} to arg-3 parsed as number
+            set {_z} to arg-4 parsed as number
+            set {_w} to world(arg-5)
+            if {_z} is not set:
+                send "&cUsage : zaress coffre <x> <y> <z> <monde> [n]" to sender
+                stop
+            if {_w} is not set:
+                send "&cMonde introuvable : %arg-5%" to sender
+                stop
+            set {_n} to arg-6 parsed as number
+            if {_n} is not set:
+                set {_n} to 1
+            set {_b} to block at location({_x}, {_y}, {_z}, {_w})
+            add za_ressource_item(random integer between 1 and {_n}) to inventory of {_b}
+            send "&a[zaress] ressource ajoutée au conteneur %{_x}% %{_y}% %{_z}%." to sender
+        else if {_sub} is "depot":
+            # zaress depot <n> : ajoute n unités au dépôt collectif (test)
+            set {_n} to arg-2 parsed as number
+            if {_n} is not set:
+                send "&cUsage : zaress depot <n>" to sender
+                stop
+            add {_n} to {za::ressource::depot}
+            za_ress_verifier_paliers()
+            send "&a[zaress] dépôt : %{za::ressource::depot}%" to sender
+        else if {_sub} is "etat":
+            send "&7saison=%{za::ressource::saison}% nom=%{za::ressource::nom}% depot=%{za::ressource::depot}% prix=%{za::ressource::bonus_prix}% camps=%{za::ressource::bonus_camps}% pct=%{za::ressource::bonus_pct}%" to sender
+            send "&7eco::mult=%{za::eco::mult}% eco_base=%{za::ressource::eco_base}% eco_vu=%{za::ressource::eco_vu}% prix_mult=%{za::ressource::prix_mult}%" to sender
+            set {_cl::*} to za_ress_classement()
+            loop {_cl::*}:
+                send "&7 - %{za::ressource::pseudo::%loop-value%}% : %{za::ressource::contrib::%loop-value%}%" to sender
+        else if {_sub} is "reset":
+            delete {za::ressource::contrib::*}
+            delete {za::ressource::pseudo::*}
+            delete {za::ressource::palier::*}
+            set {za::ressource::depot} to 0
+            set {za::ressource::bonus_prix} to false
+            set {za::ressource::bonus_camps} to 0
+            set {za::ressource::bonus_pct} to 0
+            za_ress_eco_sync()
+            send "&a[zaress] dépôt et bonus remis à zéro." to sender
+        else if {_sub} is "saison":
+            za_ress_verifier()
+            send "&7[zaress] saison ressource=%{za::ressource::saison}% (jeu : %{za::saison::num}%) nom=%{za::ressource::nom}%" to sender
+        else if {_sub} is "fin":
+            # zaress fin : clôture la saison des ressources (top, titre, remise à zéro) sans toucher au numéro de saison du jeu
+            za_ress_cloturer({za::ressource::saison})
+            send "&a[zaress] saison clôturée." to sender
+        else if {_sub} is "top":
+            set {_cl::*} to za_ress_classement()
+            loop {_cl::*}:
+                send "&7%loop-index%. %{za::ressource::pseudo::%loop-value%}% : %{za::ressource::contrib::%loop-value%}%" to sender
+        else:
+            send "&cUsage : /zaress <donner|coffre|depot|etat|reset|saison|fin|top> …" to sender

@@ -1,0 +1,469 @@
+# =====================================================================
+#  ZombieApocalypse - LA GRANDE HISTOIRE (après le Jour 8)
+#  * Chapitres radio doublés, datés par les jours du serveur (Léa, radio militaire, bandes du labo Z-01).
+#  * Quête du Dr Lefort en 7 parties : « Nous n'essayons pas de guérir les morts... »
+#  * L'escouade Bravo-3 du Sergent Vega : plaques d'identité, le Caporal Dumas, une promesse.
+#  * Le mystère de Léa : des messages qui connaissent ton nom.
+#  * Factions : Milice, Scientifiques, Marchands, Pilleurs, Survivants, Culte (/faction).
+#  * Zone neutre : le Marché de la Trêve (armes interdites, pas de morts). Admin : /treve poser
+#  Commandes : /histoire | /faction | /plaques
+# =====================================================================
+
+# ---------------------------------------------------------------- chapitres radio doublés
+
+on load:
+    delete {za::chap::msg::*}
+    add "9|militaire_zone4|&2[Radio militaire] &7Ici zone quatre. Évacuation terminée. Le périmètre est abandonné. Je répète : le périmètre est abandonné." to {za::chap::msg::*}
+    add "14|lefort_souche|&a[Radio] &eDr Lefort &8» &7Ce n'est pas le même virus partout. Il s'adapte à l'endroit. Comme s'il apprenait." to {za::chap::msg::*}
+    add "21|labo_journal1|&8[Bande magnétique, diffusée par Léa] &7Journal du laboratoire Z-01, entrée quarante-deux. Le sujet ne répond plus à aucun stimulus... mais il bouge encore." to {za::chap::msg::*}
+    add "30|militaire_ordre|&2[Radio militaire] &7Ordre final : détruire la ville. Quelqu'un a-t-il reçu cet ordre?" to {za::chap::msg::*}
+    add "45|labo_journal2|&8[Bande magnétique — Dr Hélène Vasseur] &7Le patient zéro n'était pas le premier. Il était seulement le premier à se relever." to {za::chap::msg::*}
+    add "60|lea_ancienne|&b[Radio] Léa &8» &7Cette transmission date du jour zéro. Mais elle parle de ce qui va arriver demain." to {za::chap::msg::*}
+    add "75|lefort_serum|&a[Radio] &eDr Lefort &8» &7Le sérum ne guérit rien. Il retarde. Il achète du temps, c'est tout." to {za::chap::msg::*}
+    add "90|labo_journal3|&8[Bande magnétique — Dr Hélène Vasseur] &7Si vous écoutez ceci, ne cherchez pas à le détruire. Il ne fait que rassembler ce que nous avons semé." to {za::chap::msg::*}
+
+every 5 minutes:
+    set {_j} to {za::serveur::jours}
+    if {_j} is not set:
+        stop
+    loop {za::chap::msg::*}:
+        set {_p::*} to split loop-value at "|"
+        set {_d} to ({_p::1} parsed as number)
+        if {_j} >= {_d}:
+            if {za::chap::fait::%{_d}%} is not set:
+                set {za::chap::fait::%{_d}%} to true
+                loop all players:
+                    if za_pro(loop-player) is false:
+                        za_zm("son %loop-player% za_modeles:sfx.radio_accord 0.7 1")
+                        za_zm("son %loop-player% za_modeles:voix.%{_p::2}% 1 1")
+                        send colored {_p::3} to loop-player
+                za_journal("Chapitre radio du jour %{_d}%.")
+                stop
+
+command /histoire:
+    trigger:
+        set {_j} to {za::serveur::jours}
+        send "&6&lLA GRANDE HISTOIRE &8— &7Jour &f%{_j}%" to player
+        set {_arc} to "La maladie"
+        if {_j} >= 9:
+            set {_arc} to "Les morts"
+        if {_j} >= 14:
+            set {_arc} to "Les souches"
+        if {_j} >= 30:
+            set {_arc} to "Patient Zéro"
+        if {_j} >= 45:
+            set {_arc} to "Les laboratoires"
+        if {_j} >= 60:
+            set {_arc} to "Les mutations"
+        if {_j} >= 90:
+            set {_arc} to "L'Overlord"
+        send "&7Arc en cours : &f%{_arc}%" to player
+        loop {za::chap::msg::*}:
+            set {_p::*} to split loop-value at "|"
+            if {za::chap::fait::%{_p::1}%} is true:
+                send "&8· Jour %{_p::1}% : &7%uncolored {_p::3}%" to player
+        send "&8(Les quêtes : /quetes — Dr Lefort, Sergent Vega, Léa)" to player
+
+# ---------------------------------------------------------------- FACTIONS
+
+function za_faction_ajouter(p: player, f: text, n: number):
+    set {_u} to "%{_p}'s uuid%"
+    if {za::fac::%{_f}%::%{_u}%} is not set:
+        set {za::fac::%{_f}%::%{_u}%} to 0
+    set {_avant} to {za::fac::%{_f}%::%{_u}%}
+    add {_n} to {za::fac::%{_f}%::%{_u}%}
+    set {_apres} to {za::fac::%{_f}%::%{_u}%}
+    loop 25, 50 and 100:
+        if {_avant} < loop-value:
+            if {_apres} >= loop-value:
+                send "&6&lFACTION &7— %za_faction_nom({_f})% &7te reconnaît : &f%za_faction_rang({_apres})%" to {_p}
+                za_zm("son %{_p}% minecraft:ui.toast.challenge_complete 0.6 1")
+
+function za_faction_nom(f: text) :: text:
+    if {_f} is "milice":
+        return "&9Milice"
+    if {_f} is "scientifiques":
+        return "&aScientifiques"
+    if {_f} is "marchands":
+        return "&6Marchands"
+    if {_f} is "pilleurs":
+        return "&8Pilleurs"
+    if {_f} is "survivants":
+        return "&fSurvivants"
+    return "&5Culte de la Fin"
+
+function za_faction_rang(n: number) :: text:
+    if {_n} >= 100:
+        return "Pilier"
+    if {_n} >= 50:
+        return "Allié"
+    if {_n} >= 25:
+        return "Connu"
+    if {_n} <= -25:
+        return "Ennemi"
+    return "Inconnu"
+
+command /faction [<text>]:
+    trigger:
+        set {_u} to "%player's uuid%"
+        send "&6&lFACTIONS &8— &7ce que les groupes de survivants pensent de toi" to player
+        loop "milice", "scientifiques", "marchands", "pilleurs", "survivants" and "culte":
+            set {_v} to {za::fac::%loop-value%::%{_u}%}
+            if {_v} is not set:
+                set {_v} to 0
+            send "%za_faction_nom(loop-value)% &8: &f%floor({_v})% &7(%za_faction_rang({_v})%)" to player
+        send "&8Milice : tuer des morts, défendre (évacuations). Scientifiques : Dr Lefort, labos, centrale." to player
+        send "&8Marchands : commerce. Pilleurs : marché noir (la Milice n'aime pas). Survivants : aider, SOS, nids. Culte : sacrifices, camp infecté." to player
+
+# gains automatiques
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        if chance of 20%:
+            za_faction_ajouter(attacker, "milice", 1)
+
+on command "sacrifice":
+    if za_jetons(player) >= 10:
+        za_faction_ajouter(player, "culte", 5)
+        za_faction_ajouter(player, "survivants", -3)
+
+# remises : Marchands >= 50 (-5 %), Pilleurs >= 50 au marché noir ; titres spéciaux de faction à 100
+every 60 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_u} to "%loop-player's uuid%"
+            if {za::titre::special::%{_u}%} is not set:
+                loop "milice", "scientifiques", "marchands", "pilleurs", "survivants" and "culte":
+                    if {za::fac::%loop-value-2%::%{_u}%} >= 100:
+                        set {za::titre::special::%{_u}%} to "%za_faction_nom(loop-value-2)% ✦"
+
+# ---------------------------------------------------------------- QUÊTE DU DR LEFORT (7 parties)
+#  étape stockée dans {za::lefort::etape::<uuid>} (1 = sang infecté ... 7 = révélation, 8 = terminée)
+
+function za_lefort_etape(u: text) :: number:
+    if {za::lefort::etape::%{_u}%} is not set:
+        return 1
+    return {za::lefort::etape::%{_u}%}
+
+function za_lefort_texte(n: number) :: text:
+    if {_n} is 1:
+        return "Rapporte 3 Sang infecté au Dr Lefort."
+    if {_n} is 2:
+        return "Trouve un laboratoire scellé (approche-toi d'un labo)."
+    if {_n} is 3:
+        return "Récupère les données d'un labo (terminal d'un labo ouvert) — ou 1 Disque de données."
+    if {_n} is 4:
+        return "Identifie 3 souches différentes du virus (/virus dans 3 régions)."
+    if {_n} is 5:
+        return "Protège le Dr Lefort pendant son analyse (2 minutes près de lui)."
+    if {_n} is 6:
+        return "Apporte 2 Sérums au Dr Lefort pour qu'il les analyse."
+    if {_n} is 7:
+        return "Écoute ce que le Dr Lefort a découvert."
+    return "Terminée. Tu connais la vérité."
+
+function za_lefort_suite(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_e} to za_lefort_etape({_u})
+    add 1 to {_e}
+    set {za::lefort::etape::%{_u}%} to {_e}
+    za_faction_ajouter({_p}, "scientifiques", 8)
+    za_jetons_ajouter({_p}, 5)
+    send "&a&lQUÊTE DU DR LEFORT &7— partie &f%{_e} - 1%&7/7 accomplie." to {_p}
+    if {_e} <= 7:
+        send "&7Suite : &f%za_lefort_texte({_e})%" to {_p}
+    za_zm("son %{_p}% minecraft:ui.toast.challenge_complete 0.6 1")
+
+# étape 2 : approcher un labo ; étape 4 : souches distinctes
+every 10 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_u} to "%loop-player's uuid%"
+            set {_e} to za_lefort_etape({_u})
+            if {_e} is 2:
+                loop {za::labo::liste::*}:
+                    set {_id} to loop-value-2
+                    set {_w} to world({za::labo::%{_id}%::monde})
+                    if {_w} is set:
+                        if world of loop-player is {_w}:
+                            set {_l} to location({za::labo::%{_id}%::bx} + 5, {za::labo::%{_id}%::gy}, {za::labo::%{_id}%::bz} + 5, {_w})
+                            if distance between loop-player and {_l} < 20:
+                                if za_lefort_etape({_u}) is 2:
+                                    send "&8&oUn laboratoire scellé. La porte noire respire le froid. Lefort voudra ces données." to loop-player
+                                    za_lefort_suite(loop-player)
+            else if {_e} is 4:
+                set {_s} to za_souche_id(loop-player)
+                if {za::lefort::souches::%{_u}%::%{_s}%} is not set:
+                    set {za::lefort::souches::%{_u}%::%{_s}%} to true
+                    send "&8&oTu notes la souche locale : %za_souche_nom({_s})% (%size of {za::lefort::souches::%{_u}%::*}%/3)" to loop-player
+                if size of {za::lefort::souches::%{_u}%::*} >= 3:
+                    give loop-player za_item("book", "Carnet de souches", "&a", 1)
+                    za_lefort_suite(loop-player)
+
+# étape 3 : terminal d'un labo ouvert
+on right click on lectern:
+    if za_pro(player) is true:
+        stop
+    set {_u} to "%player's uuid%"
+    if za_lefort_etape({_u}) is 3:
+        set {_k} to za_lkey(location of event-block)
+        if {za::labo::term::%{_k}%} is set:
+            set {_id} to {za::labo::term::%{_k}%}
+            if {za::labo::%{_id}%::ouvert} is true:
+                give player za_item("paper", "Disque de données Z-01", "&b", 1)
+                send "&bTu copies les données du terminal. Des noms, des dates... et un nom qui revient : &fSamuel Arel&b." to player
+                za_lefort_suite(player)
+
+# dialogue du Dr Lefort (remplace l'ancienne quête courte : branché dans za_dial_lefort via le noeud « chaine »)
+function za_lefort_chaine(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_e} to za_lefort_etape({_u})
+    if {za::lefort::vu::%{_u}%} is not set:
+        set {za::lefort::vu::%{_u}%} to true
+        if {za::pro::etat::%{_u}%} is "fini":
+            za_zm("son %{_p}% za_modeles:voix.lefort_retrouvailles 1 1")
+            send "&eDr Lefort &8» &fToi... je me souviens de toi. L'hôpital, le premier jour. Tu as survécu." to {_p}
+    if {_e} is 1:
+        if za_take_named({_p}, "Sang infecte", 3) is true:
+            send "&eDr Lefort &8» &fParfait. Avec ça je peux commencer. Mais il me faut plus : des données de labo." to {_p}
+            za_lefort_suite({_p})
+        else:
+            send "&eDr Lefort &8» &fApporte-moi 3 échantillons de Sang infecté. Les Bloaters et les Alphas en portent." to {_p}
+    else if {_e} is 2:
+        send "&eDr Lefort &8» &fTrouve un de ces laboratoires scellés. NORDA en a enterré partout." to {_p}
+    else if {_e} is 3:
+        if za_take_named({_p}, "Disque de données Z-01", 1) is true:
+            send "&eDr Lefort &8» &fLes données... Mon Dieu. Je dois comparer avec les souches du terrain." to {_p}
+            za_lefort_suite({_p})
+        else:
+            send "&eDr Lefort &8» &fLe terminal d'un labo ouvert. Pendant une Blood Moon, avec une Carte d'accès." to {_p}
+    else if {_e} is 4:
+        za_zm("son %{_p}% za_modeles:voix.lefort_souche 1 1")
+        send "&eDr Lefort &8» &fCe n'est pas le même virus partout. Il s'adapte à l'endroit. Comme s'il apprenait. Note 3 souches pour moi." to {_p}
+    else if {_e} is 5:
+        send "&eDr Lefort &8» &fJ'ai besoin de deux minutes. Deux minutes de calme. Garde-les loin de moi." to {_p}
+        za_lefort_protection({_p})
+    else if {_e} is 6:
+        if za_take_named({_p}, "Serum", 2) is true:
+            za_zm("son %{_p}% za_modeles:voix.lefort_serum 1 1")
+            send "&eDr Lefort &8» &fLe sérum ne guérit rien. Il retarde. Il achète du temps, c'est tout." to {_p}
+            za_lefort_suite({_p})
+        else:
+            send "&eDr Lefort &8» &fDeux Sérums. Je dois savoir ce qu'il y a vraiment dedans." to {_p}
+    else if {_e} is 7:
+        za_zm("son %{_p}% za_modeles:voix.lefort_final 1 1")
+        send "&eDr Lefort &8» &fNous n'essayons pas de guérir les morts. Nous essayons de comprendre pourquoi ils se relèvent." to {_p}
+        wait 7 seconds
+        send "&eDr Lefort &8» &fLe patient zéro, Samuel Arel, travaillait de nuit chez NORDA. Il n'était pas le premier. Il était seulement le premier à se relever." to {_p}
+        za_lefort_suite({_p})
+        set {_c} to za_item("book", "Carnet du Dr Lefort", "&d", 1)
+        set lore of {_c} to "&7Relique. Les notes d'un médecin qui a tout vu." and "&8« Ce qui existait déjà... nous l'avons réveillé. »"
+        give {_p} {_c}
+        za_jetons_ajouter({_p}, 25)
+        set {za::titre::special::%{_u}%} to "&dConfident de Lefort"
+        za_journal("%{_p}% a termine la quete du Dr Lefort.")
+        if {za::saison::sauves} is not set:
+            set {za::saison::sauves} to 0
+        add 1 to {za::saison::sauves}
+    else:
+        send "&eDr Lefort &8» &fMerci. Pour tout." to {_p}
+
+function za_lefort_protection(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    if {za::lefort::protege::%{_u}%} is true:
+        stop
+    set {za::lefort::protege::%{_u}%} to true
+    set {_c} to location of {_p}
+    send title "&c&lPROTÈGE LEFORT" with subtitle "&72 minutes. Reste près de lui." to {_p} for 3 seconds
+    set {_t} to 0
+    while {_t} < 120:
+        wait 10 seconds
+        add 10 to {_t}
+        if {_p} is not online:
+            delete {za::lefort::protege::%{_u}%}
+            stop
+        if distance between {_p} and {_c} > 20:
+            send "&cTu t'es trop éloigné : Lefort a dû fuir. Recommence quand il repassera." to {_p}
+            delete {za::lefort::protege::%{_u}%}
+            stop
+        za_vague({_p}, "ZA_Shambler", 2, 10, 16)
+        if mod({_t}, 30) is 0:
+            za_vague({_p}, "ZA_Runner", 1, 12, 18)
+    delete {za::lefort::protege::%{_u}%}
+    send "&eDr Lefort &8» &fC'est fait. Merci... tu m'as sauvé la vie." to {_p}
+    if {za::saison::sauves} is not set:
+        set {za::saison::sauves} to 0
+    add 1 to {za::saison::sauves}
+    za_lefort_suite({_p})
+
+# ---------------------------------------------------------------- L'ESCOUADE BRAVO-3 (Sergent Vega)
+
+command /zaarc <text> [<text>] [<number>] [<number>] [<number>]:
+    executable by: console
+    trigger:
+        set {_w} to world(arg-2)
+        if {_w} is not set:
+            stop
+        set {_l} to location(arg-3, arg-4, arg-5, {_w})
+        if arg-1 is "plaque":
+            if chance of 55%:
+                set {_noms::*} to "Nguyen", "Ortiz", "Bélanger", "Tremblay", "Diallo", "Roussel"
+                set {_n} to random element out of {_noms::*}
+                set {_it} to za_item("iron nugget", "Plaque d'identité — %{_n}%", "&7", 1)
+                set lore of {_it} to "&7Escouade Bravo-3. Sgt M. Vega." and "&8Le Sergent Vega voudra la voir."
+                drop {_it} at {_l}
+        else if arg-1 is "dumas_mort":
+            set {_it} to za_item("iron nugget", "Plaque d'identité — Dumas", "&6", 1)
+            set lore of {_it} to "&7Caporal A. Dumas. Escouade Bravo-3." and "&8Rapporte-la à Vega."
+            drop {_it} at {_l}
+            set {za::vega::dumas} to "mort"
+            za_diffuser("&2[Radio militaire] &7...le signal du Caporal Dumas s'est éteint. Bravo-3... terminé.")
+            za_journal("Le Caporal Dumas est tombe.")
+
+function za_plaques(p: player) :: number:
+    set {_n} to 0
+    loop "Nguyen", "Ortiz", "Bélanger", "Tremblay", "Diallo" and "Roussel":
+        if za_count_named({_p}, "Plaque d'identité — %loop-value%") >= 1:
+            add 1 to {_n}
+    return {_n}
+
+function za_vega_chaine(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_e} to {za::vega::etape::%{_u}%}
+    if {_e} is not set:
+        set {_e} to 0
+    if {_e} is 0:
+        za_zm("son %{_p}% za_modeles:voix.vega_compte 1 1")
+        send "&6Sergent Vega &8» &fJe compte les morts. Un par un. Si tu trouves des plaques de mon escouade... rapporte-les-moi." to {_p}
+        if za_plaques({_p}) >= 3:
+            loop "Nguyen", "Ortiz", "Bélanger", "Tremblay", "Diallo" and "Roussel":
+                za_take_named({_p}, "Plaque d'identité — %loop-value%", 1)
+            wait 3 seconds
+            za_zm("son %{_p}% za_modeles:voix.vega_escouade 1 1")
+            send "&6Sergent Vega &8» &fMon escouade n'est pas morte. Je les ai vus. Ils portent encore leurs plaques." to {_p}
+            wait 6 seconds
+            set {_g} to za_point_loin({_p}, 90, 130)
+            execute console command "mm mobs spawn ZA_Caporal_Dumas 1 %world of {_g}%,%floor(x-coordinate of {_g})%,%floor(y-coordinate of {_g}) + 1%,%floor(z-coordinate of {_g})%"
+            loop 3 times:
+                za_spawn_at({_g}, "ZA_Soldat_Infecte", 3, 8)
+            set {_ax} to floor(x-coordinate of {_g} / 50) * 50
+            set {_az} to floor(z-coordinate of {_g} / 50) * 50
+            send "&6Sergent Vega &8» &fLe Caporal Dumas. Il est vers X=%{_ax}% Z=%{_az}%. C'était mon meilleur homme. Libère-le." to {_p}
+            set {za::vega::etape::%{_u}%} to 1
+            set {za::vega::dumas} to "vivant"
+            za_faction_ajouter({_p}, "milice", 10)
+    else if {_e} is 1:
+        if za_take_named({_p}, "Plaque d'identité — Dumas", 1) is true:
+            za_zm("son %{_p}% za_modeles:voix.vega_adieu 1 1")
+            send "&6Sergent Vega &8» &fSi je deviens comme eux... tu ne me laisses pas marcher. Promets-le." to {_p}
+            set {za::vega::etape::%{_u}%} to 2
+            give {_p} za_item("iron ingot", "Béret de Vega", "&6", 1)
+            za_jetons_ajouter({_p}, 25)
+            za_faction_ajouter({_p}, "milice", 20)
+            set {za::titre::special::%{_u}%} to "&6Frère d'armes de Vega"
+            za_journal("%{_p}% a libere l'escouade Bravo-3.")
+            if {za::saison::sauves} is not set:
+                set {za::saison::sauves} to 0
+            add 1 to {za::saison::sauves}
+        else:
+            send "&6Sergent Vega &8» &fDumas est toujours là-bas. Je le sens." to {_p}
+    else:
+        send "&6Sergent Vega &8» &fOn tient. Encore un jour." to {_p}
+
+command /plaques:
+    trigger:
+        send "&7Plaques de Bravo-3 sur toi : &f%za_plaques(player)%&7/3 &8(Soldats infectés — convois, nuits après le jour 20)" to player
+
+# des soldats infectés de Bravo-3 rôdent la nuit, après le jour 20
+every 3 minutes:
+    if {za::serveur::jours} >= 20:
+        loop all players:
+            if za_pro(loop-player) is false:
+                if za_nuit(loop-player) is true:
+                    if chance of 12%:
+                        za_spawn_near(loop-player, "ZA_Soldat_Infecte", 24, 40)
+
+# ---------------------------------------------------------------- LE MYSTÈRE DE LÉA
+
+every 40 minutes:
+    if size of za_monde_joueurs() > 0:
+        if chance of 25%:
+            set {_p} to random element out of za_monde_joueurs()
+            set {_u} to "%{_p}'s uuid%"
+            set {za::lea::nom::%{_u}%} to true
+            za_zm("son %{_p}% za_modeles:sfx.radio_statique 0.7 0.8")
+            wait 2 seconds
+            set {_m::*} to "...%{_p}%... tu n'aurais pas dû ouvrir la porte du 2B...", "...%{_p}%, c'est toi? Le bus... tu étais dans le bus...", "...ici Saint-Aurèle... %{_p}%, reviens... il fait si froid...", "...%{_p}%... nous savons où tu dors..."
+            send "&8[Fréquence inconnue] &7&o%random element out of {_m::*}%" to {_p}
+
+function za_lea_chaine(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    za_zm("son %{_p}% za_modeles:voix.lea_frequences 1 1")
+    send "&bLéa &8» &fChut... J'écoute les fréquences. Il y a des voix là-dedans qui ne devraient pas parler." to {_p}
+    if {za::lea::nom::%{_u}%} is true:
+        wait 6 seconds
+        za_zm("son %{_p}% za_modeles:voix.lea_noms 1 1")
+        send "&bLéa &8» &fCe message... il connaît ton nom. Comment est-ce possible?" to {_p}
+    if {za::serveur::jours} >= 60:
+        wait 5 seconds
+        za_zm("son %{_p}% za_modeles:voix.lea_ancienne 1 1")
+        send "&bLéa &8» &fCette transmission date du jour zéro. Mais elle parle de ce qui va arriver demain." to {_p}
+
+# ---------------------------------------------------------------- ZONE NEUTRE : LE MARCHÉ DE LA TRÊVE
+
+command /treve [<text>] [<number>] [<number>] [<number>]:
+    trigger:
+        if arg-1 is "poser":
+            if sender has permission "za.admin":
+                if arg-4 is set:
+                    set {_l} to location(arg-2, arg-3, arg-4, world("world"))
+                else if sender is a player:
+                    set {_l} to location of player
+                else:
+                    send "Usage console : treve poser <x> <y> <z>" to sender
+                    stop
+                set {za::treve::loc} to {_l}
+                za_zm("placer zone_neutre %world of {_l}% %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% degager")
+                send "&aMarché de la Trêve posé (rayon 18)." to sender
+                za_diffuser("&6[Radio] &bLéa &8» &7Un marché s'est installé. Une trêve : pas d'armes, pas de sang. Venez échanger.")
+            stop
+        if {za::treve::loc} is not set:
+            send "&7Aucune zone neutre pour l'instant." to player
+            stop
+        set {_l} to {za::treve::loc}
+        send "&6Marché de la Trêve &7vers X=%floor(x-coordinate of {_l})% Z=%floor(z-coordinate of {_l})%. Armes interdites. Les morts n'y entrent pas." to player
+
+function za_treve(l: location) :: boolean:
+    if {za::treve::loc} is not set:
+        return false
+    if world of {_l} is not world of {za::treve::loc}:
+        return false
+    if distance between {_l} and {za::treve::loc} < 18:
+        return true
+    return false
+
+on damage of player:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        if za_treve(location of victim) is true:
+            cancel event
+            send action bar "&6La trêve interdit les armes ici." to attacker
+
+every 3 seconds:
+    if {za::treve::loc} is set:
+        loop all zombies in radius 20 around {za::treve::loc}:
+            execute console command "execute at %uuid of loop-zombie% run particle minecraft:smoke ~ ~1 ~ 0.3 0.6 0.3 0.02 12 force"
+            kill loop-zombie
+        loop all players in radius 18 around {za::treve::loc}:
+            if {za::treve::dans::%loop-player's uuid%} is not set:
+                set {za::treve::dans::%loop-player's uuid%} to true
+                send title "&6Marché de la Trêve" with subtitle "&7Pas d'armes. Pas de sang. Ici, on échange." to loop-player for 3 seconds
+        loop all players:
+            if {za::treve::dans::%loop-player's uuid%} is set:
+                if world of loop-player is not world of {za::treve::loc}:
+                    delete {za::treve::dans::%loop-player's uuid%}
+                else if distance between loop-player and {za::treve::loc} > 20:
+                    delete {za::treve::dans::%loop-player's uuid%}
+                    send action bar "&7Tu quittes la trêve." to loop-player

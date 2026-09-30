@@ -1,0 +1,1003 @@
+# =====================================================================
+#  ZombieApocalypse - LE PARCOURS : UN SEUL FIL ROUGE, SEPT NIVEAUX
+#  Le fil (par joueur) relie tout ce qui existe déjà, dans l'ordre :
+#    choix du prologue -> relation avec un personnage -> retrouvailles après l'apocalypse -> un camp -> une faction
+#    -> un territoire -> une quête -> un laboratoire -> la révélation -> l'objectif de saison
+#  Chaque chapitre a UN objectif, une boussole (HUD ZAMonde) et une astuce. Le personnage retrouvé dépend du prologue
+#  (Leblanc sauvée, Théo appelé, aide à la pharmacie -> Dr Lefort, sinon Sergent Vega).
+#  Niveaux : 1 Citoyen · 2 Survivant · 3 Explorateur · 4 Spécialiste · 5 Leader · 6 Héros de faction · 7 Héros de saison
+#  Chaque niveau n'introduit que 2-3 commandes. /aide grise ce qui n'est pas encore de ton niveau.
+#  Commandes : /guide (que faire maintenant) · /parcours (niveau et prochaines étapes) · /campagne (ton histoire)
+#  Admin : /zaparcours <joueur> info|niveau <n>|chapitre <n>|reset
+# =====================================================================
+
+options:
+    rdv_cd: 12
+
+# ---------------------------------------------------------------- NIVEAUX
+
+function za_niv_u(u: text) :: number:
+    if {za::niv::%{_u}%} is not set:
+        return 1
+    return {za::niv::%{_u}%}
+
+function za_niv(p: player) :: number:
+    return za_niv_u("%{_p}'s uuid%")
+
+function za_niv_nom(n: number) :: text:
+    if {_n} >= 7:
+        return "Héros de saison"
+    if {_n} is 6:
+        return "Héros de faction"
+    if {_n} is 5:
+        return "Leader"
+    if {_n} is 4:
+        return "Spécialiste"
+    if {_n} is 3:
+        return "Explorateur"
+    if {_n} is 2:
+        return "Survivant"
+    return "Citoyen"
+
+function za_niv_couleur(n: number) :: text:
+    if {_n} >= 7:
+        return "&d"
+    if {_n} is 6:
+        return "&6"
+    if {_n} is 5:
+        return "&9"
+    if {_n} is 4:
+        return "&b"
+    if {_n} is 3:
+        return "&a"
+    if {_n} is 2:
+        return "&f"
+    return "&7"
+
+# préfixe court affiché devant le pseudo (za_p20)
+function za_niv_tag(p: player) :: text:
+    set {_n} to za_niv({_p})
+    return "%za_niv_couleur({_n})%✦%{_n}% "
+
+function za_niv_phrase(n: number) :: text:
+    if {_n} >= 7:
+        return "Tu connais la vérité, et tu étais là quand ça comptait. On se souviendra de toi."
+    if {_n} is 6:
+        return "Ta faction prononce ton nom avec respect."
+    if {_n} is 5:
+        return "Des gens te suivent, maintenant. Ne les déçois pas."
+    if {_n} is 4:
+        return "Tu sais faire ce que les autres ne savent pas. On a besoin de toi."
+    if {_n} is 3:
+        return "Le monde a changé. Tu commences à le connaître."
+    if {_n} is 2:
+        return "Tu as passé la nuit. Beaucoup ne l'ont pas fait."
+    return "Hier encore, tu avais une vie normale."
+
+# les 2-3 commandes que chaque niveau fait découvrir ("commande|description")
+function za_niv_cmds(n: number) :: texts:
+    if {_n} >= 7:
+        return "/saison|ce qui manque au serveur pour la finale", "/chroniques|l'histoire des saisons" and "/hall|le Hall des survivants"
+    if {_n} is 6:
+        return "/labo|les laboratoires NORDA", "/enquete|les enquêtes et les dossiers" and "/reseau|le réseau radio des camps"
+    if {_n} is 5:
+        return "/territoires|qui tient quel bâtiment", "/survivants|tes recrues" and "/squad|ton escouade"
+    if {_n} is 4:
+        return "/role|médecin, soldat, éclaireur, ingénieur", "/atelier|fabriquer" and "/faction|ce que les groupes pensent de toi"
+    if {_n} is 3:
+        return "/lieu|l'histoire du lieu où tu es", "/camps|les camps de survivants" and "/souvenirs|ce que tu as vécu"
+    if {_n} is 2:
+        return "/base|ta base", "/blessures|tes blessures" and "/zone|le danger autour de toi"
+    return "/guide|que faire maintenant", "/parcours|ton niveau" and "/aide|toutes les aides"
+
+# niveau à partir duquel une catégorie de /aide est « de ton niveau »
+function za_niv_aide(cat: text) :: number:
+    if {_cat} is "Base" or "Marché et armes":
+        return 2
+    if {_cat} is "Quetes", "Survivants et camps" or "Exploration":
+        return 3
+    if {_cat} is "Soins et ateliers" or "Factions et territoires":
+        return 4
+    if {_cat} is "Squad et social":
+        return 5
+    if {_cat} is "Mémoire et saisons":
+        return 6
+    return 1
+
+function za_n(x: number) :: number:
+    if {_x} is not set:
+        return 0
+    return {_x}
+
+# critères du niveau n : liste "1|libellé" (fait) ou "0|libellé"
+function za_niv_crit(p: player, n: number) :: texts:
+    set {_u} to "%{_p}'s uuid%"
+    set {_c} to za_fil_ch_u({_u})
+    if {_n} is 2:
+        set {_j} to za_n({za::jours::%{_u}%})
+        set {_k} to za_n({za::kills::%{_u}%})
+        set {_o} to "0"
+        if {_j} >= 1:
+            set {_o} to "1"
+        add "%{_o}%|Survivre à une première nuit" to {_r::*}
+        set {_o} to "0"
+        if {_k} >= 15:
+            set {_o} to "1"
+        add "%{_o}%|Abattre 15 morts (%min({_k}, 15)%/15)" to {_r::*}
+        set {_o} to "0"
+        if {za::base::%{_u}%} is set:
+            set {_o} to "1"
+        add "%{_o}%|Poser ta base (/base)" to {_r::*}
+    else if {_n} is 3:
+        set {_o} to "0"
+        if za_fil_fait({_u}, 2) is true:
+            set {_o} to "1"
+        add "%{_o}%|Retrouver %za_fil_contact_nom(za_fil_contact({_p}))%" to {_r::*}
+        set {_v} to za_n({za::fil::nvu::%{_u}%})
+        set {_o} to "0"
+        if {_v} >= 3:
+            set {_o} to "1"
+        add "%{_o}%|Découvrir 3 lieux nommés (%min({_v}, 3)%/3)" to {_r::*}
+    else if {_n} is 4:
+        set {_o} to "0"
+        if za_role({_p}) is not "aucun":
+            set {_o} to "1"
+        add "%{_o}%|Choisir un rôle (/role)" to {_r::*}
+        set {_o} to "0"
+        if za_fil_fait({_u}, 3) is true:
+            set {_o} to "1"
+        add "%{_o}%|Aider un camp de survivants" to {_r::*}
+    else if {_n} is 5:
+        set {_o} to "0"
+        if za_fil_fait({_u}, 4) is true:
+            set {_o} to "1"
+        add "%{_o}%|Être « Connu » d'une faction (25)" to {_r::*}
+        set {_o} to "0"
+        if za_fil_fait({_u}, 5) is true:
+            set {_o} to "1"
+        add "%{_o}%|Défendre un territoire, un camp ou repousser un raid" to {_r::*}
+        set {_s} to za_stat({_u}, "survivants_sauves") + za_stat({_u}, "survivants_recrutes")
+        set {_o} to "0"
+        if {_s} >= 2:
+            set {_o} to "1"
+        add "%{_o}%|Sauver ou recruter 2 survivants (%min({_s}, 2)%/2)" to {_r::*}
+    else if {_n} is 6:
+        set {_f} to za_fil_fac_max({_u})
+        set {_o} to "0"
+        if {_f} >= 50:
+            set {_o} to "1"
+        add "%{_o}%|Être « Allié » d'une faction (%min(floor({_f}), 50)%/50)" to {_r::*}
+        set {_o} to "0"
+        if za_fil_fait({_u}, 6) is true:
+            set {_o} to "1"
+        add "%{_o}%|Avancer une grande quête" to {_r::*}
+        set {_o} to "0"
+        if za_fil_fait({_u}, 7) is true:
+            set {_o} to "1"
+        add "%{_o}%|Percer un laboratoire" to {_r::*}
+    else if {_n} >= 7:
+        set {_o} to "0"
+        if za_fil_fait({_u}, 8) is true:
+            set {_o} to "1"
+        add "%{_o}%|Connaître la vérité (chapitre 8)" to {_r::*}
+        set {_o} to "0"
+        if za_souvenir_n({_u}, "legende") >= 1:
+            set {_o} to "1"
+        add "%{_o}%|Vivre un moment légendaire (horde, chute, finale...)" to {_r::*}
+    return {_r::*}
+
+function za_niv_atteint(p: player, n: number) :: boolean:
+    set {_l::*} to za_niv_crit({_p}, {_n})
+    loop {_l::*}:
+        if loop-value starts with "0|":
+            return false
+    return true
+
+function za_niv_verif(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_avant} to za_niv({_p})
+    set {_n} to {_avant}
+    set {_go} to true
+    while {_go} is true:
+        set {_go} to false
+        if {_n} < 7:
+            if za_niv_atteint({_p}, {_n} + 1) is true:
+                add 1 to {_n}
+                set {_go} to true
+    if {_n} > {_avant}:
+        za_niv_monter({_p}, {_n}, {_avant})
+
+function za_niv_monter(p: player, n: number, avant: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::niv::%{_u}%} to {_n}
+    set {za::niv::jour::%{_u}%::%{_n}%} to {za::serveur::jours}
+    # laisse d'abord passer l'annonce du chapitre
+    wait 5 seconds
+    if {_p} is not online:
+        stop
+    set {_col} to za_niv_couleur({_n})
+    set {_nom} to za_niv_nom({_n})
+    send title "%{_col}%&lNIVEAU %{_n}%" with subtitle "&f%{_nom}%" to {_p} for 4 seconds
+    za_zm("son %{_p}% minecraft:ui.toast.challenge_complete 0.8 1")
+    za_zm("son %{_p}% za_modeles:sfx.sting_revelation 0.4 1.4")
+    send "&8&m                                              " to {_p}
+    send "%{_col}%&l✦ NIVEAU %{_n}% &8— %{_col}%&l%{_nom}%" to {_p}
+    send "&7&o%za_niv_phrase({_n})%" to {_p}
+    if {_n} - {_avant} > 1:
+        send "&8(ton parcours te rattrape : niveaux %{_avant} + 1% à %{_n}%)" to {_p}
+    send "&eNouveau pour toi :" to {_p}
+    loop za_niv_cmds({_n}):
+        set {_e::*} to split loop-value at "|"
+        send "&6  %{_e::1}% &8— &7%{_e::2}%" to {_p}
+    if {_n} < 7:
+        send "&8Prochain niveau (%za_niv_nom({_n} + 1)%) : &7/parcours" to {_p}
+    send "&8&m                                              " to {_p}
+    za_jetons_ajouter({_p}, {_n} * 5)
+    za_souvenir_ajouter({_u}, "", "niveau", "Tu deviens %{_nom}%.")
+    za_journal("%{_p}% devient %{_nom}% (niveau %{_n}%).")
+    loop za_monde_joueurs():
+        if loop-value is not {_p}:
+            if {_n} >= 7:
+                send "&d&l✦ &7%{_p}% devient &d&lHéros de saison&7. Le serveur s'en souviendra." to loop-value
+            else if {_n} >= 4:
+                send "&8✦ &7%{_p}% devient %{_col}%%{_nom}%&7." to loop-value
+
+# ---------------------------------------------------------------- FIL ROUGE : chapitres
+
+function za_fil_ch_u(u: text) :: number:
+    if {za::fil::ch::%{_u}%} is not set:
+        return 0
+    return {za::fil::ch::%{_u}%}
+
+function za_fil_fait(u: text, c: number) :: boolean:
+    if {za::fil::fait::%{_u}%::%{_c}%} is set:
+        return true
+    return false
+
+function za_fil_titre(c: number) :: text:
+    if {_c} is 1:
+        return "Réveil"
+    if {_c} is 2:
+        return "Retrouvailles"
+    if {_c} is 3:
+        return "Le camp"
+    if {_c} is 4:
+        return "Allégeance"
+    if {_c} is 5:
+        return "Territoire"
+    if {_c} is 6:
+        return "La quête"
+    if {_c} is 7:
+        return "Le laboratoire"
+    if {_c} is 8:
+        return "La révélation"
+    return "Objectif de saison"
+
+# le personnage que le prologue a lié à ce joueur
+function za_fil_contact(p: player) :: text:
+    set {_u} to "%{_p}'s uuid%"
+    if {za::fil::contact::%{_u}%} is set:
+        return {za::fil::contact::%{_u}%}
+    set {_c} to "vega"
+    if za_choix({_u}, "hopital") is "aide":
+        set {_c} to "lefort"
+    if za_choix({_u}, "theo") is "appele":
+        if {za::theo::rec::%{_u}%} is set:
+            set {_c} to "theo"
+    if za_choix({_u}, "leblanc") is "sauvee":
+        if {za::leblanc::morte} is not true:
+            set {_c} to "leblanc"
+    if {_c} is "vega":
+        if {za::pnj::mort::vega} is set:
+            set {_c} to "lefort"
+    return {_c}
+
+function za_fil_contact_nom(c: text) :: text:
+    if {_c} is "leblanc":
+        return "l'infirmière Leblanc"
+    if {_c} is "theo":
+        return "Théo"
+    if {_c} is "lefort":
+        return "le Dr Lefort"
+    return "le Sergent Vega"
+
+# le camp lié au contact (Leblanc, Théo), sinon le camp vivant le plus proche ; 0 si aucun
+function za_fil_camp(p: player) :: number:
+    set {_u} to "%{_p}'s uuid%"
+    set {_ct} to za_fil_contact({_p})
+    set {_c} to 0
+    if {_ct} is "leblanc":
+        if {za::leblanc::camp} is set:
+            set {_c} to {za::leblanc::camp}
+    else if {_ct} is "theo":
+        set {_sid} to {za::theo::rec::%{_u}%}
+        if {_sid} is set:
+            if {za::surv::%{_sid}%::camp} is set:
+                set {_c} to {za::surv::%{_sid}%::camp}
+    if {_c} is not 0:
+        if {za::camp::%{_c}%::etat} is not "vivant":
+            set {_c} to 0
+    if {_c} is 0:
+        set {_c} to za_cmp_plus_proche(location of {_p})
+    return {_c}
+
+function za_fil_fac_max(u: text) :: number:
+    set {_m} to 0
+    loop "milice", "scientifiques", "marchands", "pilleurs", "survivants" and "culte":
+        set {_v} to {za::fac::%loop-value%::%{_u}%}
+        if {_v} is set:
+            if {_v} > {_m}:
+                set {_m} to {_v}
+    return {_m}
+
+function za_fil_fac_best(u: text) :: text:
+    set {_m} to 0
+    set {_b} to ""
+    loop "milice", "scientifiques", "marchands", "pilleurs", "survivants" and "culte":
+        set {_v} to {za::fac::%loop-value%::%{_u}%}
+        if {_v} is set:
+            if {_v} > {_m}:
+                set {_m} to {_v}
+                set {_b} to loop-value
+    return {_b}
+
+# faction vers laquelle le contact oriente le joueur
+function za_fil_faction(p: player) :: text:
+    set {_ct} to za_fil_contact({_p})
+    if {_ct} is "lefort":
+        return "scientifiques"
+    if {_ct} is "vega":
+        if za_choix_p({_p}, "vega") is "clandestin":
+            return "survivants"
+        return "milice"
+    return "survivants"
+
+# le PNJ qui porte la grande quête de ce joueur
+function za_fil_quete_pnj(p: player) :: text:
+    set {_u} to "%{_p}'s uuid%"
+    if za_fil_contact({_p}) is "vega":
+        if {za::pnj::mort::vega} is not set:
+            if za_n({za::vega::etape::%{_u}%}) < 2:
+                return "vega"
+    return "lefort"
+
+function za_fil_ok(p: player, c: number) :: boolean:
+    set {_u} to "%{_p}'s uuid%"
+    if {_c} is 1:
+        if za_n({za::jours::%{_u}%}) < 1:
+            return false
+        if za_n({za::kills::%{_u}%}) < 15:
+            return false
+        if {za::base::%{_u}%} is not set:
+            return false
+        return true
+    if {_c} is 2:
+        set {_ct} to za_fil_contact({_p})
+        if {za::fil::vu_contact::%{_u}%} is set:
+            return true
+        if {_ct} is "lefort" or "vega":
+            if {za::rel::init::%{_ct}%::%{_u}%} is set:
+                return true
+            if {za::pnj::mort::%{_ct}%} is set:
+                return true
+        if {_ct} is "leblanc":
+            if {za::leblanc::morte} is true:
+                return true
+        return false
+    if {_c} is 3:
+        if za_stat({_u}, "camps_aides") >= 1:
+            return true
+        return false
+    if {_c} is 4:
+        if za_fil_fac_max({_u}) >= 25:
+            return true
+        return false
+    if {_c} is 5:
+        set {_s} to za_stat({_u}, "territoires_defendus") + za_stat({_u}, "raids_repousses") + za_souvenir_n({_u}, "defense")
+        if {_s} >= 1:
+            return true
+        return false
+    if {_c} is 6:
+        if za_lefort_etape({_u}) >= 3:
+            return true
+        if za_n({za::vega::etape::%{_u}%}) >= 1:
+            return true
+        return false
+    if {_c} is 7:
+        if za_lefort_etape({_u}) >= 4:
+            return true
+        if za_souvenir_n({_u}, "labo") >= 1:
+            return true
+        if {za::fil::labo::%{_u}%} is set:
+            return true
+        return false
+    if {_c} is 8:
+        if za_lefort_etape({_u}) >= 8:
+            return true
+        if {za::saison::revelee::%{za::saison::num}%} is set:
+            return true
+        if {za::fil::verite::%{_u}%} is set:
+            return true
+        return false
+    return false
+
+# objectif court (boussole, /guide)
+function za_fil_obj(p: player, c: number) :: text:
+    set {_u} to "%{_p}'s uuid%"
+    if {_c} is 1:
+        return "Survis à ta première nuit, abats 15 morts et pose ta base"
+    if {_c} is 2:
+        set {_ct} to za_fil_contact({_p})
+        if {_ct} is "leblanc" or "theo":
+            set {_cp} to za_fil_camp({_p})
+            if {_cp} is not 0:
+                return "Retrouve %za_fil_contact_nom({_ct})% au %{za::camp::%{_cp}%::nom}%"
+        return "Retrouve %za_fil_contact_nom({_ct})%"
+    if {_c} is 3:
+        set {_cp} to za_fil_camp({_p})
+        if {_cp} is not 0:
+            return "Aide le %{za::camp::%{_cp}%::nom}% (vivres, défense, recrues)"
+        return "Aide un camp de survivants (/camps)"
+    if {_c} is 4:
+        return "Fais-toi connaître %za_terr_art(za_fil_faction({_p}))% (25 de réputation)"
+    if {_c} is 5:
+        return "Défends un territoire ou un camp, ou repousse un raid"
+    if {_c} is 6:
+        if za_fil_quete_pnj({_p}) is "vega":
+            return "Rapporte au Sergent Vega les plaques de son escouade"
+        return "Quête du Dr Lefort : %za_lefort_texte(za_lefort_etape({_u}))%"
+    if {_c} is 7:
+        return "Perce un laboratoire NORDA et récupère ses données"
+    if {_c} is 8:
+        return "Découvre la vérité sur Samuel Arel"
+    return "Objectif de saison : %za_saison_pct()% %% (/saison)"
+
+# mot court pour la boussole
+function za_fil_court(p: player, c: number) :: text:
+    if {_c} is 2:
+        set {_ct} to za_fil_contact({_p})
+        if {_ct} is "leblanc":
+            return "Leblanc"
+        if {_ct} is "theo":
+            return "Théo"
+        if {_ct} is "lefort":
+            return "Dr Lefort"
+        return "Sergent Vega"
+    if {_c} is 3:
+        return "Le camp"
+    if {_c} is 5:
+        return "Territoire"
+    if {_c} is 6:
+        return "La quête"
+    if {_c} is 7:
+        return "Laboratoire"
+    return za_fil_titre({_c})
+
+function za_fil_astuce(p: player, c: number) :: text:
+    set {_u} to "%{_p}'s uuid%"
+    if {_c} is 1:
+        if {za::base::%{_u}%} is not set:
+            return "Quatre murs, une porte, une lumière : puis /base pour en faire ta base. La nuit, ils sont deux fois plus nombreux."
+        return "Tiens jusqu'au matin. Les morts viennent au bruit et à l'obscurité."
+    if {_c} is 2:
+        set {_ct} to za_fil_contact({_p})
+        if {_ct} is "leblanc" or "theo":
+            return "Suis la boussole jusqu'au camp. Approche-toi : on te reconnaîtra."
+        return "Il ne reste jamais longtemps au même endroit. Suis la boussole et fais un clic droit sur lui."
+    if {_c} is 3:
+        return "Au camp : clic droit sur le chef pour donner des vivres ou des matériaux. Quand la cloche sonne, reste et défends."
+    if {_c} is 4:
+        set {_f} to za_fil_faction({_p})
+        if {_f} is "milice":
+            return "La Milice respecte ceux qui abattent des morts et tiennent les évacuations. /faction pour suivre ta réputation."
+        if {_f} is "scientifiques":
+            return "Les Scientifiques suivent le Dr Lefort : sa quête, les labos, la centrale. /faction pour suivre ta réputation."
+        return "Les Survivants se souviennent de ceux qui aident les camps, répondent aux SOS et brûlent les nids. /faction."
+    if {_c} is 5:
+        return "/territoires montre qui tient quel bâtiment. Quand la radio annonce une attaque près de toi, vas-y."
+    if {_c} is 6:
+        if za_fil_quete_pnj({_p}) is "vega":
+            return "Les soldats infectés de Bravo-3 rôdent la nuit (après le jour 20). Leurs plaques : /plaques."
+        return "Le Dr Lefort passe parfois près de toi : ta boussole te guide quand il est là. /quetes pour le détail."
+    if {_c} is 7:
+        return "Un labo s'ouvre pendant une Blood Moon, avec une Carte d'accès. Le terminal (pupitre) contient les données."
+    if {_c} is 8:
+        return "Termine la quête de Lefort, écoute Léa la nuit... ou pousse le serveur jusqu'à 100 %%."
+    return "Chaque zombie, chaque labo, chaque cargaison fait avancer la saison. Quand elle atteint 100 %%, la fin commence."
+
+# où pointe la boussole
+function za_fil_cible(p: player, c: number) :: location:
+    set {_u} to "%{_p}'s uuid%"
+    if {_c} is 2:
+        set {_ct} to za_fil_contact({_p})
+        if {_ct} is "leblanc" or "theo":
+            set {_cp} to za_fil_camp({_p})
+            if {_cp} is not 0:
+                return {za::camp::%{_cp}%::loc}
+            stop
+        set {_e} to za_fil_pnj({_p}, {_ct}, 140)
+        if {_e} is set:
+            return location of {_e}
+        stop
+    if {_c} is 3:
+        set {_cp} to za_fil_camp({_p})
+        if {_cp} is not 0:
+            return {za::camp::%{_cp}%::loc}
+        stop
+    if {_c} is 5:
+        set {_f} to za_fil_fac_best({_u})
+        set {_best} to 100000
+        loop za_terr_cles():
+            set {_k} to loop-value
+            if any:
+                {_f} is ""
+                za_terr_fac({_k}) is {_f}
+            then:
+                set {_l} to za_terr_loc({_k})
+                if {_l} is set:
+                    if world of {_l} is world of {_p}:
+                        set {_d} to distance between {_l} and {_p}
+                        if {_d} < {_best}:
+                            set {_best} to {_d}
+                            set {_res} to {_l}
+        return {_res}
+    if {_c} is 6:
+        set {_e} to za_fil_pnj({_p}, za_fil_quete_pnj({_p}), 140)
+        if {_e} is set:
+            return location of {_e}
+        stop
+    if {_c} is 7:
+        set {_best} to 100000
+        loop {za::labo::liste::*}:
+            set {_id} to loop-value
+            set {_w} to world({za::labo::%{_id}%::monde})
+            if {_w} is set:
+                if world of {_p} is {_w}:
+                    set {_l} to location({za::labo::%{_id}%::bx} + 5, {za::labo::%{_id}%::gy}, {za::labo::%{_id}%::bz} + 5, {_w})
+                    set {_d} to distance between {_l} and {_p}
+                    if {_d} < {_best}:
+                        set {_best} to {_d}
+                        set {_res} to {_l}
+        return {_res}
+    stop
+
+function za_fil_boussole(p: player):
+    set {_c} to za_fil_ch_u("%{_p}'s uuid%")
+    if {_c} < 1:
+        stop
+    set {_l} to za_fil_cible({_p}, {_c})
+    if {_l} is set:
+        if world of {_l} is world of {_p}:
+            za_zm("objectif %{_p}% %za_us(za_fil_court({_p}, {_c}))% %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})%")
+            stop
+    za_zm("objectif %{_p}% off")
+
+# un PNJ du récit (Lefort, Vega, Léa) près du joueur
+function za_fil_pnj(p: player, npc: text, r: number) :: entity:
+    set {_cle} to "(radio)"
+    if {_npc} is "lefort":
+        set {_cle} to "Lefort"
+    else if {_npc} is "vega":
+        set {_cle} to "Vega"
+    loop all villagers in radius {_r} around {_p}:
+        if {_res} is not set:
+            if uncolored name of loop-entity contains {_cle}:
+                set {_res} to loop-entity
+    return {_res}
+
+# rendez-vous : le PNJ du récit vient au joueur (au plus une fois toutes les {@rdv_cd} minutes)
+function za_fil_rdv(p: player, npc: text, cd: number = {@rdv_cd}):
+    set {_u} to "%{_p}'s uuid%"
+    if {za::pnj::mort::%{_npc}%} is set:
+        stop
+    if "%world of {_p}%" is not "world":
+        stop
+    if {za::fil::rdv::%{_u}%} is set:
+        if difference between {za::fil::rdv::%{_u}%} and now is less than ("%{_cd}% minutes" parsed as timespan):
+            stop
+    set {za::fil::rdv::%{_u}%} to now
+    set {_e} to za_fil_pnj({_p}, {_npc}, 140)
+    if {_e} is set:
+        za_fil_boussole({_p})
+        stop
+    set {_mob} to za_pnj_mob({_npc})
+    za_spawn_near({_p}, {_mob}, 22, 38)
+    set {za::pnj::actif::%{_npc}%} to true
+    za_zm("son %{_p}% za_modeles:sfx.radio_statique 0.5 1")
+    set {_qui} to "Le Dr Lefort"
+    if {_npc} is "vega":
+        set {_qui} to "Le Sergent Vega"
+    else if {_npc} is "lea":
+        set {_qui} to "Léa elle-même"
+    send "&8[Radio] &bLéa &8» &7%{_qui}% passe tout près de toi. Il ne restera pas longtemps. Suis ta boussole." to {_p}
+    wait 1 second
+    za_fil_boussole({_p})
+    wait 15 minutes
+    execute console command "mm mobs kill %{_mob}%"
+    set {za::pnj::actif::%{_npc}%} to false
+
+# ce que dit le contact quand on arrive enfin au camp
+function za_fil_retrouvailles(p: player, ct: text):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::fil::vu_contact::%{_u}%} to true
+    za_zm("son %{_p}% za_modeles:sfx.sting_revelation 0.5 1.2")
+    if {_ct} is "leblanc":
+        send "&fInfirmière Leblanc &8» &7C'est toi... L'hôpital, le troisième jour. Sans toi, je serais l'une d'eux." to {_p}
+        wait 4 seconds
+        send "&fInfirmière Leblanc &8» &7Ici, on soigne ceux qu'on peut. Mais on ne tiendra pas seuls. Aide le camp, veux-tu ?" to {_p}
+    else:
+        send "&fThéo &8» &7C'est toi, au téléphone ? Mamie disait que quelqu'un viendrait. Je t'ai attendu longtemps." to {_p}
+        wait 4 seconds
+        send "&fThéo &8» &7Les grands d'ici ont faim. Tu peux les aider ? Après, tu restes un peu ?" to {_p}
+
+function za_fil_radio(p: player, texte: text):
+    za_zm("son %{_p}% za_modeles:sfx.radio_statique 0.5 1")
+    send "&8[Radio] &bLéa &8» &7%{_texte}%" to {_p}
+
+# annonce d'un chapitre (récit relié au prologue)
+function za_fil_intro(p: player, c: number):
+    set {_u} to "%{_p}'s uuid%"
+    wait 4 seconds
+    if {_p} is not online:
+        stop
+    if za_fil_ch_u({_u}) is not {_c}:
+        stop
+    send title "&6CHAPITRE %{_c}%" with subtitle "&e%za_fil_titre({_c})%" to {_p} for 3 seconds
+    za_zm("son %{_p}% minecraft:block.note_block.chime 0.6 1.2")
+    if {_c} is 1:
+        za_fil_radio({_p}, "Si tu m'entends... tu es sorti de Saint-Aurèle. Il faut passer la première nuit. Trouve un abri, fais-en ta base.")
+    else if {_c} is 2:
+        set {_ct} to za_fil_contact({_p})
+        set {za::fil::contact::%{_u}%} to {_ct}
+        if {_ct} is "leblanc":
+            set {_cp} to za_fil_camp({_p})
+            set {_cn} to "un camp"
+            if {_cp} is not 0:
+                set {_cn} to "le %{za::camp::%{_cp}%::nom}%"
+            za_fil_radio({_p}, "Quelqu'un te cherche sur la fréquence de %{_cn}%. Une infirmière. Elle dit que tu l'as sortie de l'hôpital, le troisième jour.")
+        else if {_ct} is "theo":
+            za_fil_radio({_p}, "Un petit gars demande après toi. Théo. Il dit que c'est toi qui as répondu au téléphone, ce soir-là.")
+        else if {_ct} is "lefort":
+            za_fil_radio({_p}, "Un médecin est passé sur ma fréquence. Il cherche « celui qui a rapporté le soluté à la pharmacie ». C'est toi, non ?")
+            za_fil_rdv({_p}, "lefort")
+        else:
+            if za_choix({_u}, "vega") is "clandestin":
+                za_fil_radio({_p}, "Un sergent pose des questions sur une ruelle, derrière le checkpoint. Il sait que c'était toi. Il veut te voir.")
+            else if za_choix({_u}, "vega") is "obei":
+                za_fil_radio({_p}, "Un sergent de la Milice demande après toi. Il se souvient de ceux qui ont fait la file au checkpoint.")
+            else:
+                za_fil_radio({_p}, "Un sergent de la Milice rassemble les survivants. Il pourrait t'aider... ou te recruter.")
+            za_fil_rdv({_p}, "vega")
+    else if {_c} is 3:
+        set {_cp} to za_fil_camp({_p})
+        if {_cp} is not 0:
+            za_fil_radio({_p}, "Le %{za::camp::%{_cp}%::nom}% tient à peine. Des vivres, des bras, quelqu'un pour la palissade... Ils comptent sur toi.")
+        else:
+            za_fil_radio({_p}, "Il reste des camps, quelque part. Ils ont besoin de monde. Cherche-les : /camps.")
+    else if {_c} is 4:
+        set {_f} to za_fil_faction({_p})
+        set {_g} to "Les Survivants t'ont remarqué"
+        if {_f} is "milice":
+            set {_g} to "La Milice t'a remarqué"
+        else if {_f} is "scientifiques":
+            set {_g} to "Les Scientifiques t'ont remarqué"
+        za_fil_radio({_p}, "Seul, tu ne tiendras pas l'hiver. %{_g}%. Fais-toi un nom chez eux.")
+    else if {_c} is 5:
+        za_fil_radio({_p}, "Les factions se battent pour les bâtiments : l'hôpital, le poste, la centrale... Choisis. Tiens-en un.")
+    else if {_c} is 6:
+        if za_fil_quete_pnj({_p}) is "vega":
+            za_fil_radio({_p}, "Vega a perdu son escouade au premier soir. Il dit qu'ils marchent encore. Il a besoin de toi.")
+            za_fil_rdv({_p}, "vega")
+        else:
+            za_fil_radio({_p}, "Le Dr Lefort a une piste. Du sang, des données... Il ne fait confiance qu'à toi, maintenant.")
+            za_fil_rdv({_p}, "lefort")
+    else if {_c} is 7:
+        za_fil_radio({_p}, "Les réponses dorment derrière les portes noires de NORDA. Des labos scellés. Il faut y entrer.")
+    else if {_c} is 8:
+        za_fil_radio({_p}, "Un nom revient dans toutes les données. Samuel Arel. Le patient zéro. Il faut comprendre ce qu'il était.")
+    else:
+        za_fil_radio({_p}, "Tu sais, maintenant. Il faut que tout le serveur sache. Il reste %100 - za_saison_pct()% %% avant la fin.")
+    send "&6➜ &e%za_fil_obj({_p}, {_c})% &8(/guide)" to {_p}
+    za_fil_boussole({_p})
+
+# un chapitre est accompli : on le date et on s'en souvient
+function za_fil_marquer(p: player, c: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::fil::fait::%{_u}%::%{_c}%} to {za::serveur::jours}
+    set {_r} to ""
+    if {_c} is 1:
+        set {_r} to "Tu as passé ta première nuit et posé ta base."
+    else if {_c} is 2:
+        set {_ct} to za_fil_contact({_p})
+        set {_r} to "Tu as retrouvé %za_fil_contact_nom({_ct})%."
+        if {_ct} is "leblanc":
+            if {za::leblanc::morte} is true:
+                set {_r} to "Tu es arrivé trop tard pour l'infirmière Leblanc. Tu retiens son nom."
+        if {za::pnj::mort::%{_ct}%} is set:
+            set {_r} to "%za_fil_contact_nom({_ct})% n'a pas survécu. Tu retiens son nom."
+    else if {_c} is 3:
+        set {_cp} to za_fil_camp({_p})
+        set {_r} to "Tu as aidé un camp de survivants."
+        if {_cp} is not 0:
+            set {_r} to "Tu as aidé le %{za::camp::%{_cp}%::nom}%."
+    else if {_c} is 4:
+        set {_f} to za_fil_fac_best({_u})
+        set {_r} to "Une faction a appris ton nom."
+        if {_f} is not "":
+            set {_r} to "Tu es désormais connu %za_terr_art({_f})%."
+    else if {_c} is 5:
+        set {_r} to "Tu as tenu une ligne quand les autres reculaient."
+    else if {_c} is 6:
+        set {_r} to "Tu as pris la grande quête à ton compte."
+    else if {_c} is 7:
+        set {_r} to "Tu es entré dans un laboratoire NORDA."
+    else if {_c} is 8:
+        set {_r} to "Tu connais la vérité sur Samuel Arel."
+    set {za::fil::res::%{_u}%::%{_c}%} to {_r}
+    za_souvenir_ajouter({_u}, "", "chapitre", {_r})
+    za_jetons_ajouter({_p}, 5 + ({_c} * 2))
+    za_journal("%{_p}% : chapitre « %za_fil_titre({_c})% » accompli.")
+
+function za_fil_ceremonie(p: player, c: number):
+    send title "&a&l✔ %za_fil_titre({_c})%" with subtitle "&7%{za::fil::res::%{_p}'s uuid%::%{_c}%}%" to {_p} for 3 seconds
+    za_zm("son %{_p}% minecraft:ui.toast.challenge_complete 0.6 1.1")
+    send "&a✔ &fChapitre %{_c}% — %za_fil_titre({_c})% &8· &7%{za::fil::res::%{_p}'s uuid%::%{_c}%}% &6(+%5 + ({_c} * 2)% jetons)" to {_p}
+
+# vérification périodique du fil
+function za_fil_verif(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    # le fil commence après le prologue (ou pour les joueurs d'avant le prologue, marqués « fini »)
+    if {za::pro::etat::%{_u}%} is not "fini":
+        stop
+    set {_c} to za_fil_ch_u({_u})
+    if {_c} is 0:
+        set {za::fil::ch::%{_u}%} to 1
+        za_fil_intro({_p}, 1)
+        stop
+    # retrouvailles : arriver au camp de Leblanc / Théo
+    if {_c} is 2:
+        if {za::fil::vu_contact::%{_u}%} is not set:
+            set {_ct} to za_fil_contact({_p})
+            if {_ct} is "leblanc" or "theo":
+                set {_cp} to za_fil_camp({_p})
+                if {_cp} is not 0:
+                    set {_cl} to {za::camp::%{_cp}%::loc}
+                    if world of {_cl} is world of {_p}:
+                        if distance between {_cl} and {_p} < 16:
+                            za_fil_retrouvailles({_p}, {_ct})
+                if {_ct} is "leblanc":
+                    if {za::leblanc::camp} is not set:
+                        za_cmp_leblanc_assurer({_p})
+    # chapitres accomplis (plusieurs d'un coup pour les anciens joueurs)
+    set {_n} to 0
+    set {_go} to true
+    while {_go} is true:
+        set {_go} to false
+        if {_c} < 9:
+            if za_fil_ok({_p}, {_c}) is true:
+                za_fil_marquer({_p}, {_c})
+                add 1 to {_c}
+                add 1 to {_n}
+                set {_go} to true
+    if {_n} is 0:
+        # rien d'accompli : le personnage du récit vient au joueur quand il en a besoin
+        if {_c} is 2:
+            set {_ct} to za_fil_contact({_p})
+            if {_ct} is "lefort" or "vega":
+                za_fil_rdv({_p}, {_ct})
+        else if {_c} is 6:
+            za_fil_rdv({_p}, za_fil_quete_pnj({_p}), 20)
+        else if {_c} is 8:
+            if za_lefort_etape({_u}) >= 5:
+                if za_lefort_etape({_u}) < 8:
+                    za_fil_rdv({_p}, "lefort", 20)
+        stop
+    set {za::fil::ch::%{_u}%} to {_c}
+    if {_n} is 1:
+        za_fil_ceremonie({_p}, {_c} - 1)
+    else:
+        send "&6&lTON HISTOIRE AVANCE &8— &7%{_n}% chapitres accomplis d'un coup. &8(/campagne)" to {_p}
+        za_zm("son %{_p}% minecraft:ui.toast.challenge_complete 0.6 1.1")
+    za_fil_intro({_p}, {_c})
+
+# lieux découverts (bâtiments nommés et camps)
+function za_fil_visites(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_k} to za_lieu_pres(location of {_p}, 45)
+    if {_k} is "":
+        stop
+    set {_t} to {za::lieu::%{_k}%::type}
+    if {_t} is "zone" or "monde":
+        stop
+    if {za::fil::vu::%{_u}%::%{_k}%} is set:
+        stop
+    set {za::fil::vu::%{_u}%::%{_k}%} to {za::serveur::jours}
+    if {za::fil::nvu::%{_u}%} is not set:
+        set {za::fil::nvu::%{_u}%} to 0
+    add 1 to {za::fil::nvu::%{_u}%}
+    set {_e} to ""
+    if {za::lieu::%{_k}%::etat} is "tombe":
+        set {_e} to " &8(tombé au jour %{za::lieu::%{_k}%::tombe}%)"
+    send action bar "&7Lieu découvert : &f%za_lieu_nom({_k})%%{_e}%" to {_p}
+    send "&8&oLieu découvert : &7&o%za_lieu_nom({_k})%%{_e}%&8&o. Son histoire : /lieu" to {_p}
+
+every 15 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if {_p} is online:
+            za_fil_visites({_p})
+            za_fil_verif({_p})
+            za_niv_verif({_p})
+
+on join:
+    wait 8 seconds
+    if player is not online:
+        stop
+    if za_pro(player) is true:
+        stop
+    set {_c} to za_fil_ch_u("%player's uuid%")
+    if {_c} >= 1:
+        send "&6➜ &eChapitre %{_c}% — %za_fil_titre({_c})% : &f%za_fil_obj(player, {_c})% &8(/guide)" to player
+        za_fil_boussole(player)
+
+# ---------------------------------------------------------------- COMMANDES JOUEUR
+
+function za_guide(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_c} to za_fil_ch_u({_u})
+    if {_c} < 1:
+        send "&7Termine d'abord ton arrivée. Le reste viendra." to {_p}
+        stop
+    send "&8&m                                              " to {_p}
+    send "&6&lQUE FAIRE MAINTENANT ? &8— %za_niv_couleur(za_niv({_p}))%✦%za_niv({_p})% %za_niv_nom(za_niv({_p}))%" to {_p}
+    send "&6Chapitre %{_c}% — %za_fil_titre({_c})%" to {_p}
+    send "&e➜ &f%za_fil_obj({_p}, {_c})%" to {_p}
+    if {_c} is 1:
+        set {_b} to "non"
+        if {za::base::%{_u}%} is set:
+            set {_b} to "oui"
+        send "&8   nuit : %min(za_n({za::jours::%{_u}%}), 1)%/1 · morts : %min(za_n({za::kills::%{_u}%}), 15)%/15 · base : %{_b}%" to {_p}
+    else if {_c} is 4:
+        send "&8   réputation la plus haute : %floor(za_fil_fac_max({_u}))%/25" to {_p}
+    send "&7%za_fil_astuce({_p}, {_c})%" to {_p}
+    # une astuce de circonstance, au plus
+    set {_x} to ""
+    if za_n({za::infection::%{_u}%}) > 0:
+        set {_x} to "&cTu es infecté. Un Antidote, vite (dans les 10 minutes après une morsure). /infection"
+    else if za_nuit({_p}) is true:
+        if {za::base::%{_u}%} is not set:
+            set {_x} to "&7C'est la nuit et tu n'as pas de base : reste près de la lumière, ne t'isole pas."
+    if {_x} is not "":
+        send {_x} to {_p}
+    set {_l} to za_fil_cible({_p}, {_c})
+    if {_l} is set:
+        send "&8(boussole mise à jour)" to {_p}
+    send "&8Ton niveau et la suite : &7/parcours &8· ton histoire : &7/campagne" to {_p}
+    send "&8&m                                              " to {_p}
+    za_fil_boussole({_p})
+
+function za_parcours(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_n} to za_niv({_p})
+    send "&8&m                                              " to {_p}
+    send "&6&lTON PARCOURS &8— %za_niv_couleur({_n})%&l✦%{_n}% %za_niv_nom({_n})%" to {_p}
+    set {_ech} to ""
+    set {_i} to 1
+    while {_i} <= 7:
+        if {_i} < {_n}:
+            set {_ech} to "%{_ech}%&a%za_niv_nom({_i})%&8 › "
+        else if {_i} is {_n}:
+            set {_ech} to "%{_ech}%%za_niv_couleur({_i})%&l%za_niv_nom({_i})%&8 › "
+        else:
+            set {_ech} to "%{_ech}%&8%za_niv_nom({_i})%"
+            if {_i} < 7:
+                set {_ech} to "%{_ech}% › "
+        add 1 to {_i}
+    send {_ech} to {_p}
+    if {_n} < 7:
+        send "&ePour devenir %za_niv_couleur({_n} + 1)%%za_niv_nom({_n} + 1)% &e:" to {_p}
+        loop za_niv_crit({_p}, {_n} + 1):
+            set {_e::*} to split loop-value at "|"
+            if {_e::1} is "1":
+                send "&a  ✔ &7%{_e::2}%" to {_p}
+            else:
+                send "&c  ✘ &f%{_e::2}%" to {_p}
+    else:
+        send "&d&oTu as atteint le sommet. Il ne reste qu'à tenir." to {_p}
+    set {_c} to za_fil_ch_u({_u})
+    if {_c} >= 1:
+        send "&6Chapitre %{_c}% — %za_fil_titre({_c})% : &f%za_fil_obj({_p}, {_c})%" to {_p}
+    send "&8Tes commandes : " to {_p}
+    set {_i} to 1
+    set {_cm} to ""
+    while {_i} <= {_n}:
+        loop za_niv_cmds({_i}):
+            set {_e::*} to split loop-value at "|"
+            set {_cm} to "%{_cm}%&7%{_e::1}% "
+        add 1 to {_i}
+    send "  %{_cm}%" to {_p}
+    send "&8&m                                              " to {_p}
+
+function za_campagne(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_c} to za_fil_ch_u({_u})
+    send "&8&m                                              " to {_p}
+    send "&6&lTON HISTOIRE" to {_p}
+    # le prologue, en une ligne
+    set {_pr} to ""
+    if za_choix({_u}, "hopital") is "aide":
+        set {_pr} to "%{_pr}%tu as aidé à la pharmacie · "
+    else if za_choix({_u}, "hopital") is "fui":
+        set {_pr} to "%{_pr}%tu as fui l'hôpital · "
+    if za_choix({_u}, "leblanc") is "sauvee":
+        set {_pr} to "%{_pr}%tu as sauvé l'infirmière Leblanc · "
+    else if za_choix({_u}, "leblanc") is "perdue":
+        set {_pr} to "%{_pr}%tu n'as pas pu sauver Leblanc · "
+    if za_choix({_u}, "theo") is "appele":
+        set {_pr} to "%{_pr}%tu as répondu à Théo · "
+    else if za_choix({_u}, "theo") is "provisions":
+        set {_pr} to "%{_pr}%tu as pris les provisions de Mme Gagnon · "
+    if za_choix({_u}, "vega") is "obei":
+        set {_pr} to "%{_pr}%tu as obéi au checkpoint"
+    else if za_choix({_u}, "vega") is "clandestin":
+        set {_pr} to "%{_pr}%tu as pris la ruelle"
+    if {_pr} is not "":
+        send "&8Avant : &7&o%{_pr}%" to {_p}
+    set {_i} to 1
+    while {_i} <= 9:
+        if za_fil_fait({_u}, {_i}) is true:
+            send "&a✔ &7Jour %{za::fil::fait::%{_u}%::%{_i}%}% &8— &f%za_fil_titre({_i})% &8· &7%{za::fil::res::%{_u}%::%{_i}%}%" to {_p}
+        else if {_i} is {_c}:
+            send "&e➜ &f%za_fil_titre({_i})% &8· &e%za_fil_obj({_p}, {_i})%" to {_p}
+        else:
+            send "&8·  ???" to {_p}
+        add 1 to {_i}
+    send "&8Ce que le monde a retenu de toi : &7/souvenirs" to {_p}
+    send "&8&m                                              " to {_p}
+
+command /guide:
+    aliases: /quoifaire
+    trigger:
+        if za_pro(player) is true:
+            send "&7Pour l'instant, écoute et suis les indications à l'écran." to player
+            stop
+        za_guide(player)
+
+command /parcours:
+    aliases: /niveau
+    trigger:
+        za_parcours(player)
+
+command /campagne:
+    trigger:
+        za_campagne(player)
+
+# ---------------------------------------------------------------- ADMIN
+
+command /zaparcours [<offline player>] [<text>] [<number>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is not set:
+            send "&cUsage : /zaparcours <joueur> info|niveau <n>|chapitre <n>|reset" to sender
+            stop
+        set {_u} to "%arg-1's uuid%"
+        if arg-2 is "niveau":
+            set {za::niv::%{_u}%} to arg-3
+            send "Niveau de %arg-1% : %arg-3%" to sender
+        else if arg-2 is "chapitre":
+            set {za::fil::ch::%{_u}%} to arg-3
+            send "Chapitre de %arg-1% : %arg-3%" to sender
+            loop all players:
+                if loop-player is arg-1:
+                    za_fil_intro(loop-player, arg-3)
+        else if arg-2 is "reset":
+            delete {za::niv::%{_u}%}
+            delete {za::fil::ch::%{_u}%}
+            delete {za::fil::fait::%{_u}%::*}
+            delete {za::fil::res::%{_u}%::*}
+            delete {za::fil::contact::%{_u}%}
+            delete {za::fil::vu_contact::%{_u}%}
+            delete {za::fil::rdv::%{_u}%}
+            send "Parcours de %arg-1% remis à zéro." to sender
+        else:
+            send "%arg-1% : niveau %za_niv_u({_u})%, chapitre %za_fil_ch_u({_u})%, contact %{za::fil::contact::%{_u}%}%, lieux %{za::fil::nvu::%{_u}%}%" to sender

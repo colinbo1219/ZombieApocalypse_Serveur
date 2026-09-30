@@ -1,0 +1,13 @@
+#A list of mobs (hostile, passive, you name it) to allow to use climbing behavior.
+#Only actually works with mobs that natively use the default ground navigation AI, which thankfully is most mobs, but flying mobs like phantoms, swimming mobs like guardians, and bouncing mobs like slimes won't be affected if added.
+#Modded mobs may work as well, just be sure to use lead with the mod namespace! I.e. "modname:mobname", like you would use if you created it with the 'summon' command. If it doesn't work, it's likely that the mob doesn't use the ground navigation AI.
+#If you notice your config resetting to default, that probably means you've given it invalid mob names. Double check spelling, and ensure you that "modname:mobname" also works with the summon command!
+climbingMobsAllowlist = ["minecraft:zombie", "minecraft:drowned", "minecraft:husk", "minecraft:zombie_villager"]
+#
+#NBTTag required for mob to use climbing behavior. Leave as empty double quotes (default) to not require a tag. For example, a value of "canClimb" would mean that only mobs with the "canClimb" nbt tag could climb, such as those summoned with the command...
+#/summon minecraft:zombie ~ ~ ~ {Tags: ["canClimb"]}
+climbingTag = "za_climb"
+#
+#Uses the allowlist as a banlist, attempting to add climbing behavior to all mobs EXCEPT those listed in climbingMobsAllowlist.
+useAllowlistAsBanlist = false
+

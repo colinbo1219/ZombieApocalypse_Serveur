@@ -1,0 +1,121 @@
+# =====================================================================
+#  ZombieApocalypse - AMBIANCE : reves et cauchemars, radio datee, ciel de la souche
+#  * Reconnexion apres 30 minutes ou plus : un reve (ou un cauchemar si ton esprit est fragile).
+#  * Radio datee : l'histoire du monde avance avec les jours du serveur (une transmission a chaque jalon).
+#  * Ambiance : des particules propres a la souche de ta region flottent autour de toi.
+# =====================================================================
+
+# ---------- reves et cauchemars ----------
+on quit:
+    if za_pro(player) is true:
+        stop
+    set {za::quit::%player's uuid%} to now
+
+on join:
+    if za_pro(player) is true:
+        stop
+    set {_u} to "%player's uuid%"
+    if {za::quit::%{_u}%} is set:
+        if difference between {za::quit::%{_u}%} and now is greater than 30 minutes:
+            wait 6 seconds
+            set {_s} to {za::sanite::%{_u}%}
+            if {_s} is not set:
+                set {_s} to 100
+            if {_s} > 70:
+                if chance of 35%:
+                    send title "&bUn reve" with subtitle "&7Une maison, de la lumiere, quelqu'un qui rit..." to player
+                    if {za::sanite::%{_u}%} is set:
+                        add 5 to {za::sanite::%{_u}%}
+                else:
+                    send title "&8Cauchemar" with subtitle "&7Quelque chose respire sous ton lit." to player
+                    if {za::sanite::%{_u}%} is set:
+                        remove 3 from {za::sanite::%{_u}%}
+            else:
+                set {_c::*} to "Ils frappent a la porte. Tu connais leur voix.", "Tu te reveilles dans la cave. Tu n'as pas de souvenir d'y etre descendu.", "Le ciel est rouge. Quelqu'un t'appelle par ton prenom, doucement."
+                send title "&4Cauchemar" with subtitle "&7%random element out of {_c::*}%" to player
+                za_effet(player, "darkness", 8, 0)
+                za_effet(player, "nausea", 6, 0)
+                if {za::sanite::%{_u}%} is set:
+                    remove 6 from {za::sanite::%{_u}%}
+
+# ---------- radio datee : "jour|message" ----------
+on load:
+    delete {za::radio::msg::*}
+    add "1|&8[Radio militaire] &7...ici la zone 4. Evacuation en cours. Restez chez vous. Repetez : restez chez vous..." to {za::radio::msg::*}
+    add "5|&8[Radio] &7...on nous dit que ce n'est qu'une grippe. Les hopitaux debordent. Ne mordez personne..." to {za::radio::msg::*}
+    add "10|&8[Radio militaire] &7...quarantaine etablie. Les infectes sont abandonnes. Ne tentez pas de traverser le cordon." to {za::radio::msg::*}
+    add "15|&8[Radio] &7...le Dr Lefort demande du sang infecte pour ses recherches. Il parle d'un serum. Il dit qu'il fonctionne parfois." to {za::radio::msg::*}
+    add "22|&8[Radio] &7...un camp de survivants a ete retrouve vide. Les tentes sont ouvertes de l'interieur." to {za::radio::msg::*}
+    add "30|&8[Radio militaire] &7...le laboratoire zero a perdu le contact. Ne pas approcher. Le patient zero est toujours en liberte." to {za::radio::msg::*}
+    add "40|&8[Radio] &7...le virus a change. Les morts courent, maintenant. Certains grimpent. Restez loin des murs." to {za::radio::msg::*}
+    add "50|&8[Radio] &7...le Sergent Vega compte quarante-sept jours sans dormir. Il dit qu'il entend l'Overlord sous la ville." to {za::radio::msg::*}
+    add "60|&8[Radio] &7...des voix repetent nos propres messages, un jour plus tard. Ne repondez pas." to {za::radio::msg::*}
+    add "75|&8[Radio] &7...il ne reste que des jetons et des souvenirs. Le troc est la seule loi." to {za::radio::msg::*}
+    add "90|&8[Radio militaire] &7...ordre final : detruire la ville. Quelqu'un a-t-il recu cet ordre ? ...krrr..." to {za::radio::msg::*}
+    add "120|&8[Radio] &7...si vous entendez ceci : vous etes les derniers. Ecrivez vos noms. Quelqu'un le lira un jour. Fin de transmission." to {za::radio::msg::*}
+
+every 5 minutes:
+    set {_j} to {za::serveur::jours}
+    if {_j} is set:
+        loop {za::radio::msg::*}:
+            set {_p::*} to split loop-value at "|"
+            set {_d} to ({_p::1} parsed as number)
+            if {_j} >= {_d}:
+                if {za::radio::fait::%{_d}%} is not set:
+                    set {za::radio::fait::%{_d}%} to true
+                    za_diffuser({_p::2})
+                    za_journal("Transmission radio du jour %{_d}%.")
+
+# ---------- ambiance de la souche (particules autour des joueurs) ----------
+every 45 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_s} to za_souche_id(loop-player)
+            set {_pt} to ""
+            if {_s} is "incubation":
+                set {_pt} to "minecraft:crimson_spore"
+            else if {_s} is "resistance":
+                set {_pt} to "minecraft:white_ash"
+            else if {_s} is "hyperactive":
+                set {_pt} to "minecraft:ash"
+            else if {_s} is "aerienne":
+                set {_pt} to "minecraft:warped_spore"
+            else if {_s} is "agressive":
+                set {_pt} to "minecraft:crimson_spore"
+            else if {_s} is "vorace":
+                set {_pt} to "minecraft:sculk_soul"
+            if {_pt} is not "":
+                execute console command "execute at %loop-player% run particle %{_pt}% ~ ~1.5 ~ 8 3 8 0 60 force"
+
+# ---------- ciel de la souche : meteo cote client (seulement pour toi, hors Blood Moon) ----------
+#   hyperactive / agressive = orage | contagion aerienne / vorace = pluie grise | autres = meteo normale
+on join:
+    if za_pro(player) is true:
+        stop
+    delete {za::ciel::%player's uuid%}
+
+every 20 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_u} to "%loop-player's uuid%"
+            set {_s} to za_souche_id(loop-player)
+            set {_c} to "normal"
+            if {za::evt::bloodmoon} is not true:
+                if any:
+                    {_s} is "hyperactive"
+                    {_s} is "agressive"
+                then:
+                    set {_c} to "orage"
+                else if any:
+                    {_s} is "aerienne"
+                    {_s} is "vorace"
+                then:
+                    set {_c} to "pluie"
+            if {za::ciel::%{_u}%} is not {_c}:
+                set {za::ciel::%{_u}%} to {_c}
+                if {_c} is "orage":
+                    set loop-player's client weather to thundering
+                else if {_c} is "pluie":
+                    set loop-player's client weather to rainy
+                else:
+                    reset loop-player's client weather

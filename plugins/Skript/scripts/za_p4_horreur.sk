@@ -1,0 +1,147 @@
+# =====================================================================
+#  ZombieApocalypse - PHASE 4 : HORREUR PSYCHOLOGIQUE
+#  Sante mentale, bruits fantomes, hallucinations (sons + faux messages), voix dans la tete,
+#  radio qui parle seule, l'Appel, l'Echo, l'Observateur, cadavres qui se relevent.
+# =====================================================================
+
+on join:
+    if za_pro(player) is true:
+        stop
+    if {za::sanite::%player's uuid%} is not set:
+        set {za::sanite::%player's uuid%} to 100
+
+# ---------- bruit fantome pres du joueur ----------
+function za_bruit_fantome(p: player):
+    set {_sons::*} to "block.gravel.step", "block.stone.step", "block.wooden_door.open", "entity.zombie.attack_wooden_door", "block.chest.open", "entity.zombie.ambient", "ambient.cave", "entity.warden.nearby_close"
+    set {_s} to random element out of {_sons::*}
+    set {_dx} to random integer between -4 and 4
+    set {_dz} to random integer between -4 and 4
+    execute console command "execute at %{_p}% run playsound minecraft:%{_s}% ambient %{_p}% ~%{_dx}% ~ ~%{_dz}% 0.7 0.85"
+
+# ---------- sante mentale (toutes les 10 secondes) ----------
+every 10 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_p} to loop-player
+            set {_u} to "%{_p}'s uuid%"
+            if {za::sanite::%{_u}%} is not set:
+                set {za::sanite::%{_u}%} to 100
+            set {_near} to (size of (all players in radius 40 around {_p})) - 1
+            set {_blk} to block at (location of {_p})
+            set {_light} to light level of {_blk}
+            set {_d} to 0
+            if {_near} is 0:
+                if {_light} < 5:
+                    set {_d} to -2
+                else:
+                    set {_d} to -0.5
+            else:
+                set {_d} to 1
+            if {_light} >= 12:
+                add 0.5 to {_d}
+            if {za::infection::%{_u}%} is set:
+                remove 1 from {_d}
+            add {_d} to {za::sanite::%{_u}%}
+            if {za::sanite::%{_u}%} > 100:
+                set {za::sanite::%{_u}%} to 100
+            if {za::sanite::%{_u}%} < 0:
+                set {za::sanite::%{_u}%} to 0
+            set {_s} to {za::sanite::%{_u}%}
+            if {_s} < 60:
+                send action bar "&8Sante mentale: %floor({_s})%" to {_p}
+                if chance of 15%:
+                    za_bruit_fantome({_p})
+            if {_s} < 40:
+                if chance of 12%:
+                    set {_noms::*} to "Lea_49", "Xx_Marc_xX", "Steve_88", "Alex_Zombie", "Nico_77"
+                    set {_n} to random element out of {_noms::*}
+                    set {_f::*} to "&e%{_n}% a rejoint la partie", "&7%{_n}% a ete tue par Zombie", "&7%{_n}% s'est fait tuer par Stalker"
+                    send random element out of {_f::*} to {_p}
+            if {_s} < 20:
+                za_effet({_p}, "darkness", 8, 0)
+                play sound "entity.warden.heartbeat" to {_p}
+            if {_s} <= 0:
+                za_effet({_p}, "nausea", 8, 0)
+
+# ---------- chaque zombie tue pese sur l'ame ----------
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        if {za::sanite::%attacker's uuid%} is set:
+            remove 0.3 from {za::sanite::%attacker's uuid%}
+        if {za::ame::%attacker's uuid%} is not set:
+            set {za::ame::%attacker's uuid%} to 0
+        add 1 to {za::ame::%attacker's uuid%}
+
+# poids de l'ame : beaucoup de kills + esprit fragile = ralentissement
+every 20 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            if {za::ame::%loop-player's uuid%} >= 300:
+                if {za::sanite::%loop-player's uuid%} < 50:
+                    za_effet(loop-player, "slowness", 25, 0)
+
+# ---------- voix dans la tete (infecte) ----------
+every 60 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            if {za::infection::%loop-player's uuid%} is set:
+                set {_v::*} to "&8&oIls arrivent.", "&8&oTu ne sens plus le froid.", "&8&oRejoins-nous.", "&8&oPourquoi resister ?", "&8&oLe monde t'appartient plus."
+                send random element out of {_v::*} to loop-player
+
+# ---------- radio qui parle seule ----------
+every 7 minutes:
+    if size of za_monde_joueurs() is greater than 0:
+        if chance of 40%:
+            set {_p} to random element out of za_monde_joueurs()
+            set {_r::*} to "&8[Radio] ...krrrr... ici l'abri 7... si quelqu'un m'entend... ils sont dans les murs...", "&8[Radio] ...ne sortez pas apres la nuit... repete... ne sortez pas...", "&8[Radio] ...krrr... le convoi n'est jamais arrive... il ne reste que le bruit...", "&8[Radio] ...j'entends quelqu'un a la porte... il connait mon nom..."
+            send random element out of {_r::*} to {_p}
+            execute console command "execute at %{_p}% run playsound minecraft:block.note_block.didgeridoo ambient %{_p}% ~ ~ ~ 0.6 0.5"
+
+# ---------- l'Appel : une voix dit ton pseudo ----------
+every 11 minutes:
+    if size of za_monde_joueurs() is greater than 0:
+        if chance of 35%:
+            set {_p} to random element out of za_monde_joueurs()
+            send "&4&o%{_p}%... viens... par ici..." to {_p}
+            za_bruit_fantome({_p})
+
+# ---------- l'Echo : tes messages sont repetes par une voix inconnue ----------
+on chat:
+    if chance of 8%:
+        set {_m} to message
+        wait 15 seconds
+        za_diffuser("&8&o??? : %{_m}%")
+
+# ---------- l'Observateur : entite qui te regarde de loin (disparait si tu approches) ----------
+every 60 seconds:
+    if {za::observateur::actif} is not true:
+        loop all players:
+            if za_pro(loop-player) is false:
+                if {za::sanite::%loop-player's uuid%} < 40:
+                    if {za::observateur::actif} is not true:
+                        if chance of 10%:
+                            set {za::observateur::actif} to true
+                            za_spawn_near(loop-player, "ZA_Observer", 30, 40)
+                            send "&8&oQuelque chose te regarde..." to loop-player
+                            wait 90 seconds
+                            set {za::observateur::actif} to false
+
+command /zaobs <text>:
+    executable by: console
+    trigger:
+        set {za::observateur::actif} to false
+
+# ---------- cadavres qui se relevent (appele par MythicMobs a la mort de certains zombies) ----------
+command /zacorps <text> <number> <number> <number>:
+    executable by: console
+    trigger:
+        wait 6 seconds
+        execute console command "mm mobs spawn ZA_Shambler 1 %arg-1%,%floor(arg-2)%,%floor(arg-3)%,%floor(arg-4)%"
+        set {_wd} to "minecraft:overworld"
+        if arg-1 contains "nether":
+            set {_wd} to "minecraft:the_nether"
+        else if arg-1 contains "end":
+            set {_wd} to "minecraft:the_end"
+        execute console command "execute in %{_wd}% run playsound minecraft:entity.zombie.ambient hostile @a %floor(arg-2)% %floor(arg-3)% %floor(arg-4)% 1 0.6"

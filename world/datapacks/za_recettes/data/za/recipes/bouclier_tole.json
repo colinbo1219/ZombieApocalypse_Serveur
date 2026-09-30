@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "item": "minecraft:iron_trapdoor"
+    },
+    {
+      "item": "minecraft:iron_trapdoor"
+    },
+    {
+      "item": "minecraft:stick"
+    }
+  ],
+  "result": {
+    "item": "minecraft:shield",
+    "nbt": {
+      "Damage": 230,
+      "display": {
+        "Name": "{\"text\":\"Bouclier de tole\",\"color\":\"gray\",\"italic\":false}"
+      }
+    }
+  }
+}

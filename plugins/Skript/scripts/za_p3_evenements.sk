@@ -1,0 +1,307 @@
+# =====================================================================
+#  ZombieApocalypse - PHASE 3 : EVENEMENTS
+#  Blood Moon (3 variantes), Nuit blanche, Eclipse, La Marche, Le Mur, Ciel ouvert,
+#  Nuit des Traitres, Jour inverse, Pluie acide, Pluie de cendres, Silence total,
+#  Cargaison crashee, Siege (voir Phase 8).
+#  Admin: /evenement <nom>   (permission za.admin)  |  /evenement liste
+# =====================================================================
+
+options:
+    intervalle_evt: 25 minutes
+    intervalle_bloodmoon: 160 minutes
+
+# ---------- utilitaires ----------
+function za_vague(p: player, t: text, n: number, dmin: number, dmax: number):
+    loop {_n} times:
+        za_spawn_near({_p}, {_t}, {_dmin}, {_dmax})
+
+function za_boost_zombies(p: player, r: number, e: text, s: number, l: number):
+    loop all entities in radius {_r} around {_p}:
+        if loop-entity is a zombie:
+            execute console command "effect give %uuid of loop-entity% minecraft:%{_e}% %{_s}% %{_l}% true"
+
+# ---------- BLOOD MOON ----------
+function za_bloodmoon():
+    if {za::evt::bloodmoon} is true:
+        stop
+    set {za::evt::bloodmoon} to true
+    za_journal("La Blood Moon se leve.")
+    set {_v} to random element out of "fureur", "meute", "brume"
+    execute console command "time set 13000"
+    execute console command "weather thunder 14000"
+    execute console command "worldborder warning distance 59999968"
+    za_diffuser("&4&lBLOOD MOON ! &7Le ciel saigne. Variante: &c%{_v}%")
+    loop 40 times:
+        loop all players:
+            if za_pro(loop-player) is false:
+                if size of (all entities in radius 40 around loop-player) < 70:
+                    if {_v} is "fureur":
+                        za_vague(loop-player, "ZA_Shambler", 3, 14, 26)
+                        za_vague(loop-player, "ZA_Brute", 1, 20, 30)
+                    else if {_v} is "meute":
+                        za_vague(loop-player, "ZA_Runner", 4, 14, 26)
+                    else:
+                        za_vague(loop-player, "ZA_Stalker", 2, 14, 26)
+                        za_effet(loop-player, "darkness", 20, 0)
+        wait 15 seconds
+    execute console command "worldborder warning distance 5"
+    execute console command "weather clear"
+    set {za::evt::bloodmoon} to false
+    za_diffuser("&6L'aube se leve... la Blood Moon est terminee.")
+
+# ---------- NUIT BLANCHE (la nuit ne finit pas : les morts mutent) ----------
+function za_nuitblanche():
+    za_diffuser("&8&lNUIT BLANCHE &7Le soleil refuse de se lever...")
+    execute console command "gamerule doDaylightCycle false"
+    execute console command "time set 15000"
+    loop 24 times:
+        loop all players:
+            if za_pro(loop-player) is false:
+                za_vague(loop-player, "ZA_Shambler", 2, 14, 26)
+                za_boost_zombies(loop-player, 60, "strength", 20, 0)
+        wait 15 seconds
+    execute console command "gamerule doDaylightCycle true"
+    za_diffuser("&7Enfin l'aube.")
+
+# ---------- ECLIPSE TOTALE ----------
+function za_eclipse():
+    za_diffuser("&5&lECLIPSE TOTALE &7Le soleil disparait. Les morts sont dechaines !")
+    execute console command "time set 18000"
+    loop 18 times:
+        loop all players:
+            if za_pro(loop-player) is false:
+                za_vague(loop-player, "ZA_Runner", 2, 14, 26)
+                za_boost_zombies(loop-player, 60, "strength", 12, 1)
+                za_boost_zombies(loop-player, 60, "speed", 12, 1)
+        wait 10 seconds
+    execute console command "time set 1000"
+    za_diffuser("&6La lumiere revient.")
+
+# ---------- LA MARCHE (horde massive vers un joueur) ----------
+function za_marche():
+    if size of za_monde_joueurs() is 0:
+        stop
+    set {_p} to random element out of za_monde_joueurs()
+    za_diffuser("&4&lLA MARCHE &7Une horde massive traverse la region... elle se dirige vers &c%{_p}%&7 !")
+    set {_types::*} to "ZA_Shambler", "ZA_Shambler", "ZA_Runner", "ZA_Crawler", "ZA_Armored"
+    loop 30 times:
+        za_spawn_near({_p}, random element out of {_types::*}, 45, 60)
+    wait 2 seconds
+    za_boost_zombies({_p}, 80, "speed", 120, 0)
+    za_traces_horde(location of {_p}, 30)
+
+# ---------- LE MUR (ligne de zombies) ----------
+function za_mur():
+    if size of za_monde_joueurs() is 0:
+        stop
+    set {_p} to random element out of za_monde_joueurs()
+    set {_base} to location of {_p}
+    add 38 to x-coordinate of {_base}
+    za_diffuser("&4&lLE MUR &7Une ligne de morts avance vers &c%{_p}%&7 !")
+    loop 17 times:
+        set {_l} to {_base}
+        add ((loop-number - 9) * 2) to z-coordinate of {_l}
+        set {_b} to highest block at {_l}
+        set {_y} to (y-coordinate of (location of {_b})) + 1
+        execute console command "mm mobs spawn ZA_Shambler 1 %world of {_l}%,%floor(x-coordinate of {_l})%,%{_y}%,%floor(z-coordinate of {_l})%"
+    za_traces_horde({_base}, 17)
+
+# ---------- CIEL OUVERT (ils tombent du ciel) ----------
+function za_cielouvert():
+    za_diffuser("&4&lCIEL OUVERT &7Levez les yeux...")
+    loop all players:
+        if za_pro(loop-player) is false:
+            loop 6 times:
+                set {_l} to location of loop-player
+                add random integer between -8 and 8 to x-coordinate of {_l}
+                add random integer between -8 and 8 to z-coordinate of {_l}
+                add 45 to y-coordinate of {_l}
+                execute console command "mm mobs spawn ZA_Shambler 1 %world of {_l}%,%floor(x-coordinate of {_l})%,%floor(y-coordinate of {_l})%,%floor(z-coordinate of {_l})%"
+    wait 1 second
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_boost_zombies(loop-player, 60, "slow_falling", 15, 0)
+
+# ---------- NUIT DES TRAITRES (un joueur secretement infecte) ----------
+function za_traitres():
+    if size of za_monde_joueurs() < 2:
+        stop
+    set {_p} to random element out of za_monde_joueurs()
+    set {za::infection::%{_p}'s uuid%} to now
+    set {za::traitre::%{_p}'s uuid%} to true
+    send "&8&oQuelque chose s'eveille en toi... Tu portes la maladie. Personne ne doit le savoir." to {_p}
+    za_diffuser("&4&lNUIT DES TRAITRES &7L'un de vous est deja infecte... et l'ignore peut-etre.")
+
+# ---------- JOUR INVERSE ----------
+function za_jourinverse():
+    za_diffuser("&6&lJOUR INVERSE &7Les morts marchent en plein jour !")
+    execute console command "time set 6000"
+    loop 48 times:
+        loop all players:
+            if za_pro(loop-player) is false:
+                za_vague(loop-player, "ZA_Shambler", 2, 14, 26)
+        wait 10 seconds
+    za_diffuser("&7Les morts s'apaisent.")
+
+# ---------- PLUIE ACIDE ----------
+function za_acide():
+    za_diffuser("&2&lPLUIE ACIDE &7Mettez-vous a l'abri, la pluie brule !")
+    execute console command "weather rain 7000"
+    loop 60 times:
+        loop all players:
+            if za_pro(loop-player) is false:
+                set {_l} to location of loop-player
+                if y-coordinate of {_l} >= y-coordinate of (location of (highest block at {_l})):
+                    if za_masque(loop-player) is true:
+                        send action bar "&aTon masque a gaz filtre la pluie acide... mais mets-toi a l'abri quand meme." to loop-player
+                    else:
+                        za_effet(loop-player, "poison", 4, 0)
+                        send action bar "&2La pluie acide te brule ! Cherche un abri." to loop-player
+        wait 5 seconds
+    execute console command "weather clear"
+    za_diffuser("&7La pluie acide s'arrete.")
+
+# ---------- PLUIE DE CENDRES ----------
+function za_cendres():
+    za_diffuser("&8&lPLUIE DE CENDRES &7L'air est charge de cendres...")
+    set {za::cendres::fin} to now
+    add 6 minutes to {za::cendres::fin}
+    loop 180 times:
+        execute console command "execute as @a at @s if dimension minecraft:overworld run particle minecraft:ash ~ ~2 ~ 10 4 10 0 100 force @s"
+        wait 2 seconds
+    za_diffuser("&7Les cendres retombent.")
+
+# ---------- SILENCE TOTAL ----------
+function za_silence():
+    za_diffuser("&8&l... &7Le monde retient son souffle.")
+    loop 60 times:
+        execute console command "execute as @a at @s if dimension minecraft:overworld run stopsound @s hostile"
+        execute console command "execute as @a at @s if dimension minecraft:overworld run stopsound @s ambient"
+        execute console command "execute as @a at @s if dimension minecraft:overworld run stopsound @s neutral"
+        wait 1 second
+    za_diffuser("&7Les bruits reviennent.")
+
+# ---------- CARGAISON CRASHEE ----------
+function za_cargaison():
+    if size of za_monde_joueurs() is 0:
+        stop
+    set {_p} to random element out of za_monde_joueurs()
+    set {_l} to location of {_p}
+    add random integer between 90 and 140 to x-coordinate of {_l}
+    add random integer between -60 and 60 to z-coordinate of {_l}
+    set {_l} to location of (highest block at {_l})
+    add 1 to y-coordinate of {_l}
+    set block at {_l} to chest
+    set {za::cargo::%za_lkey({_l})%} to true
+    set {_blk} to block at {_l}
+    add za_item("gold nugget", "Jeton de Survie", "&6", 8) to inventory of {_blk}
+    add za_item("honey bottle", "Antidote", "&a", 2) to inventory of {_blk}
+    add za_item("paper", "Bandage", "&f", 4) to inventory of {_blk}
+    add 12 of iron ingot to inventory of {_blk}
+    add 24 of arrow to inventory of {_blk}
+    add 2 of golden apple to inventory of {_blk}
+    set {_cx} to floor(x-coordinate of {_l})
+    set {_cy} to floor(y-coordinate of {_l})
+    set {_cz} to floor(z-coordinate of {_l})
+    set {_wd} to za_dim(world of {_l})
+    execute console command "execute in %{_wd}% run item replace block %{_cx}% %{_cy}% %{_cz}% container.24 with tacz:modern_kinetic_gun{GunId:""tacz:m870"",GunFireMode:""SEMI""} 1"
+    execute console command "execute in %{_wd}% run item replace block %{_cx}% %{_cy}% %{_cz}% container.25 with tacz:ammo{AmmoId:""tacz:12g""} 24"
+    execute console command "execute in %{_wd}% run item replace block %{_cx}% %{_cy}% %{_cz}% container.26 with tacz:ammo{AmmoId:""tacz:9mm""} 30"
+    za_spawn_at({_l}, "ZA_Brute", 3, 8)
+    za_spawn_at({_l}, "ZA_Brute", 3, 8)
+    loop 8 times:
+        za_spawn_at({_l}, "ZA_Shambler", 4, 12)
+    set {_ax} to floor((x-coordinate of {_l}) / 50) * 50
+    set {_az} to floor((z-coordinate of {_l}) / 50) * 50
+    za_diffuser("&6&lCARGAISON CRASHEE &7Un avion s'est ecrase vers X=%{_ax}% Z=%{_az}% (+/- 50 blocs). Butin rare... et gardiens.")
+
+# ---------- distributeur ----------
+function za_lancer_evenement(nom: text):
+    za_journal("Evenement : %{_nom}%.")
+    if {_nom} is "bloodmoon":
+        za_bloodmoon()
+    else if {_nom} is "nuitblanche":
+        za_nuitblanche()
+    else if {_nom} is "eclipse":
+        za_eclipse()
+    else if {_nom} is "marche":
+        za_marche()
+    else if {_nom} is "mur":
+        za_mur()
+    else if {_nom} is "cielouvert":
+        za_cielouvert()
+    else if {_nom} is "traitres":
+        za_traitres()
+    else if {_nom} is "jourinverse":
+        za_jourinverse()
+    else if {_nom} is "acide":
+        za_acide()
+    else if {_nom} is "cendres":
+        za_cendres()
+    else if {_nom} is "silence":
+        za_silence()
+    else if {_nom} is "cargaison":
+        za_cargaison()
+    else if {_nom} is "siege":
+        za_siege_tous()
+    else if {_nom} is "noirmarche":
+        za_marche_noir()
+    else if {_nom} is "penurie":
+        za_penurie()
+    else if {_nom} is "noms":
+        za_noms_disparus()
+    else if {_nom} is "migration":
+        za_migration()
+    else if {_nom} is "emp":
+        za_emp()
+    else if {_nom} is "hopital":
+        za_batiment_hopital()
+    else if {_nom} is "police":
+        za_batiment_police()
+    else if {_nom} is "supermarche":
+        za_batiment_supermarche()
+    else if {_nom} is "station":
+        za_batiment_station()
+    else if {_nom} is "laboratoire":
+        za_batiment_laboratoire()
+    else if {_nom} is "caserne":
+        za_batiment_caserne()
+    else if {_nom} is "ecole":
+        za_batiment_ecole()
+    else if {_nom} is "centrale":
+        za_batiment_centrale()
+    else if {_nom} is "labo":
+        za_labo_generer()
+    else if {_nom} is "camp":
+        za_camp_generer()
+    else if {_nom} is "signal":
+        za_signal()
+    else if {_nom} is "patientzero":
+        za_patient_zero()
+
+command /evenement <text>:
+    permission: za.admin
+    trigger:
+        if arg-1 is "liste":
+            send "&7bloodmoon nuitblanche eclipse marche mur cielouvert traitres jourinverse acide cendres silence cargaison siege noirmarche penurie noms labo camp signal patientzero migration emp hopital police supermarche station laboratoire caserne ecole centrale" to sender
+        else:
+            za_lancer_evenement(arg-1)
+            send "&aEvenement lance: %arg-1%" to sender
+
+# ---------- planificateur ----------
+every {@intervalle_evt}:
+    if size of za_monde_joueurs() is greater than 0:
+        set {_c} to {za::evt::chance}
+        if {_c} is not set:
+            set {_c} to 60
+        if chance of {_c}%:
+            set {_evts::*} to "marche", "mur", "cielouvert", "traitres", "jourinverse", "acide", "cendres", "silence", "cargaison", "eclipse", "nuitblanche", "siege", "noirmarche", "penurie", "noms"
+            za_lancer_evenement(random element out of {_evts::*})
+
+every {@intervalle_bloodmoon}:
+    if size of za_monde_joueurs() is greater than 0:
+        za_bloodmoon()
+
+# une journee Minecraft = 20 minutes reelles
+every 20 minutes:
+    add 1 to {za::serveur::jours}

@@ -1,0 +1,645 @@
+# =====================================================================
+#  ZombieApocalypse - LE POIDS DE LA MORT (#20) : le monde se souvient de ceux qui tombent
+#  * Un joueur meurt dans un lieu qui compte (danger >= 3, à moins de 60 blocs d'un nid / camp / bâtiment spécial / labo / de la
+#    Trêve, ou pendant une Blood Moon / une horde) : une STÈLE commémorative est dressée à 2 blocs du corps
+#    (brique de pierre, muret, bougie allumée, panneau « Ici est tombé X — Jour N — cause »). Maximum une stèle par zone de
+#    48 blocs et par jour serveur. (za_p30 grave déjà un panneau sur chaque tombe : celui-ci est un vrai monument.)
+#  * 3 morts ou plus à moins de 40 blocs (tous types de morts, liste de points suivie) : « RUE DES DISPARUS », un mur de
+#    16 panneaux, de bougies et de lanternes qui s'allonge au fil des noms.
+#  * /disparus : lieux de mémoire (coordonnées approximatives) et noms.
+#  * Au Hall des survivants, la cérémonie de fin de saison grave les noms de la saison (za_memoire_hall).
+#  Admin / console : /zamemoire mort <nom> [x y z] [cause] | stele <nom> [x y z] [cause] | rue [x y z] | hall [saison] | liste | reset
+#  Données : {za::memoire::pt::<id>::*} points de mort, {za::memoire::stele::<id>::*}, {za::memoire::rue::<id>::*}
+#  Fonctions publiques : za_memoire_noms() :: texts · za_memoire_hall(saison) · za_mem_mort(nom, lieu, cause)
+# =====================================================================
+
+options:
+    rayon_important: 60
+    rayon_grappe: 40
+    rue_capacite: 16
+
+# ---------------------------------------------------------------- cause de la mort
+
+# att : "" si aucun attaquant, sinon « tué par X » ou le nom de la créature
+function za_mem_cause(v: player, att: text) :: text:
+    if {_att} is not "":
+        return {_att}
+    set {_c} to "%last damage cause of {_v}%"
+    if {_c} contains "fire" or "lava" or "hot floor":
+        return "Brûlé"
+    if {_c} contains "drown":
+        return "Noyé"
+    if {_c} contains "fall":
+        return "Chute"
+    if {_c} contains "starv":
+        return "La faim"
+    if {_c} contains "poison":
+        return "Poison"
+    if {_c} contains "wither":
+        return "Flétri"
+    if {_c} contains "suffoc":
+        return "Étouffé"
+    if {_c} contains "explosion":
+        return "Explosion"
+    if {_c} contains "projectile":
+        return "Une flèche"
+    if {_c} contains "void":
+        return "Le vide"
+    if {_c} contains "lightning":
+        return "La foudre"
+    if {_c} contains "freez":
+        return "Gelé"
+    if {_c} contains "magic":
+        return "La soif"
+    if {za::infection::%{_v}'s uuid%} is set:
+        return "Infection"
+    if {za::mort_infecte::%{_v}'s uuid%} is true:
+        return "Infection"
+    return "Inconnue"
+
+# texte tronqué pour une ligne de panneau (15 caractères)
+function za_mem_court(t: text) :: text:
+    set {_r} to {_t}
+    replace all "tué par " with "par " in {_r}
+    if length of {_r} > 15:
+        return subtext of {_r} from characters 1 to 15
+    return {_r}
+
+# ---------------------------------------------------------------- lieu important ? (raison, ou "" si non)
+
+function za_mem_important(l: location) :: text:
+    if {za::evt::bloodmoon} is true:
+        return "pendant la Blood Moon"
+    if {za::horde::actif} is true:
+        return "pendant une horde"
+    if za_danger({_l}) >= 3:
+        return "en zone de danger"
+    if za_nid_proche({_l}, {@rayon_important}) is not 0:
+        return "près d'un nid"
+    loop {za::camp::liste::*}:
+        if {za::camp::%loop-value%::etat} is set:
+            set {_c} to {za::camp::%loop-value%::loc}
+            if {_c} is set:
+                if world of {_c} is world of {_l}:
+                    if distance between {_c} and {_l} < {@rayon_important}:
+                        return "près d'un camp"
+    if {za::treve::loc} is set:
+        if world of {za::treve::loc} is world of {_l}:
+            if distance between {za::treve::loc} and {_l} < {@rayon_important}:
+                return "près de la Trêve"
+    loop {za::labo::liste::*}:
+        set {_wl} to world({za::labo::%loop-value%::monde})
+        if {_wl} is set:
+            set {_c} to location({za::labo::%loop-value%::bx}, {za::labo::%loop-value%::gy}, {za::labo::%loop-value%::bz}, {_wl})
+            if world of {_c} is world of {_l}:
+                if distance between {_c} and {_l} < {@rayon_important}:
+                    return "près d'un laboratoire"
+    if za_bat_proche({_l}, {@rayon_important}) is not "":
+        return "près d'un lieu marqué"
+    return ""
+
+# ---------------------------------------------------------------- stèle
+
+# sens du panneau (il regarde vers le lieu de la mort) : la stèle est en (dx, dz) par rapport au corps
+function za_mem_face(dx: number, dz: number) :: text:
+    if abs({_dx}) >= abs({_dz}):
+        if {_dx} > 0:
+            return "west"
+        return "east"
+    if {_dz} > 0:
+        return "north"
+    return "south"
+
+function za_mem_face_x(f: text) :: number:
+    if {_f} is "west":
+        return -1
+    if {_f} is "east":
+        return 1
+    return 0
+
+function za_mem_face_z(f: text) :: number:
+    if {_f} is "north":
+        return -1
+    if {_f} is "south":
+        return 1
+    return 0
+
+# dresse la stèle près de l (à 2 blocs) ; retourne l'identifiant de la stèle, ou 0 si aucun emplacement valable
+function za_mem_stele(l: location, nom: text, jour: number, cause: text, saison: number, raison: text) :: number:
+    set {_w} to world of {_l}
+    set {_wd} to za_dim({_w})
+    set {_bx} to floor(x-coordinate of {_l})
+    set {_by} to floor(y-coordinate of {_l})
+    set {_bz} to floor(z-coordinate of {_l})
+    set {_o::*} to "2;0", "-2;0", "0;2", "0;-2", "2;2", "-2;2", "2;-2" and "-2;-2"
+    set {_o::*} to shuffled {_o::*}
+    set {_ok} to false
+    loop {_o::*}:
+        if {_ok} is false:
+            set {_p::*} to split loop-value at ";"
+            set {_dx} to {_p::1} parsed as number
+            set {_dz} to {_p::2} parsed as number
+            set {_sx} to {_bx} + {_dx}
+            set {_sz} to {_bz} + {_dz}
+            set {_face} to za_mem_face({_dx}, {_dz})
+            set {_fx} to za_mem_face_x({_face})
+            set {_fz} to za_mem_face_z({_face})
+            set {_yy} to {_by} + 1
+            while {_yy} >= {_by} - 2:
+                if {_ok} is false:
+                    if block at location({_sx}, {_yy}, {_sz}, {_w}) is air:
+                        if block at location({_sx}, {_yy} + 1, {_sz}, {_w}) is air:
+                            if block at location({_sx}, {_yy} + 2, {_sz}, {_w}) is air:
+                                if block at location({_sx} + {_fx}, {_yy}, {_sz} + {_fz}, {_w}) is air:
+                                    set {_bl} to block at location({_sx}, {_yy} - 1, {_sz}, {_w})
+                                    if {_bl} is solid:
+                                        if "%type of {_bl}%" does not contain "leaves":
+                                            set {_ok} to true
+                                            set {_ry} to {_yy}
+                remove 1 from {_yy}
+            if {_ok} is true:
+                set {_rx} to {_sx}
+                set {_rz} to {_sz}
+    if {_ok} is false:
+        return 0
+    set {_mat} to random element out of "stone_bricks", "stone_bricks", "cracked_stone_bricks" and "mossy_stone_bricks"
+    execute console command "execute in %{_wd}% run setblock %{_rx}% %{_ry}% %{_rz}% minecraft:%{_mat}%"
+    execute console command "execute in %{_wd}% run setblock %{_rx}% %{_ry} + 1% %{_rz}% minecraft:stone_brick_wall"
+    execute console command "execute in %{_wd}% run setblock %{_rx}% %{_ry} + 2% %{_rz}% minecraft:white_candle[candles=1,lit=true]"
+    execute console command "execute in %{_wd}% run setblock %{_rx} + {_fx}% %{_ry}% %{_rz} + {_fz}% minecraft:oak_wall_sign[facing=%{_face}%]"
+    set {_sg} to block at location({_rx} + {_fx}, {_ry}, {_rz} + {_fz}, {_w})
+    set line 1 of {_sg} to "&4Ici est tombé"
+    set line 2 of {_sg} to "&0%{_nom}%"
+    set line 3 of {_sg} to "&8Jour %{_jour}%"
+    set line 4 of {_sg} to "&8%za_mem_court({_cause})%"
+    execute console command "execute in %{_wd}% run particle minecraft:soul %{_rx}% %{_ry} + 1% %{_rz}% 0.3 0.5 0.3 0.02 14 force"
+    execute console command "execute in %{_wd}% run playsound minecraft:block.amethyst_block.chime block @a %{_rx}% %{_ry}% %{_rz}% 0.8 0.6"
+    if {za::memoire::stele::next} is not set:
+        set {za::memoire::stele::next} to 0
+    add 1 to {za::memoire::stele::next}
+    set {_id} to {za::memoire::stele::next}
+    set {za::memoire::stele::%{_id}%::loc} to location({_rx}, {_ry}, {_rz}, {_w})
+    set {za::memoire::stele::%{_id}%::nom} to {_nom}
+    set {za::memoire::stele::%{_id}%::jour} to {_jour}
+    set {za::memoire::stele::%{_id}%::cause} to {_cause}
+    set {za::memoire::stele::%{_id}%::saison} to {_saison}
+    set {za::memoire::stele::%{_id}%::raison} to {_raison}
+    add {_id} to {za::memoire::stele::liste::*}
+    return {_id}
+
+# ---------------------------------------------------------------- Rue des disparus
+
+# site plat pour un mur de 8 blocs (colonnes -1 à 8, deux rangées), autour de c ; y = premier niveau libre
+function za_mem_site(c: location) :: location:
+    set {_w} to world of {_c}
+    set {_cx} to floor(x-coordinate of {_c})
+    set {_cz} to floor(z-coordinate of {_c})
+    set {_n} to 0
+    while {_n} < 16:
+        add 1 to {_n}
+        set {_ax} to {_cx} - 4 + random integer between -8 and 8
+        set {_az} to {_cz} + random integer between -10 and 10
+        if {_n} is 1:
+            set {_ax} to {_cx} - 4
+            set {_az} to {_cz} + 3
+        set {_ok} to true
+        set {_ymax} to -1000
+        set {_ymin} to 1000
+        set {_i} to -1
+        while {_i} <= 8:
+            set {_j} to 0
+            while {_j} <= 2:
+                set {_hb} to highest block at location({_ax} + {_i}, 64, {_az} + {_j}, {_w})
+                set {_hy} to floor(y-coordinate of (location of {_hb}))
+                set {_t} to "%type of {_hb}%"
+                if {_t} contains "water" or "lava" or "leaves" or "log" or "ice" or "bedrock":
+                    set {_ok} to false
+                if {_hy} > {_ymax}:
+                    set {_ymax} to {_hy}
+                if {_hy} < {_ymin}:
+                    set {_ymin} to {_hy}
+                add 1 to {_j}
+            add 1 to {_i}
+        if {_ok} is true:
+            if {_ymax} - {_ymin} <= 2:
+                return location({_ax}, {_ymax} + 1, {_az}, {_w})
+    # pas de site idéal : on aplanit autour du centre
+    set {_hb} to highest block at {_c}
+    return location({_cx} - 4, floor(y-coordinate of (location of {_hb})) + 1, {_cz} + 3, {_w})
+
+# construit le mur (vide de noms) ; retourne l'identifiant
+function za_mem_rue_nouvelle(c: location) :: number:
+    set {_a} to za_mem_site({_c})
+    set {_w} to world of {_a}
+    set {_wd} to za_dim({_w})
+    set {_ax} to floor(x-coordinate of {_a})
+    set {_y0} to floor(y-coordinate of {_a})
+    set {_az} to floor(z-coordinate of {_a})
+    # déblayer, fondations, pavé devant, mur, muret, bougies, piliers et lanternes
+    execute console command "execute in %{_wd}% run fill %{_ax} - 1% %{_y0}% %{_az}% %{_ax} + 8% %{_y0} + 4% %{_az} + 2% minecraft:air"
+    execute console command "execute in %{_wd}% run fill %{_ax} - 1% %{_y0} - 3% %{_az}% %{_ax} + 8% %{_y0} - 1% %{_az} + 2% minecraft:stone_bricks keep"
+    execute console command "execute in %{_wd}% run fill %{_ax} - 1% %{_y0} - 1% %{_az} + 1% %{_ax} + 8% %{_y0} - 1% %{_az} + 2% minecraft:polished_andesite"
+    execute console command "execute in %{_wd}% run fill %{_ax}% %{_y0}% %{_az}% %{_ax} + 7% %{_y0} + 1% %{_az}% minecraft:stone_bricks"
+    execute console command "execute in %{_wd}% run fill %{_ax}% %{_y0} + 2% %{_az}% %{_ax} + 7% %{_y0} + 2% %{_az}% minecraft:stone_brick_wall"
+    loop 5 times:
+        set {_dx} to random integer between 0 and 7
+        set {_dy} to random integer between 0 and 1
+        set {_mt} to random element out of "cracked_stone_bricks" and "mossy_stone_bricks"
+        execute console command "execute in %{_wd}% run setblock %{_ax} + {_dx}% %{_y0} + {_dy}% %{_az}% minecraft:%{_mt}%"
+    set {_i} to 0
+    while {_i} <= 7:
+        set {_nc} to random integer between 1 and 3
+        execute console command "execute in %{_wd}% run setblock %{_ax} + {_i}% %{_y0} + 3% %{_az}% minecraft:white_candle[candles=%{_nc}%,lit=true]"
+        add 2 to {_i}
+    execute console command "execute in %{_wd}% run fill %{_ax} - 1% %{_y0}% %{_az}% %{_ax} - 1% %{_y0} + 2% %{_az}% minecraft:stone_bricks"
+    execute console command "execute in %{_wd}% run fill %{_ax} + 8% %{_y0}% %{_az}% %{_ax} + 8% %{_y0} + 2% %{_az}% minecraft:stone_bricks"
+    execute console command "execute in %{_wd}% run setblock %{_ax} - 1% %{_y0} + 3% %{_az}% minecraft:lantern[hanging=false]"
+    execute console command "execute in %{_wd}% run setblock %{_ax} + 8% %{_y0} + 3% %{_az}% minecraft:lantern[hanging=false]"
+    # panneau-titre sur le pilier de gauche
+    execute console command "execute in %{_wd}% run setblock %{_ax} - 1% %{_y0} + 1% %{_az} + 1% minecraft:oak_wall_sign[facing=south]"
+    set {_sg} to block at location({_ax} - 1, {_y0} + 1, {_az} + 1, {_w})
+    set line 1 of {_sg} to "&4Rue des"
+    set line 2 of {_sg} to "&4disparus"
+    set line 3 of {_sg} to "&8Ils ont tenu"
+    set line 4 of {_sg} to "&8comme ils ont pu"
+    execute console command "execute in %{_wd}% run particle minecraft:soul %{_ax} + 4% %{_y0} + 1% %{_az}% 3 0.6 0.3 0.02 30 force"
+    if {za::memoire::rue::next} is not set:
+        set {za::memoire::rue::next} to 0
+    add 1 to {za::memoire::rue::next}
+    set {_id} to {za::memoire::rue::next}
+    set {za::memoire::rue::%{_id}%::loc} to location({_ax}, {_y0}, {_az}, {_w})
+    set {za::memoire::rue::%{_id}%::n} to 0
+    set {za::memoire::rue::%{_id}%::jour} to {za::serveur::jours}
+    add {_id} to {za::memoire::rue::liste::*}
+    za_journal("La Rue des disparus a ete dressee.")
+    return {_id}
+
+# ajoute un nom (un panneau) à une Rue ; retourne false si le mur est plein
+function za_mem_rue_nom(id: number, nom: text, jour: number, cause: text, saison: number) :: boolean:
+    set {_n} to {za::memoire::rue::%{_id}%::n}
+    if {_n} is not set:
+        return false
+    if {_n} >= {@rue_capacite}:
+        return false
+    add 1 to {_n}
+    set {za::memoire::rue::%{_id}%::n} to {_n}
+    set {za::memoire::rue::%{_id}%::nom::%{_n}%} to {_nom}
+    set {za::memoire::rue::%{_id}%::jour::%{_n}%} to {_jour}
+    set {za::memoire::rue::%{_id}%::cause::%{_n}%} to {_cause}
+    set {za::memoire::rue::%{_id}%::saison::%{_n}%} to {_saison}
+    set {_a} to {za::memoire::rue::%{_id}%::loc}
+    set {_w} to world of {_a}
+    set {_wd} to za_dim({_w})
+    set {_col} to floor(({_n} - 1) / 2)
+    set {_row} to mod({_n} - 1, 2)
+    set {_x} to floor(x-coordinate of {_a}) + {_col}
+    set {_y} to floor(y-coordinate of {_a}) + {_row}
+    set {_z} to floor(z-coordinate of {_a}) + 1
+    execute console command "execute in %{_wd}% run setblock %{_x}% %{_y}% %{_z}% minecraft:dark_oak_wall_sign[facing=south]"
+    set {_sg} to block at location({_x}, {_y}, {_z}, {_w})
+    set line 1 of {_sg} to "&8✝ Jour %{_jour}%"
+    set line 2 of {_sg} to "&f%{_nom}%"
+    set line 3 of {_sg} to "&7%za_mem_court({_cause})%"
+    set line 4 of {_sg} to "&8Saison %{_saison}%"
+    execute console command "execute in %{_wd}% run particle minecraft:soul %{_x}% %{_y} + 1% %{_z}% 0.2 0.3 0.2 0.02 8 force"
+    return true
+
+function za_mem_rue_proche(l: location, r: number) :: number:
+    loop {za::memoire::rue::liste::*}:
+        set {_c} to {za::memoire::rue::%loop-value%::loc}
+        if {_c} is set:
+            if world of {_c} is world of {_l}:
+                if distance between {_c} and {_l} < {_r}:
+                    return loop-value
+    return 0
+
+# ---------------------------------------------------------------- suivi des morts
+
+function za_mem_pt_ajouter(l: location, nom: text, jour: number, cause: text, saison: number) :: number:
+    if {za::memoire::pt::next} is not set:
+        set {za::memoire::pt::next} to 0
+    add 1 to {za::memoire::pt::next}
+    set {_id} to {za::memoire::pt::next}
+    set {za::memoire::pt::%{_id}%::loc} to {_l}
+    set {za::memoire::pt::%{_id}%::nom} to {_nom}
+    set {za::memoire::pt::%{_id}%::jour} to {_jour}
+    set {za::memoire::pt::%{_id}%::cause} to {_cause}
+    set {za::memoire::pt::%{_id}%::saison} to {_saison}
+    set {za::memoire::pt::%{_id}%::marque} to false
+    add {_id} to {za::memoire::pt::liste::*}
+    # liste bornée à 100 points
+    while size of {za::memoire::pt::liste::*} > 100:
+        set {_old} to first element of {za::memoire::pt::liste::*}
+        remove {_old} from {za::memoire::pt::liste::*}
+        delete {za::memoire::pt::%{_old}%::*}
+    return {_id}
+
+# morts (points) à moins de r blocs de l, du plus ancien au plus récent
+function za_mem_grappe(l: location, r: number) :: numbers:
+    loop {za::memoire::pt::liste::*}:
+        set {_c} to {za::memoire::pt::%loop-value%::loc}
+        if {_c} is set:
+            if world of {_c} is world of {_l}:
+                if distance between {_c} and {_l} < {_r}:
+                    add loop-value to {_g::*}
+    return {_g::*}
+
+# point d'entrée : un joueur est mort à l (à appeler à chaque mort ; contient des attentes)
+function za_mem_mort(nom: text, l: location, cause: text, force: boolean):
+    if "%world of {_l}%" is "za_prologue":
+        stop
+    set {_jour} to {za::serveur::jours}
+    if {_jour} is not set:
+        set {_jour} to 0
+    set {_saison} to {za::saison::num}
+    if {_saison} is not set:
+        set {_saison} to 1
+    set {_pt} to za_mem_pt_ajouter({_l}, {_nom}, {_jour}, {_cause}, {_saison})
+    set {_lk} to za_lieu_pres({_l}, 120)
+    if {_lk} is not "":
+        za_lieu_evt({_lk}, "%{_nom}% meurt ici (%za_mem_court({_cause})%).", 1, "mort")
+    set {_raison} to za_mem_important({_l})
+    if {_force} is true:
+        set {_raison} to "sur ordre"
+    wait 2 seconds
+    # stèle : lieu important, une par zone de 48 blocs et par jour
+    if {_raison} is not "":
+        set {_cx} to floor(x-coordinate of {_l} / 48)
+        set {_cz} to floor(z-coordinate of {_l} / 48)
+        set {_ck} to "%world of {_l}%_%{_cx}%_%{_cz}%"
+        if any:
+            {_force} is true
+            {za::memoire::cell::%{_ck}%} is not {_jour}
+        then:
+            set {_s} to za_mem_stele({_l}, {_nom}, {_jour}, {_cause}, {_saison}, {_raison})
+            if {_s} is not 0:
+                set {za::memoire::cell::%{_ck}%} to {_jour}
+                set {za::memoire::pt::%{_pt}%::marque} to true
+                za_journal("Une stele a ete dressee pour %{_nom}% (%za_mem_court({_cause})%).")
+                # les joueurs proches en sont avertis
+                loop all players in radius 40 around {_l}:
+                    if za_pro(loop-player) is false:
+                        send action bar "&8✝ &7Une stèle se dresse pour &f%{_nom}%&7. Le monde se souvient." to loop-player
+    # rue des disparus : 3 morts ou plus dans les 40 blocs
+    set {_r} to za_mem_rue_proche({_l}, {@rayon_grappe})
+    if {_r} is not 0:
+        set {_ok} to za_mem_rue_nom({_r}, {_nom}, {_jour}, {_cause}, {_saison})
+        if {_ok} is true:
+            set {za::memoire::pt::%{_pt}%::marque} to true
+        stop
+    set {_g::*} to za_mem_grappe({_l}, {@rayon_grappe})
+    set {_ng} to size of {_g::*}
+    if {_ng} >= 3:
+        set {_x} to 0
+        set {_z} to 0
+        loop {_g::*}:
+            set {_c} to {za::memoire::pt::%loop-value%::loc}
+            add x-coordinate of {_c} to {_x}
+            add z-coordinate of {_c} to {_z}
+        set {_mx} to {_x} / {_ng}
+        set {_mz} to {_z} / {_ng}
+        set {_my} to y-coordinate of {_l}
+        set {_wl} to world of {_l}
+        set {_ctr} to location({_mx}, {_my}, {_mz}, {_wl})
+        set {_id} to za_mem_rue_nouvelle({_ctr})
+        # les noms les plus récents de la grappe (jusqu'à la capacité du mur)
+        set {_k} to {_ng} - {@rue_capacite} + 1
+        if {_k} < 1:
+            set {_k} to 1
+        while {_k} <= {_ng}:
+            set {_p} to {_g::%{_k}%}
+            set {_pn} to {za::memoire::pt::%{_p}%::nom}
+            set {_pj} to {za::memoire::pt::%{_p}%::jour}
+            set {_pc} to {za::memoire::pt::%{_p}%::cause}
+            set {_ps} to {za::memoire::pt::%{_p}%::saison}
+            set {_o} to za_mem_rue_nom({_id}, {_pn}, {_pj}, {_pc}, {_ps})
+            set {za::memoire::pt::%{_p}%::marque} to true
+            add 1 to {_k}
+        loop all players in radius 60 around {_l}:
+            if za_pro(loop-player) is false:
+                send title "&4&lRUE DES DISPARUS" with subtitle "&7Assez de morts ici pour que le monde en fasse un mémorial" to loop-player for 4 seconds
+                za_zm("son %loop-player% za_modeles:sfx.sting_revelation 0.5 0.6")
+
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    set {_nom} to "%victim%"
+    set {_l} to location of victim
+    set {_att} to ""
+    if attacker is a player:
+        set {_att} to "tué par %attacker%"
+    else if attacker is set:
+        set {_att} to "%type of attacker%"
+        if name of attacker is set:
+            set {_att} to uncolored name of attacker
+    set {_cause} to za_mem_cause(victim, {_att})
+    za_mem_mort({_nom}, {_l}, {_cause}, false)
+
+# ---------------------------------------------------------------- noms
+
+# tous les noms gravés (stèles et Rues), sans doublon, du plus ancien au plus récent
+function za_memoire_noms() :: texts:
+    loop {za::memoire::stele::liste::*}:
+        set {_nm} to {za::memoire::stele::%loop-value%::nom}
+        if {_r::*} does not contain {_nm}:
+            add {_nm} to {_r::*}
+    loop {za::memoire::rue::liste::*}:
+        set {_id} to loop-value
+        set {_k} to 1
+        while {za::memoire::rue::%{_id}%::nom::%{_k}%} is set:
+            set {_nm} to {za::memoire::rue::%{_id}%::nom::%{_k}%}
+            if {_r::*} does not contain {_nm}:
+                add {_nm} to {_r::*}
+            add 1 to {_k}
+    return {_r::*}
+
+# enregistrements « nom|jour|cause » d'une saison (stèles et Rues)
+function za_mem_saison_liste(n: number) :: texts:
+    loop {za::memoire::stele::liste::*}:
+        if {za::memoire::stele::%loop-value%::saison} is {_n}:
+            add "%{za::memoire::stele::%loop-value%::nom}%|%{za::memoire::stele::%loop-value%::jour}%|%{za::memoire::stele::%loop-value%::cause}%" to {_r::*}
+    loop {za::memoire::rue::liste::*}:
+        set {_id} to loop-value
+        set {_k} to 1
+        while {za::memoire::rue::%{_id}%::nom::%{_k}%} is set:
+            if {za::memoire::rue::%{_id}%::saison::%{_k}%} is {_n}:
+                set {_e} to "%{za::memoire::rue::%{_id}%::nom::%{_k}%}%|%{za::memoire::rue::%{_id}%::jour::%{_k}%}%|%{za::memoire::rue::%{_id}%::cause::%{_k}%}%"
+                if {_r::*} does not contain {_e}:
+                    add {_e} to {_r::*}
+            add 1 to {_k}
+    return {_r::*}
+
+# ---------------------------------------------------------------- Hall des survivants : mur du souvenir (parois est et ouest)
+
+# 48 emplacements : 2 parois x 6 colonnes (entre les fenêtres) x 4 rangées, relatifs au centre du seuil {za::hall::base}
+function za_memoire_hall(n: number):
+    if {za::hall::base} is not set:
+        stop
+    set {_e::*} to za_mem_saison_liste({_n})
+    if size of {_e::*} is 0:
+        stop
+    set {_b} to {za::hall::base}
+    set {_w} to world of {_b}
+    set {_wd} to za_dim({_w})
+    set {_zs::*} to -6, -5, -2, -1, 2 and 3
+    set {_bx} to floor(x-coordinate of {_b})
+    set {_by} to floor(y-coordinate of {_b})
+    set {_bz} to floor(z-coordinate of {_b})
+    # le Hall doit être chargé le temps de graver
+    execute console command "execute in %{_wd}% run forceload add %{_bx} - 14% %{_bz} - 12% %{_bx} + 14% %{_bz} + 9%"
+    wait 2 seconds
+    if {za::memoire::hall::next} is not set:
+        set {za::memoire::hall::next} to 0
+    set {_gr} to 0
+    loop {_e::*}:
+        set {_i} to {za::memoire::hall::next}
+        if {_i} < 48:
+            set {_f::*} to split loop-value at "|"
+            set {_side} to floor({_i} / 24)
+            set {_t} to mod({_i}, 24)
+            set {_col} to floor({_t} / 4)
+            set {_row} to mod({_t}, 4)
+            set {_x} to {_bx} + 12
+            set {_face} to "west"
+            if {_side} is 1:
+                set {_x} to {_bx} - 12
+                set {_face} to "east"
+            set {_y} to {_by} + 5 - {_row}
+            set {_z} to {_bz} + {_zs::%{_col} + 1%}
+            execute console command "execute in %{_wd}% run setblock %{_x}% %{_y}% %{_z}% minecraft:dark_oak_wall_sign[facing=%{_face}%]"
+            set {_sg} to block at location({_x}, {_y}, {_z}, {_w})
+            set line 1 of {_sg} to "&8✝ Saison %{_n}%"
+            set line 2 of {_sg} to "&f%{_f::1}%"
+            set line 3 of {_sg} to "&7Jour %{_f::2}%"
+            set line 4 of {_sg} to "&8%za_mem_court({_f::3})%"
+            add 1 to {za::memoire::hall::next}
+            add 1 to {_gr}
+    execute console command "execute in %{_wd}% run forceload remove %{_bx} - 14% %{_bz} - 12% %{_bx} + 14% %{_bz} + 9%"
+    za_journal("%{_gr}% noms ont ete graves au Hall des survivants.")
+
+# ---------------------------------------------------------------- ambiance : près d'un mémorial, un mot
+
+function za_mem_ambiance(p: player):
+    set {_u} to {_p}'s uuid
+    loop {za::memoire::stele::liste::*}:
+        set {_c} to {za::memoire::stele::%loop-value%::loc}
+        if {_c} is set:
+            if world of {_c} is world of {_p}:
+                if distance between {_c} and {_p} < 5:
+                    set {_k} to "%{_u}%_%loop-value%"
+                    if {-zm::vu::%{_k}%} is not set:
+                        set {-zm::vu::%{_k}%} to now
+                        send action bar "&8✝ &7%{za::memoire::stele::%loop-value%::nom}% &8— jour %{za::memoire::stele::%loop-value%::jour}% &8· &7%{za::memoire::stele::%loop-value%::cause}%" to {_p}
+                    else if difference between {-zm::vu::%{_k}%} and now is greater than 10 minutes:
+                        delete {-zm::vu::%{_k}%}
+
+every 8 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_mem_ambiance(loop-player)
+
+# ---------------------------------------------------------------- /disparus
+
+function za_mem_approx(l: location) :: text:
+    return "X=%floor(x-coordinate of {_l} / 25) * 25% Z=%floor(z-coordinate of {_l} / 25) * 25% (±25)"
+
+command /disparus [<text>]:
+    executable by: players
+    trigger:
+        set {_noms::*} to za_memoire_noms()
+        send "&8&m                    &r &4&l✝ LES DISPARUS &8&m                    " to player
+        if size of {_noms::*} is 0:
+            send "&7Personne n'a encore été gravé dans la pierre. &8Ça viendra." to player
+            send "&8Quand quelqu'un tombe dans un lieu qui compte, une stèle s'élève. Trois morts au même endroit, et c'est une rue entière." to player
+            stop
+        send "&7%size of {_noms::*}% noms gravés dans la pierre, dans les stèles et les Rues des disparus." to player
+        if size of {za::memoire::rue::liste::*} > 0:
+            send "&6Rues des disparus :" to player
+            loop {za::memoire::rue::liste::*}:
+                set {_id} to loop-value
+                set {_a} to {za::memoire::rue::%{_id}%::loc}
+                if {_a} is set:
+                    set {_ls} to ""
+                    set {_k} to 1
+                    while {za::memoire::rue::%{_id}%::nom::%{_k}%} is set:
+                        if {_k} <= 8:
+                            if {_ls} is "":
+                                set {_ls} to "%{za::memoire::rue::%{_id}%::nom::%{_k}%}%"
+                            else:
+                                set {_ls} to "%{_ls}%, %{za::memoire::rue::%{_id}%::nom::%{_k}%}%"
+                        add 1 to {_k}
+                    set {_nn} to {za::memoire::rue::%{_id}%::n}
+                    if {_nn} > 8:
+                        set {_ls} to "%{_ls}%..."
+                    send "&8  ✝ &7vers %za_mem_approx({_a})% &8— &f%{_ls}% &8(%{_nn}% noms)" to player
+        if size of {za::memoire::stele::liste::*} > 0:
+            send "&6Stèles (les plus récentes) :" to player
+            set {_tot} to size of {za::memoire::stele::liste::*}
+            set {_i} to 0
+            loop {za::memoire::stele::liste::*}:
+                add 1 to {_i}
+                if {_i} > {_tot} - 8:
+                    set {_c} to {za::memoire::stele::%loop-value%::loc}
+                    if {_c} is set:
+                        send "&8  ✝ &f%{za::memoire::stele::%loop-value%::nom}% &8— &7jour %{za::memoire::stele::%loop-value%::jour}%, %{za::memoire::stele::%loop-value%::cause}% &8· &7vers %za_mem_approx({_c})%" to player
+        send "&8Le monde se souvient de ceux qui tombent là où ça compte : près des nids, des camps, des labos, ou pendant une Blood Moon." to player
+
+# ---------------------------------------------------------------- admin
+
+command /zamemoire [<text>] [<text>] [<number>] [<number>] [<number>] [<text>]:
+    permission: za.admin
+    trigger:
+        set {_a} to arg-1
+        if {_a} is not set:
+            send "&cUsage : zamemoire <mort|stele> <nom> [x y z] [cause] | rue [x y z] | hall [saison] | liste | reset" to sender
+            stop
+        if {_a} is "liste":
+            send "&7Points de mort : %size of {za::memoire::pt::liste::*}% | stèles : %size of {za::memoire::stele::liste::*}% | rues : %size of {za::memoire::rue::liste::*}% | noms : %size of za_memoire_noms()%" to sender
+            loop {za::memoire::rue::liste::*}:
+                send "&7Rue #%loop-value% en %{za::memoire::rue::%loop-value%::loc}% (%{za::memoire::rue::%loop-value%::n}% noms)" to sender
+            stop
+        if {_a} is "reset":
+            delete {za::memoire::pt::*}
+            delete {za::memoire::stele::*}
+            delete {za::memoire::rue::*}
+            delete {za::memoire::cell::*}
+            delete {za::memoire::hall::*}
+            send "&aMémoire effacée (les blocs restent en place)." to sender
+            stop
+        if {_a} is "hall":
+            set {_n} to arg-3
+            if {_n} is not set:
+                set {_n} to {za::saison::num}
+            za_memoire_hall({_n})
+            send "&aGravure au Hall lancée pour la saison %{_n}%." to sender
+            stop
+        # lieu : coordonnées données ou position du joueur
+        set {_l} to location of sender
+        if arg-4 is set:
+            set {_l} to location(arg-3, arg-4, arg-5, world("world"))
+        if {_a} is "rue":
+            if arg-2 is set:
+                set {_l} to location(arg-3, arg-4, arg-5, world("world"))
+            if {_l} is not set:
+                send "&cDonne des coordonnées." to sender
+                stop
+            set {_id} to za_mem_rue_nouvelle({_l})
+            send "&aRue #%{_id}% dressée en %{za::memoire::rue::%{_id}%::loc}%." to sender
+            stop
+        if arg-2 is not set:
+            send "&cUsage : zamemoire %{_a}% <nom> [x y z] [cause]" to sender
+            stop
+        if {_l} is not set:
+            send "&cDonne des coordonnées." to sender
+            stop
+        set {_cause} to arg-6
+        if {_cause} is not set:
+            set {_cause} to "Test"
+        if {_a} is "mort":
+            za_mem_mort(arg-2, {_l}, {_cause}, false)
+            send "&aMort simulée : %arg-2% en %{_l}%. (stèle si le lieu est important, Rue si 3 morts proches)" to sender
+        else if {_a} is "stele":
+            za_mem_mort(arg-2, {_l}, {_cause}, true)
+            send "&aStèle forcée pour %arg-2%." to sender
+        else:
+            send "&cUsage : zamemoire <mort|stele> <nom> [x y z] [cause] | rue | hall | liste | reset" to sender

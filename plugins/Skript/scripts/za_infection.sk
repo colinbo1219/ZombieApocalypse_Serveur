@@ -1,0 +1,307 @@
+# =====================================================================
+#  ZombieApocalypse - PHASE 1 : INFECTION & SURVIE
+#  Morsure -> stade 1 -> stade 2 (5 min) -> stade 3 (10 min) -> mort (15 min) -> zombie
+#  * chance d'infection selon le type de zombie (Alpha/Overlord haut, Crawler/Enfant bas)
+#  * infection aussi par projectiles et explosions (acide du Spitter, explosion du Bloater)
+#  * porteur sain asymptomatique (contamine les autres sans symptomes)
+#  * quarantaine : pres d'un sanctuaire, les infectes/porteurs sont revelees (lueur + particules)
+#  * saignement (attire les zombies), battement de coeur, respiration, dernier souffle
+#  Objets: "Antidote" (avant la fenetre), "Serum" (a tout stade), "Bandage"
+#  Admin: /infecter <joueur>   /soigner <joueur>
+#  La mutation du virus (za_p12_virus.sk) modifie vitesse, fenetre, bonus et rayon.
+#  /infection exploiter : au stade 2 seulement, force un avantage temporaire (10 pourcent vitesse, 2 minutes) contre une
+#  vision reduite et un risque (15 pourcent) que l'infection avance plus vite. Un vrai risque, pas un bonus deguise.
+# =====================================================================
+
+# ---------- chance d'infection selon le zombie (%) ----------
+function za_chance_infection(nom: text, p: player) :: number:
+    set {_c} to 25
+    if {_nom} contains "Overlord":
+        set {_c} to 90
+    else if {_nom} contains "Alpha":
+        set {_c} to 60
+    else if {_nom} contains "Stalker":
+        set {_c} to 45
+    else if {_nom} contains "Leaper":
+        set {_c} to 40
+    else if {_nom} contains "Brute":
+        set {_c} to 40
+    else if {_nom} contains "blind":
+        set {_c} to 35
+    else if {_nom} contains "bouclier":
+        set {_c} to 35
+    else if {_nom} contains "Bloater":
+        set {_c} to 30
+    else if {_nom} contains "Spitter":
+        set {_c} to 30
+    else if {_nom} contains "Runner":
+        set {_c} to 30
+    else if {_nom} contains "Crawler":
+        set {_c} to 20
+    else if {_nom} contains "Enfant":
+        set {_c} to 20
+    add za_param(za_souche_id({_p}), "bonus") to {_c}
+    if {za::saison::bonus} is set:
+        add {za::saison::bonus} to {_c}
+    if {za::resist::%{_p}'s uuid%} is set:
+        remove ({za::resist::%{_p}'s uuid%} * 2) from {_c}
+    return max(5, min(95, {_c}))
+
+# ---------- infecte un joueur (12 % de porteurs sains sans symptomes) ----------
+function za_infecter(p: player):
+    if {za::infection::%{_p}'s uuid%} is set:
+        stop
+    if {za::porteur::%{_p}'s uuid%} is set:
+        stop
+    if {za::camp::%{_p}'s uuid%} is "infecte":
+        stop
+    set {_carrier} to false
+    set {_cc} to 12
+    if {za::resist::%{_p}'s uuid%} is set:
+        add ({za::resist::%{_p}'s uuid%} * 3) to {_cc}
+    if chance of {_cc}%:
+        set {_carrier} to true
+    if {_carrier} is true:
+        set {za::porteur::%{_p}'s uuid%} to now
+    else:
+        set {za::infection::%{_p}'s uuid%} to now
+        send "&cTu sens la fievre monter..." to {_p}
+        za_effet({_p}, "slowness", 30, 0)
+
+# ---------- morsure ----------
+on damage of player:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a zombie:
+        set {za::sang::%victim's uuid%} to now
+        if victim doesn't have permission "za.immune":
+            if {za::camp::%victim's uuid%} is "infecte":
+                cancel the event
+            else:
+                set {_ch} to za_chance_infection(uncolored name of attacker, victim)
+                if chance of {_ch}%:
+                    za_infecter(victim)
+
+# ---------- projectiles et explosions : appele par MythicMobs (acide du Spitter, explosion du Bloater) ----------
+command /zainfect <player> <number>:
+    executable by: console
+    trigger:
+        set {_c} to arg-2
+        add za_param(za_souche_id(arg-1), "bonus") to {_c}
+        if {za::resist::%arg-1's uuid%} is set:
+            remove ({za::resist::%arg-1's uuid%} * 2) from {_c}
+        if arg-1 doesn't have permission "za.immune":
+            if chance of {_c}%:
+                za_infecter(arg-1)
+
+# ---------- dernier souffle : un coup fatal laisse 1 coeur (1 fois / 10 min) ----------
+on damage of player:
+    if za_pro(victim) is true:
+        stop
+    if final damage >= health of victim:
+        set {_ok} to false
+        if {za::souffle::%victim's uuid%} is not set:
+            set {_ok} to true
+        else:
+            if difference between {za::souffle::%victim's uuid%} and now is greater than 10 minutes:
+                set {_ok} to true
+        if {_ok} is true:
+            cancel the event
+            set health of victim to 1
+            set {za::souffle::%victim's uuid%} to now
+            send "&4&lDERNIER SOUFFLE... &7tu tiens encore debout." to victim
+            za_effet(victim, "resistance", 6, 3)
+            za_effet(victim, "slowness", 6, 1)
+
+# ---------- progression des stades (la mutation du virus peut accelerer) ----------
+every 10 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            if {za::infection::%loop-player's uuid%} is set:
+                set {_v} to za_param(za_souche_id(loop-player), "vitesse")
+                set {_t} to difference between {za::infection::%loop-player's uuid%} and now
+                if {_t} is greater than or equal to ("%15 * {_v}% minutes" parsed as timespan):
+                    send "&4Tu succombes a l'infection..." to loop-player
+                    kill loop-player
+                else if {_t} is greater than or equal to ("%10 * {_v}% minutes" parsed as timespan):
+                    za_effet(loop-player, "blindness", 6, 0)
+                    za_effet(loop-player, "darkness", 12, 0)
+                    play sound "entity.warden.heartbeat" to loop-player
+                else if {_t} is greater than or equal to ("%5 * {_v}% minutes" parsed as timespan):
+                    za_effet(loop-player, "nausea", 12, 0)
+                    za_effet(loop-player, "weakness", 15, 1)
+                else:
+                    za_effet(loop-player, "slowness", 15, 0)
+
+# ---------- porteurs sains : aucun symptome, mais ils contaminent ceux qui sont pres d'eux ----------
+every 10 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_c} to loop-player
+            if {za::porteur::%{_c}'s uuid%} is set:
+                if difference between {za::porteur::%{_c}'s uuid%} and now is greater than 2 days:
+                    delete {za::porteur::%{_c}'s uuid%}
+                else:
+                    set {_r} to za_param(za_souche_id({_c}), "rayon")
+                    set {_near::*} to all players in radius {_r} around {_c}
+                    loop {_near::*}:
+                        if loop-value-2 is not {_c}:
+                            if chance of 6%:
+                                za_infecter(loop-value-2)
+
+# ---------- quarantaine : pres d'un sanctuaire, infectes et porteurs sont reveles ----------
+every 5 seconds:
+    loop {za::sanctuaire::*}:
+        set {_loc} to loop-value
+        loop all players:
+            if za_pro(loop-player) is false:
+                if world of loop-player is world of {_loc}:
+                    if distance between loop-player and {_loc} < 30:
+                        if any:
+                            {za::infection::%loop-player's uuid%} is set
+                            {za::porteur::%loop-player's uuid%} is set
+                        then:
+                            za_effet(loop-player, "glowing", 8, 0)
+                            execute console command "execute at %loop-player% run particle minecraft:angry_villager ~ ~2.2 ~ 0.2 0.2 0.2 0 3 force"
+
+# ---------- saignement : blesse par un zombie = les morts te sentent ----------
+every 6 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            if {za::sang::%loop-player's uuid%} is set:
+                if difference between {za::sang::%loop-player's uuid%} and now is less than 40 seconds:
+                    if chance of 35%:
+                        za_spawn_near(loop-player, "ZA_Shambler", 14, 24)
+                else:
+                    delete {za::sang::%loop-player's uuid%}
+
+# ---------- coeur qui bat / respiration quand on est blesse ----------
+every 4 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            if health of loop-player <= 3:
+                play sound "entity.warden.heartbeat" to loop-player
+            else if health of loop-player <= 6:
+                play sound "entity.player.breath" to loop-player
+
+# ---------- objets consommables ----------
+on consume:
+    if za_pro(player) is true:
+        stop
+    if uncolored name of event-item is "Antidote":
+        set {_w} to za_param(za_souche_id(player), "fenetre")
+        if za_role(player) is "medecin":
+            set {_w} to {_w} * 1.5
+        if {za::porteur::%player's uuid%} is set:
+            delete {za::porteur::%player's uuid%}
+            za_resistance(player)
+            send "&aTon corps se purge (tu etais porteur sain sans le savoir)." to player
+        if {za::infection::%player's uuid%} is set:
+            if difference between {za::infection::%player's uuid%} and now is less than ("%{_w}% minutes" parsed as timespan):
+                delete {za::infection::%player's uuid%}
+                za_resistance(player)
+                send "&aTu te sens mieux. L'infection recule." to player
+            else:
+                send "&cC'est trop tard... l'infection est trop avancee. Il faut un Serum." to player
+        else:
+            send "&7Tu n'es pas infecte." to player
+    else if uncolored name of event-item is "Serum":
+        # serum instable : 80 pourcent (90 pour un medecin), sinon l'infection s'aggrave
+        set {_ok} to 80
+        if za_role(player) is "medecin":
+            set {_ok} to 90
+        if any:
+            {za::infection::%player's uuid%} is set
+            {za::porteur::%player's uuid%} is set
+        then:
+            if chance of {_ok}%:
+                delete {za::infection::%player's uuid%}
+                delete {za::porteur::%player's uuid%}
+                delete {za::mal::plaie::%player's uuid%}
+                delete {za::mal::grippe::%player's uuid%}
+                delete {za::mal::fievre::%player's uuid%}
+                za_effet(player, "regeneration", 20, 1)
+                za_resistance(player)
+                send "&dLe serum agit. Tu es gueri." to player
+            else:
+                if {za::infection::%player's uuid%} is set:
+                    remove 6 minutes from {za::infection::%player's uuid%}
+                za_effet(player, "nausea", 15, 0)
+                send "&cLe serum reagit mal : l'infection s'aggrave !" to player
+        else:
+            send "&7Le serum n'a rien a soigner... il est perdu." to player
+
+on right click with paper:
+    if za_pro(player) is true:
+        stop
+    if uncolored name of player's tool is "Bandage":
+        cancel the event
+        if health of player < 10:
+            if za_role(player) is "medecin":
+                heal player by 5 hearts
+            else:
+                heal player by 3 hearts
+            remove 1 of player's tool from player's inventory
+            send "&fTu appliques un bandage." to player
+            delete {za::sang::%player's uuid%}
+            delete {za::plaie::flag::%player's uuid%}
+            delete {za::mal::plaie::%player's uuid%}
+
+# ---------- mort infectee : le joueur se releve en zombie ----------
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    if {za::infection::%victim's uuid%} is set:
+        set {za::mort_infecte::%victim's uuid%} to true
+        set {_l} to location of victim
+        set {_mob} to "ZA_Shambler"
+        if chance of 30%:
+            set {_mob} to "ZA_Armored"
+        execute console command "mm mobs spawn %{_mob}% 1 %world of {_l}%,%floor(x-coordinate of {_l})%,%floor(y-coordinate of {_l})%,%floor(z-coordinate of {_l})%"
+        delete {za::infection::%victim's uuid%}
+
+# ---------- commandes admin ----------
+command /infecter <player>:
+    permission: za.admin
+    trigger:
+        set {za::infection::%arg-1's uuid%} to now
+        send "&aJoueur infecte." to sender
+
+command /soigner <player>:
+    permission: za.admin
+    trigger:
+        delete {za::infection::%arg-1's uuid%}
+        delete {za::porteur::%arg-1's uuid%}
+        delete {za::sang::%arg-1's uuid%}
+        delete {za::mal::plaie::%arg-1's uuid%}
+        delete {za::mal::grippe::%arg-1's uuid%}
+        delete {za::mal::fievre::%arg-1's uuid%}
+        send "&aJoueur soigne." to sender
+
+# ---------- exploiter l'infection : uniquement au stade 2, un vrai choix risque/recompense ----------
+command /infection exploiter:
+    trigger:
+        set {_u} to "%player's uuid%"
+        if {za::infection::%{_u}%} is not set:
+            send "&7Tu n'es pas infecte." to player
+        else:
+            set {_v} to za_param(za_souche_id(player), "vitesse")
+            set {_t} to difference between {za::infection::%{_u}%} and now
+            if {_t} is less than ("%5 * {_v}% minutes" parsed as timespan):
+                send "&7Ton infection n'en est pas encore la (stade 2 requis)." to player
+            else if {_t} is greater than or equal to ("%10 * {_v}% minutes" parsed as timespan):
+                send "&7Trop tard pour ca : l'infection est deja trop avancee." to player
+            else if all:
+                {za::infection::exploit::cd::%{_u}%} is set
+                now is less than {za::infection::exploit::cd::%{_u}%}
+            then:
+                send "&7Ton corps a besoin de repos avant de retenter ca." to player
+            else:
+                set {za::infection::exploit::cd::%{_u}%} to now
+                add 10 minutes to {za::infection::exploit::cd::%{_u}%}
+                za_effet(player, "speed", 120, 0)
+                za_effet(player, "blindness", 120, 0)
+                send "&2Tu forces ton corps a puiser dans l'infection. &7Plus rapide, 2 minutes... mais tu n'y vois plus rien." to player
+                if chance of 15%:
+                    remove 3 minutes from {za::infection::%{_u}%}
+                    send "&4L'infection en profite : elle progresse plus vite." to player

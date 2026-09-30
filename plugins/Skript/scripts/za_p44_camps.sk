@@ -1,0 +1,1954 @@
+# =====================================================================
+#  ZombieApocalypse - CAMPS DE SURVIVANTS VIVANTS (module A2)
+#  * 3-4 camps palissadés (~21x21) générés loin des joueurs : tentes, feu de camp, caisses, tour de guet, cloche, panneaux à jour.
+#  * Chaque camp a des chiffres (pop, nourriture, sécurité, moral, contamination) qui évoluent chaque jour serveur.
+#  * Chef de camp (clic droit) : état, donner (nourriture/matériaux/soins), défendre, recruter, commercer.
+#  * Attaques (zombies ou pillards) : naturelles ou /zacamp attaque ; vagues ~3 min, pertes selon les morts abattus.
+#  * Un camp peut être abandonné ou tomber pour de bon (ruines, panneau "tombé le jour N").
+#  * Choix du prologue : l'infirmière Leblanc (sauvée) soigne au Refuge Sainte-Anne ; Théo (appelé) attend dans un camp ;
+#    Leblanc (perdue) et Théo (provisions) reviennent hanter le joueur.
+#  Données : {za::camp::liste::*} ; {za::camp::<id>::loc|nom|pop|nourriture|securite|moral|contam|etat|jour|chef|style|ox|oy|oz|sign1|sign2|cloche|tombe|conf::<uuid>}
+#  ATTENTION : za_p25_labos (camps abandonnés) ajoute aussi des identifiants à {za::camp::liste::*} sans champ etat : on les ignore.
+#  Admin : /zacamp creer [x z monde] | attaque <id> <zombies|pillards> | etat <id> | tick | supprimer <id> | liste | ruine <id> | set <id> <champ> <n>
+#  Joueur : /camps
+# =====================================================================
+
+options:
+    camps_max: 4
+
+on load:
+    if {za::camp::next} is not set:
+        set {za::camp::next} to 0
+    if {za::camp::jour} is not set:
+        set {za::camp::jour} to {za::serveur::jours}
+    if {za::camp::prochain} is not set:
+        set {za::camp::prochain} to now
+        add 2 minutes to {za::camp::prochain}
+    # attaques interrompues par un redémarrage : on les clôt sans conséquence
+    loop {za::camp::attaques::*}:
+        delete {za::camp::%loop-value%::attaque}
+    delete {za::camp::attaques::*}
+
+# ---------------------------------------------------------------- outils
+
+function za_cmp_valide(id: number) :: boolean:
+    if {za::camp::%{_id}%::etat} is set:
+        return true
+    return false
+
+function za_cmp_vivants() :: number:
+    set {_n} to 0
+    loop {za::camp::liste::*}:
+        if {za::camp::%loop-value%::etat} is "vivant":
+            add 1 to {_n}
+    return {_n}
+
+function za_cmp_joueur_proche(l: location, r: number) :: boolean:
+    loop all players:
+        if za_pro(loop-player) is false:
+            if world of loop-player is world of {_l}:
+                if distance between loop-player and {_l} < {_r}:
+                    return true
+    return false
+
+function za_cmp_hostiles(l: location, r: number) :: number:
+    set {_n} to 0
+    loop all entities in radius {_r} around {_l}:
+        if za_surv_hostile(loop-entity) is true:
+            add 1 to {_n}
+    return {_n}
+
+function za_cmp_plus_proche(l: location) :: number:
+    set {_best} to 0
+    set {_bd} to 1000000
+    loop {za::camp::liste::*}:
+        set {_id} to loop-value
+        if {za::camp::%{_id}%::etat} is "vivant":
+            set {_c} to {za::camp::%{_id}%::loc}
+            if world of {_c} is world of {_l}:
+                set {_d} to distance between {_c} and {_l}
+                if {_d} < {_bd}:
+                    set {_bd} to {_d}
+                    set {_best} to {_id}
+    return {_best}
+
+function za_cmp_borne(x: number) :: number:
+    return min(100, max(0, {_x}))
+
+function za_cmp_champ(id: number, champ: text, n: number):
+    set {_v} to {za::camp::%{_id}%::%{_champ}%}
+    if {_v} is not set:
+        set {_v} to 0
+    set {za::camp::%{_id}%::%{_champ}%} to za_cmp_borne({_v} + {_n})
+
+# un joueur a aidé le camp : la première fois seulement, la statistique "camps_aides" monte
+function za_cmp_aide(p: player, id: number):
+    set {_u} to {_p}'s uuid
+    if {za::camp::%{_id}%::aide::%{_u}%} is not set:
+        set {za::camp::%{_id}%::aide::%{_u}%} to true
+        za_stat_ajouter({_u}, "camps_aides", 1)
+
+function za_cmp_conf(u: text, id: number) :: number:
+    if {za::camp::%{_id}%::conf::%{_u}%} is not set:
+        return 10
+    return {za::camp::%{_id}%::conf::%{_u}%}
+
+function za_cmp_conf_ajouter(u: text, id: number, n: number):
+    set {za::camp::%{_id}%::conf::%{_u}%} to min(100, max(0, za_cmp_conf({_u}, {_id}) + {_n}))
+
+function za_cmp_pop_ajouter(id: number, n: number):
+    set {_p} to {za::camp::%{_id}%::pop}
+    if {_p} is not set:
+        set {_p} to 0
+    set {za::camp::%{_id}%::pop} to max(0, {_p} + {_n})
+    za_cmp_panneau({_id})
+
+function za_cmp_dim(id: number) :: text:
+    return za_dim(world of {za::camp::%{_id}%::loc})
+
+# où (à peu près) : coordonnées arrondies à 50
+function za_cmp_approx(l: location) :: text:
+    return "X≈%round(x-coordinate of {_l} / 50) * 50% Z≈%round(z-coordinate of {_l} / 50) * 50%"
+
+function za_cmp_phrase(id: number) :: text:
+    set {_n} to {za::camp::%{_id}%::nourriture}
+    set {_s} to {za::camp::%{_id}%::securite}
+    set {_m} to {za::camp::%{_id}%::moral}
+    set {_c} to {za::camp::%{_id}%::contam}
+    if {_n} < 15:
+        return "On n'a presque plus rien à mettre dans les assiettes. Si ça continue, ça va mal finir."
+    if {_s} < 25:
+        return "La palissade tient par miracle. Une bonne attaque, pis on est finis."
+    if {_c} > 50:
+        return "Y'a de la maladie dans le camp. Ça tousse, ça saigne. On a besoin de soins."
+    if {_m} < 30:
+        return "Le monde est à bout. Certains parlent de partir dans la nuit."
+    if {_n} < 35:
+        return "On rationne. C'est encore correct, mais faudrait que quelqu'un ramène de quoi manger."
+    if {_s} > 60:
+        if {_n} > 60:
+            if {_m} > 60:
+                return "On tient bon. Y'a du feu, de la soupe, pis des murs. C'est pas rien."
+    return "On survit. Un jour à la fois."
+
+# ce dont le camp manque, en une phrase courte ("" si tout va bien)
+function za_cmp_besoins(id: number) :: text:
+    set {_t} to ""
+    if {za::camp::%{_id}%::nourriture} < 35:
+        set {_t} to "ils manquent de nourriture"
+    if {za::camp::%{_id}%::securite} < 30:
+        if {_t} is "":
+            set {_t} to "leurs défenses sont faibles"
+        else:
+            set {_t} to "%{_t}%, leurs défenses sont faibles"
+    if {za::camp::%{_id}%::contam} > 40:
+        if {_t} is "":
+            set {_t} to "il y a des malades"
+        else:
+            set {_t} to "%{_t}%, il y a des malades"
+    if {za::camp::%{_id}%::moral} < 30:
+        if {_t} is "":
+            set {_t} to "le moral est bas"
+        else:
+            set {_t} to "%{_t}%, le moral est bas"
+    return {_t}
+
+# ---------------------------------------------------------------- noms
+
+function za_cmp_noms() :: texts:
+    return "Refuge Sainte-Anne", "Camp du Moulin", "La Fourrière", "Poste 14", "Camp de la Rivière", "Les Pins Gris", "Halte du Chemin Vieux", "Camp Saint-Georges", "Le Bercail"
+
+function za_cmp_nom_libre() :: text:
+    set {_noms::*} to za_cmp_noms()
+    if za_cmp_nom_pris("Refuge Sainte-Anne") is false:
+        return "Refuge Sainte-Anne"
+    loop {_noms::*}:
+        if za_cmp_nom_pris(loop-value) is false:
+            add loop-value to {_libres::*}
+    if size of {_libres::*} > 0:
+        return random element out of {_libres::*}
+    return "Camp %za_surv_famille()%"
+
+function za_cmp_nom_pris(nom: text) :: boolean:
+    loop {za::camp::liste::*}:
+        if {za::camp::%loop-value%::nom} is {_nom}:
+            return true
+    return false
+
+function za_cmp_chef_nom(nom: text) :: text:
+    if {_nom} is "Refuge Sainte-Anne":
+        return "Chef Bouchard"
+    if {_nom} is "Camp du Moulin":
+        return "Chef Lapointe"
+    if {_nom} is "La Fourrière":
+        return "Chef Desrosiers"
+    if {_nom} is "Poste 14":
+        return "Caporal-chef Fortin"
+    return "Chef %za_surv_famille()%"
+
+function za_cmp_style(nom: text) :: text:
+    if {_nom} is "Poste 14":
+        return "militaire"
+    return "bois"
+
+# ---------------------------------------------------------------- panneaux
+
+# découpe un nom en deux lignes de 15 caractères maximum
+function za_cmp_lignes(nom: text) :: texts:
+    if length of {_nom} <= 15:
+        return {_nom}, ""
+    set {_w::*} to split {_nom} at " "
+    set {_l1} to ""
+    set {_l2} to ""
+    loop {_w::*}:
+        if {_l2} is "":
+            if length of "%{_l1}% %loop-value%" <= 16:
+                if {_l1} is "":
+                    set {_l1} to loop-value
+                else:
+                    set {_l1} to "%{_l1}% %loop-value%"
+            else:
+                set {_l2} to loop-value
+        else:
+            set {_l2} to "%{_l2}% %loop-value%"
+    return {_l1}, {_l2}
+
+function za_cmp_panneau(id: number):
+    set {_s1} to {za::camp::%{_id}%::sign1}
+    set {_s2} to {za::camp::%{_id}%::sign2}
+    if {_s1} is not set:
+        stop
+    set {_nom} to {za::camp::%{_id}%::nom}
+    set {_e} to {za::camp::%{_id}%::etat}
+    set {_b1} to block at {_s1}
+    set {_b2} to block at {_s2}
+    if "%type of {_b1}%" does not contain "sign":
+        stop
+    set {_ls::*} to za_cmp_lignes({_nom})
+    set line 1 of {_b1} to "&l%{_ls::1}%"
+    set line 2 of {_b1} to "&l%{_ls::2}%"
+    if {_e} is "vivant":
+        set line 3 of {_b1} to "&7Pop. &f%floor({za::camp::%{_id}%::pop})%"
+        set line 4 of {_b1} to "&2Vivant"
+        set line 1 of {_b2} to "&6Vivres &f%floor({za::camp::%{_id}%::nourriture})%%%"
+        set line 2 of {_b2} to "&9Sécurité &f%floor({za::camp::%{_id}%::securite})%%%"
+        set line 3 of {_b2} to "&dMoral &f%floor({za::camp::%{_id}%::moral})%%%"
+        set line 4 of {_b2} to "&2Infect. &f%floor({za::camp::%{_id}%::contam})%%%"
+    else if {_e} is "abandonne":
+        set line 3 of {_b1} to "&8Abandonné"
+        set line 4 of {_b1} to "&8jour %{za::camp::%{_id}%::tombe}%"
+        set line 1 of {_b2} to "&8Plus personne."
+        set line 2 of {_b2} to "&8Les lits sont"
+        set line 3 of {_b2} to "&8encore chauds..."
+        set line 4 of {_b2} to ""
+    else:
+        set line 3 of {_b1} to "&4Tombé"
+        set line 4 of {_b1} to "&4le jour %{za::camp::%{_id}%::tombe}%"
+        set line 1 of {_b2} to "&8Ici vivaient"
+        set line 2 of {_b2} to "&8des gens."
+        set line 3 of {_b2} to "&8Ils n'ont pas"
+        set line 4 of {_b2} to "&8tenu."
+
+# ---------------------------------------------------------------- construction
+
+function za_cmp_f(wd: text, ox: number, oy: number, oz: number, x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, b: text):
+    execute console command "execute in %{_wd}% run fill %floor({_ox} + {_x1})% %floor({_oy} + {_y1})% %floor({_oz} + {_z1})% %floor({_ox} + {_x2})% %floor({_oy} + {_y2})% %floor({_oz} + {_z2})% %{_b}%"
+
+function za_cmp_b(wd: text, ox: number, oy: number, oz: number, x: number, y: number, z: number, b: text):
+    execute console command "execute in %{_wd}% run setblock %floor({_ox} + {_x})% %floor({_oy} + {_y})% %floor({_oz} + {_z})% %{_b}%"
+
+# tente en A (5 de large, 5 de long, ouverte au nord)
+function za_cmp_tente(wd: text, ox: number, oy: number, oz: number, tx: number, tz: number, w: text, lit: text):
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, {_tx}, 1, {_tz}, {_tx}, 1, {_tz} + 4, {_w})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 1, 2, {_tz}, {_tx} + 1, 2, {_tz} + 4, {_w})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 2, 3, {_tz}, {_tx} + 2, 3, {_tz} + 4, {_w})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 3, 2, {_tz}, {_tx} + 3, 2, {_tz} + 4, {_w})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 4, 1, {_tz}, {_tx} + 4, 1, {_tz} + 4, {_w})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 1, 1, {_tz} + 4, {_tx} + 3, 1, {_tz} + 4, {_w})
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 2, 2, {_tz} + 4, {_w})
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 2, 1, {_tz} + 2, "%{_lit}%_bed[facing=south,part=foot]")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 2, 1, {_tz} + 3, "%{_lit}%_bed[facing=south,part=head]")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 2, 2, {_tz} + 1, "lantern[hanging=true]")
+
+# construit tout le camp (origine ox,oy,oz = coin nord-ouest au niveau du sol, 21x21)
+function za_cmp_construire(id: number):
+    set {_l} to {za::camp::%{_id}%::loc}
+    set {_w} to world of {_l}
+    set {_wd} to za_dim({_w})
+    set {_ox} to {za::camp::%{_id}%::ox}
+    set {_oy} to {za::camp::%{_id}%::oy}
+    set {_oz} to {za::camp::%{_id}%::oz}
+    set {_st} to {za::camp::%{_id}%::style}
+    set {_mur} to "spruce_log"
+    set {_cl} to "spruce_fence"
+    set {_pl} to "spruce_planks"
+    set {_sol} to "coarse_dirt"
+    set {_chm} to "dirt_path"
+    set {_t1} to "red_wool"
+    set {_t2} to "orange_wool"
+    set {_t3} to "green_wool"
+    set {_t4} to "white_wool"
+    set {_lit1} to "red"
+    set {_lit2} to "orange"
+    set {_lit3} to "green"
+    set {_lit4} to "white"
+    if {_st} is "militaire":
+        set {_mur} to "stone_bricks"
+        set {_cl} to "iron_bars"
+        set {_pl} to "polished_andesite"
+        set {_sol} to "gravel"
+        set {_chm} to "stone"
+        set {_t1} to "green_wool"
+        set {_t2} to "gray_wool"
+        set {_t3} to "green_wool"
+        set {_t4} to "lime_wool"
+        set {_lit1} to "green"
+        set {_lit2} to "gray"
+        set {_lit3} to "green"
+        set {_lit4} to "lime"
+    # 1. terrain : on dégage, on comble, on pose le sol
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, -1, 1, -1, 21, 12, 21, "air")
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, -1, -7, -1, 21, -1, 21, "dirt replace air")
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 0, 0, 0, 20, 0, 20, {_sol})
+    loop 46 times:
+        set {_a} to random integer between 1 and 19
+        set {_b} to random integer between 1 and 19
+        set {_c} to random integer between 1 and 4
+        if {_c} is 1:
+            za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_a}, 0, {_b}, "podzol")
+        else if {_c} is 2:
+            za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_a}, 0, {_b}, {_chm})
+        else if {_c} is 3:
+            za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_a}, 0, {_b}, "gravel")
+        else:
+            za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_a}, 0, {_b}, "mud")
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 9, 0, 0, 11, 0, 9, {_chm})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 4, 0, 9, 16, 0, 11, {_chm})
+    # 2. palissade (4 murs de 4 de haut) + pieux
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 0, 1, 0, 20, 4, 0, {_mur})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 0, 1, 20, 20, 4, 20, {_mur})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 0, 1, 0, 0, 4, 20, {_mur})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 20, 1, 0, 20, 4, 20, {_mur})
+    set {_i} to 0
+    while {_i} <= 20:
+        za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_i}, 5, 0, {_cl})
+        za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_i}, 5, 20, {_cl})
+        za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 0, 5, {_i}, {_cl})
+        za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 20, 5, {_i}, {_cl})
+        add 2 to {_i}
+    # coins surélevés + lanternes
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 0, 5, 0, 0, 7, 0, {_mur})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 20, 5, 0, 20, 7, 0, {_mur})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 0, 5, 20, 0, 7, 20, {_mur})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 20, 5, 20, 20, 7, 20, {_mur})
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 0, 8, 0, "lantern")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 20, 8, 0, "lantern")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 0, 8, 20, "lantern")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 20, 8, 20, "lantern")
+    # 3. portail (nord, x = 9..11) : portes de clôture + linteau + lanternes
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 9, 1, 0, 11, 3, 0, "air")
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 9, 1, 0, 11, 1, 0, "spruce_fence_gate[facing=north]")
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 8, 1, 0, 8, 6, 0, {_mur})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 12, 1, 0, 12, 6, 0, {_mur})
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 8, 7, 0, "lantern")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 12, 7, 0, "lantern")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 10, 3, 1, "lantern[hanging=true]")
+    # panneaux sur la face extérieure du mur nord
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 6, 2, -1, "oak_wall_sign[facing=north]")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 14, 2, -1, "oak_wall_sign[facing=north]")
+    set {za::camp::%{_id}%::sign1} to location({_ox} + 6, {_oy} + 2, {_oz} - 1, {_w})
+    set {za::camp::%{_id}%::sign2} to location({_ox} + 14, {_oy} + 2, {_oz} - 1, {_w})
+    # 4. cloche (à gauche du portail, à l'intérieur)
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 5, 1, 3, 5, 3, 3, "spruce_fence")
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 7, 1, 3, 7, 3, 3, "spruce_fence")
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 5, 4, 3, 7, 4, 3, {_pl})
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 6, 3, 3, "bell[attachment=ceiling,facing=north]")
+    set {za::camp::%{_id}%::cloche} to location({_ox} + 6.5, {_oy} + 3, {_oz} + 3.5, {_w})
+    # 5. tentes + tente du chef
+    za_cmp_tente({_wd}, {_ox}, {_oy}, {_oz}, 1, 5, {_t1}, {_lit1})
+    za_cmp_tente({_wd}, {_ox}, {_oy}, {_oz}, 1, 13, {_t2}, {_lit2})
+    za_cmp_tente({_wd}, {_ox}, {_oy}, {_oz}, 14, 13, {_t3}, {_lit3})
+    za_cmp_tente({_wd}, {_ox}, {_oy}, {_oz}, 8, 14, {_t4}, {_lit4})
+    # tente du chef : table de travail, lutrin, coffre de fournitures
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 9, 1, 17, "crafting_table")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 11, 1, 17, "lectern[facing=north]")
+    # tente médicale (première tente) : lit blanc en plus, coffre
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 2, 1, 8, "chest[facing=east]")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 4, 1, 8, "chest[facing=west]")
+    # 6. feu de camp central, bancs, hamac de foin
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 10, 1, 10, "campfire[lit=true]")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 8, 1, 10, "spruce_stairs[facing=east]")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 12, 1, 10, "spruce_stairs[facing=west]")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 10, 1, 8, "spruce_stairs[facing=south]")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 10, 1, 12, "spruce_stairs[facing=north]")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 7, 1, 11, "cauldron")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 13, 1, 9, "hay_block")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 14, 1, 9, "hay_block")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 14, 2, 9, "hay_block")
+    # poteaux lumineux
+    loop 4 times:
+        set {_px} to 6
+        set {_pz} to 7
+        if loop-number is 2:
+            set {_px} to 14
+        else if loop-number is 3:
+            set {_pz} to 12
+        else if loop-number is 4:
+            set {_px} to 14
+            set {_pz} to 12
+        if loop-number is 3:
+            set {_px} to 6
+        za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, {_px}, 1, {_pz}, {_px}, 3, {_pz}, "spruce_fence")
+        za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_px}, 4, {_pz}, "lantern")
+    # 7. appentis de stockage (est) : toit de dalles, tonneaux, caisses
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 16, 1, 5, 16, 2, 5, "spruce_fence")
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 19, 1, 5, 19, 2, 5, "spruce_fence")
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 16, 1, 8, 16, 2, 8, "spruce_fence")
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 19, 1, 8, 19, 2, 8, "spruce_fence")
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 16, 3, 5, 19, 3, 8, "spruce_slab")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 17, 1, 5, "barrel[facing=up]")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 18, 1, 5, "barrel[facing=up]")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 17, 1, 8, "chest[facing=north]")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 18, 1, 8, "chest[facing=north]")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 19, 1, 6, "barrel[facing=west]")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 19, 1, 7, "hay_block")
+    # 8. tour de guet (coin nord-est, intérieur) : 4 poteaux, plate-forme, échelle, garde-corps
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 16, 1, 1, 16, 6, 1, {_mur})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 19, 1, 1, 19, 6, 1, {_mur})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 16, 1, 4, 19, 6, 4, {_pl})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 16, 6, 1, 19, 6, 4, {_pl})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 17, 6, 3, 17, 6, 3, "air")
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 17, 1, 3, 17, 6, 3, "ladder[facing=north]")
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 16, 7, 1, 19, 7, 4, "%{_cl}% hollow")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 17, 7, 3, "air")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 19, 8, 1, "lantern")
+    # 9. jardin (sud-ouest) : parcelle irriguée
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 2, 0, 18, 6, 0, 19, "farmland")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 4, 0, 18, "water")
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 2, 1, 18, 3, 1, 19, "wheat[age=5]")
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, 5, 1, 18, 6, 1, 19, "potatoes[age=4]")
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 4, 1, 19, "carrots[age=3]")
+    # 10. contenu des caisses (un peu de matériel : le camp n'est pas un coffre-fort)
+    set {_c1} to block at location({_ox} + 17, {_oy} + 1, {_oz} + 8, {_w})
+    set {_c2} to block at location({_ox} + 18, {_oy} + 1, {_oz} + 8, {_w})
+    set {_c3} to block at location({_ox} + 2, {_oy} + 1, {_oz} + 8, {_w})
+    set {_c4} to block at location({_ox} + 4, {_oy} + 1, {_oz} + 8, {_w})
+    add za_item("bread", "Conserve", "&f", random integer between 2 and 5) to inventory of {_c1}
+    add 3 of apple to inventory of {_c1}
+    add 6 of torch to inventory of {_c2}
+    add 8 of arrow to inventory of {_c2}
+    add za_item("paper", "Bandage", "&f", random integer between 1 and 3) to inventory of {_c3}
+    add za_item("gold nugget", "Jeton de Survie", "&6", random integer between 2 and 6) to inventory of {_c4}
+    if chance of 30%:
+        add za_item("honey bottle", "Antibiotique", "&b", 1) to inventory of {_c3}
+    za_cmp_panneau({_id})
+
+# ---------------------------------------------------------------- choix d'un emplacement
+
+function za_cmp_site_ok(l: location) :: boolean:
+    if "%world of {_l}%" is "za_prologue":
+        return false
+    if za_zone_morte({_l}) is true:
+        return false
+    set {_hb} to highest block at {_l}
+    set {_t} to "%type of {_hb}%"
+    if {_t} contains "water" or "lava" or "leaves" or "ice" or "log" or "cactus" or "magma" or "sand":
+        return false
+    set {_cy} to floor(y-coordinate of (location of {_hb}))
+    if {_cy} < 50:
+        return false
+    # relief : les 4 coins de la parcelle ne doivent pas être trop différents
+    set {_dx} to 0
+    while {_dx} < 4:
+        set {_p} to {_l}
+        set {_sx} to 12
+        set {_sz} to 12
+        if {_dx} is 1 or 3:
+            set {_sx} to -12
+        if {_dx} is 2 or 3:
+            set {_sz} to -12
+        add {_sx} to x-coordinate of {_p}
+        add {_sz} to z-coordinate of {_p}
+        set {_hb2} to highest block at {_p}
+        set {_t2} to "%type of {_hb2}%"
+        if {_t2} contains "water" or "lava" or "ice":
+            return false
+        set {_y2} to floor(y-coordinate of (location of {_hb2}))
+        if abs({_y2} - {_cy}) > 7:
+            return false
+        add 1 to {_dx}
+    # loin des autres camps, des bases, des bâtiments, de la Trêve
+    loop {za::camp::liste::*}:
+        set {_c} to {za::camp::%loop-value%::loc}
+        if {_c} is set:
+            if world of {_c} is world of {_l}:
+                if distance between {_c} and {_l} < 160:
+                    return false
+    loop {za::base::liste::*}:
+        set {_b} to {za::base::%loop-value%}
+        if {_b} is set:
+            if world of {_b} is world of {_l}:
+                if distance between {_b} and {_l} < 70:
+                    return false
+    if za_bat_proche({_l}, 45) is not "":
+        return false
+    if {za::treve::loc} is set:
+        if world of {za::treve::loc} is world of {_l}:
+            if distance between {za::treve::loc} and {_l} < 90:
+                return false
+    return true
+
+function za_cmp_site(p: player) :: location:
+    set {_pl} to location of {_p}
+    loop 16 times:
+        set {_c} to {_pl}
+        set {_d} to random number between 80 and 200
+        set {_a} to random number between 0 and 360
+        add ({_d} * cos({_a})) to x-coordinate of {_c}
+        add ({_d} * sin({_a})) to z-coordinate of {_c}
+        if za_cmp_site_ok({_c}) is true:
+            return za_sol({_c})
+
+# ---------------------------------------------------------------- création
+
+# crée l'enregistrement, bâtit, place le chef et les habitants. l = centre du camp (le sol)
+function za_cmp_creer(l: location, nom: text, style: text) :: number:
+    set {_w} to world of {_l}
+    add 1 to {za::camp::next}
+    set {_id} to {za::camp::next}
+    set {_ox} to floor(x-coordinate of {_l}) - 10
+    set {_oz} to floor(z-coordinate of {_l}) - 10
+    # on charge les chunks concernés (lecture de la hauteur = chargement synchrone) puis on prend le niveau du centre
+    loop 9 times:
+        set {_i} to loop-number - 1
+        set {_hb} to highest block at location({_ox} + (mod({_i}, 3) * 10), 64, {_oz} + (floor({_i} / 3) * 10), {_w})
+    set {_hc} to highest block at location({_ox} + 10, 64, {_oz} + 10, {_w})
+    set {_oy} to floor(y-coordinate of (location of {_hc}))
+    set {za::camp::%{_id}%::ox} to {_ox}
+    set {za::camp::%{_id}%::oy} to {_oy}
+    set {za::camp::%{_id}%::oz} to {_oz}
+    set {za::camp::%{_id}%::loc} to location({_ox} + 10.5, {_oy} + 1, {_oz} + 10.5, {_w})
+    set {za::camp::%{_id}%::nom} to {_nom}
+    set {za::camp::%{_id}%::style} to {_style}
+    set {za::camp::%{_id}%::chef} to za_cmp_chef_nom({_nom})
+    set {za::camp::%{_id}%::pop} to random integer between 8 and 14
+    set {za::camp::%{_id}%::nourriture} to random integer between 60 and 90
+    set {za::camp::%{_id}%::securite} to random integer between 50 and 80
+    set {za::camp::%{_id}%::moral} to random integer between 55 and 75
+    set {za::camp::%{_id}%::contam} to random integer between 0 and 10
+    set {za::camp::%{_id}%::jour} to {za::serveur::jours}
+    set {za::camp::%{_id}%::etat} to "vivant"
+    add {_id} to {za::camp::liste::*}
+    za_cmp_construire({_id})
+    # habitants
+    za_cmp_npcs({_id})
+    za_journal("Un camp de survivants s'est installé : %{_nom}%.")
+    za_lieu_camp({_id}, "cree")
+    return {_id}
+
+# ---------------------------------------------------------------- habitants (PNJ)
+
+function za_cmp_npc(id: number, titre: text, x: number, y: number, z: number, tags: text, noai: boolean):
+    set {_l} to {za::camp::%{_id}%::loc}
+    set {_wd} to za_dim(world of {_l})
+    set {_ai} to "NoAI:0b"
+    if {_noai} is true:
+        set {_ai} to "NoAI:1b"
+    execute console command "execute in %{_wd}% run summon villager %{_x}% %{_y}% %{_z}% {CustomName:'""%{_titre}%""',CustomNameVisible:1b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b,%{_ai}%,VillagerData:{profession:""minecraft:nitwit"",level:1,type:""minecraft:plains""},Tags:[""za_campnpc"",""za_campnpc_%{_id}%""%{_tags}%]}"
+
+# compte les PNJ du camp d'un type de tag ("za_campnpc_<id>", "za_chef_<id>", "za_leblanc"...)
+function za_cmp_compte_tag(id: number, t: text) :: number:
+    set {_l} to {za::camp::%{_id}%::loc}
+    set {_n} to 0
+    loop all villagers in radius 40 around {_l}:
+        if za_surv_a_tag(loop-entity, {_t}) is true:
+            add 1 to {_n}
+    return {_n}
+
+# supprime tous les PNJ d'un camp (ruine, abandon)
+function za_cmp_purge_pnj(id: number):
+    set {_l} to {za::camp::%{_id}%::loc}
+    if {_l} is not set:
+        stop
+    set {_t} to "za_campnpc_%{_id}%"
+    loop all villagers in radius 45 around {_l}:
+        if za_surv_a_tag(loop-entity, {_t}) is true:
+            delete loop-entity
+        else if za_surv_a_tag(loop-entity, "za_leblanc") is true:
+            if {za::leblanc::camp} is {_id}:
+                delete loop-entity
+
+# maintient les habitants visibles : chef, garde de la tour, habitants au hasard, survivants recrutés, Leblanc, Théo
+function za_cmp_npcs(id: number):
+    if {za::camp::%{_id}%::etat} is not "vivant":
+        za_cmp_purge_pnj({_id})
+        stop
+    set {_l} to {za::camp::%{_id}%::loc}
+    set {_ox} to {za::camp::%{_id}%::ox}
+    set {_oy} to {za::camp::%{_id}%::oy}
+    set {_oz} to {za::camp::%{_id}%::oz}
+    # chef (immobile près du feu)
+    if za_cmp_compte_tag({_id}, "za_chef_%{_id}%") is 0:
+        za_cmp_npc({_id}, {za::camp::%{_id}%::chef}, {_ox} + 11.5, {_oy} + 1, {_oz} + 11.5, ",""za_chef"",""za_chef_%{_id}%""", true)
+    # garde de la tour de guet
+    if za_cmp_compte_tag({_id}, "za_tour_%{_id}%") is 0:
+        set {_g} to "f"
+        if chance of 50%:
+            set {_g} to "m"
+        set {_gn} to za_surv_titre("soldat", {_g}, "%za_surv_prenom({_g})% %za_surv_famille()%")
+        za_cmp_npc({_id}, {_gn}, {_ox} + 18.5, {_oy} + 7, {_oz} + 2.5, ",""za_tour"",""za_tour_%{_id}%""", true)
+    # habitants
+    set {_want} to min(5, max(2, floor({za::camp::%{_id}%::pop} / 3)))
+    set {_have} to za_cmp_compte_tag({_id}, "za_campnpc_%{_id}%") - 2
+    if {_have} < {_want}:
+        set {_k} to 0
+        while {_k} < 2:
+            if {_have} < {_want}:
+                set {_g} to "f"
+                if chance of 50%:
+                    set {_g} to "m"
+                set {_nm} to "%za_surv_prenom({_g})% %za_surv_famille()%"
+                if {_have} is 0:
+                    set {_nm} to za_surv_titre("infirmier", {_g}, {_nm})
+                set {_sx} to random integer between 6 and 14
+                set {_sz} to random integer between 6 and 12
+                za_cmp_npc({_id}, {_nm}, {_ox} + {_sx} + 0.5, {_oy} + 1, {_oz} + {_sz} + 0.5, "", false)
+                add 1 to {_have}
+            add 1 to {_k}
+    else if {_have} > {_want} + 1:
+        set {_nb} to 0
+        loop all villagers in radius 40 around {_l}:
+            if {_nb} < ({_have} - {_want}):
+                if za_surv_a_tag(loop-entity, "za_campnpc_%{_id}%") is true:
+                    if za_surv_a_tag(loop-entity, "za_chef") is false:
+                        if za_surv_a_tag(loop-entity, "za_tour") is false:
+                            delete loop-entity
+                            add 1 to {_nb}
+    # survivants nommés (envoyés par les joueurs, Théo...)
+    set {_np} to 0
+    loop {za::surv::liste::*}:
+        set {_sid} to loop-value
+        if {za::surv::%{_sid}%::etat} is "camp":
+            if {za::surv::%{_sid}%::camp} is {_id}:
+                if {_np} < 4:
+                    za_surv_npc_placer({_sid})
+                    add 1 to {_np}
+    # Leblanc : médecin du camp
+    if {za::leblanc::camp} is {_id}:
+        if {za::leblanc::morte} is not true:
+            if za_cmp_compte_tag({_id}, "za_leblanc") is 0:
+                za_cmp_npc({_id}, "Infirmière Leblanc", {_ox} + 3.5, {_oy} + 1, {_oz} + 5.5, ",""za_leblanc""", true)
+
+# ---------------------------------------------------------------- cloche et sons
+
+function za_cmp_cloche(id: number, n: number):
+    set {_c} to {za::camp::%{_id}%::cloche}
+    if {_c} is not set:
+        stop
+    set {_wd} to za_dim(world of {_c})
+    set {_k} to 0
+    while {_k} < {_n}:
+        execute console command "execute in %{_wd}% run playsound minecraft:block.bell.use block @a %x-coordinate of {_c}% %y-coordinate of {_c}% %z-coordinate of {_c}% 8 0.8"
+        wait 1500 milliseconds
+        add 1 to {_k}
+
+# ---------------------------------------------------------------- ruine, abandon, chute
+
+function za_cmp_ruine(id: number, force: number):
+    set {_l} to {za::camp::%{_id}%::loc}
+    set {_w} to world of {_l}
+    set {_wd} to za_dim({_w})
+    set {_ox} to {za::camp::%{_id}%::ox}
+    set {_oy} to {za::camp::%{_id}%::oy}
+    set {_oz} to {za::camp::%{_id}%::oz}
+    # chargement synchrone des chunks
+    loop 4 times:
+        set {_hb} to highest block at location({_ox} + (mod(loop-number - 1, 2) * 20), 64, {_oz} + (floor((loop-number - 1) / 2) * 20), {_w})
+    za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 10, 1, 10, "campfire[lit=false]")
+    za_decay({_wd}, {_ox}, {_oy} + 1, {_oz}, {_ox} + 20, {_oy} + 6, {_oz} + 20, {_force})
+    # brèches dans la palissade
+    loop floor({_force} / 6) times:
+        set {_a} to random integer between 1 and 19
+        set {_h} to random integer between 1 and 4
+        set {_c} to random integer between 1 and 4
+        if {_c} is 1:
+            za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_a}, {_h}, 0, "air")
+        else if {_c} is 2:
+            za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_a}, {_h}, 20, "air")
+        else if {_c} is 3:
+            za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 0, {_h}, {_a}, "air")
+        else:
+            za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 20, {_h}, {_a}, "air")
+    # ossements et sang
+    loop floor({_force} / 8) times:
+        set {_a} to random integer between 2 and 18
+        set {_b} to random integer between 2 and 18
+        if chance of 55%:
+            za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_a}, 0, {_b}, "bone_block")
+        else:
+            za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_a}, 0, {_b}, "red_terracotta")
+    za_cmp_panneau({_id})
+
+function za_cmp_disperser_survivants(id: number, mode: text):
+    loop {za::surv::liste::*}:
+        set {_sid} to loop-value
+        if {za::surv::%{_sid}%::etat} is "camp":
+            if {za::surv::%{_sid}%::camp} is {_id}:
+                if {_mode} is "abandon":
+                    if chance of 55%:
+                        za_surv_clore({_sid}, "parti")
+                    else:
+                        za_cmp_refugie_de({_id}, {_sid})
+                else:
+                    za_surv_clore({_sid}, "mort")
+
+# un survivant du camp erre dans les environs (redevient "caché")
+function za_cmp_refugie_de(id: number, sid: number):
+    set {_l} to {za::camp::%{_id}%::loc}
+    set {_p} to {_l}
+    add random number between -45 and 45 to x-coordinate of {_p}
+    add random number between -45 and 45 to z-coordinate of {_p}
+    set {_g} to za_sol({_p})
+    set {za::surv::%{_sid}%::etat} to "cache"
+    delete {za::surv::%{_sid}%::camp}
+    set {za::surv::%{_sid}%::lieu} to {_g}
+    set {za::surv::%{_sid}%::expire} to now
+    add 45 minutes to {za::surv::%{_sid}%::expire}
+    delete {za::surv::%{_sid}%::alerte}
+    set {za::surv::%{_sid}%::hist} to "Le camp... on a tout perdu. Je suis parti à pied, sans me retourner."
+
+# un habitant (anonyme) quitte le camp et erre : nouveau survivant à retrouver
+function za_cmp_refugie(id: number):
+    if za_surv_libres() >= 5:
+        stop
+    set {_l} to {za::camp::%{_id}%::loc}
+    set {_p} to {_l}
+    add random number between -50 and 50 to x-coordinate of {_p}
+    add random number between -50 and 50 to z-coordinate of {_p}
+    set {_g} to za_sol({_p})
+    set {_sid} to za_surv_creer_rec("", "", {_g}, "cache")
+    set {za::surv::%{_sid}%::expire} to now
+    add 45 minutes to {za::surv::%{_sid}%::expire}
+    set {za::surv::%{_sid}%::hist} to "J'ai quitté le %{za::camp::%{_id}%::nom}%. Là-bas, plus de nourriture, plus d'espoir. J'ai marché tant que j'ai pu."
+    za_surv_npc_placer({_sid})
+
+function za_cmp_abandonner(id: number):
+    if {za::camp::%{_id}%::etat} is not "vivant":
+        stop
+    set {_nom} to {za::camp::%{_id}%::nom}
+    set {za::camp::%{_id}%::etat} to "abandonne"
+    set {za::camp::%{_id}%::tombe} to {za::serveur::jours}
+    set {za::camp::%{_id}%::pop} to 0
+    za_cmp_purge_pnj({_id})
+    za_cmp_disperser_survivants({_id}, "abandon")
+    loop 2 times:
+        za_cmp_refugie({_id})
+    za_cmp_ruine({_id}, 24)
+    if {za::leblanc::camp} is {_id}:
+        za_cmp_leblanc_morte({_id}, "le camp a été abandonné")
+    za_radio("&bLéa", "Le %{_nom}% est vide. Plus un souffle sur la fréquence... Ceux qui ont pu sont partis. Les autres...")
+    za_journal("Le camp %{_nom}% a été abandonné.")
+    za_lieu_camp({_id}, "abandon")
+
+function za_cmp_tomber(id: number, cause: text):
+    if {za::camp::%{_id}%::etat} is not "vivant":
+        stop
+    set {_nom} to {za::camp::%{_id}%::nom}
+    set {_l} to {za::camp::%{_id}%::loc}
+    set {za::camp::%{_id}%::etat} to "mort"
+    set {za::camp::%{_id}%::tombe} to {za::serveur::jours}
+    set {za::camp::%{_id}%::pop} to 0
+    delete {za::camp::%{_id}%::attaque}
+    remove {_id} from {za::camp::attaques::*}
+    za_cmp_purge_pnj({_id})
+    za_cmp_disperser_survivants({_id}, "chute")
+    za_cmp_ruine({_id}, 70)
+    if {za::leblanc::camp} is {_id}:
+        za_cmp_leblanc_morte({_id}, {_cause})
+    # quelques morts rôdent dans les ruines
+    loop 4 times:
+        set {_t} to random element out of "ZA_Shambler" and "ZA_Citoyen_Infecte" and "ZA_Shambler"
+        set {_p} to {_l}
+        add random number between -6 and 6 to x-coordinate of {_p}
+        add random number between -6 and 6 to z-coordinate of {_p}
+        set {_g} to za_sol({_p})
+        execute console command "mm mobs spawn %{_t}% 1 %world of {_g}%,%floor(x-coordinate of {_g})%,%floor(y-coordinate of {_g})%,%floor(z-coordinate of {_g})%"
+    za_radio("&bLéa", "Le %{_nom}% est tombé. Je n'entends plus personne là-bas. Ne vous approchez pas sans être prêts...")
+    za_journal("Le camp %{_nom}% est tombé (%{_cause}%).")
+    add "%{_nom}% (jour %{za::serveur::jours}%)" to {za::camp::morts::*}
+    za_lieu_camp({_id}, "chute")
+
+# ---------------------------------------------------------------- ATTAQUES
+
+# mort d'un hostile près d'un camp attaqué : on crédite le joueur qui l'a abattu
+function za_cmp_compte_mort(v: entity, a: entity):
+    loop {za::camp::attaques::*}:
+        set {_id} to loop-value
+        set {_l} to {za::camp::%{_id}%::loc}
+        if {_l} is set:
+            if world of {_v} is world of {_l}:
+                if distance between {_v} and {_l} < 80:
+                    add 1 to {za::camp::%{_id}%::kp}
+                    if {_a} is a player:
+                        set {_u} to {_a}'s uuid
+                        if {za::camp::%{_id}%::kills::%{_u}%} is not set:
+                            set {za::camp::%{_id}%::kills::%{_u}%} to 0
+                        add 1 to {za::camp::%{_id}%::kills::%{_u}%}
+
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    if size of {za::camp::attaques::*} > 0:
+        za_cmp_compte_mort(victim, attacker)
+
+on death of vindicator:
+    if za_pro(victim) is true:
+        stop
+    if size of {za::camp::attaques::*} > 0:
+        za_cmp_compte_mort(victim, attacker)
+
+on death of pillager:
+    if za_pro(victim) is true:
+        stop
+    if size of {za::camp::attaques::*} > 0:
+        za_cmp_compte_mort(victim, attacker)
+
+# fait apparaître un hostile sur l'anneau autour du camp (MythicMobs)
+function za_cmp_apparition(id: number, t: text):
+    set {_l} to {za::camp::%{_id}%::loc}
+    set {_p} to {_l}
+    set {_d} to random number between 28 and 40
+    set {_a} to random number between 0 and 360
+    add ({_d} * cos({_a})) to x-coordinate of {_p}
+    add ({_d} * sin({_a})) to z-coordinate of {_p}
+    set {_g} to za_sol({_p})
+    execute console command "mm mobs spawn %{_t}% 1 %world of {_g}%,%floor(x-coordinate of {_g})%,%floor(y-coordinate of {_g})%,%floor(z-coordinate of {_g})%"
+    add 1 to {za::camp::%{_id}%::spawned}
+
+function za_cmp_vague(id: number, w: number):
+    set {_pop} to {za::camp::%{_id}%::pop}
+    set {_l} to {za::camp::%{_id}%::loc}
+    set {_n} to 2 + floor({_pop} / 6) + floor((100 - {za::camp::%{_id}%::securite}) / 30) + za_danger({_l})
+    if {_w} >= 4:
+        add 1 to {_n}
+    set {_n} to min(9, {_n})
+    loop {_n} times:
+        if {za::camp::%{_id}%::atype} is "pillards":
+            set {_t} to "ZA_Pillard"
+            if chance of 45%:
+                set {_t} to "ZA_Pillard_Tireur"
+        else:
+            set {_t} to "ZA_Shambler"
+            set {_r} to random integer between 1 and 10
+            if {_r} <= 2:
+                set {_t} to "ZA_Runner"
+            else if {_r} is 3:
+                set {_t} to "ZA_Crawler"
+            else if {_r} is 4:
+                if {_w} >= 2:
+                    set {_t} to "ZA_Leaper"
+            else if {_r} is 5:
+                if {_w} >= 3:
+                    set {_t} to "ZA_Armored"
+            else if {_r} is 6:
+                if {_w} >= 4:
+                    set {_t} to "ZA_Bloater"
+            else if {_r} is 7:
+                if {_w} >= 5:
+                    set {_t} to "ZA_Brute"
+        za_cmp_apparition({_id}, {_t})
+
+# début d'une attaque (naturelle ou admin) : type = zombies | pillards
+function za_cmp_attaque(id: number, type: text):
+    if za_cmp_valide({_id}) is false:
+        stop
+    if {za::camp::%{_id}%::etat} is not "vivant":
+        stop
+    if {za::camp::%{_id}%::attaque} is set:
+        stop
+    set {_nom} to {za::camp::%{_id}%::nom}
+    set {_l} to {za::camp::%{_id}%::loc}
+    set {za::camp::%{_id}%::attaque} to now
+    set {za::camp::%{_id}%::atype} to {_type}
+    set {za::camp::%{_id}%::spawned} to 0
+    set {za::camp::%{_id}%::kp} to 0
+    delete {za::camp::%{_id}%::kills::*}
+    add {_id} to {za::camp::attaques::*}
+    za_lieu_camp({_id}, "attaque")
+    set {_proche} to za_cmp_joueur_proche({_l}, 300)
+    if {_proche} is true:
+        if {_type} is "pillards":
+            za_radio("&bLéa", "Le %{_nom}% est attaqué par des Pillards ! Ils tirent sur tout ce qui bouge... Ils ont besoin d'aide !")
+        else:
+            za_radio("&bLéa", "Le %{_nom}% est attaqué ! Les morts sont à la palissade. Ceux qui sont près, allez les aider !")
+    else if chance of 30%:
+        za_radio("&bLéa", "J'entends la cloche du %{_nom}%... Ils sonnent l'alarme. Quelqu'un peut aller voir ?")
+    za_cmp_cloche({_id}, 5)
+    # personne à proximité : le camp se défend seul, résultat simulé
+    if {_proche} is false:
+        wait 20 seconds
+        za_cmp_attaque_fin({_id}, true)
+        stop
+    set {za::camp::%{_id}%::b0} to za_cmp_hostiles({_l}, 60)
+    loop all players:
+        if za_pro(loop-player) is false:
+            if world of loop-player is world of {_l}:
+                if distance between loop-player and {_l} < 120:
+                    send title "&c&lATTAQUE" with subtitle "&7Le %{_nom}% est assiégé !" to loop-player for 3 seconds
+                    za_zm("son %loop-player% za_modeles:sfx.horde_grondement 0.8 1")
+    set {_w} to 1
+    while {_w} <= 6:
+        if {za::camp::%{_id}%::attaque} is not set:
+            stop
+        za_cmp_vague({_id}, {_w})
+        wait 30 seconds
+        add 1 to {_w}
+    wait 40 seconds
+    za_cmp_attaque_fin({_id}, false)
+
+function za_cmp_attaque_fin(id: number, abstrait: boolean):
+    if {za::camp::%{_id}%::attaque} is not set:
+        stop
+    set {_nom} to {za::camp::%{_id}%::nom}
+    set {_l} to {za::camp::%{_id}%::loc}
+    set {_pop} to {za::camp::%{_id}%::pop}
+    set {_sec} to {za::camp::%{_id}%::securite}
+    set {_t} to {za::camp::%{_id}%::spawned}
+    set {_k} to {za::camp::%{_id}%::kp}
+    if {_k} is not set:
+        set {_k} to 0
+    set {_restes} to 0
+    if {_abstrait} is true:
+        set {_score} to random number between 0 and 1
+        set {_score} to {_score} * (1.15 - ({_sec} / 100))
+        set {_score} to max(0, min(1, {_score}))
+    else:
+        set {_b0} to {za::camp::%{_id}%::b0}
+        if {_b0} is not set:
+            set {_b0} to 0
+        set {_restes} to max(0, za_cmp_hostiles({_l}, 60) - {_b0})
+        if {_t} < 1:
+            set {_score} to 0
+        else:
+            set {_restes} to min({_restes}, {_t})
+            set {_score} to {_restes} / {_t}
+    # bilan selon le score (0 = tout repoussé, 1 = submergé)
+    set {_pertes} to 0
+    set {_issue} to "repoussee"
+    if {_score} >= 0.5:
+        set {_issue} to "submergee"
+    else if {_score} >= 0.15:
+        set {_issue} to "touchee"
+    if {_issue} is "repoussee":
+        if {_sec} < 30:
+            if chance of 30%:
+                set {_pertes} to 1
+        za_cmp_champ({_id}, "securite", -4)
+        za_cmp_champ({_id}, "moral", 5)
+    else if {_issue} is "touchee":
+        set {_pertes} to max(1, round({_pop} * {_score} * 0.4))
+        za_cmp_champ({_id}, "securite", -12)
+        za_cmp_champ({_id}, "moral", -10)
+        za_cmp_champ({_id}, "contam", 8)
+    else:
+        set {_pertes} to max(2, round({_pop} * (0.35 + ({_score} * 0.4))))
+        za_cmp_champ({_id}, "securite", -25)
+        za_cmp_champ({_id}, "moral", -25)
+        za_cmp_champ({_id}, "contam", 15)
+    set {_pertes} to min({_pertes}, {_pop})
+    za_cmp_pop_ajouter({_id}, 0 - {_pertes})
+    # récompenses : ceux qui ont tué au moins 2 morts, ou qui étaient là à la fin
+    if {_abstrait} is false:
+        loop all players:
+            if za_pro(loop-player) is false:
+                set {_u} to loop-player's uuid
+                set {_kp} to {za::camp::%{_id}%::kills::%{_u}%}
+                if {_kp} is not set:
+                    set {_kp} to 0
+                set {_present} to false
+                if world of loop-player is world of {_l}:
+                    if distance between loop-player and {_l} < 70:
+                        set {_present} to true
+                if {_kp} >= 2:
+                    set {_present} to true
+                if {_present} is true:
+                    za_cmp_recompense(loop-player, {_id}, {_kp}, {_issue})
+    # les gardes achèvent les derniers si le camp a tenu
+    if {_abstrait} is false:
+        if {_issue} is not "submergee":
+            set {_nb} to 0
+            loop all entities in radius 60 around {_l}:
+                if {_nb} < {_restes}:
+                    if za_surv_hostile(loop-entity) is true:
+                        execute console command "execute at %uuid of loop-entity% run particle minecraft:poof ~ ~1 ~ 0.2 0.4 0.2 0.02 8 force"
+                        delete loop-entity
+                        add 1 to {_nb}
+    # nettoyage
+    delete {za::camp::%{_id}%::attaque}
+    delete {za::camp::%{_id}%::atype}
+    delete {za::camp::%{_id}%::b0}
+    remove {_id} from {za::camp::attaques::*}
+    # annonce
+    if {_issue} is "repoussee":
+        za_diffuser("&a[Camp] &7Le &f%{_nom}% &7a repoussé l'attaque. &8(pertes : %{_pertes}%)")
+        za_journal("Le camp %{_nom}% a repoussé une attaque.")
+    else if {_issue} is "touchee":
+        za_radio("&bLéa", "Le %{_nom}% a tenu, mais durement : %{_pertes}% morts. Ils ont besoin de tout...")
+    else:
+        za_radio("&bLéa", "Le %{_nom}% a été submergé. %{_pertes}% victimes...")
+    if {_issue} is "repoussee":
+        za_lieu_camp({_id}, "tenu")
+    else if {za::camp::%{_id}%::pop} > 0:
+        za_lieu_camp({_id}, "touche")
+    if {za::camp::%{_id}%::pop} <= 0:
+        za_cmp_tomber({_id}, "sous les assauts des morts")
+    else if {za::camp::%{_id}%::moral} <= 0:
+        za_cmp_abandonner({_id})
+    else:
+        za_cmp_panneau({_id})
+
+function za_cmp_recompense(p: player, id: number, kills: number, issue: text):
+    set {_u} to {_p}'s uuid
+    set {_nom} to {za::camp::%{_id}%::nom}
+    set {_chef} to {za::camp::%{_id}%::chef}
+    if {_issue} is "submergee":
+        set {_j} to 4
+    else:
+        set {_j} to min(40, 5 + ({_kills} * 2))
+    za_jetons_ajouter({_p}, {_j})
+    za_faction_ajouter({_p}, "survivants", 2 + floor({_kills} / 5))
+    za_cmp_conf_ajouter({_u}, {_id}, 10)
+    za_cmp_aide({_p}, {_id})
+    if {_issue} is "repoussee":
+        send title "&a&lCAMP DÉFENDU" with subtitle "&7%{_nom}% tient encore" to {_p} for 4 seconds
+        send "&e%{_chef}% &8» &f« Merci. Sans toi, on y passait. Prends ça, c'est pas grand-chose. » &6+%{_j}% jetons" to {_p}
+    else if {_issue} is "touchee":
+        send "&e%{_chef}% &8» &f« On a perdu du monde, mais on tient. Merci d'être venu. » &6+%{_j}% jetons" to {_p}
+    else:
+        send "&e%{_chef}% &8» &f« Trop nombreux... Tu as fait ce que tu pouvais. » &6+%{_j}% jetons" to {_p}
+    za_zm("son %{_p}% minecraft:ui.toast.challenge_complete 0.7 1")
+
+# ---------------------------------------------------------------- tick quotidien
+
+function za_cmp_nids_proches(l: location, r: number) :: number:
+    set {_n} to 0
+    loop {za::nid::liste::*}:
+        set {_c} to {za::nid::%loop-value%::loc}
+        if {_c} is set:
+            if world of {_c} is world of {_l}:
+                if distance between {_c} and {_l} < {_r}:
+                    add 1 to {_n}
+    return {_n}
+
+function za_cmp_jour():
+    loop {za::camp::liste::*}:
+        set {_id} to loop-value
+        if {za::camp::%{_id}%::etat} is "vivant":
+            za_cmp_jour_camp({_id})
+    # jamais plus de 10 fiches : on oublie les plus anciennes ruines (les blocs restent)
+    if size of {za::camp::liste::*} > 12:
+        loop {za::camp::liste::*}:
+            if size of {za::camp::liste::*} > 12:
+                if {za::camp::%loop-value%::etat} is "mort" or "abandonne":
+                    delete {za::camp::%loop-value%::*}
+                    remove loop-value from {za::camp::liste::*}
+
+function za_cmp_jour_camp(id: number):
+    set {_nom} to {za::camp::%{_id}%::nom}
+    set {_l} to {za::camp::%{_id}%::loc}
+    set {_pop} to {za::camp::%{_id}%::pop}
+    # vivres : on mange, un peu de cueillette si le camp est sûr
+    za_cmp_champ({_id}, "nourriture", 0 - ({_pop} / 2))
+    if {za::camp::%{_id}%::securite} >= 40:
+        za_cmp_champ({_id}, "nourriture", 2)
+    za_cmp_champ({_id}, "securite", -3)
+    # contamination : le chunk du camp + les nids à 150 blocs
+    set {_ck} to {za::contam::%za_ckey({_l})%}
+    if {_ck} is not set:
+        set {_ck} to 0
+    set {_nids} to za_cmp_nids_proches({_l}, 150)
+    set {_dc} to floor({_ck} / 6) + (5 * {_nids}) - 4
+    if {za::leblanc::camp} is {_id}:
+        if {za::leblanc::morte} is not true:
+            set {_dc} to {_dc} - 6
+    za_cmp_champ({_id}, "contam", {_dc})
+    # conséquences
+    set {_c} to {za::camp::%{_id}%::contam}
+    if {_c} > 60:
+        za_cmp_champ({_id}, "moral", -4)
+        if chance of 30%:
+            za_cmp_pop_ajouter({_id}, -1)
+            za_journal("La maladie a emporté quelqu'un au %{_nom}%.")
+    else if {_c} > 40:
+        za_cmp_champ({_id}, "moral", -2)
+    if {za::camp::%{_id}%::nourriture} <= 0:
+        za_cmp_champ({_id}, "moral", -10)
+        set {_p} to random integer between 1 and 2
+        za_cmp_pop_ajouter({_id}, 0 - {_p})
+        if chance of 50%:
+            za_cmp_refugie({_id})
+        za_journal("La faim frappe le camp %{_nom}%.")
+    else if {za::camp::%{_id}%::nourriture} < 20:
+        za_cmp_champ({_id}, "moral", -4)
+    if {za::camp::%{_id}%::nourriture} > 40:
+        if {za::camp::%{_id}%::securite} > 50:
+            za_cmp_champ({_id}, "moral", 1)
+    if {za::camp::%{_id}%::securite} < 25:
+        za_cmp_champ({_id}, "moral", -2)
+    if {za::reseau::residentiel} is true:
+        za_cmp_champ({_id}, "moral", 3)
+        za_cmp_champ({_id}, "securite", 2)
+    # bonus de la saison (module ressources) : une fois
+    if {za::ressource::bonus_camps} is set:
+        za_cmp_champ({_id}, "securite", {za::ressource::bonus_camps})
+    # nouveaux arrivants si tout va bien
+    if {za::camp::%{_id}%::nourriture} >= 70:
+        if {za::camp::%{_id}%::moral} >= 60:
+            if {za::camp::%{_id}%::pop} < 20:
+                if chance of 25%:
+                    za_cmp_pop_ajouter({_id}, 1)
+    # fin
+    if {za::camp::%{_id}%::pop} <= 0:
+        za_cmp_tomber({_id}, "la faim et la maladie")
+        stop
+    if {za::camp::%{_id}%::moral} <= 0:
+        za_cmp_abandonner({_id})
+        stop
+    # attaque naturelle
+    if {za::camp::%{_id}%::attaque} is not set:
+        set {_pa} to 6 + ((100 - {za::camp::%{_id}%::securite}) / 5) + (5 * za_danger({_l}))
+        set {_pa} to min(45, {_pa})
+        if chance of {_pa}%:
+            set {_ty} to "zombies"
+            if chance of 20%:
+                set {_ty} to "pillards"
+            za_cmp_attaque({_id}, {_ty})
+    za_cmp_panneau({_id})
+
+# ---------------------------------------------------------------- menu du chef
+
+function za_cmp_chef_menu(p: player, id: number):
+    set {_u} to {_p}'s uuid
+    set {za::camp::ctx::%{_u}%} to {_id}
+    set {_nom} to {za::camp::%{_id}%::nom}
+    set {_chef} to {za::camp::%{_id}%::chef}
+    set {_o::*} to "État du camp|etat", "Donner|donner", "Défendre le camp|defendre", "Recruter quelqu'un|recruter", "Commercer|commerce", "Partir|quit"
+    set {_c} to za_cmp_conf({_u}, {_id})
+    set {_txt} to "%{_chef}%. Bienvenue au %{_nom}%. %za_cmp_phrase({_id})% (Confiance du camp : %floor({_c})% %%)"
+    if {za::camp::%{_id}%::attaque} is set:
+        set {_txt} to "%{_chef}% : « ON EST ATTAQUÉS ! Prends une arme, vite ! » (Le camp est assiégé.)"
+    za_menu({_p}, "zacampclic", {_chef}, {_txt}, {_o::*})
+
+function za_cmp_donner_menu(p: player, id: number):
+    set {_o::*} to "Nourriture (10 portions max)|nourriture", "Matériaux (bois, pierre, fer)|materiaux", "Bandages (4 max)|bandages", "Antibiotique|antibio", "Sérum|serum", "Retour|retour"
+    za_menu({_p}, "zacampclic", "Donner au camp", "Vivres : sécurité : soins... Chaque don compte. Les vivres remplissent les réserves, les matériaux renforcent la palissade, les soins font baisser la contamination et remontent le moral.", {_o::*})
+
+# points de sécurité d'un objet de construction
+function za_cmp_valeur_materiau(it: itemtype) :: number:
+    set {_t} to "%type of {_it}%"
+    if {_t} contains "planks":
+        return 1
+    if {_t} contains "log":
+        return 3
+    if {_t} is "cobblestone" or "stone bricks":
+        return 1
+    if {_t} is "iron ingot":
+        return 4
+    return 0
+
+function za_cmp_prix_f(id: number) :: number:
+    set {_pr} to ({za::camp::%{_id}%::nourriture} + {za::camp::%{_id}%::securite} + {za::camp::%{_id}%::moral}) / 3
+    return min(1.6, max(0.8, 1.5 - ({_pr} / 100)))
+
+function za_cmp_commerce_menu(p: player, id: number):
+    set {_f} to za_cmp_prix_f({_id})
+    set {_o::*} to "Bandage - %ceil(za_prix({_p}, 3) * {_f})% jetons|buy_bandage", "Eau purifiée - %ceil(za_prix({_p}, 2) * {_f})% jetons|buy_eau", "Planches x16 - %ceil(za_prix({_p}, 2) * {_f})% jetons|buy_planches"
+    if {za::camp::%{_id}%::nourriture} >= 20:
+        add "Conserve - %ceil(za_prix({_p}, 2) * {_f})% jetons|buy_conserve" to {_o::*}
+    else:
+        add "!Conserve (rupture)|rien" to {_o::*}
+    add "Antibiotique - %ceil(za_prix({_p}, 8) * {_f})% jetons|buy_antibio" to {_o::*}
+    if {za::camp::%{_id}%::style} is "militaire":
+        add "Munitions 9 mm x30 - %ceil(za_prix({_p}, 4) * {_f})% jetons|buy_9mm" to {_o::*}
+    else:
+        add "Torches x12 - %ceil(za_prix({_p}, 2) * {_f})% jetons|buy_torches" to {_o::*}
+    add "Retour|retour" to {_o::*}
+    set {_pr} to floor(({za::camp::%{_id}%::nourriture} + {za::camp::%{_id}%::securite} + {za::camp::%{_id}%::moral}) / 3)
+    za_menu({_p}, "zacampclic", "Le troc du camp", "On vend ce qu'on peut. Plus le camp va mal, plus les prix montent. Prospérité du camp : %{_pr}% %%.", {_o::*})
+
+# ---------------------------------------------------------------- actions du menu du chef
+
+function za_cmp_noeud(p: player, n: text):
+    set {_u} to {_p}'s uuid
+    set {_id} to {za::camp::ctx::%{_u}%}
+    if {_id} is not set:
+        stop
+    if za_cmp_valide({_id}) is false:
+        stop
+    if {za::camp::%{_id}%::etat} is not "vivant":
+        send "&8&o(Il n'y a plus personne ici.)" to {_p}
+        stop
+    set {_nom} to {za::camp::%{_id}%::nom}
+    set {_chef} to {za::camp::%{_id}%::chef}
+    set {_l} to {za::camp::%{_id}%::loc}
+    if world of {_p} is not world of {_l}:
+        stop
+    if distance between {_p} and {_l} > 40:
+        send "&8&o(Tu es trop loin du camp.)" to {_p}
+        stop
+    if {_n} is "etat":
+        send "&6&l=== %{_nom}% ===" to {_p}
+        send "&7Population : &f%floor({za::camp::%{_id}%::pop})% &8| &7Vivres : %za_surv_barre({za::camp::%{_id}%::nourriture})% &8| &7Sécurité : %za_surv_barre({za::camp::%{_id}%::securite})%" to {_p}
+        send "&7Moral : %za_surv_barre({za::camp::%{_id}%::moral})% &8| &7Contamination : &c%floor({za::camp::%{_id}%::contam})% %%" to {_p}
+        send "&e%{_chef}% &8» &f« %za_cmp_phrase({_id})% »" to {_p}
+        set {_b} to za_cmp_besoins({_id})
+        if {_b} is not "":
+            send "&8&o(Besoins : %{_b}%.)" to {_p}
+        if {za::camp::%{_id}%::attaque} is set:
+            send "&c&lLe camp est actuellement attaqué !" to {_p}
+    else if {_n} is "donner":
+        za_cmp_donner_menu({_p}, {_id})
+    else if {_n} is "retour":
+        za_cmp_chef_menu({_p}, {_id})
+    else if {_n} is "nourriture":
+        if {za::camp::%{_id}%::nourriture} >= 95:
+            send "&e%{_chef}% &8» &f« On est bien pourvus pour l'instant. Garde tes vivres, tu vas en avoir besoin. »" to {_p}
+            stop
+        set {_max} to min(10, ceil((100 - {za::camp::%{_id}%::nourriture}) / 2))
+        set {_k} to 0
+        loop all items in inventory of {_p}:
+            if {_k} < {_max}:
+                set {_it} to loop-item
+                if za_surv_vivre_ok({_it}, false) is true:
+                    set {_q} to min({_max} - {_k}, item amount of {_it})
+                    remove {_q} of {_it} from inventory of {_p}
+                    add {_q} to {_k}
+        if {_k} is 0:
+            send "&cTu n'as pas de nourriture à donner." to {_p}
+        else:
+            za_cmp_champ({_id}, "nourriture", 2 * {_k})
+            za_cmp_champ({_id}, "moral", ceil({_k} / 3))
+            set {_j} to floor({_k} / 4)
+            if {_j} > 0:
+                za_jetons_ajouter({_p}, {_j})
+            za_faction_ajouter({_p}, "survivants", max(1, floor({_k} / 5)))
+            za_cmp_conf_ajouter({_u}, {_id}, min(12, 2 * {_k}))
+            za_cmp_aide({_p}, {_id})
+            za_cmp_panneau({_id})
+            send "&a%{_chef}% distribue les %{_k}% portions aux familles. &f« Que Dieu te garde. » &7(Vivres +%2 * {_k}% %%, &6+%{_j}% jetons&7)" to {_p}
+            za_zm("son %{_p}% minecraft:entity.villager.yes 0.8 1")
+    else if {_n} is "materiaux":
+        set {_pts} to 0
+        set {_k} to 0
+        loop all items in inventory of {_p}:
+            if {_k} < 64:
+                set {_it} to loop-item
+                set {_v} to za_cmp_valeur_materiau({_it})
+                if {_v} > 0:
+                    set {_q} to min(64 - {_k}, item amount of {_it})
+                    remove {_q} of {_it} from inventory of {_p}
+                    add {_q} to {_k}
+                    add ({_q} * {_v}) to {_pts}
+        if {_k} is 0:
+            send "&cTu n'as pas de matériaux (planches, bûches, cobblestone, lingots de fer)." to {_p}
+        else:
+            set {_s} to floor({_pts} / 8)
+            za_cmp_champ({_id}, "securite", {_s})
+            set {_j} to floor({_pts} / 48)
+            if {_j} > 0:
+                za_jetons_ajouter({_p}, {_j})
+            za_faction_ajouter({_p}, "survivants", max(1, floor({_pts} / 24)))
+            za_cmp_conf_ajouter({_u}, {_id}, min(12, floor({_pts} / 8) + 2))
+            za_cmp_aide({_p}, {_id})
+            za_cmp_panneau({_id})
+            send "&a%{_chef}% fait renforcer la palissade avec tes %{_k}% matériaux. &7(Sécurité +%{_s}% %%, &6+%{_j}% jetons&7)" to {_p}
+            za_zm("son %{_p}% minecraft:block.wood.place 0.9 0.8")
+    else if {_n} is "bandages":
+        set {_q} to min(4, za_count_named({_p}, "Bandage"))
+        if {_q} is 0:
+            send "&cTu n'as pas de Bandage." to {_p}
+        else:
+            set {_ok} to za_take_named({_p}, "Bandage", {_q})
+            za_cmp_champ({_id}, "contam", 0 - (3 * {_q}))
+            za_cmp_champ({_id}, "moral", 2 * {_q})
+            za_faction_ajouter({_p}, "survivants", 1)
+            za_cmp_conf_ajouter({_u}, {_id}, 5 * {_q})
+            za_cmp_aide({_p}, {_id})
+            za_cmp_panneau({_id})
+            send "&a%{_chef}% distribue tes %{_q}% bandage(s) aux blessés. &7(Contamination -%3 * {_q}% %%, moral +%2 * {_q}% %%)" to {_p}
+    else if {_n} is "antibio":
+        if za_take_named({_p}, "Antibiotique", 1) is true:
+            za_cmp_champ({_id}, "contam", -8)
+            za_cmp_champ({_id}, "moral", 4)
+            za_faction_ajouter({_p}, "survivants", 1)
+            za_cmp_conf_ajouter({_u}, {_id}, 8)
+            za_cmp_aide({_p}, {_id})
+            za_cmp_panneau({_id})
+            send "&a%{_chef}% prend l'Antibiotique : « Pour les petits qui toussent. » &7(Contamination -8 %%, moral +4 %%)" to {_p}
+        else:
+            send "&cTu n'as pas d'Antibiotique." to {_p}
+    else if {_n} is "serum":
+        if za_take_named({_p}, "Serum", 1) is true:
+            za_cmp_champ({_id}, "contam", -20)
+            za_cmp_champ({_id}, "moral", 8)
+            za_faction_ajouter({_p}, "survivants", 2)
+            za_cmp_conf_ajouter({_u}, {_id}, 15)
+            za_cmp_aide({_p}, {_id})
+            za_cmp_panneau({_id})
+            send "&a%{_chef}% garde le Sérum comme de l'or. &f« On va pouvoir sauver quelqu'un. » &7(Contamination -20 %%, moral +8 %%)" to {_p}
+        else:
+            send "&cTu n'as pas de Sérum." to {_p}
+    else if {_n} is "defendre":
+        if {za::camp::%{_id}%::attaque} is set:
+            send "&e%{_chef}% &8» &f« Ils sont là ! Tiens la palissade, on compte sur toi ! »" to {_p}
+            za_effet({_p}, "resistance", 60, 0)
+            za_cmp_conf_ajouter({_u}, {_id}, 3)
+        else if {za::camp::%{_id}%::cool_def} is set:
+            if now is less than {za::camp::%{_id}%::cool_def}:
+                send "&e%{_chef}% &8» &f« Pas maintenant. Les éclaireurs n'ont rien vu de neuf. Reviens plus tard. »" to {_p}
+                stop
+        if {za::camp::%{_id}%::attaque} is not set:
+            set {za::camp::%{_id}%::cool_def} to now
+            add 15 minutes to {za::camp::%{_id}%::cool_def}
+            send "&e%{_chef}% &8» &f« Nos éclaireurs ont vu du mouvement. Ils seront là dans une minute. Tu restes avec nous ? »" to {_p}
+            za_cmp_cloche({_id}, 2)
+            wait 45 seconds
+            za_cmp_attaque({_id}, "zombies")
+    else if {_n} is "recruter":
+        set {_c} to za_cmp_conf({_u}, {_id})
+        if {za::base::%{_u}%} is not set:
+            send "&e%{_chef}% &8» &f« Une base ? T'en as pas. Je vais pas envoyer quelqu'un dans le vide. (/base definir) »" to {_p}
+        else if {_c} < 50:
+            send "&e%{_chef}% &8» &f« Je te connais pas assez pour te confier quelqu'un. Aide le camp, pis on en reparle. » &7(Confiance : %floor({_c})%/50)" to {_p}
+        else if {za::camp::%{_id}%::pop} < 4:
+            send "&e%{_chef}% &8» &f« On est trop peu. Je peux pas me priver de personne. »" to {_p}
+        else if {za::surv::n::%{_u}%} >= 8:
+            send "&e%{_chef}% &8» &f« Ta base est déjà pleine. »" to {_p}
+        else if {za::camp::%{_id}%::rec::%{_u}%} is set:
+            if now is less than {za::camp::%{_id}%::rec::%{_u}%}:
+                send "&e%{_chef}% &8» &f« Tu as déjà quelqu'un de chez nous. Laisse-nous souffler. »" to {_p}
+                stop
+        if {za::base::%{_u}%} is set:
+            if {_c} >= 50:
+                if {za::camp::%{_id}%::pop} >= 4:
+                    if {za::surv::n::%{_u}%} < 8:
+                        set {_ok} to true
+                        if {za::camp::%{_id}%::rec::%{_u}%} is set:
+                            if now is less than {za::camp::%{_id}%::rec::%{_u}%}:
+                                set {_ok} to false
+                        if {_ok} is true:
+                            set {za::camp::%{_id}%::rec::%{_u}%} to now
+                            add 20 minutes to {za::camp::%{_id}%::rec::%{_u}%}
+                            za_cmp_recruter({_p}, {_id})
+    else if {_n} is "commerce":
+        za_cmp_commerce_menu({_p}, {_id})
+    else if {_n} starts with "buy_":
+        set {_k} to subtext of {_n} from characters 5 to length of {_n}
+        set {_base} to 3
+        if {_k} is "eau" or "conserve" or "planches" or "torches":
+            set {_base} to 2
+        if {_k} is "antibio":
+            set {_base} to 8
+        if {_k} is "9mm":
+            set {_base} to 4
+        set {_prix} to ceil(za_prix({_p}, {_base}) * za_cmp_prix_f({_id}))
+        if za_jetons({_p}) < {_prix}:
+            send "&e%{_chef}% &8» &f« Il me faut %{_prix}% jetons. »" to {_p}
+        else:
+            za_jetons_ajouter({_p}, 0 - {_prix})
+            if {_k} is "bandage":
+                give za_item("paper", "Bandage", "&f", 1) to {_p}
+            else if {_k} is "eau":
+                if {za::tan} is true:
+                    execute console command "give %{_p}% toughasnails:purified_water_bottle 1"
+                else:
+                    give za_item("potion of water", "Eau purifiee", "&b", 1) to {_p}
+            else if {_k} is "planches":
+                give 16 of spruce planks to {_p}
+            else if {_k} is "conserve":
+                give za_item("bread", "Conserve", "&f", 1) to {_p}
+                za_cmp_champ({_id}, "nourriture", -1)
+            else if {_k} is "antibio":
+                give za_item("honey bottle", "Antibiotique", "&b", 1) to {_p}
+            else if {_k} is "9mm":
+                execute console command "give %{_p}% tacz:ammo{AmmoId:""tacz:9mm""} 30"
+            else if {_k} is "torches":
+                give 12 of torch to {_p}
+            za_cmp_panneau({_id})
+            send "&a%{_chef}% te tend ta commande. &7(-%{_prix}% jetons)" to {_p}
+            za_zm("son %{_p}% minecraft:entity.villager.trade 0.8 1")
+
+# un survivant du camp (existant, ou nouveau) rejoint la base du joueur
+function za_cmp_recruter(p: player, id: number):
+    set {_u} to {_p}'s uuid
+    set {_chef} to {za::camp::%{_id}%::chef}
+    set {_l} to {za::camp::%{_id}%::loc}
+    set {_sid} to 0
+    loop {za::surv::liste::*}:
+        if {_sid} is 0:
+            if {za::surv::%loop-value%::etat} is "camp":
+                if {za::surv::%loop-value%::camp} is {_id}:
+                    if {za::surv::%loop-value%::special} is not "theo":
+                        set {_sid} to loop-value
+    if {_sid} is 0:
+        set {_sid} to za_surv_creer_rec("", "", {_l}, "camp")
+    za_cmp_pop_ajouter({_id}, -1)
+    za_cmp_champ({_id}, "moral", -3)
+    send "&e%{_chef}% &8» &f« Prends %{za::surv::%{_sid}%::nom}%. Une bonne personne. Prends-en soin. »" to {_p}
+    za_stat_ajouter({_u}, "survivants_recrutes", 1)
+    za_faction_ajouter({_p}, "survivants", 2)
+    za_cmp_aide({_p}, {_id})
+    za_surv_arriver_base({_sid}, {_u}, {_p})
+
+# un survivant envoyé par un joueur arrive au camp (appelé par le module survivants)
+function za_cmp_accueillir(c: number, s: number, p: player):
+    set {_u} to {_p}'s uuid
+    set {_nom} to {za::surv::%{_s}%::nom}
+    set {_cl} to {za::camp::%{_c}%::loc}
+    za_surv_npc_retirer({_s})
+    set {_pt} to {_cl}
+    add random number between -4 and 4 to x-coordinate of {_pt}
+    add random number between -3 and 3 to z-coordinate of {_pt}
+    set {za::surv::%{_s}%::etat} to "camp"
+    set {za::surv::%{_s}%::camp} to {_c}
+    delete {za::surv::%{_s}%::base}
+    delete {za::surv::%{_s}%::expire}
+    set {za::surv::%{_s}%::lieu} to location(x-coordinate of {_pt}, y-coordinate of {_cl}, z-coordinate of {_pt}, world of {_cl})
+    za_cmp_pop_ajouter({_c}, 1)
+    za_cmp_champ({_c}, "moral", 3)
+    za_cmp_conf_ajouter({_u}, {_c}, 8)
+    za_faction_ajouter({_p}, "survivants", 2)
+    za_cmp_aide({_p}, {_c})
+    send "&7%{_nom}% s'éloigne d'un pas pressé, vers le &e%{za::camp::%{_c}%::nom}%&7. &8(Il sera accueilli : population +1)" to {_p}
+    za_zm("son %{_p}% minecraft:entity.villager.yes 0.8 1")
+
+# ---------------------------------------------------------------- clic droit : chef, habitants, Leblanc
+
+on right click on villager:
+    if za_pro(player) is true:
+        stop
+    if za_surv_a_tag(clicked entity, "za_chef") is true:
+        cancel the event
+        set {_id} to 0
+        loop scoreboard tags of clicked entity:
+            if loop-value starts with "za_chef_":
+                set {_n} to subtext of loop-value from characters 9 to length of loop-value
+                set {_id} to {_n} parsed as number
+        if {_id} is not set:
+            stop
+        if za_cmp_valide({_id}) is false:
+            delete clicked entity
+            stop
+        if {za::camp::%{_id}%::etat} is not "vivant":
+            delete clicked entity
+            stop
+        za_cmp_chef_menu(player, {_id})
+    else if za_surv_a_tag(clicked entity, "za_leblanc") is true:
+        cancel the event
+        za_cmp_leblanc_menu(player)
+    else if za_surv_a_tag(clicked entity, "za_campnpc") is true:
+        cancel the event
+        set {_id} to 0
+        loop scoreboard tags of clicked entity:
+            if loop-value starts with "za_campnpc_":
+                set {_n} to subtext of loop-value from characters 12 to length of loop-value
+                set {_id} to {_n} parsed as number
+        if {_id} is not set:
+            stop
+        if za_cmp_valide({_id}) is true:
+            if {za::camp::%{_id}%::etat} is "vivant":
+                za_cmp_habitant_parle(player, {_id}, clicked entity)
+            else:
+                delete clicked entity
+        else:
+            delete clicked entity
+
+on damage of villager:
+    if za_surv_a_tag(victim, "za_campnpc") is true:
+        cancel the event
+    if za_surv_a_tag(victim, "za_leblanc") is true:
+        cancel the event
+
+function za_cmp_habitant_parle(p: player, id: number, e: entity):
+    set {_nom} to name of {_e}
+    set {_nom} to uncolored {_nom}
+    set {_n} to {za::camp::%{_id}%::nourriture}
+    set {_s} to {za::camp::%{_id}%::securite}
+    set {_m} to {za::camp::%{_id}%::moral}
+    set {_r::*} to "Le chef sait ce qu'il fait. Sans lui, on serait déjà morts." and "Tu viens d'où ? Y'a d'autres camps, dehors ?" and "La nuit, je dors pas. J'écoute la palissade craquer." and "Léa parle à la radio tous les soirs. C'est pas grand-chose, mais ça fait du bien."
+    if {_n} < 30:
+        set {_r::*} to "J'ai faim. On a tous faim. Si t'as du pain, va voir le chef." and "Ma petite mange plus que moi. Je fais semblant d'avoir déjà mangé."
+    else if {_s} < 30:
+        set {_r::*} to "La palissade a des trous. Le gars de la tour a beau crier..." and "Un jour, ils vont passer la barrière. Pis on aura rien pour se battre."
+    else if {_m} > 65:
+        set {_r::*} to "On a fait une soupe hier soir. Une vraie. J'avais oublié le goût." and "Ça va mieux. On a même chanté, l'autre soir. Doucement, pour pas attirer les morts."
+    send "&e%{_nom}% &8» &f« %random element out of {_r::*}% »" to {_p}
+
+command /zacampclic <player> <text>:
+    executable by: console
+    trigger:
+        wait 2 ticks
+        za_cmp_noeud(arg-1, arg-2)
+
+# ---------------------------------------------------------------- INFIRMIÈRE LEBLANC (choix "sauvée" du prologue)
+
+# un joueur, au moins, l'a-t-il sauvée ?
+function za_cmp_leblanc_voulue() :: boolean:
+    return false
+
+function za_cmp_leblanc_morte(id: number, cause: text):
+    if {za::leblanc::morte} is true:
+        stop
+    set {za::leblanc::morte} to true
+    za_radio("&bLéa", "Infirmière Leblanc... elle n'a pas survécu (%{_cause}%). Elle avait soigné tout le camp. Je vais... je vais couper la radio un moment.")
+    za_journal("L'infirmière Leblanc est morte.")
+    loop {za::choix::*}:
+        if loop-value is "sauvee":
+            set {_k::*} to split loop-index at "::"
+            za_surv_avis({_k::1}, "&b[Léa] &7L'infirmière Leblanc, celle que tu as sauvée devant l'hôpital, est morte. Elle méritait mieux.")
+
+# Leblanc s'installe dans un camp (le premier vivant), sinon on crée le Refuge Sainte-Anne près d'un joueur
+function za_cmp_leblanc_assurer(p: player):
+    if {za::leblanc::morte} is true:
+        stop
+    if {za::leblanc::camp} is set:
+        if {za::camp::%{za::leblanc::camp}%::etat} is "vivant":
+            stop
+    set {_c} to 0
+    loop {za::camp::liste::*}:
+        if {_c} is 0:
+            if {za::camp::%loop-value%::etat} is "vivant":
+                set {_c} to loop-value
+    if {_c} is 0:
+        set {_l} to za_cmp_site({_p})
+        if {_l} is set:
+            set {_nom} to za_cmp_nom_libre()
+            set {_c} to za_cmp_creer({_l}, {_nom}, za_cmp_style({_nom}))
+    if {_c} is not 0:
+        set {za::leblanc::camp} to {_c}
+        za_cmp_npcs({_c})
+        za_journal("L'infirmière Leblanc soigne au camp %{za::camp::%{_c}%::nom}%.")
+
+function za_cmp_leblanc_menu(p: player):
+    set {_u} to {_p}'s uuid
+    set {_o::*} to "Me soigner|soin", "Antibiotique|antibio", "Sérum|serum", "Lui parler|parler", "Partir|quit"
+    set {_txt} to "Une infirmière en blouse maculée, les yeux cernés mais la main sûre. « Asseyez-vous, je m'occupe de vous. »"
+    if za_choix({_u}, "leblanc") is "sauvee":
+        set {_txt} to "« C'est toi... Tu m'as tirée de là, devant l'hôpital. Je ne l'oublierai jamais. » Elle te sourit, épuisée."
+    za_menu({_p}, "zaleblancclic", "Infirmière Leblanc", {_txt}, {_o::*})
+
+command /zaleblancclic <player> <text>:
+    executable by: console
+    trigger:
+        wait 2 ticks
+        set {_p} to arg-1
+        set {_n} to arg-2
+        set {_u} to {_p}'s uuid
+        set {_sauvee} to false
+        if za_choix({_u}, "leblanc") is "sauvee":
+            set {_sauvee} to true
+        if {_n} is "soin":
+            if {za::leblanc::soin::%{_u}%} is set:
+                if now is less than {za::leblanc::soin::%{_u}%}:
+                    send "&e[Infirmière Leblanc] &f« Vous sortez à peine de mes mains ! Reposez-vous un peu. »" to {_p}
+                    stop
+            set {za::leblanc::soin::%{_u}%} to now
+            add 2 minutes to {za::leblanc::soin::%{_u}%}
+            set health of {_p} to 10
+            delete {za::mal::plaie::%{_u}%}
+            delete {za::mal::grippe::%{_u}%}
+            delete {za::mal::fievre::%{_u}%}
+            delete {za::sang::%{_u}%}
+            delete {za::plaie::flag::%{_u}%}
+            execute console command "zablessure soigner %{_p}%"
+            if {_sauvee} is true:
+                send "&e[Infirmière Leblanc] &f« Pour toi, c'est gratuit. Toujours. »" to {_p}
+            else:
+                send "&e[Infirmière Leblanc] &f« Voilà. Vous êtes comme neuf. Faites attention à vous. »" to {_p}
+            send "&a✚ Tu es entièrement soigné(e)." to {_p}
+            za_zm("son %{_p}% minecraft:entity.villager.yes 0.8 1")
+            execute console command "execute at %{_p}% run particle minecraft:heart ~ ~2 ~ 0.4 0.4 0.4 0 8 force"
+        else if {_n} is "antibio" or "serum":
+            set {_base} to 6
+            if {_n} is "serum":
+                set {_base} to 22
+            if {_sauvee} is true:
+                set {_base} to floor({_base} * 0.5)
+            set {_prix} to za_prix({_p}, {_base})
+            if za_jetons({_p}) < {_prix}:
+                send "&e[Infirmière Leblanc] &f« Il me faut %{_prix}% jetons, désolée. Je fais ce que je peux. »" to {_p}
+            else:
+                za_jetons_ajouter({_p}, 0 - {_prix})
+                if {_n} is "serum":
+                    give za_item("honey bottle", "Serum", "&d", 1) to {_p}
+                else:
+                    give za_item("honey bottle", "Antibiotique", "&b", 1) to {_p}
+                send "&a[Infirmière Leblanc] te tend ta commande. &7(-%{_prix}% jetons)" to {_p}
+        else if {_n} is "parler":
+            if {_sauvee} is true:
+                send "&e[Infirmière Leblanc] &f« Je pense à l'hôpital, des fois. Aux gens que j'ai pas pu sortir. Mais toi, tu m'as sortie. C'est ça que je garde. »" to {_p}
+            else:
+                send "&e[Infirmière Leblanc] &f« J'ai fui l'hôpital de Saint-Aurèle. Y'avait plus rien à faire là-bas. Ici, au moins, je sers à quelque chose. »" to {_p}
+
+# Leblanc "perdue" : elle revient, transformée
+function za_cmp_leblanc_zombie(p: player):
+    set {_l} to location of {_p}
+    set {_d} to random number between 12 and 18
+    set {_a} to random number between 0 and 360
+    add ({_d} * cos({_a})) to x-coordinate of {_l}
+    add ({_d} * sin({_a})) to z-coordinate of {_l}
+    set {_g} to za_sol({_l})
+    set {_wd} to za_dim(world of {_g})
+    execute console command "execute in %{_wd}% run summon zombie_villager %x-coordinate of {_g}% %y-coordinate of {_g}% %z-coordinate of {_g}% {CustomName:'""Infirmière Leblanc""',CustomNameVisible:1b,PersistenceRequired:1b,Tags:[""za_leblanc_zombie""],Attributes:[{Name:""generic.max_health"",Base:30},{Name:""generic.attack_damage"",Base:4}],Health:30f,ActiveEffects:[{Id:12,Amplifier:0b,Duration:999999,ShowParticles:0b}]}"
+    send "&8&oCe badge... Leblanc. L'infirmière de l'hôpital." to {_p}
+    za_zm("son %{_p}% za_modeles:sfx.sting_danger 0.7 1")
+
+on death of zombie villager:
+    if za_pro(victim) is true:
+        stop
+    if uncolored name of victim is "Infirmière Leblanc":
+        drop za_item("paper", "Badge - Infirmière Leblanc", "&f", 1) at location of victim
+        set {_txt} to "Un badge d'hôpital, taché. Elle avait un nom, avant : Leblanc."
+        if attacker is a player:
+            send "&8&o... Elle est enfin en paix." to attacker
+
+# ---------------------------------------------------------------- THÉO (choix du prologue : "appelé" / "provisions")
+
+function za_cmp_theo_assurer(p: player):
+    set {_u} to {_p}'s uuid
+    if za_choix({_u}, "theo") is not "appele":
+        stop
+    if {za::theo::rec::%{_u}%} is set:
+        if {za::surv::%{za::theo::rec::%{_u}%}%::etat} is set:
+            stop
+        else:
+            delete {za::theo::rec::%{_u}%}
+    if {za::theo::recrute::%{_u}%} is true:
+        stop
+    set {_c} to 0
+    loop {za::camp::liste::*}:
+        if {_c} is 0:
+            if {za::camp::%loop-value%::etat} is "vivant":
+                set {_c} to loop-value
+    if {_c} is 0:
+        stop
+    set {_cl} to {za::camp::%{_c}%::loc}
+    set {_pt} to {_cl}
+    add 3 to x-coordinate of {_pt}
+    add 2 to z-coordinate of {_pt}
+    set {_sid} to za_surv_creer_rec("enfant", "m", {_pt}, "camp")
+    set {za::surv::%{_sid}%::nom} to "Théo Gagnon"
+    set {za::surv::%{_sid}%::titre} to "Théo Gagnon"
+    set {za::surv::%{_sid}%::vnom} to "Théo Gagnon"
+    set {za::surv::%{_sid}%::special} to "theo"
+    set {za::surv::%{_sid}%::pour} to {_u}
+    set {za::surv::%{_sid}%::camp} to {_c}
+    set {za::surv::%{_sid}%::hist} to "J'ai douze ans. Ma mamie... elle m'a dit d'attendre. J'ai attendu longtemps. Quelqu'un m'a répondu, ce soir-là. Au téléphone. C'était toi ?"
+    set {za::surv::%{_sid}%::conf::%{_u}%} to 100
+    set {za::surv::%{_sid}%::moral} to 60
+    delete {za::surv::%{_sid}%::expire}
+    set {za::theo::rec::%{_u}%} to {_sid}
+    za_cmp_pop_ajouter({_c}, 1)
+    za_surv_npc_placer({_sid})
+    za_zm("son %{_p}% za_modeles:sfx.radio_statique 0.5 1")
+    send "&8[Radio] &bLéa &8» &7... un petit gars qui s'appelle Théo est arrivé au &f%{za::camp::%{_c}%::nom}%&7, %za_surv_dir(location of {_p}, {_cl})%, à peu près %za_surv_dist(location of {_p}, {_cl})% blocs de toi. Il demande quelqu'un qui s'appelle... %{_p}%. Il dit que tu comprendras." to {_p}
+
+# la petite phrase et la photo quand on le recrute (appelé par le menu du module survivants)
+function za_cmp_theo_recrute(p: player, sid: number):
+    set {_u} to {_p}'s uuid
+    set {za::theo::recrute::%{_u}%} to true
+    if {za::surv::%{_sid}%::camp} is set:
+        za_cmp_pop_ajouter({za::surv::%{_sid}%::camp}, -1)
+    send "&e[Théo] &f« Tu m'as appelé, ce soir-là. Mamie... elle est morte, hein ? »" to {_p}
+    give za_item("paper", "Photo de Mamie", "&e", 1) to {_p}
+    send "&8&oThéo te tend une photo froissée : une vieille dame souriante, une tuque des Canadiens sur la tête." to {_p}
+    za_zm("son %{_p}% za_modeles:sfx.sting_revelation 0.6 1")
+
+# "provisions" : un enfant zombie, une fois
+function za_cmp_theo_zombie(p: player, pres_base: boolean):
+    set {_u} to {_p}'s uuid
+    set {za::theo::zombie::%{_u}%} to true
+    set {_l} to location of {_p}
+    if {_pres_base} is true:
+        set {_l} to {za::base::%{_u}%}
+    set {_d} to random number between 14 and 22
+    set {_a} to random number between 0 and 360
+    add ({_d} * cos({_a})) to x-coordinate of {_l}
+    add ({_d} * sin({_a})) to z-coordinate of {_l}
+    set {_g} to za_sol({_l})
+    execute console command "mm mobs spawn ZA_Child 1 %world of {_g}%,%floor(x-coordinate of {_g})%,%floor(y-coordinate of {_g})%,%floor(z-coordinate of {_g})%"
+    wait 10 ticks
+    loop all entities in radius 4 around {_g}:
+        if loop-entity is a zombie:
+            set name of loop-entity to "&cThéo"
+    send "&8&oUn enfant... Il porte le chandail des Canadiens de sa grand-mère. Théo." to {_p}
+    za_zm("son %{_p}% za_modeles:sfx.sting_revelation 0.7 1")
+
+# ---------------------------------------------------------------- boucles périodiques
+
+every 60 seconds:
+    if size of za_monde_joueurs() is 0:
+        stop
+    # nouveau jour serveur : tick quotidien des camps
+    if {za::serveur::jours} > {za::camp::jour}:
+        set {za::camp::jour} to {za::serveur::jours}
+        za_cmp_jour()
+    # création : jamais plus de %camps_max%, on en veut 3
+    if za_cmp_vivants() < 3:
+        if now is greater than {za::camp::prochain}:
+            set {za::camp::prochain} to now
+            set {_m} to random integer between 25 and 50
+            add ("%{_m}% minutes" parsed as timespan) to {za::camp::prochain}
+            set {_p} to random element out of za_monde_joueurs()
+            set {_l} to za_cmp_site({_p})
+            if {_l} is set:
+                set {_nom} to za_cmp_nom_libre()
+                set {_c} to za_cmp_creer({_l}, {_nom}, za_cmp_style({_nom}))
+                if {_c} is not 0:
+                    if {za::leblanc::camp} is not set:
+                        set {_v} to false
+                        loop {za::choix::*}:
+                            if loop-value is "sauvee":
+                                set {_v} to true
+                        if {_v} is true:
+                            set {za::leblanc::camp} to {_c}
+                            za_cmp_npcs({_c})
+                    za_radio("&bLéa", "J'ai capté un nouveau camp de survivants : le %{_nom}%, vers %za_surv_dir(location of {_p}, {za::camp::%{_c}%::loc})%, à ~%za_surv_dist(location of {_p}, {za::camp::%{_c}%::loc})% blocs. Ils prennent du monde. Tapez /camps.")
+
+every 30 seconds:
+    if size of za_monde_joueurs() is 0:
+        stop
+    # habitants des camps proches d'un joueur ; PNJ fantômes
+    loop {za::camp::liste::*}:
+        set {_id} to loop-value
+        set {_e} to {za::camp::%{_id}%::etat}
+        if {_e} is set:
+            set {_l} to {za::camp::%{_id}%::loc}
+            if za_cmp_joueur_proche({_l}, 100) is true:
+                za_cmp_npcs({_id})
+    # panneaux des camps vivants (les chiffres bougent avec les dons)
+    # rappels du prologue (Leblanc perdue, Théo appelé / provisions)
+    loop za_monde_joueurs():
+        za_cmp_prologue_suites(loop-value)
+
+function za_cmp_prologue_suites(p: player):
+    set {_u} to {_p}'s uuid
+    set {_lb} to za_choix({_u}, "leblanc")
+    set {_th} to za_choix({_u}, "theo")
+    if {_lb} is "sauvee":
+        if {za::leblanc::morte} is not true:
+            if {za::leblanc::camp} is not set:
+                za_cmp_leblanc_assurer({_p})
+            else if {za::camp::%{za::leblanc::camp}%::etat} is not "vivant":
+                za_cmp_leblanc_assurer({_p})
+    if {_th} is "appele":
+        if {za::theo::rec::%{_u}%} is not set:
+            za_cmp_theo_assurer({_p})
+    set {_t} to time in world of {_p}
+    set {_nuit} to false
+    if {_t} > 19:00:
+        set {_nuit} to true
+    if {_t} < 5:00:
+        set {_nuit} to true
+    if {_lb} is "perdue":
+        if {za::leblanc::perdue::%{_u}%} is not set:
+            set {_bp} to za_bat_proche(location of {_p}, 40)
+            if {_bp} starts with "hopital":
+                set {za::leblanc::perdue::%{_u}%} to true
+                za_cmp_leblanc_zombie({_p})
+            else if {_nuit} is true:
+                if chance of 4%:
+                    set {za::leblanc::perdue::%{_u}%} to true
+                    za_cmp_leblanc_zombie({_p})
+    if {_th} is "provisions":
+        if {za::theo::zombie::%{_u}%} is not set:
+            if {_nuit} is true:
+                set {_bl} to {za::base::%{_u}%}
+                if {_bl} is set:
+                    if world of {_bl} is world of {_p}:
+                        if distance between {_bl} and {_p} < 60:
+                            za_cmp_theo_zombie({_p}, true)
+                else if {za::serveur::jours} >= 5:
+                    if chance of 5%:
+                        za_cmp_theo_zombie({_p}, false)
+                if {_bl} is set:
+                    if {za::serveur::jours} >= 8:
+                        if chance of 3%:
+                            za_cmp_theo_zombie({_p}, false)
+
+on join:
+    if za_pro(player) is true:
+        stop
+    wait 20 seconds
+    if player is online:
+        if za_pro(player) is false:
+            za_cmp_prologue_suites(player)
+
+# ---------------------------------------------------------------- commande joueur : /camps
+
+command /camps:
+    trigger:
+        if player is not set:
+            send "Commande réservée aux joueurs. Console : /zacamp liste" to sender
+            stop
+        send "&6&lCAMPS DE SURVIVANTS" to player
+        set {_k} to 0
+        loop {za::camp::liste::*}:
+            set {_id} to loop-value
+            set {_e} to {za::camp::%{_id}%::etat}
+            if {_e} is set:
+                add 1 to {_k}
+                set {_nom} to {za::camp::%{_id}%::nom}
+                set {_l} to {za::camp::%{_id}%::loc}
+                if {_e} is "vivant":
+                    if world of {_l} is world of player:
+                        send "&a● &e%{_nom}% &7— %za_surv_dir(location of player, {_l})%, ~%za_surv_dist(location of player, {_l})% blocs &8(%za_cmp_approx({_l})%) &7| &f%floor({za::camp::%{_id}%::pop})% survivants" to player
+                    else:
+                        send "&a● &e%{_nom}% &7— dans un autre monde &7| &f%floor({za::camp::%{_id}%::pop})% survivants" to player
+                    set {_b} to za_cmp_besoins({_id})
+                    if {_b} is not "":
+                        send "&8   &o%{_b}%" to player
+                    if {za::camp::%{_id}%::attaque} is set:
+                        send "&c   ⚠ Attaque en cours !" to player
+                else if {_e} is "abandonne":
+                    send "&8○ %{_nom}% — abandonné (jour %{za::camp::%{_id}%::tombe}%)" to player
+                else:
+                    send "&4✖ &8%{_nom}% — tombé le jour %{za::camp::%{_id}%::tombe}%" to player
+        if {_k} is 0:
+            send "&7Aucun camp connu pour l'instant. Écoute la radio : Léa capte les signaux." to player
+        else:
+            send "&8Clic droit sur le chef pour aider (nourriture, matériaux, soins) ou défendre le camp." to player
+
+# ---------------------------------------------------------------- administration / console
+
+command /zacamp [<text>] [<text>] [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        set {_a} to arg-1
+        if {_a} is not set:
+            send "&cUsage : zacamp <creer [x z monde]|attaque id zombies/pillards|etat id|tick|supprimer id|liste|ruine id|set id champ n|npcs id>" to sender
+            stop
+        if {_a} is "creer":
+            delete {_l}
+            if arg-2 is set:
+                set {_x} to arg-2 parsed as number
+                set {_z} to arg-3 parsed as number
+                set {_wn} to arg-4
+                if {_wn} is not set:
+                    set {_wn} to "world"
+                set {_w} to world({_wn})
+                if {_x} is not set:
+                    send "&cUsage : zacamp creer [x z monde]" to sender
+                    stop
+                if {_z} is not set:
+                    send "&cUsage : zacamp creer [x z monde]" to sender
+                    stop
+                if {_w} is not set:
+                    send "&cMonde inconnu." to sender
+                    stop
+                set {_hb} to highest block at location({_x}, 64, {_z}, {_w})
+                set {_l} to location({_x}, floor(y-coordinate of (location of {_hb})), {_z}, {_w})
+            else:
+                if sender is a player:
+                    set {_p} to sender
+                else if size of za_monde_joueurs() > 0:
+                    set {_p} to random element out of za_monde_joueurs()
+                if {_p} is not set:
+                    send "&cAucun joueur : donne des coordonnées (zacamp creer x z monde)." to sender
+                    stop
+                set {_l} to za_cmp_site({_p})
+                if {_l} is not set:
+                    send "&cAucun emplacement valide trouvé, réessaie." to sender
+                    stop
+            set {_nom} to za_cmp_nom_libre()
+            set {_c} to za_cmp_creer({_l}, {_nom}, za_cmp_style({_nom}))
+            send "&aCamp #%{_c}% créé : %{_nom}% en %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% (%{za::camp::%{_c}%::style}%)." to sender
+            if {za::leblanc::camp} is not set:
+                set {_v} to false
+                loop {za::choix::*}:
+                    if loop-value is "sauvee":
+                        set {_v} to true
+                if {_v} is true:
+                    set {za::leblanc::camp} to {_c}
+                    za_cmp_npcs({_c})
+        else if {_a} is "liste":
+            send "&6Camps (%size of {za::camp::liste::*}%) :" to sender
+            loop {za::camp::liste::*}:
+                set {_id} to loop-value
+                if {za::camp::%{_id}%::etat} is set:
+                    send "&7#%{_id}% &f%{za::camp::%{_id}%::nom}% &e%{za::camp::%{_id}%::etat}% &7pop=%floor({za::camp::%{_id}%::pop})% viv=%floor({za::camp::%{_id}%::nourriture})% sec=%floor({za::camp::%{_id}%::securite})% mor=%floor({za::camp::%{_id}%::moral})% inf=%floor({za::camp::%{_id}%::contam})% &8%{za::camp::%{_id}%::loc}%" to sender
+                else:
+                    send "&8#%{_id}% (camp abandonné de za_p25, sans données)" to sender
+        else if {_a} is "etat":
+            set {_id} to arg-2 parsed as number
+            if {_id} is not set:
+                send "&cUsage : zacamp etat <id>" to sender
+                stop
+            if za_cmp_valide({_id}) is false:
+                send "&cCamp inconnu." to sender
+                stop
+            send "&6Camp #%{_id}% %{za::camp::%{_id}%::nom}% (chef : %{za::camp::%{_id}%::chef}%, style %{za::camp::%{_id}%::style}%)" to sender
+            send "&7état=%{za::camp::%{_id}%::etat}% pop=%{za::camp::%{_id}%::pop}% nourriture=%{za::camp::%{_id}%::nourriture}% sécurité=%{za::camp::%{_id}%::securite}% moral=%{za::camp::%{_id}%::moral}% contam=%{za::camp::%{_id}%::contam}%" to sender
+            send "&7loc=%{za::camp::%{_id}%::loc}% origine=%{za::camp::%{_id}%::ox}%,%{za::camp::%{_id}%::oy}%,%{za::camp::%{_id}%::oz}% attaque=%{za::camp::%{_id}%::attaque}% cloche=%{za::camp::%{_id}%::cloche}%" to sender
+            set {_tc} to "za_chef_%{_id}%"
+            set {_tn} to "za_campnpc_%{_id}%"
+            set {_nc} to za_cmp_compte_tag({_id}, {_tc})
+            set {_nn} to za_cmp_compte_tag({_id}, {_tn})
+            send "&7habitants (chef %{_nc}%, total %{_nn}%) phrase : %za_cmp_phrase({_id})%" to sender
+        else if {_a} is "attaque":
+            set {_id} to arg-2 parsed as number
+            if {_id} is not set:
+                send "&cUsage : zacamp attaque <id> <zombies|pillards>" to sender
+                stop
+            if za_cmp_valide({_id}) is false:
+                send "&cCamp inconnu." to sender
+                stop
+            set {_ty} to arg-3
+            if {_ty} is not "pillards":
+                set {_ty} to "zombies"
+            send "&aAttaque (%{_ty}%) lancée sur %{za::camp::%{_id}%::nom}%." to sender
+            za_cmp_attaque({_id}, {_ty})
+        else if {_a} is "tick":
+            za_cmp_jour()
+            send "&aTick quotidien des camps exécuté." to sender
+        else if {_a} is "supprimer":
+            set {_id} to arg-2 parsed as number
+            if {_id} is not set:
+                send "&cUsage : zacamp supprimer <id>" to sender
+                stop
+            if za_cmp_valide({_id}) is true:
+                za_cmp_purge_pnj({_id})
+                delete {za::camp::%{_id}%::*}
+            remove {_id} from {za::camp::liste::*}
+            remove {_id} from {za::camp::attaques::*}
+            send "&aCamp #%{_id}% supprimé (les blocs restent en place)." to sender
+        else if {_a} is "ruine":
+            set {_id} to arg-2 parsed as number
+            if {_id} is not set:
+                send "&cUsage : zacamp ruine <id>" to sender
+                stop
+            za_cmp_tomber({_id}, "admin")
+            send "&aCamp effondré." to sender
+        else if {_a} is "npcs":
+            set {_id} to arg-2 parsed as number
+            if {_id} is not set:
+                stop
+            za_cmp_npcs({_id})
+            send "&aHabitants mis à jour." to sender
+        else if {_a} is "set":
+            set {_id} to arg-2 parsed as number
+            set {_n} to arg-4 parsed as number
+            if {_id} is not set:
+                send "&cUsage : zacamp set <id> <pop|nourriture|securite|moral|contam> <n>" to sender
+                stop
+            if {_n} is not set:
+                send "&cUsage : zacamp set <id> <pop|nourriture|securite|moral|contam> <n>" to sender
+                stop
+            if za_cmp_valide({_id}) is false:
+                send "&cCamp inconnu." to sender
+                stop
+            set {za::camp::%{_id}%::%arg-3%} to {_n}
+            za_cmp_panneau({_id})
+            send "&aChamp %arg-3% fixé à %{_n}%." to sender
+        else:
+            send "&cSous-commande inconnue." to sender

@@ -1,0 +1,1792 @@
+# =====================================================================
+#  ZombieApocalypse - ATELIERS SPÉCIALISÉS (#13) : cinq postes de travail à construire dans sa base
+#  Un atelier = un bloc que le joueur pose lui-même dans sa base (rayon 40 de /base definir) puis « active » avec /atelier creer <type>
+#  en le regardant :  médical = alambic (brewing stand) · militaire = table de forgeron (smithing table) · mécanique = enclume ·
+#  laboratoire = chaudron · électronique = métier à tisser (loom).  Coût : jetons + matériaux.  Niveaux 1 à 3 (/atelier ameliorer) ;
+#  les niveaux 2 et 3 demandent la ressource stratégique de la saison ({za::ressource::nom}, sinon « Composant electronique »).
+#  Clic droit sur le bloc = menu des recettes (za_menu) ; accroupi = interface normale du bloc.  Une entrée grisée dit pourquoi
+#  (niveau, courant ou matériaux manquants).  Le niveau donne aussi -10 %% de jetons par niveau au-dessus de 1.
+#  Courant : certaines recettes exigent une génératrice qui tourne à moins de 24 blocs (za_p14) ou le quartier résidentiel branché
+#  ({za::reseau::residentiel}).  Une impulsion EMP coupe tout.
+#  Médical      : Bandage, Attelle, Antibiotique (-50 %% si {za::reseau::hopital}), Sérum avancé (niv 3, guérit à tout stade),
+#                 Soins de l'atelier (zablessure soigner + plaies)
+#  Militaire    : munitions TaCZ (poudre + pépites de fer/Ferraille), chargeurs, poignée, optiques, lasers, silencieux, munitions spéciales
+#                 (zaarme accessoire).  Soldat : +25 %% de munitions.
+#  Mécanique    : réparer l'arme en main (zaarme reparer, remise selon niveau et courant), réparer outil/armure, Pied-de-biche, Jerrican,
+#                 blinder une porte (za_p23, 15/15), Générateur.  Ingénieur : -30 %% de jetons.
+#  Laboratoire  : analyse de souche, Antidote, Vaccin expérimental (20 min d'immunité à l'infection, niv 3), Notes de recherche
+#                 (déchiffrer des « Note de recherche » = 12 notes de lore).
+#  Électronique : Radio portable (balayage des fréquences), Alarme de périmètre (avertit le propriétaire quand des morts approchent),
+#                 Capteur de présence (avertit quand un inconnu entre dans la base).  Rayons d'alarme/capteur selon le niveau.
+#  Commandes joueur : /atelier  /atelier creer <type>|ameliorer|recettes [type]|deplacer <type>|supprimer <type>|aide
+#  Admin/console    : /zatelier <etat|liste|poser|niveau|retirer|materiel|vaccin|courant|ouvrir|nettoyer>
+#  Variables publiées : {za::at::liste::*} (clés « x_y_z_monde »), {za::at::<clé>::type|niveau|proprio|loc},
+#    {za::at::niv::<uuid>::<type>} (niveau, absent = pas d'atelier), {za::at::cle::<uuid>::<type>}, {za::vaccin::fin::<uuid>} (date)
+#  Fonctions publiées : za_atelier_niveau(uuid, type) -> 0..3 · za_vaccin_actif(joueur) -> booléen · za_at_courant(lieu) -> booléen
+#  Stat : ateliers (+1 par fabrication réussie)
+# =====================================================================
+
+options:
+    rayon_base: 40
+    rayon_usage: 9
+    max_alarmes: 3
+    max_capteurs: 3
+    duree_vaccin: 20 minutes
+
+# ---------------------------------------------------------------- types d'ateliers
+
+function za_at_types() :: texts:
+    return "medical", "militaire", "mecanique", "laboratoire" and "electronique"
+
+# reconnaît « médical », « mil », « méc », « labo », « élec »...
+function za_at_norm(t: text) :: text:
+    set {_s} to {_t} in lowercase
+    if {_s} contains "mil":
+        return "militaire"
+    if {_s} contains "med":
+        return "medical"
+    if {_s} contains "méd":
+        return "medical"
+    if {_s} contains "mec":
+        return "mecanique"
+    if {_s} contains "méc":
+        return "mecanique"
+    if {_s} contains "lab":
+        return "laboratoire"
+    if {_s} contains "elec":
+        return "electronique"
+    if {_s} contains "élec":
+        return "electronique"
+    return ""
+
+function za_at_nom(t: text) :: text:
+    if {_t} is "medical":
+        return "Atelier médical"
+    if {_t} is "militaire":
+        return "Atelier militaire"
+    if {_t} is "mecanique":
+        return "Atelier mécanique"
+    if {_t} is "laboratoire":
+        return "Laboratoire"
+    if {_t} is "electronique":
+        return "Atelier électronique"
+    return {_t}
+
+function za_at_col(t: text) :: text:
+    if {_t} is "medical":
+        return "&c"
+    if {_t} is "militaire":
+        return "&2"
+    if {_t} is "mecanique":
+        return "&6"
+    if {_t} is "laboratoire":
+        return "&5"
+    return "&b"
+
+# nom français du bloc à poser
+function za_at_bloc_nom(t: text) :: text:
+    if {_t} is "medical":
+        return "alambic (brewing stand)"
+    if {_t} is "militaire":
+        return "table de forgeron (smithing table)"
+    if {_t} is "mecanique":
+        return "enclume (anvil)"
+    if {_t} is "laboratoire":
+        return "chaudron (cauldron)"
+    return "métier à tisser (loom)"
+
+function za_at_bloc_ok(t: text, b: block) :: boolean:
+    set {_ty} to "%type of {_b}%"
+    if {_t} is "medical":
+        if {_ty} contains "brewing stand":
+            return true
+    else if {_t} is "militaire":
+        if {_ty} contains "smithing table":
+            return true
+    else if {_t} is "mecanique":
+        if {_ty} contains "anvil":
+            return true
+    else if {_t} is "laboratoire":
+        if {_ty} contains "cauldron":
+            return true
+    else if {_t} is "electronique":
+        if {_ty} contains "loom":
+            return true
+    return false
+
+function za_at_ambiance(t: text) :: text:
+    if {_t} is "medical":
+        return "Table de soins, gaze et bocaux. Ici on fabrique de quoi tenir jusqu'au matin."
+    if {_t} is "militaire":
+        return "Établi de munitionnaire : poudre, plomb et pièces détachées. Ça sent l'huile et la peur."
+    if {_t} is "mecanique":
+        return "Enclume, étau, huile noire. Tout ce qui est tordu finit par se redresser."
+    if {_t} is "laboratoire":
+        return "Fioles, buée, odeur d'éther. Le virus se laisse lire par ceux qui savent regarder."
+    return "Fer à souder, piles, fil de cuivre. Chaque grésillement peut sauver une base."
+
+# ---------------------------------------------------------------- ressource de saison, courant, joueurs
+
+# durée lisible : "2 j 5 h" / "3 h 12 min" / "45 min"
+function za_at_duree(ts: timespan) :: text:
+    set {_s} to floor({_ts} / 1 second)
+    if {_s} < 60:
+        return "moins d'une minute"
+    set {_j} to floor({_s} / 86400)
+    set {_h} to floor(({_s} - ({_j} * 86400)) / 3600)
+    set {_m} to floor(({_s} - ({_j} * 86400) - ({_h} * 3600)) / 60)
+    if {_j} > 0:
+        return "%{_j}% j %{_h}% h"
+    if {_h} > 0:
+        return "%{_h}% h %{_m}% min"
+    return "%{_m}% min"
+
+function za_at_res() :: text:
+    if {za::ressource::nom} is set:
+        return "%{za::ressource::nom}%"
+    return "Composant electronique"
+
+# courant à cet endroit : réseau résidentiel branché, ou génératrice qui tourne à moins de 24 blocs. Une impulsion EMP coupe tout.
+function za_at_courant(l: location) :: boolean:
+    if za_emp_actif() is true:
+        return false
+    if {za::reseau::residentiel} is true:
+        return true
+    loop {za::gen::liste::*}:
+        set {_g} to {za::gen::%loop-value%::loc}
+        if {_g} is set:
+            if world of {_g} is world of {_l}:
+                if distance between {_g} and {_l} <= 24:
+                    if {za::gen::%loop-value%::fin} is set:
+                        if now is less than {za::gen::%loop-value%::fin}:
+                            return true
+    return false
+
+function za_at_courant_txt(l: location) :: text:
+    if za_emp_actif() is true:
+        return "&cImpulsion EMP : tout est coupé"
+    if {za::reseau::residentiel} is true:
+        return "&aoui &7(quartier résidentiel branché)"
+    if za_at_courant({_l}) is true:
+        return "&aoui &7(génératrice)"
+    return "&cnon &7(génératrice en marche à moins de 24 blocs, ou quartier résidentiel branché)"
+
+function za_at_joueur(u: text) :: player:
+    loop all players:
+        if loop-player's uuid is {_u}:
+            return loop-player
+
+# même équipe (squad) : ne déclenche pas les capteurs
+function za_at_ami(a: text, b: text) :: boolean:
+    if {_a} is {_b}:
+        return true
+    if {za::squad::id::%{_a}%} is set:
+        if {za::squad::id::%{_a}%} is {za::squad::id::%{_b}%}:
+            return true
+    return false
+
+# position de l'entité la plus proche d'un lieu (le lieu lui-même si la liste est vide)
+function za_at_proche(l: location, es: entities) :: location:
+    set {_best} to 99999
+    set {_res} to {_l}
+    loop {_es::*}:
+        set {_d} to distance between loop-value and {_l}
+        if {_d} < {_best}:
+            set {_best} to {_d}
+            set {_res} to location of loop-value
+    return {_res}
+
+function za_at_dir(de: location, vers: location) :: text:
+    set {_dx} to x-coordinate of {_vers} - x-coordinate of {_de}
+    set {_dz} to z-coordinate of {_vers} - z-coordinate of {_de}
+    set {_a} to atan2({_dx}, {_dz})
+    if {_a} < 0:
+        add 360 to {_a}
+    # 0 = est, 90 = sud, 180 = ouest, 270 = nord
+    if {_a} >= 337.5:
+        return "l'est"
+    if {_a} >= 292.5:
+        return "le nord-est"
+    if {_a} >= 247.5:
+        return "le nord"
+    if {_a} >= 202.5:
+        return "le nord-ouest"
+    if {_a} >= 157.5:
+        return "l'ouest"
+    if {_a} >= 112.5:
+        return "le sud-ouest"
+    if {_a} >= 67.5:
+        return "le sud"
+    if {_a} >= 22.5:
+        return "le sud-est"
+    return "l'est"
+
+# ---------------------------------------------------------------- registre des ateliers
+
+function za_atelier_niveau(u: text, t: text) :: number:
+    set {_n} to {za::at::niv::%{_u}%::%{_t}%}
+    if {_n} is not set:
+        return 0
+    return {_n}
+
+function za_at_cle(u: text, t: text) :: text:
+    set {_k} to {za::at::cle::%{_u}%::%{_t}%}
+    if {_k} is not set:
+        return ""
+    return "%{_k}%"
+
+function za_at_enregistrer(k: text, t: text, u: text, l: location, niv: number):
+    set {za::at::%{_k}%::type} to {_t}
+    set {za::at::%{_k}%::niveau} to {_niv}
+    set {za::at::%{_k}%::proprio} to {_u}
+    set {za::at::%{_k}%::loc} to {_l}
+    set {za::at::niv::%{_u}%::%{_t}%} to {_niv}
+    set {za::at::cle::%{_u}%::%{_t}%} to {_k}
+    if {za::at::liste::*} does not contain {_k}:
+        add {_k} to {za::at::liste::*}
+
+# retire un atelier du registre ; garde son niveau pour une reconstruction (voir /atelier creer)
+function za_at_retirer(k: text, garder: boolean):
+    set {_t} to {za::at::%{_k}%::type}
+    set {_u} to {za::at::%{_k}%::proprio}
+    if {_t} is set:
+        if {_u} is set:
+            if {_garder} is true:
+                set {za::at::reste::%{_u}%::%{_t}%} to {za::at::%{_k}%::niveau}
+            if {za::at::cle::%{_u}%::%{_t}%} is {_k}:
+                delete {za::at::cle::%{_u}%::%{_t}%}
+                delete {za::at::niv::%{_u}%::%{_t}%}
+    remove {_k} from {za::at::liste::*}
+    delete {za::at::%{_k}%::*}
+
+function za_at_niveau_cle(k: text) :: number:
+    set {_n} to {za::at::%{_k}%::niveau}
+    if {_n} is not set:
+        return 0
+    return {_n}
+
+# ---------------------------------------------------------------- ingrédients
+
+# nom français d'un matériau vanille
+function za_at_fr(t: text) :: text:
+    if {_t} is "paper":
+        return "papier"
+    if {_t} is "string":
+        return "ficelle"
+    if {_t} is "stick":
+        return "bâton"
+    if {_t} is "iron ingot":
+        return "lingot de fer"
+    if {_t} is "gold ingot":
+        return "lingot d'or"
+    if {_t} is "copper ingot":
+        return "lingot de cuivre"
+    if {_t} is "glass bottle":
+        return "fiole vide"
+    if {_t} is "honey bottle":
+        return "bouteille de miel"
+    if {_t} is "honeycomb":
+        return "rayon de miel"
+    if {_t} is "gunpowder":
+        return "poudre à canon"
+    if {_t} is "iron nugget":
+        return "pépite de fer"
+    if {_t} is "redstone":
+        return "redstone"
+    if {_t} is "blast furnace":
+        return "haut fourneau"
+    if {_t} is "bucket":
+        return "seau"
+    return {_t}
+
+# nom affiché d'une variante d'ingrédient (« ~paper/Ferraille » -> « papier ou Ferraille »)
+function za_at_nom_spec(spec: text) :: text:
+    set {_r::*} to split {_spec} at "/"
+    loop {_r::*}:
+        set {_v} to loop-value
+        if {_v} starts with "~":
+            set {_v} to za_at_fr(subtext of {_v} from characters 2 to length of {_v})
+        add {_v} to {_o::*}
+    return join {_o::*} with " ou "
+
+# un objet correspond-il à une variante ? « ~type » = objet vanille SANS nom ; sinon nom exact (sans couleur)
+function za_at_match(it: itemtype, v: text) :: boolean:
+    if {_v} starts with "~":
+        if name of {_it} is set:
+            return false
+        set {_ty} to (subtext of {_v} from characters 2 to length of {_v}) parsed as itemtype
+        if {_it} is {_ty}:
+            return true
+        return false
+    if uncolored name of {_it} is {_v}:
+        return true
+    return false
+
+function za_at_compte_v(p: player, v: text) :: number:
+    set {_c} to 0
+    set {_i} to 0
+    while {_i} < 36:
+        set {_it} to slot {_i} of inventory of {_p}
+        if {_it} is not air:
+            if za_at_match({_it}, {_v}) is true:
+                add item amount of {_it} to {_c}
+        add 1 to {_i}
+    return {_c}
+
+# total d'un ingrédient (toutes les variantes « a/b » cumulées)
+function za_at_compte(p: player, spec: text) :: number:
+    set {_vs::*} to split {_spec} at "/"
+    set {_t} to 0
+    loop {_vs::*}:
+        add za_at_compte_v({_p}, loop-value) to {_t}
+    return {_t}
+
+function za_at_prendre_v(p: player, v: text, n: number) :: number:
+    set {_left} to {_n}
+    set {_i} to 0
+    while {_i} < 36:
+        if {_left} > 0:
+            set {_it} to slot {_i} of inventory of {_p}
+            if {_it} is not air:
+                if za_at_match({_it}, {_v}) is true:
+                    set {_a} to item amount of {_it}
+                    if {_a} <= {_left}:
+                        remove {_a} from {_left}
+                        set slot {_i} of inventory of {_p} to air
+                    else:
+                        set {_neuf} to ({_a} - {_left}) of {_it}
+                        set {_left} to 0
+                        set slot {_i} of inventory of {_p} to {_neuf}
+        add 1 to {_i}
+    return {_n} - {_left}
+
+function za_at_prendre(p: player, spec: text, n: number):
+    set {_vs::*} to split {_spec} at "/"
+    set {_left} to {_n}
+    loop {_vs::*}:
+        if {_left} > 0:
+            set {_got} to za_at_prendre_v({_p}, loop-value, {_left})
+            remove {_got} from {_left}
+
+# résout $RES (ressource de saison) et fusionne les doublons : « a@1;b@2;a@2 » -> « a@3;b@2 »
+function za_at_ing(ing: text) :: text:
+    if {_ing} is "-":
+        return ""
+    if {_ing} is "":
+        return ""
+    replace all "$RES" with za_at_res() in {_ing}
+    set {_a::*} to split {_ing} at ";"
+    loop {_a::*}:
+        set {_e::*} to split loop-value at "@"
+        set {_q} to {_e::2} parsed as number
+        if {_m::%{_e::1}%} is not set:
+            set {_m::%{_e::1}%} to 0
+            add {_e::1} to {_ordre::*}
+        add {_q} to {_m::%{_e::1}%}
+    loop {_ordre::*}:
+        add "%loop-value%@%{_m::%loop-value%}%" to {_o::*}
+    return join {_o::*} with ";"
+
+# ce qui manque au joueur (texte), "" si tout est là
+function za_at_manque(p: player, ing: text, j: number) :: text:
+    if {_ing} is not "":
+        set {_a::*} to split {_ing} at ";"
+        loop {_a::*}:
+            set {_e::*} to split loop-value at "@"
+            set {_q} to {_e::2} parsed as number
+            set {_c} to za_at_compte({_p}, {_e::1})
+            if {_c} < {_q}:
+                add "%za_at_nom_spec({_e::1})% x%{_q} - {_c}%" to {_m::*}
+    if {_j} > za_jetons({_p}):
+        add "%{_j} - za_jetons({_p})% jetons" to {_m::*}
+    if size of {_m::*} is 0:
+        return ""
+    return join {_m::*} with ", "
+
+function za_at_prendre_ing(p: player, ing: text):
+    if {_ing} is not "":
+        set {_a::*} to split {_ing} at ";"
+        loop {_a::*}:
+            set {_e::*} to split loop-value at "@"
+            za_at_prendre({_p}, {_e::1}, {_e::2} parsed as number)
+
+function za_at_cout_txt(ing: text, j: number) :: text:
+    if {_ing} is not "":
+        set {_a::*} to split {_ing} at ";"
+        loop {_a::*}:
+            set {_e::*} to split loop-value at "@"
+            add "%za_at_nom_spec({_e::1})% x%{_e::2}%" to {_o::*}
+    if {_j} > 0:
+        add "%{_j}% jetons" to {_o::*}
+    if size of {_o::*} is 0:
+        return "gratuit"
+    return join {_o::*} with ", "
+
+# ---------------------------------------------------------------- coût de construction / amélioration : "jetons|ingrédients"
+
+function za_at_cout_niv(t: text, n: number) :: text:
+    if {_t} is "medical":
+        if {_n} is 1:
+            return "30|~iron ingot@4;~paper@6;~glass bottle@2"
+        if {_n} is 2:
+            return "60|~iron ingot@6;~paper@8;$RES@1"
+        return "110|~iron ingot@8;~gold ingot@4;$RES@3"
+    if {_t} is "militaire":
+        if {_n} is 1:
+            return "40|~iron ingot@8;Ferraille@4"
+        if {_n} is 2:
+            return "70|~iron ingot@10;Ferraille@6;$RES@1"
+        return "130|~iron ingot@14;Ferraille@10;$RES@3"
+    if {_t} is "mecanique":
+        if {_n} is 1:
+            return "25|~iron ingot@6;Ferraille@3"
+        if {_n} is 2:
+            return "55|~iron ingot@8;Ferraille@5;$RES@1"
+        return "100|~iron ingot@12;Ferraille@8;$RES@3"
+    if {_t} is "laboratoire":
+        if {_n} is 1:
+            return "45|~glass bottle@6;~iron ingot@4;Sang infecte@2"
+        if {_n} is 2:
+            return "80|~glass bottle@6;~gold ingot@3;$RES@1"
+        return "140|~glass bottle@8;~gold ingot@5;$RES@3"
+    if {_n} is 1:
+        return "50|~redstone@4;~iron ingot@4;Composant electronique@2"
+    if {_n} is 2:
+        return "85|~redstone@8;~copper ingot/~iron ingot@4;Composant electronique@3;$RES@1"
+    return "140|~redstone@12;~copper ingot/~iron ingot@6;Composant electronique@4;$RES@3"
+
+function za_at_cout_jetons(p: player, t: text, n: number) :: number:
+    set {_c::*} to split za_at_cout_niv({_t}, {_n}) at "|"
+    return za_prix({_p}, {_c::1} parsed as number)
+
+function za_at_cout_ing(t: text, n: number) :: text:
+    set {_c::*} to split za_at_cout_niv({_t}, {_n}) at "|"
+    return za_at_ing({_c::2})
+
+# ---------------------------------------------------------------- recettes
+#  ligne = type|catégorie|niveau|jetons|courant(0/1)|nom affiché|ingrédients|action
+#  ingrédients : « spec@qté;spec@qté » ; spec = « ~matériau vanille » ou « Nom exact » ; « a/b » = l'un ou l'autre ; $RES = ressource de saison
+#  action : item#matériau#Nom#couleur#qté · ammo#id#qté · acc#id · ou une action spéciale
+
+function za_at_def(id: text, ligne: text):
+    set {za::atdef::%{_id}%} to {_ligne}
+    add {_id} to {za::atdef_ids::*}
+
+on load:
+    delete {za::atdef::*}
+    delete {za::atdef_ids::*}
+    # --- médical
+    za_at_def("bandage", "medical|-|1|2|0|Bandage x3|~paper@3;~string@2|item#paper#Bandage#&f#3")
+    za_at_def("attelle", "medical|-|1|2|0|Attelle x2|~stick@2;~paper@1;~string@1|item#stick#Attelle#&f#2")
+    za_at_def("antibio", "medical|-|2|10|0|Antibiotique x2|Sang infecte/Échantillon viral@1;~honey bottle/~honeycomb@1|item#honey bottle#Antibiotique#&b#2")
+    za_at_def("soins", "medical|-|2|8|1|Soins de l'atelier|Bandage@2|soins")
+    za_at_def("serum2", "medical|-|3|40|1|Sérum avancé|Serum@2;Échantillon viral@1|serum2")
+    # --- mécanique
+    za_at_def("rep_arme", "mecanique|-|1|0|0|Réparer l'arme en main|-|reparer_arme")
+    za_at_def("rep_outil", "mecanique|-|1|3|0|Réparer l'outil ou l'armure en main|~iron ingot@1|reparer_outil")
+    za_at_def("pied", "mecanique|-|1|3|0|Pied-de-biche|~iron ingot@2;Ferraille@1|item#iron ingot#Pied-de-biche#&7#1")
+    za_at_def("jerrican", "mecanique|-|1|4|0|Jerrican|~iron ingot@3|item#bucket#Jerrican#&e#1")
+    za_at_def("porte", "mecanique|-|2|4|0|Blinder la porte visée (15/15)|~iron ingot@4;Ferraille@2|porte")
+    za_at_def("generateur", "mecanique|-|2|12|0|Générateur|~blast furnace@1;Pieces de generateur/~iron ingot@2;Composant electronique@1|item#blast furnace#Generateur#&e#1")
+    # --- laboratoire
+    za_at_def("analyse", "laboratoire|-|1|3|0|Analyser la souche locale|-|analyse")
+    za_at_def("notes", "laboratoire|-|1|0|0|Relire tes notes de recherche|-|notes")
+    za_at_def("dechiffrer", "laboratoire|-|1|0|0|Déchiffrer une Note de recherche|Note de recherche@1|dechiffrer")
+    za_at_def("antidote", "laboratoire|-|2|10|0|Antidote|Antibiotique@1;Sang infecte@1|item#honey bottle#Antidote#&a#1")
+    za_at_def("vaccin", "laboratoire|-|3|40|1|Vaccin expérimental|Échantillon viral@1;Sang infecte@1;Serum@1|vaccin")
+    # --- électronique
+    za_at_def("radio", "electronique|-|1|10|1|Radio portable|Composant electronique@2;~iron ingot@1;~redstone@2|radio")
+    za_at_def("alarme", "electronique|-|1|8|0|Alarme de périmètre|Composant electronique@1;~copper ingot/~iron ingot@3;~redstone@2|alarme")
+    za_at_def("capteur", "electronique|-|2|10|1|Capteur de présence|Composant electronique@1;~redstone@4;~iron ingot@2|capteur")
+    # --- militaire : munitions
+    za_at_def("m9mm", "militaire|mun|1|3|0|Munitions 9 mm x30|~gunpowder@2;~iron nugget/Ferraille@4|ammo#9mm#30")
+    za_at_def("m45", "militaire|mun|1|3|0|Munitions .45 ACP x24|~gunpowder@2;~iron nugget/Ferraille@4|ammo#45acp#24")
+    za_at_def("m12g", "militaire|mun|1|4|0|Cartouches calibre 12 x12|~gunpowder@2;~iron nugget/Ferraille@4|ammo#12g#12")
+    za_at_def("m556", "militaire|mun|2|5|0|Munitions 5.56 x30|~gunpowder@3;~iron nugget/Ferraille@6|ammo#556x45#30")
+    za_at_def("m762", "militaire|mun|2|5|0|Munitions 7.62x39 x30|~gunpowder@3;~iron nugget/Ferraille@6|ammo#762x39#30")
+    za_at_def("m308", "militaire|mun|3|8|0|Munitions .308 x20|~gunpowder@4;~iron nugget/Ferraille@8|ammo#308#20")
+    # --- militaire : chargeurs et poignée
+    za_at_def("xmag1", "militaire|cha|1|10|0|Chargeur étendu I|~iron ingot@2;Ferraille@2|acc#extended_mag_1")
+    za_at_def("xmag2", "militaire|cha|2|18|0|Chargeur étendu II|~iron ingot@3;Ferraille@4|acc#extended_mag_2")
+    za_at_def("xmag3", "militaire|cha|3|30|0|Chargeur étendu III|~iron ingot@4;Ferraille@6;$RES@1|acc#extended_mag_3")
+    za_at_def("sxmag", "militaire|cha|2|18|0|Chargeur de précision|~iron ingot@3;Ferraille@4|acc#sniper_extended_mag_1")
+    za_at_def("shxmag", "militaire|cha|2|18|0|Chargeur de fusil à pompe|~iron ingot@3;Ferraille@4|acc#shotgun_extended_mag_1")
+    za_at_def("grip", "militaire|cha|1|8|0|Poignée verticale militaire|~iron ingot@1;Ferraille@2|acc#grip_vertical_military")
+    # --- militaire : optiques et lasers
+    za_at_def("okp7", "militaire|opt|1|12|0|Viseur point rouge OKP-7|Composant electronique@1;~iron ingot@1|acc#sight_okp7")
+    za_at_def("exp3", "militaire|opt|1|12|0|Viseur holographique EXP-3|Composant electronique@1;~iron ingot@1|acc#sight_exp3")
+    za_at_def("elcan", "militaire|opt|2|22|1|Lunette ELCAN 4x|Composant electronique@2;~iron ingot@2|acc#scope_elcan_4x")
+    za_at_def("lpvo", "militaire|opt|2|26|1|Lunette LPVO 1-6x|Composant electronique@2;~iron ingot@3|acc#scope_lpvo_1_6")
+    za_at_def("acog", "militaire|opt|3|35|1|Lunette ACOG TA31|Composant electronique@2;~iron ingot@3;$RES@1|acc#scope_acog_ta31")
+    za_at_def("peq15", "militaire|opt|2|20|1|Laser tactique PEQ-15|Composant electronique@2;~redstone@2|acc#laser_peq15")
+    # --- militaire : silencieux
+    za_at_def("compens", "militaire|sil|1|10|0|Compensateur Trident|~iron ingot@2;Ferraille@2|acc#muzzle_compensator_trident")
+    za_at_def("ursus", "militaire|sil|2|25|1|Silencieux Ursus|~iron ingot@3;Ferraille@3|acc#muzzle_silencer_ursus")
+    za_at_def("knight", "militaire|sil|2|28|1|Silencieux Knight QD|~iron ingot@3;Ferraille@3|acc#muzzle_silencer_knight_qd")
+    za_at_def("mirage", "militaire|sil|3|40|1|Silencieux Mirage|~iron ingot@4;Ferraille@4;$RES@1|acc#muzzle_silencer_mirage")
+    za_at_def("wraith", "militaire|sil|3|45|1|Silencieux Wraith|~iron ingot@4;Ferraille@4;$RES@1|acc#muzzle_silencer_wraith")
+    za_at_def("vulture", "militaire|sil|3|45|1|Silencieux Vulture|~iron ingot@4;Ferraille@4;$RES@1|acc#muzzle_silencer_vulture")
+    # --- militaire : munitions spéciales (modificateurs TaCZ)
+    za_at_def("mfmj", "militaire|mod|3|30|1|Munitions FMJ (perforantes)|Ferraille@4;~gunpowder@4|acc#ammo_mod_fmj")
+    za_at_def("mhp", "militaire|mod|3|30|1|Munitions à pointe creuse|Ferraille@4;~gunpowder@4|acc#ammo_mod_hp")
+    za_at_def("mslug", "militaire|mod|3|30|1|Balles de chevrotine (slug)|Ferraille@4;~gunpowder@4|acc#ammo_mod_slug")
+    za_at_def("mhe", "militaire|mod|3|45|1|Munitions explosives|Ferraille@6;~gunpowder@8;$RES@1|acc#ammo_mod_he")
+    za_at_def("mi", "militaire|mod|3|45|1|Munitions incendiaires|Ferraille@6;~gunpowder@8;$RES@1|acc#ammo_mod_i")
+
+# catégories du menu principal d'un atelier : "clé|libellé"
+function za_at_cats(t: text) :: texts:
+    if {_t} is "militaire":
+        return "mun|Munitions...", "cha|Chargeurs et poignées...", "opt|Optiques et lasers...", "sil|Silencieux et freins...", "mod|Munitions spéciales..." and "-|-"
+    return "-|-"
+
+function za_at_cat_nom(c: text) :: text:
+    if {_c} is "mun":
+        return "Munitions"
+    if {_c} is "cha":
+        return "Chargeurs et poignées"
+    if {_c} is "opt":
+        return "Optiques et lasers"
+    if {_c} is "sil":
+        return "Silencieux et freins"
+    if {_c} is "mod":
+        return "Munitions spéciales"
+    return ""
+
+# ---------------------------------------------------------------- coûts d'une recette pour un joueur
+
+function za_at_jetons_id(p: player, id: text, niv: number) :: number:
+    set {_d::*} to split {za::atdef::%{_id}%} at "|"
+    set {_base} to {_d::4} parsed as number
+    if {_base} <= 0:
+        return 0
+    set {_j} to za_prix({_p}, {_base})
+    # rabais d'atelier : -10 %% par niveau au-dessus de 1
+    set {_j} to {_j} * (1 - (0.1 * ({_niv} - 1)))
+    if za_role({_p}) is "ingenieur":
+        if {_d::1} is "mecanique" or "electronique":
+            set {_j} to {_j} * 0.7
+    if {_id} is "antibio":
+        if {za::reseau::hopital} is true:
+            set {_j} to {_j} * 0.5
+    return max(1, ceil({_j}))
+
+# remise (en %%) sur la réparation d'arme : niveau + courant
+function za_at_remise(niv: number, cour: boolean) :: number:
+    set {_r} to 15 + (10 * ({_niv} - 1))
+    if {_cour} is true:
+        add 10 to {_r}
+    return {_r}
+
+# libellé d'une option du menu ; "!..." = grisé, avec la raison
+function za_at_libelle(p: player, id: text, niv: number, cour: boolean) :: text:
+    set {_d::*} to split {za::atdef::%{_id}%} at "|"
+    set {_nom} to {_d::6}
+    set {_req} to {_d::3} parsed as number
+    if {_req} > {_niv}:
+        return "!%{_nom}% (niveau %{_req}% requis)"
+    if {_d::5} is "1":
+        if {_cour} is false:
+            return "!%{_nom}% (pas de courant)"
+    set {_ing} to za_at_ing({_d::7})
+    set {_j} to za_at_jetons_id({_p}, {_id}, {_niv})
+    set {_m} to za_at_manque({_p}, {_ing}, {_j})
+    if {_m} is not "":
+        return "!%{_nom}% (manque : %{_m}%)"
+    if {_d::8} is "reparer_arme":
+        return "%{_nom}% (remise -%za_at_remise({_niv}, {_cour})% %%)"
+    return "%{_nom}% : %za_at_cout_txt({_ing}, {_j})%"
+
+# ---------------------------------------------------------------- menu
+
+function za_at_ouvrir(p: player, k: text, cat: text):
+    set {_t} to {za::at::%{_k}%::type}
+    if {_t} is not set:
+        send "&c[Atelier] Cet atelier n'existe plus." to {_p}
+        stop
+    set {_niv} to za_at_niveau_cle({_k})
+    set {_l} to {za::at::%{_k}%::loc}
+    set {_cour} to za_at_courant({_l})
+    set {za::at::ouvert::%{_p}'s uuid%} to {_k}
+    set {_u} to {_p}'s uuid
+    if {_cat} is "-":
+        # entrées du menu principal : recettes sans catégorie puis catégories
+        loop {za::atdef_ids::*}:
+            set {_d::*} to split {za::atdef::%loop-value%} at "|"
+            if {_d::1} is {_t}:
+                if {_d::2} is "-":
+                    add "%za_at_libelle({_p}, loop-value, {_niv}, {_cour})%|rec:%loop-value%" to {_o::*}
+        set {_cs::*} to za_at_cats({_t})
+        loop {_cs::*}:
+            set {_e::*} to split loop-value at "|"
+            if {_e::1} is not "-":
+                add "%{_e::2}%|cat:%{_e::1}%" to {_o::*}
+        if {_niv} < 3:
+            if {za::at::%{_k}%::proprio} is {_u}:
+                set {_c::*} to split za_at_cout_niv({_t}, {_niv} + 1) at "|"
+                set {_ing} to za_at_ing({_c::2})
+                set {_j} to za_prix({_p}, {_c::1} parsed as number)
+                set {_m} to za_at_manque({_p}, {_ing}, {_j})
+                if {_m} is "":
+                    add "Améliorer au niveau %{_niv} + 1% : %za_at_cout_txt({_ing}, {_j})%|up" to {_o::*}
+                else:
+                    add "!Améliorer au niveau %{_niv} + 1% (manque : %{_m}%)|up" to {_o::*}
+        set {_titre} to "%za_at_nom({_t})% (niv. %{_niv}%)"
+        set {_rab} to ""
+        if {_niv} > 1:
+            set {_rab} to " Rabais de niveau : -%10 * ({_niv} - 1)% %% de jetons."
+        set {_txt} to "%za_at_ambiance({_t})% Niveau %{_niv}%/3. Courant : %uncolored za_at_courant_txt({_l})%.%{_rab}% Grisé = niveau, courant ou matériaux manquants."
+    else:
+        loop {za::atdef_ids::*}:
+            set {_d::*} to split {za::atdef::%loop-value%} at "|"
+            if {_d::1} is {_t}:
+                if {_d::2} is {_cat}:
+                    add "%za_at_libelle({_p}, loop-value, {_niv}, {_cour})%|rec:%loop-value%" to {_o::*}
+        add "Retour|cat:-" to {_o::*}
+        set {_titre} to "%za_at_cat_nom({_cat})% (niv. %{_niv}%)"
+        set {_txt} to "%za_at_nom({_t})%, niveau %{_niv}%. Courant : %uncolored za_at_courant_txt({_l})%. Une option grisée dit ce qui manque."
+    za_menu({_p}, "zatelierclic", {_titre}, {_txt}, {_o::*})
+
+# ---------------------------------------------------------------- objets spéciaux
+
+function za_at_item_special(id: text) :: itemtype:
+    if {_id} is "serum2":
+        set {_it} to za_item("honey bottle", "Sérum avancé", "&5", 1)
+        set lore of {_it} to "&7Sérum stabilisé à la centrifugeuse." and "&7Guérit l'infection à &ftout stade&7, sans échec." and "&8À boire. Fabriqué à l'atelier médical."
+        return {_it}
+    if {_id} is "vaccin":
+        set {_it} to za_item("honey bottle", "Vaccin expérimental", "&3", 1)
+        set lore of {_it} to "&7Souche atténuée, cultivée au laboratoire." and "&7Immunité à l'infection pendant &f20 minutes&7." and "&8Effets secondaires : fièvre vaccinale (faiblesse)." and "&8À boire."
+        return {_it}
+    if {_id} is "radio":
+        set {_it} to za_item("compass", "Radio portable", "&b", 1)
+        set lore of {_it} to "&7Un poste à piles bricolé, réglé sur les fréquences des survivants." and "&8Clic droit : balayage des fréquences (danger, camps, courant)." and "&8Hors service pendant une impulsion EMP."
+        return {_it}
+    if {_id} is "alarme":
+        set {_it} to za_item("lightning rod", "Alarme de périmètre", "&c", 1)
+        set lore of {_it} to "&7Antenne à capteur thermique : un signal silencieux" and "&7prévient son propriétaire quand des morts approchent." and "&8Se pose dans ta base (max 3). Portée : niveau de l'atelier électronique."
+        return {_it}
+    if {_id} is "capteur":
+        set {_it} to za_item("sculk sensor", "Capteur de présence", "&e", 1)
+        set lore of {_it} to "&7Détecte les pas d'un inconnu et prévient son propriétaire." and "&8Se pose dans ta base (max 3). Les équipiers de ton squad sont ignorés."
+        return {_it}
+    return air
+
+# ---------------------------------------------------------------- vérifications propres à certaines actions ("" = ok)
+
+function za_at_blessures(u: text) :: number:
+    set {_n} to 0
+    loop "tete", "bras", "torse" and "jambe":
+        if {za::bless::%loop-value%::%{_u}%} is set:
+            if {za::bless::%loop-value%::%{_u}%} > 0:
+                add 1 to {_n}
+    return {_n}
+
+function za_at_pre(p: player, action: text, k: text) :: text:
+    if {_action} is "reparer_outil":
+        set {_t} to {_p}'s tool
+        if {_t} is air:
+            return "Tiens en main l'outil ou l'armure à réparer."
+        if "%type of {_t}%" contains "modern_kinetic_gun":
+            return "C'est une arme à feu : utilise « Réparer l'arme en main »."
+        if max durability of {_t} <= 0:
+            return "Cet objet ne s'use pas : rien à réparer."
+        if damage of {_t} <= 0:
+            return "Cet objet est déjà en parfait état."
+    else if {_action} is "porte":
+        set {_b} to {_p}'s targeted block
+        if {_b} is not set:
+            return "Regarde une porte en bois (à moins de 6 blocs)."
+        if distance between {_b} and {_p} > 6:
+            return "Regarde une porte en bois (à moins de 6 blocs)."
+        set {_ty} to "%type of {_b}%"
+        if {_ty} does not contain "door":
+            return "Regarde une porte en bois (à moins de 6 blocs)."
+        if {_ty} contains "iron":
+            return "Cette porte est déjà en fer : elle n'a pas besoin de blindage."
+        if {_ty} contains "trap":
+            return "Seules les portes sont concernées, pas les trappes."
+        set {_pk} to za_porte_cle({_b})
+        if {za::porte::%{_pk}%} >= 15:
+            return "Cette porte est déjà blindée au maximum (15/15)."
+    else if {_action} is "soins":
+        set {_u} to {_p}'s uuid
+        set {_rien} to true
+        if za_at_blessures({_u}) > 0:
+            set {_rien} to false
+        if health of {_p} < 9:
+            set {_rien} to false
+        if {za::mal::plaie::%{_u}%} is set:
+            set {_rien} to false
+        if {za::sang::%{_u}%} is set:
+            set {_rien} to false
+        if {_rien} is true:
+            return "Tu n'as besoin de rien : aucune blessure, aucune plaie."
+    else if {_action} is "dechiffrer":
+        set {_n} to {za::at::notes::%{_p}'s uuid%}
+        if {_n} is not set:
+            set {_n} to 0
+        if {_n} >= 12:
+            return "Tu as déchiffré toutes les notes de recherche."
+        set {_max} to 4 * za_at_niveau_cle({_k})
+        if {_n} >= {_max}:
+            return "La note suivante est chiffrée trop finement pour ce laboratoire. Améliore-le au niveau %za_at_niveau_cle({_k}) + 1%."
+    return ""
+
+# ---------------------------------------------------------------- notes de recherche (12)
+
+function za_at_note(n: number) :: text:
+    if {_n} is 1:
+        return "Une souche n'est pas un poison : c'est une conversation. La région parle au virus, le virus répond."
+    if {_n} is 2:
+        return "Le Sang infecte tourne en quelques heures. Il faut le manipuler frais, gants épais, loin de la nourriture."
+    if {_n} is 3:
+        return "Les Bloaters concentrent le virus dans leur poche gazeuse. C'est de là que vient presque tout le Sang infecte."
+    if {_n} is 4:
+        return "Le Dr Lefort a raison : le sérum ne guérit rien, il retarde. Mes essais vont dans son sens."
+    if {_n} is 5:
+        return "L'antidote agit dans une fenêtre étroite. Ce n'est pas de la chimie, c'est une course contre la montre."
+    if {_n} is 6:
+        return "Les porteurs sains résistent mieux mais contaminent leurs voisins. Chaque guérison laisse une trace dans le corps."
+    if {_n} is 7:
+        return "Z-01 vient du permafrost de la mine de Saint-Aurèle. NORDA l'a sorti de terre avant tout le monde."
+    if {_n} is 8:
+        return "Hélène Vasseur l'écrivait : le virus ne fait que rassembler ce que nous avons semé. Je commence à comprendre."
+    if {_n} is 9:
+        return "Les cultures de NORDA n'ont pas été cachées, elles ont été plantées. Chaque labo scellé est une graine."
+    if {_n} is 10:
+        return "Un vaccin ne t'empêcherait pas d'être mordu. Il donnerait juste au corps le temps de s'expliquer avec le virus."
+    if {_n} is 11:
+        return "Quand l'Overlord tombera, le virus ne se taira pas. Il changera de forme. Il apprend, il s'adapte, il attend."
+    return "Si tu lis ceci, c'est que ton atelier tourne encore. Dans ce monde, c'est déjà une réponse."
+
+# ---------------------------------------------------------------- livraison : le résultat d'une recette (retourne vrai si compté comme fabrication)
+
+function za_at_livrer(p: player, id: text, k: text) :: boolean:
+    set {_d::*} to split {za::atdef::%{_id}%} at "|"
+    set {_t} to {_d::1}
+    set {_niv} to za_at_niveau_cle({_k})
+    set {_l} to {za::at::%{_k}%::loc}
+    set {_a::*} to split {_d::8} at "#"
+    set {_u} to {_p}'s uuid
+    set {_act} to {_a::1}
+    set {_nom} to {_d::6}
+    if {_act} is "item":
+        set {_q} to {_a::5} parsed as number
+        set {_bonus} to ""
+        if {_t} is "medical":
+            if za_role({_p}) is "medecin":
+                if {_a::3} is "Bandage" or "Antibiotique" or "Attelle":
+                    add 1 to {_q}
+                    set {_bonus} to " &8(Médecin : +1)"
+        give za_item({_a::2}, {_a::3}, {_a::4}, {_q}) to {_p}
+        send "&a[Atelier] &7Fabriqué : &f%{_a::3}% x%{_q}%%{_bonus}%&7." to {_p}
+        za_zm("son %{_p}% minecraft:block.anvil.use 0.6 1.3")
+        if {_t} is "mecanique":
+            za_bruit_ajouter({_p}, 6)
+        return true
+    if {_act} is "ammo":
+        set {_q} to {_a::3} parsed as number
+        set {_bonus} to ""
+        if za_role({_p}) is "soldat":
+            set {_q} to floor({_q} * 1.25)
+            set {_bonus} to " &8(Soldat : +25 %%)"
+        execute console command "give %{_p}% tacz:ammo{AmmoId:""tacz:%{_a::2}%""} %{_q}%"
+        send "&a[Atelier] &7Rechargé à la main : &f%{_q}% cartouches &7(%{_a::2}%)%{_bonus}%." to {_p}
+        za_zm("son %{_p}% minecraft:block.piston.extend 0.5 1.6")
+        za_bruit_ajouter({_p}, 5)
+        return true
+    if {_act} is "acc":
+        execute console command "zaarme accessoire %{_p}% %{_a::2}%"
+        send "&a[Atelier] &7Usiné : &f%{_nom}%&7." to {_p}
+        za_zm("son %{_p}% minecraft:block.grindstone.use 0.6 1.2")
+        za_bruit_ajouter({_p}, 4)
+        return true
+    if {_act} is "reparer_arme":
+        set {_avant} to za_jetons({_p})
+        set {_rem} to za_at_remise({_niv}, za_at_courant({_l}))
+        execute console command "zaarme reparer %{_p}% %{_rem}%"
+        if za_jetons({_p}) < {_avant}:
+            za_bruit_ajouter({_p}, 6)
+            return true
+        send "&7[Atelier] Rien n'a été facturé : l'arme n'avait pas besoin de réparation (ou il te manque de quoi payer)." to {_p}
+        return false
+    if {_act} is "reparer_outil":
+        set damage of {_p}'s tool to 0
+        send "&a[Atelier] &7L'outil est comme neuf." to {_p}
+        za_zm("son %{_p}% minecraft:block.anvil.use 0.6 1.1")
+        za_bruit_ajouter({_p}, 6)
+        return true
+    if {_act} is "porte":
+        set {_b} to {_p}'s targeted block
+        set {_pk} to za_porte_cle({_b})
+        set {za::porte::%{_pk}%} to 15
+        send "&a[Atelier] &7Plaques d'acier vissées : la porte tient &f15/15&7." to {_p}
+        za_zm("son %{_p}% minecraft:block.iron_door.close 0.8 0.8")
+        za_bruit_ajouter({_p}, 6)
+        return true
+    if {_act} is "soins":
+        execute console command "zablessure soigner %{_p}%"
+        heal {_p} by 6 hearts
+        delete {za::sang::%{_u}%}
+        delete {za::plaie::flag::%{_u}%}
+        delete {za::mal::plaie::%{_u}%}
+        za_zm("son %{_p}% minecraft:block.beacon.activate 0.7 1.5")
+        execute console command "execute at %{_p}% run particle minecraft:heart ~ ~1.2 ~ 0.4 0.4 0.4 0 8 force"
+        send "&a[Atelier] &7Table d'opération de fortune : plaies nettoyées, blessures traitées. &8(l'infection, elle, demande un Antidote ou un Serum)" to {_p}
+        return true
+    if {_act} is "serum2" or "vaccin" or "radio" or "alarme" or "capteur":
+        set {_it} to za_at_item_special({_act})
+        give {_it} to {_p}
+        send "&a[Atelier] &7Fabriqué : &f%uncolored name of {_it}%&7." to {_p}
+        if {_act} is "alarme" or "capteur":
+            send "&8Pose-le dans ta base (max {@max_alarmes}). Détruis-le pour le récupérer." to {_p}
+        else if {_act} is "vaccin":
+            send "&8Immunité de 20 minutes à boire avant de partir à l'aventure." to {_p}
+        za_zm("son %{_p}% minecraft:block.beacon.power_select 0.7 1.6")
+        return true
+    if {_act} is "analyse":
+        set {_id} to za_souche_id({_p})
+        set {_pv} to za_param({_id}, "vitesse")
+        set {_pf} to za_param({_id}, "fenetre")
+        set {_pr} to za_param({_id}, "rayon")
+        set {_pb} to za_param({_id}, "bonus")
+        send "&5&l[Laboratoire] &7Analyse de la souche locale : &d%za_souche_nom({_id})%" to {_p}
+        send "&8Mort après &f%15 * {_pv}% min &8d'infection (stade 2 à %5 * {_pv}% min, stade 3 à %10 * {_pv}% min)." to {_p}
+        send "&8Fenêtre de l'Antidote : &f%{_pf}% min &8(x1,5 pour un Médecin). Contagion des porteurs : &f%{_pr}% blocs&8. Bonus d'infection : &f+%{_pb}% %%" to {_p}
+        if {za::infection::%{_u}%} is set:
+            set {_ecoule} to difference between {za::infection::%{_u}%} and now
+            send "&c&lTu es infecté &7depuis &f%{_ecoule}%&7. Un Serum (ou un Sérum avancé) agit à tout stade ; l'Antidote seulement dans la fenêtre." to {_p}
+        else if {za::porteur::%{_u}%} is set:
+            send "&e&lTu es porteur sain. &7Aucun symptôme, mais tu contamines ceux qui t'approchent. Un Antidote purge." to {_p}
+        else:
+            send "&a&lTon prélèvement est propre. &7Aucune trace du virus dans ton sang." to {_p}
+        if {za::resist::%{_u}%} is set:
+            send "&8Résistance acquise : niveau &f%{za::resist::%{_u}%}% &8(-2 %% d'infection par niveau, plus de porteurs sains)." to {_p}
+        if za_vaccin_actif({_p}) is true:
+            send "&3Vaccin actif : &f%za_at_duree(difference between now and {za::vaccin::fin::%{_u}%})% &3restantes." to {_p}
+        za_zm("son %{_p}% minecraft:block.brewing_stand.brew 0.8 1")
+        return true
+    if {_act} is "notes":
+        set {_n} to {za::at::notes::%{_u}%}
+        if {_n} is not set:
+            set {_n} to 0
+        if {_n} <= 0:
+            send "&5[Laboratoire] &7Ton carnet est vide. Déchiffre des &aNote de recherche &7(laboratoires, terminaux d'expérience) pour le remplir." to {_p}
+            return false
+        send "&5&l[Laboratoire] &7Ton carnet de recherche &8(%{_n}%/12)" to {_p}
+        set {_i} to 1
+        while {_i} <= {_n}:
+            send "&8%{_i}%. &7&o%za_at_note({_i})%" to {_p}
+            add 1 to {_i}
+        return false
+    if {_act} is "dechiffrer":
+        set {_n} to {za::at::notes::%{_u}%}
+        if {_n} is not set:
+            set {_n} to 0
+        add 1 to {_n}
+        set {za::at::notes::%{_u}%} to {_n}
+        za_jetons_ajouter({_p}, 4)
+        send "&5&l[Laboratoire] &7Note déchiffrée &8(%{_n}%/12) &7et données revendues (&6+4 jetons&7) :" to {_p}
+        send "&7&o%za_at_note({_n})%" to {_p}
+        za_zm("son %{_p}% minecraft:block.enchantment_table.use 0.8 1.2")
+        return true
+    return false
+
+# ---------------------------------------------------------------- fabriquer
+
+function za_at_fabriquer(p: player, id: text, k: text):
+    if {za::atdef::%{_id}%} is not set:
+        stop
+    set {_d::*} to split {za::atdef::%{_id}%} at "|"
+    set {_niv} to za_at_niveau_cle({_k})
+    set {_l} to {za::at::%{_k}%::loc}
+    if ({_d::3} parsed as number) > {_niv}:
+        send "&c[Atelier] &7%{_d::6}% demande un atelier de &fniveau %{_d::3}%&7 (le tien : niveau %{_niv}%)." to {_p}
+        stop
+    if {_d::5} is "1":
+        if za_at_courant({_l}) is false:
+            send "&c[Atelier] &7Cette machine a besoin de courant : &fgénératrice en marche à moins de 24 blocs&7, ou quartier résidentiel branché. &8(/reseau)" to {_p}
+            stop
+    set {_ing} to za_at_ing({_d::7})
+    set {_j} to za_at_jetons_id({_p}, {_id}, {_niv})
+    set {_m} to za_at_manque({_p}, {_ing}, {_j})
+    if {_m} is not "":
+        send "&c[Atelier] &7Il te manque : &f%{_m}%" to {_p}
+        stop
+    set {_act::*} to split {_d::8} at "#"
+    set {_pre} to za_at_pre({_p}, {_act::1}, {_k})
+    if {_pre} is not "":
+        send "&c[Atelier] &7%{_pre}%" to {_p}
+        stop
+    za_at_prendre_ing({_p}, {_ing})
+    if {_j} > 0:
+        za_jetons_ajouter({_p}, 0 - {_j})
+    set {_ok} to za_at_livrer({_p}, {_id}, {_k})
+    if {_ok} is true:
+        za_stat_ajouter({_p}'s uuid, "ateliers", 1)
+
+# ---------------------------------------------------------------- amélioration
+
+function za_at_ameliorer(p: player, k: text):
+    set {_t} to {za::at::%{_k}%::type}
+    if {_t} is not set:
+        send "&c[Atelier] Cet atelier n'existe plus." to {_p}
+        stop
+    set {_u} to {_p}'s uuid
+    if {za::at::%{_k}%::proprio} is not {_u}:
+        send "&c[Atelier] &7Seul le propriétaire peut améliorer cet atelier." to {_p}
+        stop
+    set {_niv} to za_at_niveau_cle({_k})
+    if {_niv} >= 3:
+        send "&7[Atelier] Cet atelier est déjà au niveau maximum (3)." to {_p}
+        stop
+    set {_c::*} to split za_at_cout_niv({_t}, {_niv} + 1) at "|"
+    set {_ing} to za_at_ing({_c::2})
+    set {_j} to za_prix({_p}, {_c::1} parsed as number)
+    set {_m} to za_at_manque({_p}, {_ing}, {_j})
+    if {_m} is not "":
+        send "&c[Atelier] &7Amélioration au niveau %{_niv} + 1% : il te manque &f%{_m}%&7." to {_p}
+        stop
+    za_at_prendre_ing({_p}, {_ing})
+    za_jetons_ajouter({_p}, 0 - {_j})
+    add 1 to {_niv}
+    set {za::at::%{_k}%::niveau} to {_niv}
+    set {za::at::niv::%{_u}%::%{_t}%} to {_niv}
+    set {_l} to {za::at::%{_k}%::loc}
+    execute console command "execute in %za_dim(world of {_l})% run particle minecraft:happy_villager %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l} + 1)% %floor(z-coordinate of {_l})% 0.5 0.5 0.5 0 25 force"
+    za_zm("son %{_p}% minecraft:entity.player.levelup 0.8 1.2")
+    send "&a&l[Atelier] &f%za_at_nom({_t})% &apasse au niveau %{_niv}% &7(-%{_j}% jetons)." to {_p}
+    # nouveautés débloquées
+    loop {za::atdef_ids::*}:
+        set {_d::*} to split {za::atdef::%loop-value%} at "|"
+        if {_d::1} is {_t}:
+            if ({_d::3} parsed as number) is {_niv}:
+                add "&f%{_d::6}%" to {_nouv::*}
+    if size of {_nouv::*} > 0:
+        set {_lst} to join {_nouv::*} with "&7, "
+        send "&7Débloqué : %{_lst}%" to {_p}
+    if {_niv} >= 3:
+        za_journal("%{_p}% a achevé un %za_at_nom({_t}) in lowercase% de niveau 3.")
+
+# ---------------------------------------------------------------- création
+
+function za_at_creer(p: player, tt: text):
+    set {_t} to za_at_norm({_tt})
+    if {_t} is "":
+        send "&cType inconnu. &7Choisis : &fmedical&7, &fmilitaire&7, &fmecanique&7, &flaboratoire&7, &felectronique&7." to {_p}
+        stop
+    set {_u} to {_p}'s uuid
+    if {za::base::%{_u}%} is not set:
+        send "&c[Atelier] &7Un atelier se construit dans ta base. Fais d'abord &e/base definir &7à l'endroit de ton refuge." to {_p}
+        stop
+    set {_b} to {_p}'s targeted block
+    if {_b} is not set:
+        send "&c[Atelier] &7Regarde le bloc de l'atelier : &f%za_at_bloc_nom({_t})%&7." to {_p}
+        stop
+    if za_at_bloc_ok({_t}, {_b}) is false:
+        send "&c[Atelier] &7Pour un %za_at_nom({_t}) in lowercase%, pose et regarde un(e) &f%za_at_bloc_nom({_t})%&7 (à moins de 7 blocs)." to {_p}
+        stop
+    if distance between {_b} and {_p} > 7:
+        send "&c[Atelier] &7Rapproche-toi du bloc (7 blocs maximum)." to {_p}
+        stop
+    set {_bl} to {za::base::%{_u}%}
+    set {_ok} to false
+    if world of {_b} is world of {_bl}:
+        if distance between {_b} and {_bl} <= {@rayon_base}:
+            set {_ok} to true
+    if {_ok} is false:
+        send "&c[Atelier] &7Le bloc doit être dans ta base (à moins de {@rayon_base} blocs du centre défini par /base definir)." to {_p}
+        stop
+    set {_k} to za_lkey(location of {_b})
+    if {za::at::%{_k}%::type} is set:
+        send "&c[Atelier] &7Ce bloc est déjà un atelier." to {_p}
+        stop
+    set {_ancien} to za_at_cle({_u}, {_t})
+    if {_ancien} is not "":
+        send "&c[Atelier] &7Tu as déjà un %za_at_nom({_t}) in lowercase% (niveau %za_at_niveau_cle({_ancien})%). Pour le changer de place : &e/atelier deplacer %{_t}%&7." to {_p}
+        stop
+    set {_c::*} to split za_at_cout_niv({_t}, 1) at "|"
+    set {_ing} to za_at_ing({_c::2})
+    set {_j} to za_prix({_p}, {_c::1} parsed as number)
+    set {_m} to za_at_manque({_p}, {_ing}, {_j})
+    if {_m} is not "":
+        send "&c[Atelier] &7Construire un %za_at_nom({_t}) in lowercase% coûte &f%za_at_cout_txt({_ing}, {_j})%&7. Il te manque : &f%{_m}%&7." to {_p}
+        stop
+    za_at_prendre_ing({_p}, {_ing})
+    za_jetons_ajouter({_p}, 0 - {_j})
+    set {_niv} to 1
+    if {za::at::reste::%{_u}%::%{_t}%} is set:
+        set {_niv} to {za::at::reste::%{_u}%::%{_t}%}
+        delete {za::at::reste::%{_u}%::%{_t}%}
+    za_at_enregistrer({_k}, {_t}, {_u}, location of {_b}, {_niv})
+    if {_t} is "laboratoire":
+        if {za::at::notes::%{_u}%} is not set:
+            set {za::at::notes::%{_u}%} to 1
+    set {_l} to location of {_b}
+    execute console command "execute in %za_dim(world of {_l})% run particle minecraft:happy_villager %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l} + 1)% %floor(z-coordinate of {_l})% 0.5 0.5 0.5 0 25 force"
+    za_zm("son %{_p}% minecraft:block.anvil.use 0.8 1")
+    send "&a&l[Atelier] &f%za_at_nom({_t})% &ainstallé &7(niveau %{_niv}%, -%{_j}% jetons)." to {_p}
+    send "&7Clic droit sur le bloc : menu des recettes. Accroupi : interface normale. &8(/atelier ameliorer, /atelier recettes %{_t}%)" to {_p}
+    if {_t} is "laboratoire":
+        send "&5Ton carnet contient déjà une note de recherche : &7&o%za_at_note(1)%" to {_p}
+    za_journal("%{_p}% a installé un %za_at_nom({_t}) in lowercase% dans sa base.")
+
+# ---------------------------------------------------------------- cible : l'atelier regardé, sinon le plus proche (12 blocs)
+
+function za_at_cible(p: player) :: text:
+    set {_b} to {_p}'s targeted block
+    if {_b} is set:
+        if distance between {_b} and {_p} <= 8:
+            set {_k} to za_lkey(location of {_b})
+            if {za::at::%{_k}%::type} is set:
+                return {_k}
+    set {_best} to 12
+    set {_res} to ""
+    loop {za::at::liste::*}:
+        set {_l} to {za::at::%loop-value%::loc}
+        if {_l} is set:
+            if world of {_l} is world of {_p}:
+                set {_d} to distance between {_l} and {_p}
+                if {_d} < {_best}:
+                    set {_best} to {_d}
+                    set {_res} to loop-value
+    return {_res}
+
+# ---------------------------------------------------------------- clic droit sur le bloc = menu
+
+on right click:
+    if event-block is not set:
+        stop
+    if za_pro(player) is true:
+        stop
+    set {_k} to za_lkey(location of event-block)
+    if {za::at::%{_k}%::type} is not set:
+        stop
+    if player is sneaking:
+        stop
+    cancel the event
+    set {_u} to player's uuid
+    if {za::at::debounce::%{_u}%} is set:
+        if difference between {za::at::debounce::%{_u}%} and now is less than 400 milliseconds:
+            stop
+    set {za::at::debounce::%{_u}%} to now
+    za_at_ouvrir(player, {_k}, "-")
+
+command /zatelierclic <player> <text>:
+    executable by: console
+    trigger:
+        set {_p} to arg-1
+        set {_u} to {_p}'s uuid
+        set {_k} to {za::at::ouvert::%{_u}%}
+        if {_k} is not set:
+            stop
+        if {za::at::%{_k}%::type} is not set:
+            send "&c[Atelier] &7Cet atelier n'existe plus." to {_p}
+            stop
+        set {_l} to {za::at::%{_k}%::loc}
+        set {_proche} to false
+        if world of {_p} is world of {_l}:
+            if distance between {_p} and {_l} <= ({@rayon_usage} + 3):
+                set {_proche} to true
+        if {_proche} is false:
+            send "&c[Atelier] &7Tu t'es trop éloigné de l'atelier." to {_p}
+            stop
+        set {_n::*} to split arg-2 at ":"
+        if {_n::1} is "cat":
+            za_at_ouvrir({_p}, {_k}, {_n::2})
+        else if {_n::1} is "up":
+            za_at_ameliorer({_p}, {_k})
+            wait 3 ticks
+            if {_p} is online:
+                za_at_ouvrir({_p}, {_k}, "-")
+        else if {_n::1} is "rec":
+            za_at_fabriquer({_p}, {_n::2}, {_k})
+            wait 3 ticks
+            if {_p} is online:
+                set {_d::*} to split {za::atdef::%{_n::2}%} at "|"
+                if {_d::2} is not set:
+                    stop
+                za_at_ouvrir({_p}, {_k}, {_d::2})
+
+# ---------------------------------------------------------------- casser un atelier / une alarme / un capteur
+
+on break:
+    if za_pro(player) is true:
+        stop
+    set {_k} to za_lkey(location of event-block)
+    if {za::at::%{_k}%::type} is set:
+        set {_u} to player's uuid
+        if {za::at::%{_k}%::proprio} is not {_u}:
+            if player doesn't have permission "za.admin":
+                cancel the event
+                send "&c[Atelier] &7Cet atelier appartient à un autre survivant." to player
+                stop
+        set {_t} to {za::at::%{_k}%::type}
+        set {_nv} to za_at_niveau_cle({_k})
+        set {_pr} to {za::at::%{_k}%::proprio}
+        za_at_retirer({_k}, true)
+        send "&7[Atelier] %za_at_nom({_t})% démonté (niveau %{_nv}%). Reconstruis-le avec &e/atelier creer %{_t}% &7pour retrouver son niveau." to player
+        if {_pr} is not {_u}:
+            set {_o} to za_at_joueur({_pr})
+            if {_o} is set:
+                send "&c[Atelier] &7Ton %za_at_nom({_t}) in lowercase% a été démonté par un administrateur." to {_o}
+        stop
+    if {za::at::alarme::%{_k}%::proprio} is set:
+        cancel the event
+        set block at location of event-block to air
+        drop za_at_item_special("alarme") at location of event-block
+        delete {za::at::alarme::%{_k}%::*}
+        remove {_k} from {za::at::alarme::liste::*}
+        send "&7[Alarme] Alarme de périmètre retirée." to player
+        stop
+    if {za::at::capteur::%{_k}%::proprio} is set:
+        cancel the event
+        set block at location of event-block to air
+        drop za_at_item_special("capteur") at location of event-block
+        delete {za::at::capteur::%{_k}%::*}
+        remove {_k} from {za::at::capteur::liste::*}
+        send "&7[Capteur] Capteur de présence retiré." to player
+
+# ---------------------------------------------------------------- poser une alarme / un capteur
+
+function za_at_poser_ok(p: player, b: block, cle: text, liste: text) :: boolean:
+    set {_u} to {_p}'s uuid
+    if {za::base::%{_u}%} is not set:
+        send "&c[Atelier] &7Pose-le dans ta base. Fais d'abord &e/base definir&7." to {_p}
+        return false
+    set {_bl} to {za::base::%{_u}%}
+    if world of {_b} is not world of {_bl}:
+        send "&c[Atelier] &7Pose-le dans ta base (à moins de {@rayon_base} blocs de son centre)." to {_p}
+        return false
+    if distance between {_b} and {_bl} > {@rayon_base}:
+        send "&c[Atelier] &7Pose-le dans ta base (à moins de {@rayon_base} blocs de son centre)." to {_p}
+        return false
+    set {_n} to 0
+    if {_liste} is "alarme":
+        loop {za::at::alarme::liste::*}:
+            if {za::at::alarme::%loop-value%::proprio} is {_u}:
+                add 1 to {_n}
+        if {_n} >= {@max_alarmes}:
+            send "&c[Atelier] &7Tu as déjà %{_n}% alarmes de périmètre (maximum {@max_alarmes})." to {_p}
+            return false
+    else:
+        loop {za::at::capteur::liste::*}:
+            if {za::at::capteur::%loop-value%::proprio} is {_u}:
+                add 1 to {_n}
+        if {_n} >= {@max_capteurs}:
+            send "&c[Atelier] &7Tu as déjà %{_n}% capteurs de présence (maximum {@max_capteurs})." to {_p}
+            return false
+    return true
+
+on place:
+    if za_pro(player) is true:
+        stop
+    set {_nom} to uncolored name of event-item
+    if {_nom} is "Alarme de périmètre":
+        if event-block is not lightning rod:
+            stop
+        set {_k} to za_lkey(location of event-block)
+        if za_at_poser_ok(player, event-block, {_k}, "alarme") is false:
+            cancel the event
+            stop
+        set {za::at::alarme::%{_k}%::loc} to location of event-block
+        set {za::at::alarme::%{_k}%::proprio} to player's uuid
+        add {_k} to {za::at::alarme::liste::*}
+        send "&a[Alarme] &7Alarme de périmètre active. Elle te préviendra en silence quand des morts approcheront &8(portée %za_at_portee_alarme(player's uuid)% blocs)&7." to player
+        za_zm("son %player% minecraft:block.beacon.activate 0.5 1.8")
+    else if {_nom} is "Capteur de présence":
+        if event-block is not sculk sensor:
+            stop
+        set {_k} to za_lkey(location of event-block)
+        if za_at_poser_ok(player, event-block, {_k}, "capteur") is false:
+            cancel the event
+            stop
+        set {za::at::capteur::%{_k}%::loc} to location of event-block
+        set {za::at::capteur::%{_k}%::proprio} to player's uuid
+        add {_k} to {za::at::capteur::liste::*}
+        send "&a[Capteur] &7Capteur de présence actif. Il te préviendra quand un inconnu entrera dans ta base &8(portée %za_at_portee_capteur(player's uuid)% blocs)&7." to player
+        za_zm("son %player% minecraft:block.beacon.activate 0.5 1.8")
+
+# portée selon le niveau de l'atelier électronique du propriétaire (pas d'atelier : niveau 1)
+function za_at_portee_alarme(u: text) :: number:
+    set {_n} to za_atelier_niveau({_u}, "electronique")
+    if {_n} >= 3:
+        return 40
+    if {_n} >= 2:
+        return 30
+    return 24
+
+function za_at_portee_capteur(u: text) :: number:
+    set {_n} to za_atelier_niveau({_u}, "electronique")
+    if {_n} >= 3:
+        return 20
+    if {_n} >= 2:
+        return 16
+    return 12
+
+# ---------------------------------------------------------------- alarmes : morts qui approchent (signal silencieux au propriétaire et à son squad)
+
+every 6 seconds:
+    if za_emp_actif() is true:
+        stop
+    loop {za::at::alarme::liste::*}:
+        set {_k} to loop-value
+        set {_l} to {za::at::alarme::%{_k}%::loc}
+        set {_o} to {za::at::alarme::%{_k}%::proprio}
+        if {_l} is not set:
+            remove {_k} from {za::at::alarme::liste::*}
+            delete {za::at::alarme::%{_k}%::*}
+        else if chunk at {_l} is loaded:
+            if "%type of block at {_l}%" is not "lightning rod":
+                remove {_k} from {za::at::alarme::liste::*}
+                delete {za::at::alarme::%{_k}%::*}
+            else if any:
+                {za::at::alarme::cd::%{_o}%} is not set
+                now is greater than or equal to {za::at::alarme::cd::%{_o}%}
+            then:
+                set {_r} to za_at_portee_alarme({_o})
+                set {_z::*} to all zombies in radius {_r} around {_l}
+                set {_h::*} to all vindicators in radius {_r} around {_l}
+                set {_h2::*} to all pillagers in radius {_r} around {_l}
+                set {_n} to size of {_z::*}
+                set {_nh} to size of {_h::*} + size of {_h2::*}
+                if {_n} + {_nh} > 0:
+                    set {_tous::*} to {_z::*}, {_h::*} and {_h2::*}
+                    set {_pz} to za_at_proche({_l}, {_tous::*})
+                    set {_proche} to distance between {_pz} and {_l}
+                    set {za::at::alarme::cd::%{_o}%} to now
+                    add 45 seconds to {za::at::alarme::cd::%{_o}%}
+                    set {_dir} to za_at_dir({_l}, {_pz})
+                    set {_tot} to {_n} + {_nh}
+                    set {_msg} to "&c&l[ALARME] &7%{_tot}% morts rôdent vers %{_dir}% de ton périmètre (le plus proche à %floor({_proche})% blocs)."
+                    if {_tot} >= 8:
+                        set {_msg} to "&4&l[ALARME] &cUne HORDE (%{_tot}% morts) converge vers ton périmètre par %{_dir}%, à %floor({_proche})% blocs !"
+                    else if {_nh} > 0:
+                        set {_msg} to "&c&l[ALARME] &7%{_tot}% intrus (dont %{_nh}% pillards armés) vers %{_dir}%, à %floor({_proche})% blocs de ton périmètre."
+                    loop all players:
+                        if za_pro(loop-player) is false:
+                            set {_lu} to loop-player's uuid
+                            if za_at_ami({_o}, {_lu}) is true:
+                                send {_msg} to loop-player
+                                send action bar "&c⚠ Alarme de périmètre : morts à l'approche" to loop-player
+                                za_zm("son %loop-player% za_modeles:sfx.alarme_auto 0.6 1.2")
+
+# ---------------------------------------------------------------- capteurs : un inconnu entre dans la base
+
+every 5 seconds:
+    if za_emp_actif() is true:
+        stop
+    loop {za::at::capteur::liste::*}:
+        set {_k} to loop-value
+        set {_l} to {za::at::capteur::%{_k}%::loc}
+        set {_o} to {za::at::capteur::%{_k}%::proprio}
+        if {_l} is not set:
+            remove {_k} from {za::at::capteur::liste::*}
+            delete {za::at::capteur::%{_k}%::*}
+        else if chunk at {_l} is loaded:
+            if "%type of block at {_l}%" is not "sculk sensor":
+                remove {_k} from {za::at::capteur::liste::*}
+                delete {za::at::capteur::%{_k}%::*}
+            else:
+                set {_r} to za_at_portee_capteur({_o})
+                set {_dest} to za_at_joueur({_o})
+                loop za_monde_joueurs():
+                    set {_pu} to loop-player's uuid
+                    if za_at_ami({_o}, {_pu}) is false:
+                        if world of loop-player is world of {_l}:
+                            if distance between loop-player and {_l} <= {_r}:
+                                set {_vu} to {za::at::capteur::%{_k}%::vu::%{_pu}%}
+                                if any:
+                                    {_vu} is not set
+                                    difference between {_vu} and now is greater than 5 minutes
+                                then:
+                                    set {za::at::capteur::%{_k}%::vu::%{_pu}%} to now
+                                    if {_dest} is set:
+                                        send "&e&l[CAPTEUR] &7%loop-player% est entré dans ta base &8(à %floor(distance between loop-player and {_l})% blocs de ton capteur, vers %za_at_dir({_l}, location of loop-player)%)&7." to {_dest}
+                                        send action bar "&e⚠ Capteur de présence : un inconnu dans ta base" to {_dest}
+                                        za_zm("son %{_dest}% minecraft:block.note_block.bell 0.7 1.5")
+
+# ---------------------------------------------------------------- radio portable
+
+on right click with compass:
+    if za_pro(player) is true:
+        stop
+    if uncolored name of player's tool is not "Radio portable":
+        stop
+    if event-block is set:
+        if {za::at::%za_lkey(location of event-block)%::type} is set:
+            stop
+    set {_u} to player's uuid
+    if za_emp_actif() is true:
+        send "&b[Radio portable] &7Que du souffle : impulsion EMP en cours." to player
+        stop
+    if {za::at::radio::cd::%{_u}%} is set:
+        if now is less than {za::at::radio::cd::%{_u}%}:
+            send action bar "&7La radio chauffe... quelques secondes." to player
+            stop
+    set {za::at::radio::cd::%{_u}%} to now
+    add 15 seconds to {za::at::radio::cd::%{_u}%}
+    za_zm("son %player% za_modeles:sfx.radio_statique 0.5 1")
+    send "&8&m                                        " to player
+    send "&b&l[Radio portable] &7Balayage des fréquences..." to player
+    za_zone_info(player)
+    # camp vivant le plus proche
+    set {_best} to 99999
+    set {_bc} to ""
+    loop {za::camp::liste::*}:
+        if {za::camp::%loop-value%::etat} is "vivant":
+            set {_cl} to {za::camp::%loop-value%::loc}
+            if {_cl} is set:
+                if world of {_cl} is world of player:
+                    set {_d} to distance between {_cl} and player
+                    if {_d} < {_best}:
+                        set {_best} to {_d}
+                        set {_bc} to loop-value
+    if {_bc} is not "":
+        send "&8Signal d'un camp : &f%{za::camp::%{_bc}%::nom}% &8vers %za_at_dir(location of player, {za::camp::%{_bc}%::loc})%, à ~%floor({_best} / 10) * 10% blocs." to player
+    else:
+        send "&8Aucun camp vivant ne répond sur ces fréquences." to player
+    set {_g::*} to "hopital", "police", "commerce" and "residentiel"
+    loop {_g::*}:
+        if {za::reseau::%loop-value%} is true:
+            add loop-value to {_on::*}
+    if size of {_on::*} > 0:
+        set {_lst} to join {_on::*} with ", "
+        send "&8Réseau électrique : quartier(s) branché(s) : &e%{_lst}%" to player
+    else:
+        send "&8Réseau électrique : &7rien ne répond. Le noir complet." to player
+    send "&8&m                                        " to player
+
+# ---------------------------------------------------------------- Sérum avancé et Vaccin expérimental
+
+function za_vaccin_actif(p: player) :: boolean:
+    set {_f} to {za::vaccin::fin::%{_p}'s uuid%}
+    if {_f} is not set:
+        return false
+    if now is less than {_f}:
+        return true
+    return false
+
+on consume:
+    if za_pro(player) is true:
+        stop
+    set {_n} to uncolored name of event-item
+    if {_n} is "Sérum avancé":
+        set {_u} to player's uuid
+        if any:
+            {za::infection::%{_u}%} is set
+            {za::porteur::%{_u}%} is set
+        then:
+            delete {za::infection::%{_u}%}
+            delete {za::porteur::%{_u}%}
+            delete {za::mal::plaie::%{_u}%}
+            delete {za::mal::grippe::%{_u}%}
+            delete {za::mal::fievre::%{_u}%}
+            za_effet(player, "regeneration", 20, 1)
+            za_resistance(player)
+            send "&5&lSérum avancé. &7Le virus lâche prise, à tout stade. Tu es guéri." to player
+            za_zm("son %player% minecraft:block.beacon.activate 0.8 1.3")
+        else:
+            cancel the event
+            send "&7Tu n'es pas infecté : garde ce sérum pour le jour où tu en auras besoin." to player
+    else if {_n} is "Vaccin expérimental":
+        set {_u} to player's uuid
+        if za_vaccin_actif(player) is true:
+            cancel the event
+            send "&3[Vaccin] &7Tu es déjà immunisé (%za_at_duree(difference between now and {za::vaccin::fin::%{_u}%})% restantes)." to player
+            stop
+        set {za::vaccin::debut::%{_u}%} to now
+        set {za::vaccin::fin::%{_u}%} to now
+        add {@duree_vaccin} to {za::vaccin::fin::%{_u}%}
+        send "&3&l[Vaccin] &7Ton corps se prépare. &fImmunité à l'infection pendant 20 minutes&7." to player
+        send "&8Effets secondaires : la fièvre vaccinale te coupe les bras un moment." to player
+        za_effet(player, "weakness", 45, 0)
+        za_zm("son %player% minecraft:block.beacon.power_select 0.8 1.4")
+
+# immunité : une infection née pendant le vaccin est effacée aussitôt (le script d'infection ne connaît pas de drapeau d'immunité)
+function za_vaccin_purge(p: player):
+    set {_u} to {_p}'s uuid
+    set {_deb} to {za::vaccin::debut::%{_u}%}
+    if {_deb} is not set:
+        stop
+    set {_purge} to false
+    if {za::infection::%{_u}%} is set:
+        if {za::infection::%{_u}%} > {_deb}:
+            delete {za::infection::%{_u}%}
+            set {_purge} to true
+    if {za::porteur::%{_u}%} is set:
+        if {za::porteur::%{_u}%} > {_deb}:
+            delete {za::porteur::%{_u}%}
+            set {_purge} to true
+    if {_purge} is true:
+        send "&3[Vaccin] &7Ton corps a repoussé le virus." to {_p}
+        za_zm("son %{_p}% minecraft:block.amethyst_block.chime 0.8 1.4")
+        execute console command "execute at %{_p}% run particle minecraft:end_rod ~ ~1.2 ~ 0.3 0.5 0.3 0.02 14 force"
+
+on damage of player with priority monitor:
+    if za_pro(victim) is true:
+        stop
+    if za_vaccin_actif(victim) is true:
+        za_vaccin_purge(victim)
+
+every 2 seconds:
+    loop za_monde_joueurs():
+        set {_u} to loop-value's uuid
+        if {za::vaccin::fin::%{_u}%} is set:
+            if now is less than {za::vaccin::fin::%{_u}%}:
+                za_vaccin_purge(loop-value)
+            else:
+                delete {za::vaccin::fin::%{_u}%}
+                delete {za::vaccin::debut::%{_u}%}
+                send "&3[Vaccin] &7L'immunité retombe. Tu es de nouveau vulnérable." to loop-value
+                za_zm("son %loop-value% minecraft:block.beacon.deactivate 0.6 1.2")
+
+# ---------------------------------------------------------------- entretien du registre : ateliers détruits (explosion, pelle...)
+
+every 2 minutes:
+    loop {za::at::liste::*}:
+        set {_k} to loop-value
+        set {_l} to {za::at::%{_k}%::loc}
+        set {_t} to {za::at::%{_k}%::type}
+        if any:
+            {_l} is not set
+            {_t} is not set
+        then:
+            za_at_retirer({_k}, false)
+        else if chunk at {_l} is loaded:
+            if za_at_bloc_ok({_t}, block at {_l}) is false:
+                set {_o} to za_at_joueur({za::at::%{_k}%::proprio})
+                za_at_retirer({_k}, true)
+                if {_o} is set:
+                    send "&c[Atelier] &7Ton %za_at_nom({_t}) in lowercase% a été détruit. Reconstruis le bloc puis &e/atelier creer %{_t}% &7pour retrouver son niveau." to {_o}
+
+# ---------------------------------------------------------------- /atelier
+
+function za_at_aide(p: player):
+    send "&8&m                                        " to {_p}
+    send "&6&l⚙ ATELIERS &7- cinq postes de travail dans ta base" to {_p}
+    send "&7Pose le bloc, regarde-le et tape &e/atelier creer <type>&7. Clic droit dessus : menu des recettes (accroupi : interface normale)." to {_p}
+    send "&c▪ medical &7alambic : Bandage, Attelle, Antibiotique, Sérum avancé, soins" to {_p}
+    send "&2▪ militaire &7table de forgeron : munitions, chargeurs, optiques, silencieux" to {_p}
+    send "&6▪ mecanique &7enclume : réparer armes et outils, Pied-de-biche, Jerrican, blindage de porte, Générateur" to {_p}
+    send "&5▪ laboratoire &7chaudron : analyse de souche, Antidote, Vaccin expérimental, notes de recherche" to {_p}
+    send "&b▪ electronique &7métier à tisser : Radio portable, Alarme de périmètre, Capteur de présence" to {_p}
+    send "&8Niveaux 1 à 3 (/atelier ameliorer) : -10 %% de jetons par niveau, recettes avancées. Niveaux 2 et 3 : ressource de la saison (&e/ressource&8)." to {_p}
+    send "&8Certaines machines exigent du courant : génératrice en marche à moins de 24 blocs ou quartier résidentiel branché (&e/reseau&8)." to {_p}
+    send "&8&m                                        " to {_p}
+
+function za_at_etat(p: player):
+    set {_u} to {_p}'s uuid
+    send "&8&m                                        " to {_p}
+    send "&6&l⚙ TES ATELIERS" to {_p}
+    if {za::base::%{_u}%} is not set:
+        send "&cPas de base : &7fais &e/base definir &7dans ton refuge avant de construire un atelier." to {_p}
+    set {_types::*} to za_at_types()
+    loop {_types::*}:
+        set {_t} to loop-value
+        set {_k} to za_at_cle({_u}, {_t})
+        if {_k} is not "":
+            set {_l} to {za::at::%{_k}%::loc}
+            set {_cour} to "&7courant : &cnon"
+            if za_at_courant({_l}) is true:
+                set {_cour} to "&7courant : &aoui"
+            send "%za_at_col({_t})%▪ %za_at_nom({_t})% &7niv &f%za_at_niveau_cle({_k})%/3 &8(%floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})%) %{_cour}%" to {_p}
+        else:
+            send "&8▫ %za_at_nom({_t})% &8- non construit. Bloc : %za_at_bloc_nom({_t})%. &7/atelier creer %{_t}%" to {_p}
+    if za_vaccin_actif({_p}) is true:
+        send "&3Vaccin actif : &f%za_at_duree(difference between now and {za::vaccin::fin::%{_u}%})% &3restantes." to {_p}
+    send "&8/atelier aide · creer <type> · ameliorer · recettes [type] · deplacer <type> · supprimer <type>" to {_p}
+    send "&8&m                                        " to {_p}
+
+function za_at_recettes(p: player, t: text):
+    set {_niv} to za_atelier_niveau({_p}'s uuid, {_t})
+    send "&8&m                                        " to {_p}
+    send "%za_at_col({_t})%&l%za_at_nom({_t})% &7- recettes &8(ton niveau : %{_niv}%)" to {_p}
+    loop {za::atdef_ids::*}:
+        set {_d::*} to split {za::atdef::%loop-value%} at "|"
+        if {_d::1} is {_t}:
+            set {_ing} to za_at_ing({_d::7})
+            set {_j} to za_at_jetons_id({_p}, loop-value, max(1, {_niv}))
+            set {_extra} to ""
+            if {_d::5} is "1":
+                set {_extra} to " &e⚡"
+            set {_cat} to ""
+            if {_d::2} is not "-":
+                set {_cat} to " &8[%za_at_cat_nom({_d::2})%]"
+            send "&7▪ &f%{_d::6}% &8(niv %{_d::3}%)%{_extra}%%{_cat}% &7: %za_at_cout_txt({_ing}, {_j})%" to {_p}
+    send "&8⚡ = demande du courant. Prix des jetons pour ton niveau d'atelier (niveau 1 si tu n'en as pas)." to {_p}
+    send "&8&m                                        " to {_p}
+
+command /atelier [<text>] [<text>]:
+    aliases: /ateliers
+    trigger:
+        if za_pro(player) is true:
+            send "&7Les ateliers n'existent pas encore dans ce monde." to player
+            stop
+        set {_u} to player's uuid
+        set {_a} to arg-1 in lowercase
+        if arg-1 is not set:
+            za_at_etat(player)
+        else if {_a} is "creer" or "créer" or "construire" or "installer":
+            if arg-2 is not set:
+                send "&cUsage : /atelier creer <medical|militaire|mecanique|laboratoire|electronique> &7(en regardant le bloc)" to player
+                stop
+            za_at_creer(player, arg-2)
+        else if {_a} is "ameliorer" or "améliorer" or "upgrade":
+            set {_k} to za_at_cible(player)
+            if {_k} is "":
+                send "&c[Atelier] &7Regarde ton atelier (ou approche-toi à moins de 12 blocs)." to player
+                stop
+            za_at_ameliorer(player, {_k})
+        else if {_a} is "recettes" or "recette":
+            if arg-2 is not set:
+                send "&7Choisis un atelier : &e/atelier recettes <medical|militaire|mecanique|laboratoire|electronique>" to player
+                stop
+            set {_t} to za_at_norm(arg-2)
+            if {_t} is "":
+                send "&cType inconnu : %arg-2%" to player
+                stop
+            za_at_recettes(player, {_t})
+        else if {_a} is "deplacer" or "déplacer":
+            if arg-2 is not set:
+                send "&cUsage : /atelier deplacer <type> &7(en regardant le nouveau bloc)" to player
+                stop
+            set {_t} to za_at_norm(arg-2)
+            if {_t} is "":
+                send "&cType inconnu : %arg-2%" to player
+                stop
+            set {_old} to za_at_cle({_u}, {_t})
+            if {_old} is "":
+                send "&c[Atelier] &7Tu n'as pas de %za_at_nom({_t}) in lowercase% à déplacer. Utilise &e/atelier creer %{_t}%&7." to player
+                stop
+            set {_b} to player's targeted block
+            if {_b} is not set:
+                send "&c[Atelier] &7Regarde le nouveau bloc : &f%za_at_bloc_nom({_t})%&7." to player
+                stop
+            if za_at_bloc_ok({_t}, {_b}) is false:
+                send "&c[Atelier] &7Le nouveau bloc doit être : &f%za_at_bloc_nom({_t})%&7." to player
+                stop
+            if distance between {_b} and player > 7:
+                send "&c[Atelier] &7Rapproche-toi du bloc (7 blocs maximum)." to player
+                stop
+            if {za::base::%{_u}%} is not set:
+                send "&c[Atelier] &7Il te faut une base (/base definir)." to player
+                stop
+            set {_bl} to {za::base::%{_u}%}
+            if world of {_b} is not world of {_bl}:
+                send "&c[Atelier] &7Le bloc doit être dans ta base." to player
+                stop
+            if distance between {_b} and {_bl} > {@rayon_base}:
+                send "&c[Atelier] &7Le bloc doit être dans ta base (à moins de {@rayon_base} blocs du centre)." to player
+                stop
+            set {_k} to za_lkey(location of {_b})
+            if {za::at::%{_k}%::type} is set:
+                send "&c[Atelier] &7Ce bloc est déjà un atelier." to player
+                stop
+            set {_niv} to za_at_niveau_cle({_old})
+            za_at_retirer({_old}, false)
+            za_at_enregistrer({_k}, {_t}, {_u}, location of {_b}, {_niv})
+            send "&a[Atelier] &f%za_at_nom({_t})% &adéplacé &7(niveau %{_niv}% conservé). &8L'ancien bloc n'est plus un atelier." to player
+            za_zm("son %player% minecraft:block.anvil.use 0.6 1.1")
+        else if {_a} is "supprimer" or "retirer":
+            if arg-2 is not set:
+                send "&cUsage : /atelier supprimer <type> &7(le niveau est gardé pour une reconstruction)" to player
+                stop
+            set {_t} to za_at_norm(arg-2)
+            set {_old} to za_at_cle({_u}, {_t})
+            if {_old} is "":
+                send "&c[Atelier] &7Tu n'as pas d'atelier de ce type." to player
+                stop
+            set {_nv} to za_at_niveau_cle({_old})
+            za_at_retirer({_old}, true)
+            send "&7[Atelier] %za_at_nom({_t})% désactivé (niveau %{_nv}% gardé : reconstruis-le avec &e/atelier creer %{_t}%&7). Le bloc reste en place." to player
+        else if {_a} is "aide" or "help" or "?":
+            za_at_aide(player)
+        else:
+            send "&cUsage : /atelier &7[creer <type> | ameliorer | recettes <type> | deplacer <type> | supprimer <type> | aide]" to player
+
+# ---------------------------------------------------------------- admin / console : /zatelier
+
+command /zatelier <text> [<text>] [<text>] [<text>] [<text>] [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        set {_a} to arg-1 in lowercase
+        if {_a} is "etat":
+            send "&7[zatelier] ateliers : %size of {za::at::liste::*}% | alarmes : %size of {za::at::alarme::liste::*}% | capteurs : %size of {za::at::capteur::liste::*}% | ressource de saison : %za_at_res()%" to sender
+        else if {_a} is "liste":
+            loop {za::at::liste::*}:
+                send "&7%loop-value% : %{za::at::%loop-value%::type}% niv %{za::at::%loop-value%::niveau}% (proprio %{za::at::%loop-value%::proprio}%)" to sender
+            send "&7[zatelier] %size of {za::at::liste::*}% atelier(s)." to sender
+        else if {_a} is "poser":
+            # zatelier poser <joueur> <type> <x> <y> <z> <monde> [niveau] : pose le bloc ET enregistre l'atelier (sans coût, sans base)
+            set {_pl} to arg-2 parsed as player
+            set {_t} to za_at_norm(arg-3)
+            set {_x} to arg-4 parsed as number
+            set {_y} to arg-5 parsed as number
+            set {_z} to arg-6 parsed as number
+            set {_wn} to arg-7
+            if any:
+                {_pl} is not set
+                {_t} is ""
+                {_z} is not set
+                {_wn} is not set
+            then:
+                send "&cUsage : zatelier poser <joueur> <type> <x> <y> <z> <monde>  (niveau 1 ; ensuite : zatelier niveau x y z monde n)" to sender
+                stop
+            set {_w} to world({_wn})
+            if {_w} is not set:
+                send "&cMonde introuvable : %{_wn}%" to sender
+                stop
+            set {_wd} to za_dim({_w})
+            set {_bl} to "minecraft:brewing_stand"
+            if {_t} is "militaire":
+                set {_bl} to "minecraft:smithing_table"
+            else if {_t} is "mecanique":
+                set {_bl} to "minecraft:anvil"
+            else if {_t} is "laboratoire":
+                set {_bl} to "minecraft:cauldron"
+            else if {_t} is "electronique":
+                set {_bl} to "minecraft:loom"
+            execute console command "execute in %{_wd}% run setblock %{_x}% %{_y}% %{_z}% %{_bl}%"
+            set {_loc} to location({_x}, {_y}, {_z}, {_w})
+            set {_k} to za_lkey({_loc})
+            set {_u} to {_pl}'s uuid
+            set {_ancien} to za_at_cle({_u}, {_t})
+            if {_ancien} is not "":
+                za_at_retirer({_ancien}, false)
+            za_at_enregistrer({_k}, {_t}, {_u}, {_loc}, 1)
+            if {_t} is "laboratoire":
+                if {za::at::notes::%{_u}%} is not set:
+                    set {za::at::notes::%{_u}%} to 1
+            send "&a[zatelier] %za_at_nom({_t})% niveau 1 posé en %{_x}% %{_y}% %{_z}% pour %{_pl}% (clé %{_k}%)." to sender
+        else if {_a} is "niveau":
+            # zatelier niveau <x> <y> <z> <monde> <n>
+            set {_x} to arg-2 parsed as number
+            set {_y} to arg-3 parsed as number
+            set {_z} to arg-4 parsed as number
+            set {_w} to world(arg-5)
+            set {_n} to arg-6 parsed as number
+            if any:
+                {_z} is not set
+                {_w} is not set
+                {_n} is not set
+            then:
+                send "&cUsage : zatelier niveau <x> <y> <z> <monde> <1-3>" to sender
+                stop
+            set {_k} to za_lkey(location({_x}, {_y}, {_z}, {_w}))
+            if {za::at::%{_k}%::type} is not set:
+                send "&cAucun atelier en %{_k}%." to sender
+                stop
+            set {_n} to max(1, min(3, {_n}))
+            set {za::at::%{_k}%::niveau} to {_n}
+            set {za::at::niv::%{za::at::%{_k}%::proprio}%::%{za::at::%{_k}%::type}%} to {_n}
+            send "&a[zatelier] %{_k}% : niveau %{_n}%." to sender
+        else if {_a} is "retirer":
+            set {_x} to arg-2 parsed as number
+            set {_y} to arg-3 parsed as number
+            set {_z} to arg-4 parsed as number
+            set {_w} to world(arg-5)
+            if any:
+                {_z} is not set
+                {_w} is not set
+            then:
+                send "&cUsage : zatelier retirer <x> <y> <z> <monde>" to sender
+                stop
+            set {_k} to za_lkey(location({_x}, {_y}, {_z}, {_w}))
+            if {za::at::%{_k}%::type} is not set:
+                send "&cAucun atelier en %{_k}%." to sender
+                stop
+            za_at_retirer({_k}, false)
+            send "&a[zatelier] atelier %{_k}% retiré du registre (le bloc reste)." to sender
+        else if {_a} is "materiel":
+            # zatelier materiel <joueur> : tout ce qu'il faut pour tester (matériaux, échantillons, jetons)
+            set {_pl} to arg-2 parsed as player
+            if {_pl} is not set:
+                send "&cUsage : zatelier materiel <joueur>" to sender
+                stop
+            give 32 of iron ingot to {_pl}
+            give 16 of paper to {_pl}
+            give 16 of string to {_pl}
+            give 16 of stick to {_pl}
+            give 8 of glass bottle to {_pl}
+            give 8 of gold ingot to {_pl}
+            give 16 of copper ingot to {_pl}
+            give 32 of redstone to {_pl}
+            give 32 of gunpowder to {_pl}
+            give 32 of iron nugget to {_pl}
+            give 4 of honey bottle to {_pl}
+            give 2 of blast furnace to {_pl}
+            give za_item("iron nugget", "Ferraille", "&7", 24) to {_pl}
+            give za_item("glass bottle", "Échantillon viral", "&5", 6) to {_pl}
+            give za_item("glass bottle", "Sang infecte", "&4", 6) to {_pl}
+            give za_item("gold nugget", "Composant electronique", "&b", 10) to {_pl}
+            give za_item("honey bottle", "Serum", "&d", 3) to {_pl}
+            give za_item("honey bottle", "Antibiotique", "&b", 2) to {_pl}
+            give za_item("paper", "Bandage", "&f", 4) to {_pl}
+            give za_item("paper", "Note de recherche", "&a", 3) to {_pl}
+            give za_item("iron ingot", "Pieces de generateur", "&7", 2) to {_pl}
+            give za_ressource_item(4) to {_pl}
+            za_jetons_ajouter({_pl}, 600)
+            send "&a[zatelier] matériel de test donné à %{_pl}% (+600 jetons, ressource de saison : %za_at_res()%)." to sender
+        else if {_a} is "vaccin":
+            set {_pl} to arg-2 parsed as player
+            if {_pl} is not set:
+                send "&cUsage : zatelier vaccin <joueur> [minutes]" to sender
+                stop
+            set {_m} to arg-3 parsed as number
+            if {_m} is not set:
+                set {_m} to 20
+            set {_u} to {_pl}'s uuid
+            set {za::vaccin::debut::%{_u}%} to now
+            set {za::vaccin::fin::%{_u}%} to now
+            add ("%{_m}% minutes" parsed as timespan) to {za::vaccin::fin::%{_u}%}
+            send "&a[zatelier] vaccin actif pour %{_pl}% pendant %{_m}% min." to sender
+        else if {_a} is "courant":
+            set {_x} to arg-2 parsed as number
+            set {_y} to arg-3 parsed as number
+            set {_z} to arg-4 parsed as number
+            set {_w} to world(arg-5)
+            if any:
+                {_z} is not set
+                {_w} is not set
+            then:
+                send "&cUsage : zatelier courant <x> <y> <z> <monde>" to sender
+                stop
+            send "&7[zatelier] courant en %{_x}% %{_y}% %{_z}% : %za_at_courant(location({_x}, {_y}, {_z}, {_w}))% (EMP : %za_emp_actif()%, résidentiel : %{za::reseau::residentiel}%)" to sender
+        else if {_a} is "ouvrir":
+            # zatelier ouvrir <joueur> <x> <y> <z> <monde> : ouvre le menu de l'atelier à ce joueur
+            set {_pl} to arg-2 parsed as player
+            set {_x} to arg-3 parsed as number
+            set {_y} to arg-4 parsed as number
+            set {_z} to arg-5 parsed as number
+            set {_w} to world(arg-6)
+            if any:
+                {_pl} is not set
+                {_z} is not set
+                {_w} is not set
+            then:
+                send "&cUsage : zatelier ouvrir <joueur> <x> <y> <z> <monde>" to sender
+                stop
+            set {_k} to za_lkey(location({_x}, {_y}, {_z}, {_w}))
+            if {za::at::%{_k}%::type} is not set:
+                send "&cAucun atelier en %{_k}%." to sender
+                stop
+            za_at_ouvrir({_pl}, {_k}, "-")
+            send "&a[zatelier] menu ouvert pour %{_pl}%." to sender
+        else if {_a} is "nettoyer":
+            loop {za::at::liste::*}:
+                set {_l} to {za::at::%loop-value%::loc}
+                set {_t} to {za::at::%loop-value%::type}
+                if any:
+                    {_l} is not set
+                    {_t} is not set
+                then:
+                    za_at_retirer(loop-value, false)
+                    add 1 to {_n}
+                else if chunk at {_l} is loaded:
+                    if za_at_bloc_ok({_t}, block at {_l}) is false:
+                        za_at_retirer(loop-value, true)
+                        add 1 to {_n}
+            send "&a[zatelier] registre nettoyé (%{_n}% entrée(s) retirée(s))." to sender
+        else:
+            send "&cUsage : zatelier <etat|liste|poser|niveau|retirer|materiel|vaccin|courant|ouvrir|nettoyer> ..." to sender

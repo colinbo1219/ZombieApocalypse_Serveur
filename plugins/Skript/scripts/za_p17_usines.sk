@@ -1,0 +1,85 @@
+# =====================================================================
+#  ZombieApocalypse - USINES : le bruit des machines attire les morts
+#  Cible : machines de Create, Create Crafts & Additions, Steam 'n' Rails et Immersive Engineering.
+#  Plus il y a de machines dans un meme chunk, plus les hordes sont grosses.
+#
+#  A TESTER : Arclight expose les blocs des mods comme des materiaux Bukkit, et ce script suppose que
+#  leur nom contient le nom du mod ("create", "immersive", "railways") + un mot de machine (press, mixer...).
+#  Les 40 premieres poses par un admin sont ecrites dans plugins/Skript/logs/za_usines_debug.log :
+#  si /za usines reste a 0 apres avoir pose une presse Create, envoie-moi ce fichier et j'ajuste la detection.
+# =====================================================================
+
+options:
+    usines_actif: true
+
+function za_est_machine(s: text) :: boolean:
+    set {_mod} to false
+    if {_s} contains "create":
+        set {_mod} to true
+    if {_s} contains "immersive":
+        set {_mod} to true
+    if {_s} contains "railways":
+        set {_mod} to true
+    if {_mod} is false:
+        return false
+    set {_kw::*} to "press", "mixer", "crusher", "millstone", "saw", "drill", "harvester", "deployer", "fan", "wheel", "windmill", "engine", "motor", "generator", "alternator", "furnace", "assembler", "pump", "refinery", "turbine", "dynamo", "lathe", "arc"
+    loop {_kw::*}:
+        if {_s} contains loop-value:
+            return true
+    return false
+
+on place:
+    if za_pro(player) is true:
+        stop
+    if {@usines_actif} is true:
+        set {_s} to "%event-block%"
+        if player has permission "za.admin":
+            if size of {za::usines::debug::*} < 40:
+                add {_s} to {za::usines::debug::*}
+                log "%{_s}% | main=%player's tool%" to file "za_usines_debug.log"
+        if za_est_machine({_s}) is true:
+            set {_k} to za_lkey(location of event-block)
+            set {za::usines::%{_k}%::loc} to location of event-block
+            add {_k} to {za::usines::liste::*}
+
+on break:
+    if za_pro(player) is true:
+        stop
+    if {@usines_actif} is true:
+        set {_k} to za_lkey(location of event-block)
+        if {za::usines::%{_k}%::loc} is set:
+            remove {_k} from {za::usines::liste::*}
+            delete {za::usines::%{_k}%::*}
+
+# ---------- le bruit attire les morts (par chunk) ----------
+every 45 seconds:
+    if {@usines_actif} is true:
+        delete {_cnt::*}
+        delete {_pos::*}
+        loop {za::usines::liste::*}:
+            set {_k} to loop-value
+            set {_l} to {za::usines::%{_k}%::loc}
+            if block at {_l} is air:
+                remove {_k} from {za::usines::liste::*}
+                delete {za::usines::%{_k}%::*}
+            else:
+                set {_ck} to za_ckey({_l})
+                add 1 to {_cnt::%{_ck}%}
+                set {_pos::%{_ck}%} to {_l}
+        loop {_cnt::*}:
+            set {_ck} to loop-index
+            set {_n} to loop-value
+            set {_where} to {_pos::%{_ck}%}
+            set {_near} to false
+            loop all players:
+                if za_pro(loop-player) is false:
+                    if world of loop-player is world of {_where}:
+                        if distance between loop-player and {_where} < 90:
+                            set {_near} to true
+            if {_near} is true:
+                set {_chance} to min(90, 25 + (8 * {_n}))
+                if chance of {_chance}%:
+                    set {_z} to 1 + floor({_n} / 3)
+                    loop {_z} times:
+                        za_spawn_at({_where}, "ZA_Shambler", 15, 30)
+                    execute console command "playsound minecraft:block.anvil.land block @a %floor(x-coordinate of {_where})% %floor(y-coordinate of {_where})% %floor(z-coordinate of {_where})% 2 0.5"

@@ -1,0 +1,846 @@
+# =====================================================================
+#  ZombieApocalypse - ARMES v2 (#11) : niveaux, usure, enrayement, réparation, pièces de collection
+#  * 4 niveaux d'armes TaCZ (Civil / Militaire / Avancé / Expérimental) déduits du GunId de l'arme
+#  * Lore automatique sur l'arme (niveau, état, origine, abattus, modèle, n° de série) la 1re fois qu'on la tient
+#  * L'état baisse avec les zombies abattus arme en main (plus vite sous la pluie / pluie acide)
+#  * À 0 % l'arme s'enraye : elle est remplacée par une pièce « enrayée » ; la vraie arme est gardée dans
+#    {za::arme::enrayee::<série>} et rendue à 100 % à la réparation
+#  * Réparation : /arme reparer près du Mécano (jetons selon le niveau, Ferraille pour les niveaux 3-4),
+#    ou console « zaarme reparer <joueur> [remise %] » (Atelier mécanique d'un autre module)
+#  * Ferraille : dropée par Zombie blindé / à bouclier / Brute, ou /arme demonter (outils et armures en fer)
+#  * Pièces de collection : console « zaarme donner <joueur> <gunid> <origine…> » / « zaarme coffre x y z monde gunid origine… »
+#  * Accessoires rares (chargeurs, lunettes, silencieux, munitions spéciales) : « zaarme accessoire <joueur> <id|rare|fmj|hp|he|i|slug> »
+#  Commandes joueur : /arme  /arme reparer  /arme demonter     Admin : /zaarme (console ou za.admin)
+#  Variables : {za::arme::tier|modele|auto::<gunid>} (tables), {za::arme::gid|niv|etat|kills|orig|hist|coll|enrayee::<série>}
+# =====================================================================
+
+on load:
+    delete {za::arme::tier::*}
+    delete {za::arme::ids::*}
+    delete {za::arme::auto::*}
+    set {_t::1} to "glock_17;m1911;cz75;m9a4;p320;taurus943;db_short;db_long;springfield1873;rhino357"
+    set {_t::2} to "m4a1;ak47;m870;ump45;hk_mp5a5;uzi;sks_tactical;m16a4;m16a1;spas_12;m1014;type_81;kar98;m700;hk_mk23;b93r;deagle"
+    set {_t::3} to "hk416d;scar_l;scar_h;aug;g36k;vector45;p90;mk14;fn_fal;hk_g3;rpk;m249;aa12;qbz_95;qbz_191;spr15hb;lonetrail"
+    set {_t::4} to "ai_awp;m107;m95;minigun;rpg7;m320;fn_evolys;timeless50;deagle_golden;taurus500"
+    set {_niv} to 1
+    while {_niv} <= 4:
+        set {_l::*} to split {_t::%{_niv}%} at ";"
+        loop {_l::*}:
+            set {za::arme::tier::%loop-value%} to {_niv}
+            add loop-value to {za::arme::ids::*}
+        add 1 to {_niv}
+    set {_m::*} to split "glock_17=Glock 17;m1911=M1911;cz75=CZ 75;m9a4=Beretta M9A4;p320=SIG P320;taurus943=Taurus 943;db_short=Double canon scié;db_long=Fusil de chasse à double canon;springfield1873=Springfield 1873;rhino357=Chiappa Rhino .357;m4a1=M4A1;ak47=AK-47;m870=Remington 870;ump45=UMP-45;hk_mp5a5=HK MP5A5;uzi=Uzi;sks_tactical=SKS tactique;m16a4=M16A4;m16a1=M16A1;spas_12=SPAS-12;m1014=Benelli M1014;type_81=Type 81;kar98=Kar98k;m700=Remington 700;hk_mk23=HK Mk23;b93r=Beretta 93R;deagle=Desert Eagle;hk416d=HK416D;scar_l=SCAR-L;scar_h=SCAR-H;aug=Steyr AUG;g36k=HK G36K;vector45=Kriss Vector;p90=FN P90;mk14=Mk 14 EBR;fn_fal=FN FAL;hk_g3=HK G3;rpk=RPK;m249=M249;aa12=AA-12;qbz_95=QBZ-95;qbz_191=QBZ-191;spr15hb=SPR-15HB;lonetrail=Lonetrail;ai_awp=AI AWP;m107=Barrett M107;m95=Barrett M95;minigun=Minigun;rpg7=RPG-7;m320=M320;fn_evolys=FN Evolys;timeless50=Timeless .50;deagle_golden=Desert Eagle doré;taurus500=Taurus 500" at ";"
+    loop {_m::*}:
+        set {_kv::*} to split loop-value at "="
+        set {za::arme::modele::%{_kv::1}%} to {_kv::2}
+    # armes dont le mode de tir par défaut est AUTO (les autres : SEMI)
+    set {_a::*} to split "aug;cz75;fn_evolys;g36k;hk416d;hk_mp5a5;m16a1;m249;m4a1;minigun;p90;qbz_191;qbz_95;scar_l;type_81;ump45;uzi;vector45;ak47;rpk" at ";"
+    loop {_a::*}:
+        set {za::arme::auto::%loop-value%} to true
+
+# ---------------------------------------------------------------- tables
+
+function za_arme_niveau(g: text) :: number:
+    if {za::arme::tier::%{_g}%} is set:
+        return {za::arme::tier::%{_g}%}
+    return 0
+
+function za_arme_niveau_nom(n: number) :: text:
+    if {_n} is 1:
+        return "Civil"
+    if {_n} is 2:
+        return "Militaire"
+    if {_n} is 3:
+        return "Avancé"
+    return "Expérimental"
+
+function za_arme_modele_nom(g: text) :: text:
+    if {za::arme::modele::%{_g}%} is set:
+        return "%{za::arme::modele::%{_g}%}%"
+    if {_g} is "inconnue":
+        return "Arme inconnue"
+    return "%{_g}%"
+
+# couleur selon l'état (0-100)
+function za_arme_col(p: number) :: text:
+    if {_p} >= 75:
+        return "&a"
+    if {_p} >= 50:
+        return "&e"
+    if {_p} >= 25:
+        return "&6"
+    if {_p} >= 10:
+        return "&c"
+    return "&4"
+
+function za_arme_barre(p: number) :: text:
+    set {_n} to round({_p} / 10)
+    set {_f} to ""
+    set {_v} to ""
+    loop 10 times:
+        if loop-number <= {_n}:
+            set {_f} to "%{_f}%▮"
+        else:
+            set {_v} to "%{_v}%▯"
+    return "%za_arme_col({_p})%%{_f}%&8%{_v}%"
+
+# ---------------------------------------------------------------- lecture d'une arme (objet)
+
+function za_arme_est_arme(it: itemtype) :: boolean:
+    if "%type of {_it}%" contains "kinetic_gun":
+        return true
+    return false
+
+# n° de série lu dans le lore (« N° de série ZA-00417 »), "" si l'arme n'a pas encore été initialisée
+function za_arme_serie_de(it: itemtype) :: text:
+    set {_l::*} to lore of {_it}
+    loop {_l::*}:
+        set {_u} to uncolored loop-value
+        if {_u} starts with "N° de série ":
+            replace first "N° de série " with "" in {_u}
+            return {_u}
+    return ""
+
+# modèle lu dans le lore (« Modèle : M4A1 »), "" sinon (utilisé par le marché)
+function za_arme_modele_de(it: itemtype) :: text:
+    set {_l::*} to lore of {_it}
+    loop {_l::*}:
+        set {_u} to uncolored loop-value
+        if {_u} starts with "Modèle : ":
+            replace first "Modèle : " with "" in {_u}
+            return {_u}
+    return ""
+
+# le lore complet d'une arme d'après ses données
+function za_arme_lore(s: text) :: texts:
+    set {_g} to {za::arme::gid::%{_s}%}
+    set {_n} to {za::arme::niv::%{_s}%}
+    set {_e} to {za::arme::etat::%{_s}%}
+    if {_e} is not set:
+        set {_e} to 100
+    set {_o} to {za::arme::orig::%{_s}%}
+    if {_o} is not set:
+        set {_o} to "Trouvée"
+    set {_k} to {za::arme::kills::%{_s}%}
+    if {_k} is not set:
+        set {_k} to 0
+    add "&7Niveau %{_n}% — %za_arme_niveau_nom({_n})%" to {_l::*}
+    add "&7État : %za_arme_col({_e})%%round({_e})% %%  %za_arme_barre({_e})%" to {_l::*}
+    add "&8Origine : %{_o}%" to {_l::*}
+    add "&8Abattus : %{_k}%" to {_l::*}
+    add "&8Modèle : %za_arme_modele_nom({_g})%" to {_l::*}
+    add "&8N° de série %{_s}%" to {_l::*}
+    set {_h} to {za::arme::hist::%{_s}%}
+    if {_h} is set:
+        add "&8Ayant appartenu à : %{_h}%" to {_l::*}
+    if {za::arme::coll::%{_s}%} is true:
+        add "&6Pièce de collection" to {_l::*}
+    return {_l::*}
+
+# renvoie une copie de l'objet avec le lore régénéré (les lignes étrangères déjà présentes sont gardées en dessous)
+function za_arme_lore_item(it: itemtype, s: text) :: itemtype:
+    set {_c} to {_it}
+    set {_n::*} to za_arme_lore({_s})
+    set {_old::*} to lore of {_c}
+    loop {_old::*}:
+        set {_u} to uncolored loop-value
+        set {_garde} to true
+        loop "Niveau ", "État : ", "Origine : ", "Abattus : ", "Modèle : ", "N° de série ", "Ayant appartenu" and "Pièce de collection":
+            if {_u} starts with loop-value-2:
+                set {_garde} to false
+        if {_garde} is true:
+            add loop-value-1 to {_n::*}
+    set lore of {_c} to {_n::*}
+    return {_c}
+
+# ---------------------------------------------------------------- détection du GunId de l'arme en main (commandes vanilla + étiquettes)
+
+function za_arme_detecter(p: player) :: text:
+    loop {za::arme::ids::*}:
+        execute console command "execute if data entity %{_p}% SelectedItem.tag{GunId:""tacz:%loop-value%""} run tag %{_p}% add zagid_%loop-value%"
+    set {_r} to ""
+    loop scoreboard tags of {_p}:
+        set {_t} to loop-value
+        if {_t} starts with "zagid_":
+            replace first "zagid_" with "" in {_t}
+            set {_r} to {_t}
+            execute console command "tag %{_p}% remove zagid_%{_t}%"
+    return {_r}
+
+# ---------------------------------------------------------------- données par n° de série
+
+function za_arme_num() :: text:
+    add 1 to {za::arme::serie}
+    set {_s} to "%{za::arme::serie}%"
+    while length of {_s} < 5:
+        set {_s} to "0%{_s}%"
+    return {_s}
+
+function za_arme_donnees(s: text, g: text, orig: text, hist: text, coll: boolean, etat: number):
+    set {za::arme::gid::%{_s}%} to {_g}
+    set {_n} to za_arme_niveau({_g})
+    if {_n} is 0:
+        set {_n} to 2
+    set {za::arme::niv::%{_s}%} to {_n}
+    set {za::arme::etat::%{_s}%} to {_etat}
+    set {za::arme::kills::%{_s}%} to 0
+    set {za::arme::orig::%{_s}%} to {_orig}
+    if {_hist} is not "":
+        set {za::arme::hist::%{_s}%} to {_hist}
+    if {_coll} is true:
+        set {za::arme::coll::%{_s}%} to true
+
+# données absentes alors que le lore existe (variables perdues) : on les reconstruit depuis le lore
+function za_arme_reprendre(it: itemtype, s: text):
+    set {_niv} to 2
+    set {_mod} to za_arme_modele_de({_it})
+    set {_g} to "inconnue"
+    loop {za::arme::modele::*}:
+        if loop-value is {_mod}:
+            set {_g} to loop-index
+    set {_l::*} to lore of {_it}
+    loop {_l::*}:
+        set {_u} to uncolored loop-value
+        if {_u} starts with "Niveau ":
+            set {_x} to subtext of {_u} from characters 8 to 8
+            set {_v} to {_x} parsed as integer
+            if {_v} is set:
+                set {_niv} to {_v}
+    za_arme_donnees({_s}, {_g}, "Trouvée", "", false, 100)
+    set {za::arme::niv::%{_s}%} to {_niv}
+
+# 1re fois qu'une arme est tenue : détection, n° de série, lore
+function za_arme_init(p: player) :: text:
+    set {_t} to {_p}'s tool
+    if za_arme_est_arme({_t}) is false:
+        return ""
+    set {_s} to za_arme_serie_de({_t})
+    if {_s} is not "":
+        if {za::arme::etat::%{_s}%} is not set:
+            za_arme_reprendre({_t}, {_s})
+        return {_s}
+    set {_g} to za_arme_detecter({_p})
+    if {_g} is "":
+        set {_g} to za_arme_detecter({_p})
+    if {_g} is "":
+        set {_g} to "inconnue"
+    set {_s} to "ZA-%za_arme_num()%"
+    za_arme_donnees({_s}, {_g}, "Trouvée", "", false, random integer between 60 and 100)
+    set {_p}'s tool to za_arme_lore_item({_t}, {_s})
+    set {_u} to {_p}'s uuid
+    if {za::arme::tip::%{_u}%} is not set:
+        set {za::arme::tip::%{_u}%} to true
+        send "&8[&6Armes&8] &7Tes armes ont maintenant un niveau, un état et un n° de série (lis l'infobulle). Elles s'usent à chaque zombie abattu et s'enrayent à 0 %%. &e/arme &7pour l'état, &e/arme reparer &7près du Mécano." to {_p}
+    return {_s}
+
+# arme de modèle "inconnue" (détection ratée) : on retente, 3 fois au plus par n° de série
+function za_arme_redetecter(p: player, s: text):
+    add 1 to {za::arme::retry::%{_s}%}
+    if {za::arme::retry::%{_s}%} > 3:
+        stop
+    set {_g} to za_arme_detecter({_p})
+    if {_g} is "":
+        stop
+    set {za::arme::gid::%{_s}%} to {_g}
+    set {za::arme::niv::%{_s}%} to za_arme_niveau({_g})
+    delete {za::arme::retry::%{_s}%}
+    set {za::arme::sale::%{_p}'s uuid%} to {_s}
+
+# rafraîchit le lore de l'arme en main (état, abattus)
+function za_arme_rafraichir(p: player):
+    set {_t} to {_p}'s tool
+    if za_arme_est_arme({_t}) is false:
+        stop
+    set {_s} to za_arme_serie_de({_t})
+    if {_s} is "":
+        stop
+    set {_p}'s tool to za_arme_lore_item({_t}, {_s})
+
+# ---------------------------------------------------------------- usure
+
+# facteur météo : pluie acide x2 ({za::evt::acide} posé à true par l'événement), pluie x1.4 si le joueur est à découvert
+function za_arme_meteo(p: player) :: number:
+    if {za::evt::acide} is true:
+        return 2
+    if {za::arme::pluie::%world of {_p}%} is true:
+        set {_l} to location of {_p}
+        if y-coordinate of {_l} >= y-coordinate of (location of (highest block at {_l})):
+            return 1.4
+    return 1
+
+function za_arme_usure(p: player, n: number):
+    set {_t} to {_p}'s tool
+    if za_arme_est_arme({_t}) is false:
+        stop
+    set {_s} to za_arme_serie_de({_t})
+    if {_s} is "":
+        set {_s} to za_arme_init({_p})
+        if {_s} is "":
+            stop
+    if {za::arme::etat::%{_s}%} is not set:
+        za_arme_reprendre({_t}, {_s})
+    set {_niv} to {za::arme::niv::%{_s}%}
+    set {_perte} to 1
+    if {_niv} is 2:
+        set {_perte} to 0.7
+    else if {_niv} is 3:
+        set {_perte} to 0.5
+    else if {_niv} is 4:
+        set {_perte} to 0.3
+    set {_perte} to {_perte} * za_arme_meteo({_p}) * {_n}
+    add {_n} to {za::arme::kills::%{_s}%}
+    set {_avant} to {za::arme::etat::%{_s}%}
+    set {_apres} to max(0, {_avant} - {_perte})
+    set {za::arme::etat::%{_s}%} to {_apres}
+    set {_u} to {_p}'s uuid
+    set {za::arme::sale::%{_u}%} to {_s}
+    set {_nom} to za_arme_modele_nom({za::arme::gid::%{_s}%})
+    if {_apres} <= 0:
+        za_arme_enrayer({_p}, {_s})
+    else:
+        set {_seuil} to 0
+        if {_apres} < 10:
+            if {_avant} >= 10:
+                set {_seuil} to 10
+        else if {_apres} < 25:
+            if {_avant} >= 25:
+                set {_seuil} to 25
+        else if {_apres} < 50:
+            if {_avant} >= 50:
+                set {_seuil} to 50
+        if {_seuil} is 10:
+            send action bar "&4&l%{_nom}% &cest sur le point de s'enrayer (%round({_apres})% %%) ! &e/arme reparer" to {_p}
+            za_zm("son %{_p}% minecraft:block.anvil.land 0.4 1")
+        else if {_seuil} is 25:
+            send action bar "&6%{_nom}% &7s'use dangereusement (%round({_apres})% %%) &8— &e/arme reparer &7près du Mécano" to {_p}
+        else if {_seuil} is 50:
+            send action bar "&e%{_nom}% &7est à moitié usée (%round({_apres})% %%)." to {_p}
+
+# l'arme s'enraye : pièce « enrayée » en main, la vraie arme est mise de côté
+function za_arme_enrayer(p: player, s: text):
+    set {_t} to {_p}'s tool
+    if za_arme_serie_de({_t}) is not {_s}:
+        stop
+    set {_nom} to za_arme_modele_nom({za::arme::gid::%{_s}%})
+    set {_u} to {_p}'s uuid
+    set {za::arme::etat::%{_s}%} to 0
+    set {za::arme::enrayee::%{_s}%} to za_arme_lore_item({_t}, {_s})
+    set {_ph} to za_item("iron ingot", "%{_nom}% — enrayée", "&8", 1)
+    set lore of {_ph} to "&7Le mécanisme est bloqué." and "&7Répare-la près du Mécano :" and "&e/arme reparer" and "&8N° de série %{_s}%"
+    set {_p}'s tool to {_ph}
+    delete {za::arme::sale::%{_u}%}
+    send title "&4&lARME ENRAYÉE" with subtitle "&7%{_nom}% — répare-la près du Mécano" to {_p} for 3 seconds
+    send "&4[Armes] &c%{_nom}% s'est enrayée ! &7Le mécanisme est bloqué. Trouve le &eMécano &7et tape &e/arme reparer &7(la pièce garde ton n° de série)." to {_p}
+    za_zm("son %{_p}% minecraft:block.iron_door.close 1 0.6")
+
+# pièce « enrayée » ? -> n° de série, sinon ""
+function za_arme_serie_enrayee(it: itemtype) :: text:
+    if "%type of {_it}%" is not "iron ingot":
+        return ""
+    if uncolored name of {_it} does not end with "— enrayée":
+        return ""
+    set {_s} to za_arme_serie_de({_it})
+    if {_s} is "":
+        return ""
+    if {za::arme::enrayee::%{_s}%} is not set:
+        return ""
+    return {_s}
+
+# ---------------------------------------------------------------- réparation
+
+function za_arme_mecano(p: player) :: boolean:
+    loop all entities in radius 8 around {_p}:
+        if loop-entity is a villager:
+            if uncolored name of loop-entity contains "Mecano":
+                return true
+            if uncolored name of loop-entity contains "Mécano":
+                return true
+    return false
+
+# remise : pourcentage (0-100) de réduction sur le prix ; pnj : exiger le Mécano à moins de 8 blocs
+function za_arme_reparer(p: player, remise: number, pnj: boolean) :: boolean:
+    set {_t} to {_p}'s tool
+    set {_jam} to false
+    set {_s} to za_arme_serie_enrayee({_t})
+    if {_s} is not "":
+        set {_jam} to true
+    else if za_arme_est_arme({_t}) is true:
+        set {_s} to za_arme_init({_p})
+        set {_t} to {_p}'s tool
+    if {_s} is "":
+        send "&c[Armes] Tiens en main l'arme (ou la pièce enrayée) à réparer." to {_p}
+        return false
+    if {_pnj} is true:
+        if za_arme_mecano({_p}) is false:
+            send "&c[Armes] Il faut être près du Mécano (8 blocs) pour réparer une arme." to {_p}
+            return false
+    set {_niv} to {za::arme::niv::%{_s}%}
+    set {_etat} to {za::arme::etat::%{_s}%}
+    if {_jam} is false:
+        if {_etat} >= 98:
+            send "&7[Armes] Cette arme est déjà en parfait état." to {_p}
+            return false
+    set {_base} to 8
+    if {_niv} is 2:
+        set {_base} to 15
+    else if {_niv} is 3:
+        set {_base} to 30
+    else if {_niv} is 4:
+        set {_base} to 60
+    set {_frac} to 1
+    if {_jam} is false:
+        set {_frac} to max(0.25, (100 - {_etat}) / 100)
+    set {_prix} to ceil(za_prix({_p}, {_base}) * {_frac} * (1 - ({_remise} / 100)))
+    if za_role({_p}) is "ingenieur":
+        set {_prix} to ceil({_prix} * 0.7)
+    if {_prix} < 1:
+        set {_prix} to 1
+    set {_fer} to 0
+    if {_niv} >= 3:
+        set {_fer} to 2
+    set {_nom} to za_arme_modele_nom({za::arme::gid::%{_s}%})
+    if za_jetons({_p}) < {_prix}:
+        send "&c[Armes] Réparer %{_nom}% coûte &6%{_prix}% jetons &c(tu en as %za_jetons({_p})%)." to {_p}
+        return false
+    if {_fer} > 0:
+        set {_a} to za_count_named({_p}, "Ferraille")
+        if {_a} < {_fer}:
+            send "&c[Armes] Une arme de niveau %{_niv}% demande aussi &7%{_fer}% Ferraille &c(tu en as %{_a}%). Démonte de vieux outils en fer : &e/arme demonter&c, ou tue des Zombies blindés et des Brutes." to {_p}
+            return false
+        za_take_named({_p}, "Ferraille", {_fer})
+    za_jetons_ajouter({_p}, 0 - {_prix})
+    set {za::arme::etat::%{_s}%} to 100
+    if {_jam} is true:
+        set {_real} to {za::arme::enrayee::%{_s}%}
+        delete {za::arme::enrayee::%{_s}%}
+        set {_p}'s tool to za_arme_lore_item({_real}, {_s})
+    else:
+        set {_p}'s tool to za_arme_lore_item({_t}, {_s})
+    set {_u} to {_p}'s uuid
+    delete {za::arme::sale::%{_u}%}
+    set {_extra} to ""
+    if {_fer} > 0:
+        set {_extra} to " &aet &7-%{_fer}% Ferraille"
+    send "&a[Armes] &f%{_nom}% &aremise à neuf (100 %%) : &6-%{_prix}% jetons%{_extra}%&a." to {_p}
+    za_zm("son %{_p}% minecraft:block.anvil.use 0.6 1.2")
+    return true
+
+# ---------------------------------------------------------------- Ferraille
+
+function za_ferraille(n: number) :: itemtype:
+    set {_it} to za_item("iron nugget", "Ferraille", "&7", {_n})
+    set lore of {_it} to "&7Métal tordu, rivets, canons rouillés." and "&8Sert à réparer les armes de niveau 3 et 4."
+    return {_it}
+
+# ---------------------------------------------------------------- accessoires TaCZ rares
+
+function za_arme_accessoire_id(k: text) :: text:
+    if {_k} starts with "tacz:":
+        replace first "tacz:" with "" in {_k}
+    if {_k} is "fmj" or "hp" or "he" or "i" or "slug":
+        return "ammo_mod_%{_k}%"
+    if {_k} is "rare":
+        set {_r} to random integer between 1 and 100
+        if {_r} <= 35:
+            return random element out of "ammo_mod_fmj", "ammo_mod_hp", "ammo_mod_he", "ammo_mod_i" and "ammo_mod_slug"
+        if {_r} <= 65:
+            return random element out of "scope_acog_ta31", "scope_elcan_4x", "scope_hamr", "scope_lpvo_1_6", "scope_mk5hd", "scope_qmk152", "scope_standard_8x", "scope_vudu" and "scope_scout"
+        if {_r} <= 85:
+            return random element out of "muzzle_silencer_ursus", "muzzle_silencer_knight_qd", "muzzle_silencer_mirage", "muzzle_silencer_phantom_s1", "muzzle_silencer_vulture" and "muzzle_silencer_wraith"
+        return random element out of "extended_mag_2", "extended_mag_3", "laser_peq15", "grip_vertical_military", "sight_exp3" and "sight_okp7"
+    return {_k}
+
+function za_arme_accessoire_nom(id: text) :: text:
+    if {_id} starts with "ammo_mod_":
+        return "Munitions spéciales (%{_id}%)"
+    if {_id} starts with "scope_":
+        return "Lunette (%{_id}%)"
+    if {_id} starts with "muzzle_silencer":
+        return "Silencieux (%{_id}%)"
+    return "%{_id}%"
+
+# ---------------------------------------------------------------- origine / histoire d'une pièce de collection
+
+function za_arme_prefixe(o: text) :: text:
+    set {_w::*} to split {_o} at " "
+    set {_last} to {_w::%size of {_w::*}%}
+    if {_last} is not set:
+        return "ZA"
+    set {_c::*} to split {_last} at ""
+    set {_lettres} to ""
+    set {_chiffres} to ""
+    loop {_c::*}:
+        set {_x} to loop-value
+        if {_x} is not "":
+            set {_d} to {_x} parsed as integer
+            if {_d} is set:
+                set {_chiffres} to "%{_chiffres}%%{_x}%"
+            else if {_x} is not "-":
+                if length of {_lettres} < 2:
+                    set {_lettres} to "%{_lettres}%%{_x} in uppercase%"
+    if {_lettres} is "":
+        set {_lettres} to "ZA"
+    return "%{_lettres}%%{_chiffres}%"
+
+function za_arme_hist(o: text) :: text:
+    set {_l} to {_o} in lowercase
+    if {_l} contains "convoi" or "caserne" or "militaire" or "évacuation" or "evacuation":
+        return random element out of "Caporal A. Dumas", "Sergent T. Roy", "Soldat M. Tremblay", "Lieutenant S. Gagnon", "Soldat J. Lavoie", "Caporal-chef D. Pelletier" and "Sergente C. Bouchard"
+    if {_l} contains "police":
+        return random element out of "Agent B. Cloutier", "Sergente C. Pelletier", "Agent F. Bouchard", "Constable L. Gauthier" and "Agent M. Lévesque"
+    if {_l} contains "norda":
+        return random element out of "Dr M. Tanguay (sécurité NORDA)", "Agent de sécurité R. Poirier" and "Technicien K. Bergeron"
+    if {_l} contains "hôpital" or "hopital":
+        return random element out of "Agent de sécurité P. Fortin", "Gardien de nuit G. Ouellet" and "Sécurité de l'hôpital, badge 214"
+    return random element out of "Marc-André Bélanger, chasseur", "Nadia Lefebvre", "Hugo Ouellet, gardien de sécurité", "Isabelle Fortin, trappeuse" and "Jérôme Caron"
+
+# crée les données d'une pièce de collection, renvoie le n° de série
+function za_arme_collection(g: text, orig: text) :: text:
+    set {_pre} to za_arme_prefixe({_orig})
+    set {_s} to "%{_pre}%-%random integer between 1000 and 9999%"
+    while {za::arme::gid::%{_s}%} is set:
+        set {_s} to "%{_pre}%-%random integer between 1000 and 9999%"
+    za_arme_donnees({_s}, {_g}, {_orig}, za_arme_hist({_orig}), true, 100)
+    return {_s}
+
+# balise NBT (contenu de "tag") d'une arme TaCZ qui porte déjà son nom, son lore et ses données
+function za_arme_nbt(s: text) :: text:
+    set {_g} to {za::arme::gid::%{_s}%}
+    set {_mode} to "SEMI"
+    if {za::arme::auto::%{_g}%} is true:
+        set {_mode} to "AUTO"
+    set {_l::*} to za_arme_lore({_s})
+    loop {_l::*}:
+        set {_x} to loop-value
+        replace all "&" with "§" in {_x}
+        replace all "'" with "’" in {_x}
+        replace all """" with "" in {_x}
+        add "'{""text"":""%{_x}%"",""italic"":false}'" to {_j::*}
+    set {_lore} to join {_j::*} with ","
+    set {_o} to {za::arme::orig::%{_s}%}
+    set {_nom} to "%za_arme_modele_nom({_g})% — %{_o}%"
+    replace all "'" with "’" in {_nom}
+    replace all """" with "" in {_nom}
+    return "{GunId:""tacz:%{_g}%"",GunFireMode:""%{_mode}%"",GunCurrentAmmoCount:0,display:{Name:'{""text"":""§6%{_nom}%"",""italic"":false}',Lore:[%{_lore}%]}}"
+
+# ---------------------------------------------------------------- pluie (pour l'usure) : mémorisée par monde
+every 10 seconds:
+    loop all worlds:
+        if weather in loop-world is rainy:
+            set {za::arme::pluie::%loop-world%} to true
+        else:
+            delete {za::arme::pluie::%loop-world%}
+
+# ---------------------------------------------------------------- boucle : initialisation à la prise en main + rafraîchissement du lore
+every 3 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_t} to loop-player's tool
+            if za_arme_est_arme({_t}) is true:
+                set {_s} to za_arme_serie_de({_t})
+                if {_s} is "":
+                    set {_x} to za_arme_init(loop-player)
+                else:
+                    set {_u} to loop-player's uuid
+                    if {za::arme::gid::%{_s}%} is "inconnue":
+                        za_arme_redetecter(loop-player, {_s})
+                    if {za::arme::sale::%{_u}%} is {_s}:
+                        # on ne réécrit l'objet qu'au plus toutes les 6 s (évite de perturber l'animation de tir)
+                        set {_ok} to true
+                        if {za::arme::flush::%{_u}%} is set:
+                            if difference between {za::arme::flush::%{_u}%} and now is less than 6 seconds:
+                                set {_ok} to false
+                        if {_ok} is true:
+                            delete {za::arme::sale::%{_u}%}
+                            set {za::arme::flush::%{_u}%} to now
+                            za_arme_rafraichir(loop-player)
+
+# ---------------------------------------------------------------- kills : usure, Ferraille, butin rare
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    set {_n} to uncolored name of victim
+    if attacker is a player:
+        set {_at} to attacker's tool
+        if za_arme_est_arme({_at}) is true:
+            za_arme_usure(attacker, 1)
+    if {_n} is "Zombie blindé" or "Zombie à bouclier" or "Brute":
+        set {_ch} to 35
+        if {_n} is "Brute":
+            set {_ch} to 55
+        if chance of {_ch}%:
+            drop za_ferraille(random integer between 1 and 2) at location of victim
+    # accessoires TaCZ rares et armes de soldats (niveaux 3-4 : Alpha, Brute ; niveau 2 : Soldat infecté)
+    if {_n} is "Alpha" or "Brute" or "Soldat infecte" or "Soldat infecté":
+        set {_ch} to 4
+        if {_n} is "Alpha":
+            set {_ch} to 8
+        if chance of {_ch}%:
+            set {_id} to za_arme_accessoire_id("rare")
+            set {_l} to location of victim
+            set {_wd} to za_dim(world of {_l})
+            execute console command "execute in %{_wd}% run summon item %x-coordinate of {_l}% %y-coordinate of {_l} + 0.5% %z-coordinate of {_l}% {Item:{id:""tacz:attachment"",Count:1b,tag:{AttachmentId:""tacz:%{_id}%""}},PickupDelay:10}"
+            if attacker is a player:
+                send action bar "&b[Butin] &7Un accessoire rare est tombé du cadavre." to attacker
+    if {_n} is "Soldat infecte" or "Soldat infecté":
+        if chance of 2%:
+            set {_g} to random element out of "m4a1", "ak47", "hk_mp5a5", "ump45", "m870" and "sks_tactical"
+            set {_l} to location of victim
+            za_arme_sol({_l}, {_g}, "Soldat infecté")
+
+# arme de collection posée au sol (butin)
+function za_arme_sol(l: location, g: text, orig: text):
+    set {_s} to za_arme_collection({_g}, {_orig})
+    set {_wd} to za_dim(world of {_l})
+    execute console command "execute in %{_wd}% run summon item %x-coordinate of {_l}% %y-coordinate of {_l} + 0.5% %z-coordinate of {_l}% {Item:{id:""tacz:modern_kinetic_gun"",Count:1b,tag:%za_arme_nbt({_s})%},PickupDelay:10}"
+
+# ---------------------------------------------------------------- commande joueur /arme
+
+function za_arme_info(p: player):
+    set {_t} to {_p}'s tool
+    set {_jam} to za_arme_serie_enrayee({_t})
+    set {_s} to {_jam}
+    if {_s} is "":
+        if za_arme_est_arme({_t}) is true:
+            set {_s} to za_arme_init({_p})
+    if {_s} is "":
+        send "&6&lARMES &8— &7niveaux, usure, réparation" to {_p}
+        send "&7Tiens une arme TaCZ en main et tape &e/arme &7pour voir son niveau, son état et son n° de série." to {_p}
+        send "&e/arme reparer &7: répare l'arme en main (ou une pièce enrayée) près du Mécano." to {_p}
+        send "&e/arme demonter &7: transforme un outil ou une armure en fer en Ferraille (réparations de niveau 3-4)." to {_p}
+        send "&8Niveaux : 1 Civil · 2 Militaire · 3 Avancé · 4 Expérimental. L'état baisse à chaque zombie abattu (plus vite sous la pluie). À 0 %%, l'arme s'enraye." to {_p}
+        stop
+    set {_g} to {za::arme::gid::%{_s}%}
+    set {_niv} to {za::arme::niv::%{_s}%}
+    set {_e} to {za::arme::etat::%{_s}%}
+    send "&6&l━━ %za_arme_modele_nom({_g})% &6&l━━" to {_p}
+    send "&7Niveau : &f%{_niv}% &8— &7%za_arme_niveau_nom({_niv})%" to {_p}
+    send "&7État : %za_arme_barre({_e})% %za_arme_col({_e})%%round({_e})% %%" to {_p}
+    if {_jam} is not "":
+        send "&4Arme enrayée : &7répare-la près du Mécano (&e/arme reparer&7)." to {_p}
+    send "&7Zombies abattus : &f%{za::arme::kills::%{_s}%}% &8· &7Origine : &f%{za::arme::orig::%{_s}%}%" to {_p}
+    send "&7N° de série : &f%{_s}%" to {_p}
+    if {za::arme::hist::%{_s}%} is set:
+        send "&7Ayant appartenu à : &f%{za::arme::hist::%{_s}%}%" to {_p}
+    if {za::arme::coll::%{_s}%} is true:
+        send "&6✦ Pièce de collection &8(elle vaut cher au Marché)" to {_p}
+    set {_base} to 8
+    if {_niv} is 2:
+        set {_base} to 15
+    else if {_niv} is 3:
+        set {_base} to 30
+    else if {_niv} is 4:
+        set {_base} to 60
+    if {_niv} >= 3:
+        send "&8Réparation : ~%za_prix({_p}, {_base})% jetons + 2 Ferraille (près du Mécano)." to {_p}
+    else:
+        send "&8Réparation : ~%za_prix({_p}, {_base})% jetons (près du Mécano)." to {_p}
+
+command /arme [<text>]:
+    executable by: players
+    trigger:
+        if za_pro(player) is true:
+            send "&7Les armes de l'apocalypse n'existent pas encore dans ce monde." to player
+            stop
+        if arg-1 is "reparer" or "réparer":
+            za_arme_reparer(player, 0, true)
+        else if arg-1 is "demonter" or "démonter":
+            set {_t} to player's tool
+            set {_ty} to "%type of {_t}%"
+            set {_val} to 0
+            if {_ty} is "iron sword" or "iron shovel" or "iron hoe" or "iron boots":
+                set {_val} to 1
+            else if {_ty} is "iron pickaxe" or "iron axe" or "iron helmet":
+                set {_val} to 2
+            else if {_ty} is "iron chestplate" or "iron leggings":
+                set {_val} to 3
+            if {_val} is 0:
+                send "&c[Armes] Tiens en main un outil ou une armure en fer (épée, pioche, hache, pelle, houe, casque, plastron, jambières, bottes)." to player
+            else if name of {_t} is set:
+                send "&c[Armes] Cet objet a une histoire : on ne le passe pas à la casse." to player
+            else:
+                set player's tool to air
+                give za_ferraille({_val}) to player
+                send "&a[Armes] Tu démontes l'objet : &7+%{_val}% Ferraille&a." to player
+                za_zm("son %player% minecraft:block.anvil.destroy 0.5 1.3")
+        else if arg-1 is set:
+            send "&cUsage : /arme &7(infos de l'arme en main) &c| /arme reparer | /arme demonter" to player
+        else:
+            za_arme_info(player)
+
+# ---------------------------------------------------------------- admin / hooks : /zaarme (console ou za.admin)
+command /zaarme <text> [<text>] [<text>] [<text>] [<text>] [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        set {_sub} to arg-1
+        if {_sub} is "donner":
+            # zaarme donner <joueur> <gunid> <origine…>
+            set {_pl} to arg-2 parsed as player
+            set {_g} to arg-3
+            set {_o::*} to arg-4, arg-5, arg-6 and arg-7
+            set {_orig} to join {_o::*} with " "
+            if {_pl} is not set:
+                send "&cJoueur introuvable : %arg-2%" to sender
+                stop
+            if za_arme_niveau({_g}) is 0:
+                send "&cArme inconnue : %{_g}%. Voir /zaarme liste" to sender
+                stop
+            if {_orig} is "":
+                set {_orig} to "Butin"
+            set {_s} to za_arme_collection({_g}, {_orig})
+            execute console command "give %{_pl}% tacz:modern_kinetic_gun%za_arme_nbt({_s})% 1"
+            send "&a[zaarme] %za_arme_modele_nom({_g})% — %{_orig}% (n° %{_s}%) donné à %{_pl}%." to sender
+            if {_pl} is not sender:
+                send "&6[Armes] &7Tu obtiens une pièce de collection : &f%za_arme_modele_nom({_g})% &8— &7%{_orig}%" to {_pl}
+                za_zm("son %{_pl}% minecraft:entity.player.levelup 0.5 1.4")
+        else if {_sub} is "coffre" or "butin":
+            # zaarme coffre <x> <y> <z> <monde> <gunid> <origine…>   (butin : au sol)
+            set {_x} to arg-2 parsed as number
+            set {_y} to arg-3 parsed as number
+            set {_z} to arg-4 parsed as number
+            set {_wn} to arg-5
+            set {_g} to arg-6
+            set {_orig} to arg-7
+            if {_orig} is not set:
+                set {_orig} to "Butin"
+            if {_z} is not set:
+                send "&cUsage : zaarme %{_sub}% <x> <y> <z> <monde> <gunid> <origine…>" to sender
+                stop
+            if za_arme_niveau({_g}) is 0:
+                send "&cArme inconnue : %{_g}%" to sender
+                stop
+            set {_w} to world({_wn})
+            if {_w} is not set:
+                send "&cMonde introuvable : %{_wn}%" to sender
+                stop
+            set {_s} to za_arme_collection({_g}, {_orig})
+            set {_wd} to za_dim({_w})
+            if {_sub} is "butin":
+                execute console command "execute in %{_wd}% run summon item %{_x}% %{_y} + 0.5% %{_z}% {Item:{id:""tacz:modern_kinetic_gun"",Count:1b,tag:%za_arme_nbt({_s})%},PickupDelay:10}"
+            else:
+                set {_b} to block at location({_x}, {_y}, {_z}, {_w})
+                set {_libre} to -1
+                set {_i} to 0
+                while {_libre} < 0:
+                    if {_i} >= 27:
+                        exit loop
+                    set {_it} to slot {_i} of inventory of {_b}
+                    if {_it} is air:
+                        set {_libre} to {_i}
+                    add 1 to {_i}
+                if {_libre} < 0:
+                    delete {za::arme::gid::%{_s}%}
+                    send "&c[zaarme] Le conteneur est plein (ou n'existe pas) en %{_x}% %{_y}% %{_z}%." to sender
+                    stop
+                execute console command "execute in %{_wd}% run item replace block %{_x}% %{_y}% %{_z}% container.%{_libre}% with tacz:modern_kinetic_gun%za_arme_nbt({_s})% 1"
+            send "&a[zaarme] %za_arme_modele_nom({_g})% — %{_orig}% (n° %{_s}%) posé en %{_x}% %{_y}% %{_z}% (%{_sub}%)." to sender
+        else if {_sub} is "hasard":
+            # zaarme hasard <joueur> <niveau 1-4> <origine…> : pièce de collection au hasard dans un niveau
+            set {_pl} to arg-2 parsed as player
+            set {_n} to arg-3 parsed as number
+            set {_o::*} to arg-4, arg-5, arg-6 and arg-7
+            set {_orig} to join {_o::*} with " "
+            if {_pl} is not set:
+                send "&cJoueur introuvable : %arg-2%" to sender
+                stop
+            if {_n} is not set:
+                set {_n} to 2
+            loop {za::arme::ids::*}:
+                if {za::arme::tier::%loop-value%} is {_n}:
+                    add loop-value to {_pool::*}
+            if {_pool::*} is not set:
+                send "&cAucune arme au niveau %{_n}%." to sender
+                stop
+            set {_g} to random element out of {_pool::*}
+            if {_orig} is "":
+                set {_orig} to "Butin"
+            set {_s} to za_arme_collection({_g}, {_orig})
+            execute console command "give %{_pl}% tacz:modern_kinetic_gun%za_arme_nbt({_s})% 1"
+            send "&a[zaarme] %za_arme_modele_nom({_g})% — %{_orig}% (n° %{_s}%) donné à %{_pl}%." to sender
+            if {_pl} is not sender:
+                send "&6[Armes] &7Tu obtiens une pièce de collection : &f%za_arme_modele_nom({_g})% &8— &7%{_orig}%" to {_pl}
+                za_zm("son %{_pl}% minecraft:entity.player.levelup 0.5 1.4")
+        else if {_sub} is "accessoire":
+            # zaarme accessoire <joueur> <id|rare|fmj|hp|he|i|slug>
+            set {_pl} to arg-2 parsed as player
+            if {_pl} is not set:
+                send "&cJoueur introuvable : %arg-2%" to sender
+                stop
+            set {_k} to arg-3
+            if {_k} is not set:
+                set {_k} to "rare"
+            set {_id} to za_arme_accessoire_id({_k})
+            execute console command "give %{_pl}% tacz:attachment{AttachmentId:""tacz:%{_id}%""} 1"
+            send "&a[zaarme] Accessoire %{_id}% donné à %{_pl}%." to sender
+            if {_pl} is not sender:
+                send "&b[Butin] &7Tu obtiens : &f%za_arme_accessoire_nom({_id})%" to {_pl}
+        else if {_sub} is "reparer":
+            # zaarme reparer <joueur> [remise %]  (appelé par l'Atelier mécanique : pas besoin du Mécano)
+            set {_pl} to arg-2 parsed as player
+            if {_pl} is not set:
+                send "&cJoueur introuvable : %arg-2%" to sender
+                stop
+            set {_rem} to arg-3 parsed as number
+            if {_rem} is not set:
+                set {_rem} to 0
+            set {_ok} to za_arme_reparer({_pl}, {_rem}, false)
+            send "&7[zaarme] réparation pour %{_pl}% : %{_ok}%" to sender
+        else if {_sub} is "info":
+            set {_pl} to arg-2 parsed as player
+            if {_pl} is not set:
+                send "&cJoueur introuvable : %arg-2%" to sender
+                stop
+            za_arme_info({_pl})
+            send "&7[zaarme] infos envoyées à %{_pl}%." to sender
+        else if {_sub} is "init":
+            set {_pl} to arg-2 parsed as player
+            if {_pl} is not set:
+                send "&cJoueur introuvable : %arg-2%" to sender
+                stop
+            send "&7[zaarme] série : %za_arme_init({_pl})%" to sender
+        else if {_sub} is "etat":
+            # zaarme etat <joueur> <pct> : fixe l'état de l'arme en main (test)
+            set {_pl} to arg-2 parsed as player
+            set {_v} to arg-3 parsed as number
+            if {_pl} is not set:
+                send "&cUsage : zaarme etat <joueur> <pct>" to sender
+                stop
+            if {_v} is not set:
+                send "&cUsage : zaarme etat <joueur> <pct>" to sender
+                stop
+            set {_s} to za_arme_init({_pl})
+            set {_tt} to {_pl}'s tool
+            if {_s} is "":
+                set {_s} to za_arme_serie_enrayee({_tt})
+            if {_s} is "":
+                send "&cLe joueur ne tient pas d'arme." to sender
+                stop
+            set {za::arme::etat::%{_s}%} to {_v}
+            if za_arme_est_arme({_tt}) is true:
+                za_arme_rafraichir({_pl})
+            send "&a[zaarme] état de %{_s}% : %{_v}% %%" to sender
+        else if {_sub} is "usure":
+            # zaarme usure <joueur> [n] : simule n zombies abattus avec l'arme en main (test)
+            set {_pl} to arg-2 parsed as player
+            set {_n} to arg-3 parsed as number
+            if {_n} is not set:
+                set {_n} to 1
+            if {_pl} is not set:
+                send "&cUsage : zaarme usure <joueur> [n]" to sender
+                stop
+            za_arme_usure({_pl}, {_n})
+            za_arme_rafraichir({_pl})
+            send "&7[zaarme] usure appliquée (x%{_n}%)." to sender
+        else if {_sub} is "liste":
+            set {_n} to 1
+            while {_n} <= 4:
+                set {_l} to ""
+                loop {za::arme::ids::*}:
+                    if {za::arme::tier::%loop-value%} is {_n}:
+                        set {_l} to "%{_l}% %loop-value%"
+                send "&6Niveau %{_n}% (%za_arme_niveau_nom({_n})%) :&7%{_l}%" to sender
+                add 1 to {_n}
+        else if {_sub} is "niveau":
+            send "&7%arg-2% : niveau %za_arme_niveau(arg-2)%" to sender
+        else:
+            send "&cUsage : /zaarme <donner|hasard|coffre|butin|accessoire|reparer|info|init|etat|usure|liste|niveau> …" to sender

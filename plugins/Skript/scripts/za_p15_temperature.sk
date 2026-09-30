@@ -1,0 +1,143 @@
+# =====================================================================
+#  ZombieApocalypse - TEMPERATURE CORPORELLE (version legere)
+#  Echelle 0 (glacial) -> 50 (confortable) -> 100 (brulant). Le corps rejoint la temperature ambiante lentement.
+#  Ambiante = biome (desert chaud, neige froide) + nuit (froid) + altitude + grottes.
+#  Armure de cuir : +chaleur au froid. Feu de camp ou generateur actif a moins de 5 blocs : +30.
+#  Froid : lenteur puis faiblesse puis degats. Chaud : faiblesse, soif plus rapide, degats.
+#  Interrupteur : temperature_active. Etat dans /survie.
+# =====================================================================
+
+options:
+    temperature_active: true
+
+on join:
+    if za_pro(player) is true:
+        stop
+    if {za::temp::%player's uuid%} is not set:
+        set {za::temp::%player's uuid%} to 50
+
+function za_biome_cible(b: text) :: number:
+    if {_b} contains "desert":
+        return 85
+    if {_b} contains "badlands":
+        return 85
+    if {_b} contains "savanna":
+        return 68
+    if {_b} contains "jungle":
+        return 70
+    if {_b} contains "frozen":
+        return 20
+    if {_b} contains "snow":
+        return 22
+    if {_b} contains "ice":
+        return 20
+    if {_b} contains "grove":
+        return 30
+    if {_b} contains "peaks":
+        return 25
+    if {_b} contains "taiga":
+        return 38
+    return 55
+
+# ---------- feux de camp poses par les joueurs ----------
+on place:
+    if za_pro(player) is true:
+        stop
+    if event-block is campfire:
+        add location of event-block to {za::feux::*}
+
+on break:
+    if za_pro(player) is true:
+        stop
+    if event-block is campfire:
+        remove location of event-block from {za::feux::*}
+
+function za_pres_du_feu(p: player) :: boolean:
+    loop {za::feux::*}:
+        if world of {_p} is world of loop-value:
+            if distance between {_p} and loop-value < 5:
+                return true
+    loop {za::gen::liste::*}:
+        set {_k} to loop-value
+        if {za::gen::%{_k}%::fin} is greater than now:
+            set {_l} to {za::gen::%{_k}%::loc}
+            if world of {_p} is world of {_l}:
+                if distance between {_p} and {_l} < 6:
+                    return true
+    return false
+
+every 10 seconds:
+    if all:
+        {@temperature_active} is true
+        {za::tan} is not true
+    then:
+        loop all players:
+            if za_pro(loop-player) is false:
+                set {_p} to loop-player
+                set {_u} to "%{_p}'s uuid%"
+                if {za::temp::%{_u}%} is not set:
+                    set {za::temp::%{_u}%} to 50
+                set {_l} to location of {_p}
+                set {_b} to "%biome at {_l}%"
+                set {_cible} to za_biome_cible({_b})
+                if y-coordinate of {_l} < 40:
+                    set {_cible} to 48
+                else if y-coordinate of {_l} > 120:
+                    remove 12 from {_cible}
+                set {_h} to time in world of {_p}
+                if any:
+                    {_h} is greater than 19:00
+                    {_h} is less than 5:00
+                then:
+                    if {_b} contains "desert":
+                        remove 35 from {_cible}
+                    else:
+                        remove 12 from {_cible}
+                set {_cuir} to 0
+                if {_p}'s helmet is leather armor:
+                    add 1 to {_cuir}
+                if {_p}'s chestplate is leather armor:
+                    add 1 to {_cuir}
+                if {_p}'s leggings is leather armor:
+                    add 1 to {_cuir}
+                if {_p}'s boots is leather armor:
+                    add 1 to {_cuir}
+                if {_cible} < 45:
+                    add ({_cuir} * 4) to {_cible}
+                else if {_cible} > 65:
+                    add ({_cuir} * 3) to {_cible}
+                if za_pres_du_feu({_p}) is true:
+                    add 30 to {_cible}
+                if {_cible} > 100:
+                    set {_cible} to 100
+                if {_cible} < 0:
+                    set {_cible} to 0
+                set {_t} to {za::temp::%{_u}%}
+                set {_t} to {_t} + (({_cible} - {_t}) * 0.15)
+                set {za::temp::%{_u}%} to {_t}
+                # ---- effets du froid ----
+                if {_t} < 30:
+                    za_effet({_p}, "slowness", 12, 0)
+                    if {za::temp::alerte::%{_u}%} is not "froid":
+                        set {za::temp::alerte::%{_u}%} to "froid"
+                        send "&bTu as froid. Rapproche-toi d'un feu, mets de l'armure de cuir." to {_p}
+                if {_t} < 15:
+                    za_effet({_p}, "weakness", 12, 0)
+                    za_effet({_p}, "mining_fatigue", 12, 0)
+                if {_t} < 6:
+                    if health of {_p} > 4:
+                        damage {_p} by 0.5
+                # ---- effets de la chaleur ----
+                if {_t} > 80:
+                    za_effet({_p}, "weakness", 12, 0)
+                    if {za::soif::%{_u}%} is set:
+                        remove 0.6 from {za::soif::%{_u}%}
+                    if {za::temp::alerte::%{_u}%} is not "chaud":
+                        set {za::temp::alerte::%{_u}%} to "chaud"
+                        send "&6Tu etouffes de chaleur. Cherche de l'ombre et de l'eau." to {_p}
+                if {_t} > 92:
+                    if health of {_p} > 4:
+                        damage {_p} by 0.5
+                if {_t} >= 30:
+                    if {_t} <= 80:
+                        delete {za::temp::alerte::%{_u}%}

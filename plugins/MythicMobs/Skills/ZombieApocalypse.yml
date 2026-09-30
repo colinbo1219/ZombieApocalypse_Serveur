@@ -1,0 +1,152 @@
+# ZombieApocalypse - skills (VERSION SANS ModelEngine)
+ZA_Spit:
+  Cooldown: 4
+  Conditions:
+  - playerwithin{d=18} true
+  Skills:
+  # animation (modeles EMF des joueurs): "swingarm" declenche le mouvement special
+  - swingarm @self
+  - effect:sound{s=entity.llama.spit;v=1;p=0.6} @self
+  - projectile{onTick=ZA_AcidTick;onHit=ZA_AcidHit;v=9;i=1;hR=0.6;vR=0.6;mr=20}
+ZA_AcidTick:
+  Skills:
+  - effect:particles{p=happyVillager;a=3;hS=0.1;vS=0.1;s=0} @origin
+ZA_AcidHit:
+  Skills:
+  - damage{a=4}
+  - potion{type=POISON;duration=100;level=1}
+  - command{c="zainfect <target.name> 30";sync=true}
+  - effect:sound{s=block.lava.extinguish;v=1;p=1.2} @target
+  - effect:particles{p=happyVillager;a=15;hS=0.4;vS=0.4;s=0.05} @target
+ZA_BloaterBurst:
+  Skills:
+  - explosion{yield=2;blockdamage=false;fire=false} @self
+  - damage{a=6} @PIR{r=4}
+  - command{c="zainfect <target.name> 45";sync=true} @PIR{r=6}
+  - potion{type=POISON;duration=160;level=1} @PIR{r=6}
+  - potion{type=CONFUSION;duration=140;level=0} @PIR{r=6}
+  - effect:particles{p=happyVillager;a=60;hS=2.5;vS=1.5;s=0.02} @self
+  - effect:sound{s=entity.slime.squish;v=1.5;p=0.5} @self
+ZA_Lunge:
+  Cooldown: 5
+  Conditions:
+  - playerwithin{d=10} true
+  Skills:
+  # animation (modeles EMF des joueurs): "swingarm" declenche le mouvement special
+  - swingarm @self
+  - effect:sound{s=entity.ravager.roar;v=1;p=1.6} @self
+  - lunge{velocity=1.5;velocityY=0.5} @Self
+ZA_Scream:
+  Cooldown: 25
+  Conditions:
+  - playerwithin{d=24} true
+  Skills:
+  # animation (modeles EMF des joueurs): "swingarm" declenche le mouvement special
+  - swingarm @self
+  - delay 6
+  - swingarm @self
+  - delay 6
+  - swingarm @self
+  - effect:sound{s=entity.ghast.scream;v=2;p=0.6} @self
+  - command{c="zamsg <target.l.w> <target.l.x> <target.l.y> <target.l.z> 30 &cUn hurlement déchire la nuit... les morts accourent !";sync=true} @self
+  - summon{type=ZA_Shambler;amount=3;radius=6} @self
+  - potion{type=SLOW;duration=60;level=0} @PIR{r=12}
+  - effect:particles{p=cloud;a=30;hS=1;vS=1;s=0.05} @self
+ZA_Overlord_Spawn:
+  Skills:
+  - effect:sound{s=entity.wither.spawn;v=3;p=0.7} @self
+  - command{c="zamsg <target.l.w> <target.l.x> <target.l.y> <target.l.z> 90 &4&lL'Undead Overlord s'est éveillé !";sync=true} @self
+  - potion{type=DAMAGE_RESISTANCE;duration=100;level=3} @self
+ZA_Overlord_Slam:
+  Cooldown: 6
+  Conditions:
+  - playerwithin{d=8} true
+  Skills:
+  # animation (modeles EMF des joueurs): "swingarm" declenche le mouvement special
+  - swingarm @self
+  - delay 10
+  - effect:sound{s=entity.generic.explode;v=2;p=0.6} @self
+  - damage{a=12} @PIR{r=6}
+  - throw{velocity=4;velocityY=5} @PIR{r=6}
+  - effect:particles{p=explosion;a=8;hS=3;vS=0.2;s=0} @self
+ZA_Overlord_Roar:
+  Conditions:
+  - playerwithin{d=40} true
+  Skills:
+  # animation (modeles EMF des joueurs): "swingarm" declenche le mouvement special
+  - swingarm @self
+  - delay 6
+  - swingarm @self
+  - delay 6
+  - swingarm @self
+  - effect:sound{s=entity.ender_dragon.growl;v=3;p=0.5} @self
+  - summon{type=ZA_Shambler;amount=3;radius=8} @self
+  - potion{type=SLOW;duration=60;level=0} @PIR{r=15}
+ZA_Overlord_Phase2:
+  Skills:
+  # animation (modeles EMF des joueurs): "swingarm" declenche le mouvement special
+  - swingarm @self
+  - delay 6
+  - swingarm @self
+  - delay 6
+  - swingarm @self
+  - command{c="zamsg <target.l.w> <target.l.x> <target.l.y> <target.l.z> 90 &4&lL'Overlord hurle de rage ! &c(Phase 2)";sync=true} @self
+  - effect:sound{s=entity.ender_dragon.growl;v=3;p=0.4} @self
+  - potion{type=INCREASE_DAMAGE;duration=6000;level=1} @self
+  - summon{type=ZA_Runner;amount=4;radius=8} @self
+  - effect:particles{p=flame;a=80;hS=2;vS=2;s=0.1} @self
+ZA_Overlord_Phase3:
+  Skills:
+  # animation (modeles EMF des joueurs): "swingarm" declenche le mouvement special
+  - swingarm @self
+  - delay 6
+  - swingarm @self
+  - delay 6
+  - swingarm @self
+  - command{c="zamsg <target.l.w> <target.l.x> <target.l.y> <target.l.z> 90 &4&lL'Overlord est en furie ! &c(Phase 3)";sync=true} @self
+  - effect:sound{s=entity.wither.spawn;v=3;p=0.5} @self
+  - potion{type=SPEED;duration=6000;level=1} @self
+  - summon{type=ZA_Brute;amount=1;radius=8} @self
+  - summon{type=ZA_Leaper;amount=3;radius=8} @self
+  - summon{type=ZA_Shambler;amount=4;radius=8} @self
+  - effect:particles{p=flame;a=120;hS=3;vS=3;s=0.15} @self
+ZA_Overlord_Death:
+  Skills:
+  - effect:sound{s=entity.wither.death;v=3;p=0.6} @self
+  - command{c="zamsg <target.l.w> <target.l.x> <target.l.y> <target.l.z> 120 &a&lL'Undead Overlord est tombé !";sync=true} @self
+  - command{c="zaboss mort";sync=true}
+ZA_AlphaBuff:
+  Conditions:
+  - playerwithin{d=30} true
+  Skills:
+  # animation (modeles EMF des joueurs): "swingarm" declenche le mouvement special
+  - swingarm @self
+  - delay 6
+  - swingarm @self
+  - delay 6
+  - swingarm @self
+  - effect:sound{s=entity.zombie_villager.converted;v=1.5;p=0.6} @self
+  - potion{type=INCREASE_DAMAGE;duration=160;level=0} @EIR{r=12;types=ZOMBIE}
+  - potion{type=SPEED;duration=160;level=0} @EIR{r=12;types=ZOMBIE}
+  - effect:particles{p=flame;a=20;hS=1;vS=1;s=0.05} @self
+ZA_FakeDead_Rise:
+  Conditions:
+  - playerwithin{d=3} true
+  Skills:
+  - summon{type=ZA_Shambler;amount=1;radius=0} @self
+  - suicide @self
+ZA_Observer_Vanish:
+  Conditions:
+  - playerwithin{d=14} true
+  Skills:
+  - effect:sound{s=entity.enderman.teleport;v=1;p=0.5} @self
+  - effect:particles{p=smoke;a=25;hS=0.5;vS=1;s=0.02} @self
+  - suicide @self
+ZA_Dumas_Appel:
+  Conditions:
+  - playerwithin{d=30} true
+  Skills:
+  - swingarm @self
+  - effect:sound{s=entity.ravager.roar;v=2.5;p=0.5} @self
+  - command{c="zamsg <target.l.w> <target.l.x> <target.l.y> <target.l.z> 40 &4Le Caporal Dumas hurle un ordre que plus personne ne comprend... &7Des soldats infectes repondent.";sync=true} @self
+  - summon{type=ZA_Soldat_Infecte;amount=2;radius=6} @self

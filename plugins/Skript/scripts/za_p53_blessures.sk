@@ -1,0 +1,481 @@
+# =====================================================================
+#  ZombieApocalypse - BLESSURES LOCALISÉES : chaque coup sérieux touche une partie du corps
+#  Parties : tete, bras, torse, jambe.  Niveaux : 0 (ok), 1 (légère), 2 (grave).  Stockage : {za::bless::<partie>::<uuid>}
+#  Cause -> partie : chute = jambe ; projectile = selon la hauteur d'impact (sinon hasard) ; explosion = torse ;
+#  mêlée de zombie/pillard = bras 35 %% / torse 35 %% / tête 15 %% / jambe 15 %%.  Coups de 3 points de vie (1,5 coeur) ou plus,
+#  un seul nouveau coup toutes les 4 secondes. Deux coups au même endroit : légère -> grave.
+#  Effets : Bras = faiblesse + fatigue ("tes mains tremblent") ; Jambe = lenteur I/II ; Torse = SAIGNEMENT (0,5 coeur / 7 s,
+#  particules rouges) jusqu'au Bandage ; Tête = nausée + assombrissement par à-coups.
+#  Soins : Bandage (clic droit, ou /blessures soigner) arrête le saignement (grave : 2 bandages) ; Attelle (bâton) répare bras/jambe
+#  LÉGERS ; le grave demande un médecin (/blessures soigner <joueur>, rôle Médecin, à moins de 4 blocs), un Poste de soins d'hôpital
+#  ou un médecin de camp/base (console zablessure soigner) ; la tête guérit en dormant. Une blessure légère finit par guérir seule,
+#  une grave redevient légère après 40 minutes. La mort remet tout à zéro.
+#  Différent de l'infection de plaie de za_p27 (plaie non bandée -> infection) : ici on parle de gestes entravés, pas de germes.
+#  Console : zablessure soigner <joueur> | zablessure appliquer <joueur> <partie> <niveau> | zablessure etat <joueur>
+#  Stat : blessures_soignees (+1 pour celui qui soigne un autre joueur)
+# =====================================================================
+
+options:
+    seuil_coup: 1.5
+    delai_coup: 4 seconds
+
+# ---------------------------------------------------------------- données
+
+function za_bless_parties() :: texts:
+    return "tete", "bras", "torse" and "jambe"
+
+function za_bless_nom(k: text) :: text:
+    if {_k} is "tete":
+        return "Tête"
+    if {_k} is "bras":
+        return "Bras"
+    if {_k} is "torse":
+        return "Torse"
+    if {_k} is "jambe":
+        return "Jambe"
+    return {_k}
+
+function za_bless_niveau(u: text, k: text) :: number:
+    set {_n} to {za::bless::%{_k}%::%{_u}%}
+    if {_n} is not set:
+        return 0
+    return {_n}
+
+function za_bless_total(u: text) :: number:
+    set {_t} to 0
+    loop za_bless_parties():
+        if za_bless_niveau({_u}, loop-value) > 0:
+            add 1 to {_t}
+    return {_t}
+
+# texte d'état pour une partie : "ok", "légère", "grave" (torse : "saigne")
+function za_bless_etat(u: text, k: text) :: text:
+    set {_n} to za_bless_niveau({_u}, {_k})
+    if {_n} is 0:
+        return "&aok"
+    if {_k} is "torse":
+        if {_n} is 1:
+            return "&c&lSAIGNE"
+        return "&4&lSAIGNE FORT"
+    if {_n} is 1:
+        return "&elégère"
+    return "&cgrave"
+
+function za_bless_couleur(u: text, k: text) :: text:
+    set {_n} to za_bless_niveau({_u}, {_k})
+    if {_n} is 0:
+        return "&a"
+    if {_n} is 1:
+        return "&e"
+    if {_k} is "torse":
+        return "&4"
+    return "&c"
+
+# ---------------------------------------------------------------- appliquer / soigner
+
+function za_bless_appliquer(p: player, k: text, n: number):
+    set {_u} to {_p}'s uuid
+    set {_avant} to za_bless_niveau({_u}, {_k})
+    set {_n} to min(2, {_n})
+    if {_n} <= 0:
+        delete {za::bless::%{_k}%::%{_u}%}
+        delete {za::bless::depuis::%{_k}%::%{_u}%}
+        stop
+    set {za::bless::%{_k}%::%{_u}%} to {_n}
+    set {za::bless::depuis::%{_k}%::%{_u}%} to now
+    if {_n} <= {_avant}:
+        stop
+    if {_k} is "bras":
+        if {_n} is 1:
+            send "&6[Blessure] &7Ton bras encaisse le coup : &edouleur sourde&7. Une attelle le remettra d'aplomb." to {_p}
+        else:
+            send "&c&l[Blessure] &cTon bras est en lambeaux. &7Tes mains tremblent... Il te faut un médecin." to {_p}
+    else if {_k} is "jambe":
+        if {_n} is 1:
+            send "&6[Blessure] &7Ta jambe lâche un instant : &eentorse&7. Une attelle t'aidera." to {_p}
+        else:
+            send "&c&l[Blessure] &cTa jambe est cassée. &7Tu boites, chaque pas est un supplice... Il te faut un médecin." to {_p}
+    else if {_k} is "torse":
+        if {_n} is 1:
+            send "&c&l[Blessure] &cTu saignes ! &7Un &fBandage &7arrête l'hémorragie." to {_p}
+        else:
+            send "&4&l[Blessure] &4Hémorragie ! &7Le sang coule à flots. Il faudra 2 bandages, vite." to {_p}
+        set {za::sang::%{_u}%} to now
+    else if {_k} is "tete":
+        if {_n} is 1:
+            send "&6[Blessure] &7Un coup à la tête : &eétourdissements&7. Dormir dans un lit t'aidera." to {_p}
+        else:
+            send "&c&l[Blessure] &cCommotion ! &7Ta vue se brouille par à-coups. Un médecin, ou une longue nuit." to {_p}
+    if {_n} is 2:
+        send title "&4&l%za_bless_nom({_k}) in lowercase% grave" with subtitle "&7Blessure grave" to {_p} for 2 seconds
+    za_zm("son %{_p}% minecraft:entity.player.hurt_on_fire 0.4 0.6")
+    execute console command "execute at %{_p}% run particle minecraft:damage_indicator ~ ~1.2 ~ 0.3 0.4 0.3 0.1 6 force"
+
+# soigne une partie complètement ; retourne vrai s'il y avait quelque chose à soigner
+function za_bless_guerir(u: text, k: text) :: boolean:
+    if za_bless_niveau({_u}, {_k}) <= 0:
+        return false
+    delete {za::bless::%{_k}%::%{_u}%}
+    delete {za::bless::depuis::%{_k}%::%{_u}%}
+    return true
+
+# soigne tout ; retourne le nombre de parties soignées
+function za_bless_guerir_tout(u: text) :: number:
+    set {_c} to 0
+    loop za_bless_parties():
+        if za_bless_guerir({_u}, loop-value) is true:
+            add 1 to {_c}
+    return {_c}
+
+# ---------------------------------------------------------------- coups reçus
+
+function za_bless_partie_melee() :: text:
+    set {_r} to random integer between 1 and 100
+    if {_r} <= 35:
+        return "bras"
+    if {_r} <= 70:
+        return "torse"
+    if {_r} <= 85:
+        return "tete"
+    return "jambe"
+
+on damage of player:
+    if za_pro(victim) is true:
+        stop
+    set {_u} to victim's uuid
+    if {za::bless::cd::%{_u}%} is set:
+        if now < {za::bless::cd::%{_u}%}:
+            stop
+    set {_part} to ""
+    if damage cause is fall:
+        set {_part} to "jambe"
+    else if damage cause is entity explosion:
+        set {_part} to "torse"
+    else if damage cause is block explosion:
+        set {_part} to "torse"
+    else if damage cause is projectile:
+        if projectile is set:
+            set {_h} to (y-coordinate of projectile) - (y-coordinate of victim)
+            if {_h} >= 1.4:
+                set {_part} to "tete"
+            else if {_h} >= 0.75:
+                set {_part} to "torse"
+                if chance of 35%:
+                    set {_part} to "bras"
+            else:
+                set {_part} to "jambe"
+        else:
+            set {_part} to za_bless_partie_melee()
+    else if attacker is a zombie:
+        set {_part} to za_bless_partie_melee()
+    else if attacker is a vindicator:
+        set {_part} to za_bless_partie_melee()
+    else if attacker is a pillager:
+        set {_part} to za_bless_partie_melee()
+    if {_part} is "":
+        stop
+    # coups sérieux seulement : 3 points de vie (1,5 coeur) ou plus (les degats Skript sont en coeurs)
+    if damage < {@seuil_coup}:
+        stop
+    set {za::bless::cd::%{_u}%} to now
+    add {@delai_coup} to {za::bless::cd::%{_u}%}
+    set {_n} to za_bless_niveau({_u}, {_part})
+    za_bless_appliquer(victim, {_part}, {_n} + 1)
+
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    set {_c} to za_bless_guerir_tout(victim's uuid)
+    delete {za::bless::cd::%victim's uuid%}
+
+# ---------------------------------------------------------------- effets permanents (toutes les 5 s)
+
+function za_bless_effets(p: player):
+    set {_u} to {_p}'s uuid
+    if za_bless_total({_u}) is 0:
+        stop
+    set {_b} to za_bless_niveau({_u}, "bras")
+    set {_j} to za_bless_niveau({_u}, "jambe")
+    set {_t} to za_bless_niveau({_u}, "tete")
+    set {_x} to za_bless_niveau({_u}, "torse")
+    if {_b} > 0:
+        za_effet({_p}, "weakness", 9, {_b} - 1)
+        za_effet({_p}, "mining_fatigue", 9, {_b} - 1)
+        if {_b} is 2:
+            if chance of 12%:
+                send action bar "&c✋ Tes mains tremblent..." to {_p}
+    if {_j} > 0:
+        za_effet({_p}, "slowness", 9, {_j} - 1)
+    if {_t} > 0:
+        set {_ch} to 10
+        if {_t} is 2:
+            set {_ch} to 32
+        if chance of {_ch}%:
+            za_effet({_p}, "nausea", 6 + (2 * {_t}), 0)
+            za_effet({_p}, "darkness", 4 + (2 * {_t}), 0)
+            send action bar "&8Ta tête tourne..." to {_p}
+    # récapitulatif discret
+    set {_s} to ""
+    loop za_bless_parties():
+        if za_bless_niveau({_u}, loop-value) > 0:
+            set {_s} to "%{_s}%%za_bless_couleur({_u}, loop-value)%%za_bless_nom(loop-value)% &7(%za_bless_etat({_u}, loop-value)%&7)  "
+    send action bar "&c✚ &7%{_s}%" to {_p}
+
+every 5 seconds:
+    loop za_monde_joueurs():
+        za_bless_effets(loop-player)
+
+# saignement : 0,5 coeur toutes les 7 s (1 coeur si hémorragie), sans jamais tuer
+every 7 seconds:
+    loop za_monde_joueurs():
+        set {_x} to za_bless_niveau(loop-player's uuid, "torse")
+        if {_x} > 0:
+            if health of loop-player > 1.5:
+                if {_x} is 1:
+                    damage loop-player by 0.5
+                else:
+                    damage loop-player by 1
+                za_zm("son %loop-player% minecraft:block.wet_grass.step 0.5 0.6")
+
+every 2 seconds:
+    loop za_monde_joueurs():
+        if za_bless_niveau(loop-player's uuid, "torse") > 0:
+            execute console command "execute at %loop-player% run particle minecraft:dust 0.75 0.05 0.05 1 ~ ~1 ~ 0.25 0.4 0.25 0 6 force"
+
+# guérison naturelle lente : légère -> ok après 15 min ; grave -> légère après 40 min (jamais pour le saignement du torse)
+every 30 seconds:
+    loop za_monde_joueurs():
+        set {_pl} to loop-value-1
+        set {_u} to "%{_pl}'s uuid%"
+        loop "tete", "bras" and "jambe":
+            set {_k} to loop-value-2
+            set {_n} to za_bless_niveau({_u}, {_k})
+            if {_n} > 0:
+                if {za::bless::depuis::%{_k}%::%{_u}%} is not set:
+                    set {za::bless::depuis::%{_k}%::%{_u}%} to now
+                set {_age} to difference between {za::bless::depuis::%{_k}%::%{_u}%} and now
+                if {_n} is 1:
+                    if {_age} > 15 minutes:
+                        delete {za::bless::%{_k}%::%{_u}%}
+                        delete {za::bless::depuis::%{_k}%::%{_u}%}
+                        send "&a[Blessure] &7Ta blessure à la %za_bless_nom({_k})% ne te gêne plus." to {_pl}
+                else:
+                    if {_age} > 40 minutes:
+                        set {za::bless::%{_k}%::%{_u}%} to 1
+                        set {za::bless::depuis::%{_k}%::%{_u}%} to now
+                        send "&e[Blessure] &7Ta blessure à la %za_bless_nom({_k})% s'est un peu remise : elle n'est plus que légère." to {_pl}
+
+# la tête guérit en dormant
+on bed enter:
+    if za_pro(player) is true:
+        stop
+    if za_bless_guerir(player's uuid, "tete") is true:
+        send "&a[Blessure] &7Le sommeil apaise ta tête. Les étourdissements passent." to player
+
+# ---------------------------------------------------------------- traitements : Bandage / Attelle
+
+# applique un bandage à u (soigneur = h, peut être le même) ; retourne vrai si utile
+function za_bless_bandage(cible: player) :: boolean:
+    set {_u} to {_cible}'s uuid
+    set {_n} to za_bless_niveau({_u}, "torse")
+    if {_n} <= 0:
+        return false
+    if {_n} >= 2:
+        set {za::bless::torse::%{_u}%} to 1
+        send "&e[Soin] &7L'hémorragie ralentit, mais ce n'est pas fini : un second bandage." to {_cible}
+    else:
+        delete {za::bless::torse::%{_u}%}
+        delete {za::bless::depuis::torse::%{_u}%}
+        send "&a[Soin] &7Le bandage tient : le saignement s'arrête." to {_cible}
+    return true
+
+# applique une attelle : jambe puis bras, légère seulement ; retourne "ok", "grave" ou "rien"
+function za_bless_attelle(cible: player) :: text:
+    set {_u} to {_cible}'s uuid
+    set {_grave} to false
+    loop "jambe" and "bras":
+        set {_n} to za_bless_niveau({_u}, loop-value)
+        if {_n} is 1:
+            delete {za::bless::%loop-value%::%{_u}%}
+            delete {za::bless::depuis::%loop-value%::%{_u}%}
+            send "&a[Soin] &7L'attelle immobilise la %za_bless_nom(loop-value) in lowercase% : tu sens que ça tiendra." to {_cible}
+            return "ok"
+        if {_n} is 2:
+            set {_grave} to true
+    if {_grave} is true:
+        return "grave"
+    return "rien"
+
+on right click with paper with priority lowest:
+    if za_pro(player) is true:
+        stop
+    if uncolored name of player's tool is not "Bandage":
+        stop
+    set {_p} to player
+    if za_bless_niveau({_p}'s uuid, "torse") <= 0:
+        stop
+    set {_avant} to item amount of {_p}'s tool
+    wait 2 ticks
+    set {_apres} to 0
+    if uncolored name of {_p}'s tool is "Bandage":
+        set {_apres} to item amount of {_p}'s tool
+    if {_apres} >= {_avant}:
+        # l'autre gestionnaire n'a rien consommé (vie pleine) : on prend le bandage nous-mêmes
+        remove 1 of {_p}'s tool from {_p}'s inventory
+    set {_ok} to za_bless_bandage({_p})
+
+on right click with stick:
+    if za_pro(player) is true:
+        stop
+    if uncolored name of player's tool is not "Attelle":
+        stop
+    cancel the event
+    set {_r} to za_bless_attelle(player)
+    if {_r} is "ok":
+        remove 1 of player's tool from player's inventory
+    else if {_r} is "grave":
+        send "&c[Soin] &7L'attelle ne suffit pas : la fracture est trop sérieuse. Il faut un médecin (/blessures soigner) ou un poste de soins." to player
+    else:
+        send "&7Tu n'as ni bras ni jambe à immobiliser." to player
+
+# soigner un autre joueur avec l'objet en main : Bandage (torse) / Attelle (membres)
+on right click on player:
+    if za_pro(player) is true:
+        stop
+    set {_t} to uncolored name of player's tool
+    set {_c} to clicked entity
+    if {_t} is "Bandage":
+        if za_bless_niveau({_c}'s uuid, "torse") > 0:
+            cancel the event
+            remove 1 of player's tool from player's inventory
+            set {_ok} to za_bless_bandage({_c})
+            send "&a[Soin] &7Tu bandes %{_c}%." to player
+            za_stat_ajouter(player's uuid, "blessures_soignees", 1)
+    else if {_t} is "Attelle":
+        cancel the event
+        set {_r} to za_bless_attelle({_c})
+        if {_r} is "ok":
+            remove 1 of player's tool from player's inventory
+            send "&a[Soin] &7Tu poses une attelle à %{_c}%." to player
+            za_stat_ajouter(player's uuid, "blessures_soignees", 1)
+        else if {_r} is "grave":
+            send "&c[Soin] &7C'est une fracture grave : seul un médecin peut la réduire." to player
+        else:
+            send "&7%{_c}% n'a rien à immobiliser." to player
+
+# ---------------------------------------------------------------- commande joueur
+
+command /blessures [<text>] [<player>]:
+    aliases: /blessure
+    trigger:
+        set {_u} to player's uuid
+        if arg-1 is "soigner":
+            if arg-2 is not set:
+                # auto-soin avec ce qu'on a dans le sac
+                if za_bless_total({_u}) is 0:
+                    send "&7Tu n'as aucune blessure à soigner." to player
+                    stop
+                set {_fait} to false
+                if za_bless_niveau({_u}, "torse") > 0:
+                    if za_take_named(player, "Bandage", 1) is true:
+                        set {_ok} to za_bless_bandage(player)
+                        set {_fait} to true
+                    else:
+                        send "&c[Soin] &7Tu saignes et tu n'as plus de &fBandage&7." to player
+                set {_r} to "rien"
+                if za_bless_niveau({_u}, "bras") + za_bless_niveau({_u}, "jambe") > 0:
+                    if za_count_named(player, "Attelle") > 0:
+                        set {_r} to za_bless_attelle(player)
+                        if {_r} is "ok":
+                            set {_ok} to za_take_named(player, "Attelle", 1)
+                            set {_fait} to true
+                        else if {_r} is "grave":
+                            send "&c[Soin] &7Une fracture grave : il te faut un médecin ou un poste de soins." to player
+                    else:
+                        send "&7Une &fAttelle &7(bâton + papier + ficelle, atelier médical) immobiliserait bras ou jambe légers." to player
+                if za_bless_niveau({_u}, "tete") > 0:
+                    send "&7Ta tête guérira en dormant dans un lit (ou chez un médecin)." to player
+                if {_fait} is false:
+                    send "&7Rien de ce que tu portes ne peut soigner ça." to player
+                stop
+            # soigner un autre joueur
+            set {_c} to arg-2
+            if {_c} is player:
+                send "&7Utilise &e/blessures soigner &7sans nom pour te soigner toi-même." to player
+                stop
+            if world of {_c} is not world of player:
+                send "&cIl est trop loin." to player
+                stop
+            if distance between player and {_c} > 4:
+                send "&c%{_c}% est à plus de 4 blocs. Approche-toi." to player
+                stop
+            if za_role(player) is not "medecin":
+                send "&7Seul un &fMédecin &7soigne tout d'un coup. Sinon, utilise un Bandage ou une Attelle en clic droit sur lui." to player
+                stop
+            if za_bless_total({_c}'s uuid) is 0:
+                send "&7%{_c}% n'a aucune blessure." to player
+                stop
+            if za_lieu_cd(player, "medecin", 20) is false:
+                send "&7Tes mains ont besoin de repos (20 secondes entre deux soins)." to player
+                stop
+            set {_n} to za_bless_guerir_tout({_c}'s uuid)
+            send "&a[Soin] &7%player% te soigne : &f%{_n}% blessure(s) &7traitée(s)." to {_c}
+            send "&a[Soin] &7Tu as soigné &f%{_c}%&7 (%{_n}% blessure(s))." to player
+            za_stat_ajouter({_u}, "blessures_soignees", 1)
+            za_zm("son %player% minecraft:entity.villager.yes 0.8 1")
+            stop
+        # schéma du corps
+        set {_t} to za_bless_couleur({_u}, "tete")
+        set {_b} to za_bless_couleur({_u}, "bras")
+        set {_x} to za_bless_couleur({_u}, "torse")
+        set {_j} to za_bless_couleur({_u}, "jambe")
+        send "&8&m                                        " to player
+        send "&c&l✚ BLESSURES" to player
+        set {_et} to za_bless_etat({_u}, "tete")
+        set {_eb} to za_bless_etat({_u}, "bras")
+        set {_ex} to za_bless_etat({_u}, "torse")
+        set {_ej} to za_bless_etat({_u}, "jambe")
+        send "       %{_t}%◯       &7Tête : %{_et}%" to player
+        send "     %{_b}%╱%{_x}%▐█▌%{_b}%╲     &7Bras : %{_eb}%" to player
+        send "       %{_x}%▐█▌       &7Torse : %{_ex}%" to player
+        send "       %{_j}%▌ ▐       &7Jambe : %{_ej}%" to player
+        if za_bless_total({_u}) is 0:
+            send "&7Aucune blessure. &8Un coup sérieux (3 points de vie et plus) touche une partie du corps." to player
+        else:
+            if za_bless_niveau({_u}, "torse") > 0:
+                send "&8Torse : &fBandage &8(clic droit) - hémorragie : 2 bandages." to player
+            if za_bless_niveau({_u}, "bras") + za_bless_niveau({_u}, "jambe") > 0:
+                send "&8Bras/Jambe : &fAttelle &8(légère). Grave : médecin (/blessures soigner <joueur>) ou Poste de soins." to player
+            if za_bless_niveau({_u}, "tete") > 0:
+                send "&8Tête : dors dans un lit, ou va voir un médecin." to player
+        send "&8&o(À ne pas confondre avec l'infection de plaie de /survie : elle, elle vient des germes.)" to player
+        send "&8&m                                        " to player
+
+# ---------------------------------------------------------------- console : médecins de camp/base, postes de soins, tests
+
+command /zablessure <text> <player> [<text>] [<number>]:
+    executable by: console
+    trigger:
+        set {_a} to arg-1 in lowercase
+        set {_p} to arg-2
+        set {_u} to {_p}'s uuid
+        if {_a} is "soigner":
+            set {_n} to za_bless_guerir_tout({_u})
+            if {_n} > 0:
+                send "&a[Soin] &7Tes blessures sont soignées (%{_n}%)." to {_p}
+            send "%{_p}% : %{_n}% blessure(s) soignée(s)" to console
+        else if {_a} is "appliquer":
+            set {_k} to arg-3
+            set {_lv} to 1
+            if arg-4 is set:
+                set {_lv} to arg-4
+            za_bless_appliquer({_p}, {_k}, {_lv})
+            send "%{_p}% : %{_k}% niveau %{_lv}%" to console
+        else if {_a} is "etat":
+            set {_nt} to za_bless_niveau({_u}, "tete")
+            set {_nb} to za_bless_niveau({_u}, "bras")
+            set {_nx} to za_bless_niveau({_u}, "torse")
+            set {_nj} to za_bless_niveau({_u}, "jambe")
+            send "%{_p}% : tete=%{_nt}% bras=%{_nb}% torse=%{_nx}% jambe=%{_nj}%" to console
+        else:
+            send "Usage : zablessure <soigner|appliquer|etat> <joueur> [partie] [niveau]" to console

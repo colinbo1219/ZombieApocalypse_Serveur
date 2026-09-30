@@ -1,0 +1,46 @@
+﻿Jars non inclus dans git (voir .gitignore). A remettre a ces emplacements avant de lancer le serveur.
+Format : chemin | taille (octets) | SHA-1
+
+arclight-5dc8683.jar | 5749574 | f3df1189a4e2a11ba7e8363beb47c9bcbed3ca09
+mods/balm-forge-1.20.1-7.3.43.jar | 561741 | 4248e3b8fb20e9b6432d2225325c605f4ad7b211
+mods/coroutil-forge-1.20.1-1.3.7.jar | 64187 | 7f5f0b62a638b6053c95919cbe8c2bea2e0c93d0
+mods/create-1.20.1-6.0.8.jar | 19170905 | b13d912b9247a38d66d11598c121442585a1c1e9
+mods/createaddition-1.20.1-1.3.3.jar | 1577313 | c7d464c451fdc2979bc29a67d7eec2a30858af12
+mods/curios-forge-5.14.1+1.20.1.jar | 398066 | 452175b95ad3db6ff58bb8968f6bf7a9d1e0f480
+mods/dynamiclights-v1.9-mc1.17-1.21.9-mod.jar | 406570 | 422cd454bf4bc662c146a4ca598fbc6b3e870ee8
+mods/enhancedai-3.3.7.5.jar | 1387972 | 8cb138410fd857d457a26eca5315546fd0417319
+mods/ferritecore-6.0.1-forge.jar | 123034 | 417fb6ce8f52abf40bd9d0390371790f9576f8ba
+mods/framework-forge-1.20.1-0.8.0.jar | 383868 | 27347879f8760a7bc0b4bd71977abc50e498811c
+mods/geckolib-forge-1.20.1-4.8.4.jar | 1038209 | 50e1407869ef0e909e3bdda9328b8bd7db03fdc0
+mods/GlitchCore-forge-1.20.1-0.0.1.1.jar | 87551 | bba0b08fe76b28b35243fee53f99d54a18153b53
+mods/gravestone-forge-1.20.1-1.0.35.jar | 317181 | 9ec9da5da2a5884b6abff5f74a763a4f3e54fa38
+mods/ImmersiveEngineering-1.20.1-10.2.0-183.jar | 12129396 | b6e403e0e5be1802268be366ad1a7791f07fb793
+mods/insanelib-1.23.4.6.jar | 369931 | cca086a7ff34c4ffadb3caf3e825acb87f7e7322
+mods/Jade-1.20.1-Forge-11.13.3.jar | 553487 | d08e64e66521d69e083c8525f1fc507f1c202384
+mods/lootr-forge-1.20-0.7.35.94.jar | 463485 | 1ec77a7df8adbf3290a296bf25b8f99f37a60020
+mods/lostcities-1.20-7.5.5.jar | 1420565 | 7119a9e3b1b83037e618eb98e0331684a19e2b4a
+mods/mcjtylib-1.20-8.0.8.jar | 714454 | b065a249103feb80341cbd005a6baf8601d15684
+mods/mobspiderclimb-1.20.1-1.1.jar | 10036 | 7c81213733c088c196e0e7660bc55ecdb7d4e7aa
+mods/modernfix-forge-5.26.2+mc1.20.1.jar | 826829 | 0adfc122e9f632d8847688c4c3ed20a1af182afa
+mods/refurbished_furniture-forge-1.20.1-1.0.20.jar | 6689588 | ffb68135b88bdbb25224378c76daf922c3f4c322
+mods/securitycraft-1.20.1-v1.10.2.jar | 4901527 | 74ed969360228c6cc4bbd028bc3de1810c842446
+mods/SereneSeasons-forge-1.20.1-9.1.0.3.jar | 160886 | aaf4fb2289c085f758032dc0537ba40f10f3df89
+mods/sophisticatedbackpacks-1.20.1-3.26.3.2157.jar | 1223451 | efc831296f60a59792af142534d1c6dd1dff7f3f
+mods/sophisticatedcore-1.20.1-1.5.1.2335.jar | 1734797 | 24d7f2ee72127b7f1148245e57979e87b0b189ec
+mods/Steam_Rails-1.7.3+forge-mc1.20.1.jar | 17042037 | 5f904126d942cdbd272a5254ec6145851e5e1e7a
+mods/tacz-1.20.1-1.1.8-hotfix (1).jar | 57465167 | bddafeea4c9c1132ed720c30fbaedfe5ab25e846
+mods/taczaddon-1.1.8.1-hotfix6-forge-1.20.1.jar | 339507 | ccddbd32ab08dcff675e995c4d2d8bb395bb92d7
+mods/taczdd-0.1.1.jar | 16396 | ac6ab271df98a19561430b58b4af4382dee74664
+mods/TES-forge-1.20.1-1.6.1.jar | 133037 | 9aad90fecf44738bf175a418eec2245a34be0d48
+mods/ToughAsNails-forge-1.20.1-9.2.0.171.jar | 459479 | e1caa4a2fb30965913aefe84fe55acffdaaab26e
+mods/tsaz-1.1.0-forge.jar | 12255 | 8003ff020b126a20d3ce432b1a9cd135804288cf
+mods/voicechat-forge-1.20.1-2.6.22.jar | 4923439 | ad9179e30cb7b3ffb42b3d9b8e2e9408b473d7fa
+mods/waystones-forge-1.20.1-14.1.21.jar | 536782 | 61952fb248a9689fe46d5ffb223fcc41e31fef1a
+mods/xaeros_waystones_compatibility-1.1-1.20.1.jar | 325969 | d88355bcf6d731c067ed49146a090758356bd028
+mods/zombieawareness-1.20.1-1.13.1.jar | 291139 | 173c30c8918da57be9398b3687ea19a81455c2c1
+plugins/Chunky-1.3.146.jar | 289159 | 52a0b59ef563b7eaaa610be4884ff6780d7d4d04
+plugins/CoreProtect-CE-24.0.jar | 1102175 | e8425e63e9f22999b090beafbc32bef46d91eb22
+plugins/LuckPerms-Bukkit-5.5.71.jar | 1501521 | fc8bb9919fa77c670b7ed5c284bcb66770ea71fc
+plugins/MythicMobs-5.7.2.jar | 16901568 | 32013cc13cbd8b00bdd196bd9d530e736b5dcaf5
+plugins/Skript-2.9.5.jar | 3351188 | 3df4909e074796ef6c6c0297db4fa46946c710d3
+plugins/spark-1.10.187-bukkit.jar | 4352165 | 9286ba60117a30f645e67f30998775af2e124df8

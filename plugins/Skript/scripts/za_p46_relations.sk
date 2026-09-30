@@ -1,0 +1,782 @@
+# =====================================================================
+#  ZombieApocalypse - RELATIONS ENTRE PERSONNAGES (#14)
+#  Confiance {za::rel::<pnj>::<uuid>} (0-100, 50 par défaut) envers Dr Lefort, Sergent Vega et Léa.
+#  * Départ selon les choix du prologue (une seule fois, à la première rencontre après l'apocalypse) :
+#      hopital=aide -> Lefort +20 | leblanc=sauvee -> Lefort +10 | vega=obei -> Vega +20 et Milice +10
+#      vega=clandestin -> Vega -20 et Pilleurs +10.  Léa ne fait confiance à personne : elle part à 40.
+#  * Tensions : Vega déteste les scientifiques (si Scientifiques >= 50 et Milice < 25 : « Tu sens le labo. » plus de missions).
+#    Lefort soupçonne Vega. Léa ne croit personne : sa confiance monte avec les Pièces de radio et les secrets gardés.
+#  * Mini-arc « Le dossier Bravo-3 » : Lefort (confiance >= 60) envoie chercher le Rapport Bravo-3 dans un poste de police ou une
+#    caserne. Trois issues : Lefort, Vega, ou Léa (qui le lit en ondes 2 jours plus tard). Mémoire : {za::rel::dossier::<uuid>}.
+#  * Confiance basse : Vega ne paie pas la fin de la chaîne de l'escouade avant 30 ; Lefort exige un échantillon de plus.
+#  Commandes : /relations | admin : /zarel <joueur> <lefort|vega|lea> <n> | /zarel dossier <joueur> <état> | /zarel pieces <joueur> [n]
+#  Fonctions pour les autres modules : za_rel(p, pnj), za_rel_ajouter(p, pnj, n), za_rel_mot(n), za_rel_vega_froid(p)
+# =====================================================================
+
+options:
+    dossier_delai_lecture: 2
+
+# ---------------------------------------------------------------- base
+
+function za_rel_nom(npc: text) :: text:
+    if {_npc} is "lefort":
+        return "&aDr Lefort"
+    if {_npc} is "vega":
+        return "&6Sergent Vega"
+    return "&bLéa"
+
+function za_rel(p: player, npc: text) :: number:
+    set {_v} to {za::rel::%{_npc}%::%{_p}'s uuid%}
+    if {_v} is not set:
+        return 50
+    return {_v}
+
+function za_rel_mot(n: number) :: text:
+    if {_n} < 30:
+        return "&cMéfiant"
+    if {_n} < 60:
+        return "&eNeutre"
+    if {_n} < 85:
+        return "&aConfiance"
+    return "&2Loyal"
+
+function za_rel_ajouter(p: player, npc: text, n: number):
+    set {_u} to {_p}'s uuid
+    set {_a} to za_rel({_p}, {_npc})
+    set {_b} to {_a} + {_n}
+    if {_b} > 100:
+        set {_b} to 100
+    if {_b} < 0:
+        set {_b} to 0
+    set {za::rel::%{_npc}%::%{_u}%} to {_b}
+    if {_b} is not {_a}:
+        set {_d} to {_b} - {_a}
+        if {_d} > 0:
+            send action bar "&7Relation avec %za_rel_nom({_npc})% &8: &a+%{_d}% &8(%{_b}%)" to {_p}
+        else:
+            send action bar "&7Relation avec %za_rel_nom({_npc})% &8: &c%{_d}% &8(%{_b}%)" to {_p}
+        if za_rel_mot({_a}) is not za_rel_mot({_b}):
+            if {_b} > {_a}:
+                send "&8[Relation] %za_rel_nom({_npc})% &7te fait davantage confiance : %za_rel_mot({_b})%&7." to {_p}
+                za_zm("son %{_p}% minecraft:entity.villager.yes 0.5 1.2")
+            else:
+                send "&8[Relation] %za_rel_nom({_npc})% &7se méfie davantage de toi : %za_rel_mot({_b})%&7." to {_p}
+                za_zm("son %{_p}% minecraft:entity.villager.no 0.5 0.9")
+
+function za_rel_jours() :: number:
+    if {za::serveur::jours} is not set:
+        return 0
+    return {za::serveur::jours}
+
+# première rencontre : applique les choix du prologue (une fois). Renvoie vrai si c'était la première fois.
+function za_rel_init(p: player, npc: text) :: boolean:
+    set {_u} to {_p}'s uuid
+    if {za::rel::init::%{_npc}%::%{_u}%} is set:
+        return false
+    set {za::rel::init::%{_npc}%::%{_u}%} to true
+    if {_npc} is "lefort":
+        if za_choix({_u}, "hopital") is "aide":
+            za_rel_ajouter({_p}, "lefort", 20)
+        if za_choix({_u}, "leblanc") is "sauvee":
+            za_rel_ajouter({_p}, "lefort", 10)
+    else if {_npc} is "vega":
+        if za_choix({_u}, "vega") is "obei":
+            za_rel_ajouter({_p}, "vega", 20)
+            za_faction_ajouter({_p}, "milice", 10)
+        else if za_choix({_u}, "vega") is "clandestin":
+            za_rel_ajouter({_p}, "vega", -20)
+            za_faction_ajouter({_p}, "pilleurs", 10)
+    else if {_npc} is "lea":
+        za_rel_ajouter({_p}, "lea", -10)
+    return true
+
+# +1 de confiance au plus une fois par jour du serveur à chaque visite (dérive lente)
+function za_rel_visite(p: player, npc: text):
+    set {_u} to {_p}'s uuid
+    set {_j} to za_rel_jours()
+    if {za::rel::visite::%{_npc}%::%{_u}%} is {_j}:
+        stop
+    set {za::rel::visite::%{_npc}%::%{_u}%} to {_j}
+    if za_rel({_p}, {_npc}) < 90:
+        if {_npc} is not "lea":
+            za_rel_ajouter({_p}, {_npc}, 1)
+
+# Vega est glacial si tu fréquentes trop les scientifiques
+function za_rel_vega_froid(p: player) :: boolean:
+    set {_u} to {_p}'s uuid
+    set {_s} to {za::fac::scientifiques::%{_u}%} ? 0
+    set {_m} to {za::fac::milice::%{_u}%} ? 0
+    if {_s} >= 50:
+        if {_m} < 25:
+            return true
+    return false
+
+function za_rel_dossier(u: text) :: text:
+    return "%{za::rel::dossier::%{_u}%} ? """"%"
+
+# ---------------------------------------------------------------- le Rapport Bravo-3 (objet, coffre)
+
+function za_rel_rapport() :: itemtype:
+    set {_it} to za_item("paper", "Rapport Bravo-3", "&e", 1)
+    set lore of {_it} to "&7Rapport confidentiel de l'escouade Bravo-3." and "&8Des passages sont noircis. Un filigrane pâle : NORDA." and "&8Clic droit pour lire."
+    return {_it}
+
+# dépose un Rapport dans le poste de police / la caserne le plus proche ; renvoie la clé (« police;1 ») ou ""
+function za_rel_placer_rapport(p: player) :: text:
+    set {_best} to ""
+    set {_bd} to 999999
+    set {_types::*} to "police" and "caserne"
+    loop {_types::*}:
+        set {_t} to loop-value-1
+        loop za_bat_liste({_t}):
+            set {_c} to za_bat_centre(loop-value-2)
+            if {_c} is set:
+                set {_d} to 500000
+                if world of {_c} is world of {_p}:
+                    set {_d} to distance between {_c} and {_p}
+                if {_d} < {_bd}:
+                    set {_bd} to {_d}
+                    set {_best} to loop-value-2
+    if {_best} is "":
+        return ""
+    set {_c} to za_bat_centre({_best})
+    set {_bx} to floor((x-coordinate of {_c}) - 6.5)
+    set {_gy} to floor((y-coordinate of {_c}) - 1)
+    set {_bz} to floor((z-coordinate of {_c}) - 4.5)
+    set {_w} to world of {_c}
+    set {_blk} to block at location({_bx} + 9, {_gy} + 1, {_bz} + 6, {_w})
+    if "%type of {_blk}%" does not contain "chest":
+        execute console command "execute in %za_dim({_w})% run setblock %{_bx} + 9% %{_gy} + 1% %{_bz} + 6% minecraft:chest[facing=south]"
+        set {_blk} to block at location({_bx} + 9, {_gy} + 1, {_bz} + 6, {_w})
+    add za_rel_rapport() to inventory of {_blk}
+    return {_best}
+
+function za_rel_lieu_rapport(u: text) :: text:
+    set {_k} to {za::rel::dossier::cle::%{_u}%}
+    if {_k} is not set:
+        return "un poste de police ou une caserne"
+    set {_c} to za_bat_centre("%{_k}%")
+    if {_c} is not set:
+        return "un poste de police ou une caserne"
+    set {_x} to floor((x-coordinate of {_c}) / 50) * 50
+    set {_z} to floor((z-coordinate of {_c}) / 50) * 50
+    set {_t::*} to split "%{_k}%" at ";"
+    return "%za_bat_nom({_t::1})% vers X=%{_x}% Z=%{_z}% (+/- 50)"
+
+# lire le rapport (clic droit)
+on right click:
+    if za_pro(player) is true:
+        stop
+    if uncolored name of player's tool is "Rapport Bravo-3":
+        if {-zr::lire::%player's uuid%} is set:
+            if difference between {-zr::lire::%player's uuid%} and now is less than 4 seconds:
+                stop
+        set {-zr::lire::%player's uuid%} to now
+        send "&8&m-----&r &e&lRAPPORT BRAVO-3 &8&m-----" to player
+        send "&7« 21 h 47. Ordre reçu par la ligne privée, pas par le canal militaire. Sceller les portes de l'hôpital Saint-Aurèle. Personne ne sort. »" to player
+        send "&7« Le lieutenant a demandé qui signait l'ordre. Réponse : &8██████████&7. »" to player
+        send "&7« Nous avons obéi. Il y avait des gens derrière les vitres. Je les entends encore. »" to player
+        send "&8— Sgt M. Vega, escouade Bravo-3 &7(la page trois a été arrachée)" to player
+        za_zm("son %player% minecraft:item.book.page_turn 0.8 1")
+
+# ---------------------------------------------------------------- Pièces de radio (pour Léa)
+
+function za_rel_piece() :: itemtype:
+    set {_it} to za_item("comparator", "Pièce de radio", "&b", 1)
+    set lore of {_it} to "&7Un condensateur, une bobine, un fil de cuivre." and "&8Léa saurait en faire quelque chose."
+    return {_it}
+
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        set {_c} to 1.5
+        if uncolored name of victim contains "Soldat":
+            set {_c} to 6
+        if uncolored name of victim contains "Citoyen":
+            set {_c} to 3
+        if uncolored name of victim contains "Screamer":
+            set {_c} to 4
+        if (random number between 0 and 100) < {_c}:
+            drop za_rel_piece() at location of victim
+
+# ---------------------------------------------------------------- accueil des PNJ (noeud « debut »)
+
+function za_rel_debut(p: player, npc: text):
+    if {_npc} is "lefort":
+        za_rel_debut_lefort({_p})
+    else if {_npc} is "vega":
+        za_rel_debut_vega({_p})
+    else if {_npc} is "lea":
+        za_rel_debut_lea({_p})
+
+function za_rel_debut_lefort(p: player):
+    set {_u} to {_p}'s uuid
+    set {_prem} to za_rel_init({_p}, "lefort")
+    za_rel_visite({_p}, "lefort")
+    set {_t} to za_rel({_p}, "lefort")
+    set {_d} to za_rel_dossier({_u})
+    set {_txt} to "Enfin quelqu'un de vivant... Je soigne ceux que je peux, mais il me manque du matériel. Que veux-tu ?"
+    if {_prem} is true:
+        set {_h} to za_choix({_u}, "hopital")
+        set {_l} to za_choix({_u}, "leblanc")
+        if {_h} is "aide":
+            set {_txt} to "Tu es celui qui a porté les caisses de soluté, le premier jour... Je n'ai jamais eu l'occasion de te remercier."
+        else if {_h} is "fui":
+            set {_txt} to "Tu étais à l'hôpital, le premier jour. Tu es parti avant qu'on ferme les portes. Je ne t'en veux pas... plus."
+        if {_l} is "sauvee":
+            set {_txt} to "%{_txt}% Leblanc est au refuge. Elle parle de toi."
+        else if {_l} is "perdue":
+            set {_txt} to "%{_txt}% Leblanc... ma meilleure infirmière. Je préfère ne pas en parler."
+        if {_h} is "":
+            set {_txt} to "%{_txt}% (On se connaît, non ? Tu as la tête de quelqu'un qui était à Saint-Aurèle.)"
+    else:
+        if {_t} < 30:
+            set {_txt} to "Encore toi. Fais vite : j'ai peu de temps, et moins de patience."
+        else if {_t} >= 85:
+            set {_txt} to "Mon ami. Ce que je sais, tu le sais. Que veux-tu ?"
+        else if {_t} >= 60:
+            set {_txt} to "Content de te voir vivant. Assieds-toi une minute. Que puis-je faire pour toi ?"
+        if {_d} is "vega":
+            set {_txt} to "%{_txt}% Il paraît que tu rends des services à Vega. Fais attention à ce que tu lui dis."
+        else if {_d} is "lefort":
+            set {_txt} to "%{_txt}% Merci pour le rapport. Je le relis chaque nuit."
+        else if {_d} is "lea":
+            set {_txt} to "%{_txt}% J'ai entendu Léa lire ce rapport à la radio. Je savais que quelqu'un finirait par parler."
+    set {_l4} to "Parle-moi de Vega"
+    set {_n4} to "rel_vega"
+    if {_d} is "":
+        if {_t} >= 60:
+            set {_l4} to "Tu as l'air préoccupé..."
+            set {_n4} to "rel_ouvre"
+    else if {_d} is "en_cours" or "garde":
+        set {_l4} to "À propos du rapport..."
+        set {_n4} to "rel_dossier"
+    set {_al} to za_apres_ligne("lefort")
+    set {_sl} to za_souvenir_ligne({_p}, "lefort")
+    if {_sl} is not "":
+        set {_al} to "%{_al}% %{_sl}%"
+    if {_al} is not "":
+        set {_txt} to "%{_al}% %{_txt}%"
+    za_dial_ui({_p}, "lefort", "debut", {_txt}, "Tu as besoin d'aide ?", "chaine", "Comment éviter l'infection ?", "conseil", "Au revoir", "quit", {_l4}, {_n4})
+
+function za_rel_debut_vega(p: player):
+    set {_u} to {_p}'s uuid
+    set {_prem} to za_rel_init({_p}, "vega")
+    set {_d} to za_rel_dossier({_u})
+    # une confrontation en attente passe avant tout
+    set {_conf} to {za::rel::dossier::conf::%{_u}%} ? ""
+    if {_conf} is "attend" or "signale":
+        if za_rel_jours() >= (({za::rel::dossier::jour::%{_u}%} ? 0) + 1):
+            za_rel_confront({_p})
+            stop
+    za_rel_visite({_p}, "vega")
+    set {_t} to za_rel({_p}, "vega")
+    set {_froid} to za_rel_vega_froid({_p})
+    set {_base} to "Sergent Vega. J'ai perdu mon escouade au premier soir. Maintenant je compte les morts, un par un. Tu veux nettoyer le secteur ?"
+    set {_txt} to {_base}
+    if {_prem} is true:
+        set {_v} to za_choix({_u}, "vega")
+        if {_v} is "obei":
+            set {_txt} to "Je me souviens de toi. T'as fait la file comme tout le monde. C'est rare. %{_base}%"
+        else if {_v} is "clandestin":
+            set {_txt} to "Toi. La ruelle derrière le checkpoint. Je t'ai vu. Je ne dis rien. Aujourd'hui, on est tous des fuyards. %{_base}%"
+    else:
+        if {_t} < 30:
+            set {_txt} to "Encore toi. Qu'est-ce que tu veux ?"
+        else if {_t} >= 85:
+            set {_txt} to "Soldat. Tu es de la famille, maintenant. Dis-moi ce qu'il te faut."
+        else if {_t} >= 60:
+            set {_txt} to "Content que tu sois encore debout. Le secteur ne se nettoie pas tout seul."
+        if {_d} is "vega":
+            set {_txt} to "%{_txt}% Le dossier... je ne l'oublie pas."
+        else if {_d} is "lefort":
+            set {_txt} to "%{_txt}% Tu as donné le rapport à Lefort. Je n'oublie pas ça non plus."
+    if {_froid} is true:
+        set {_txt} to "Tu sens le labo. Je n'ai pas de mission pour ceux qui trinquent avec les blouses blanches. Reviens quand tu auras prouvé de quel côté tu es."
+        if {_prem} is true:
+            if za_choix({_u}, "vega") is "obei":
+                set {_txt} to "Je me souviens de toi. T'as fait la file comme tout le monde. Mais là... tu sens le labo. Je n'ai pas de mission pour toi."
+        set {_al} to za_apres_ligne("vega")
+        set {_sl} to za_souvenir_ligne({_p}, "vega")
+        if {_sl} is not "":
+            set {_al} to "%{_al}% %{_sl}%"
+        if {_al} is not "":
+            set {_txt} to "%{_al}% %{_txt}%"
+        za_dial_ui({_p}, "vega", "debut", {_txt}, "Ce n'est pas ce que tu crois", "rel_froid", "Au revoir", "quit", "", "quit")
+        stop
+    set {_l4} to ""
+    set {_n4} to "quit"
+    if {_d} is "en_cours" or "garde":
+        if za_count_named({_p}, "Rapport Bravo-3") >= 1:
+            set {_l4} to "J'ai trouvé quelque chose..."
+            set {_n4} to "rel_dossier"
+    set {_al} to za_apres_ligne("vega")
+    set {_sl} to za_souvenir_ligne({_p}, "vega")
+    if {_sl} is not "":
+        set {_al} to "%{_al}% %{_sl}%"
+    if {_al} is not "":
+        set {_txt} to "%{_al}% %{_txt}%"
+    za_dial_ui({_p}, "vega", "debut", {_txt}, "Quelle mission ?", "quete", "Ton escouade ?", "escouade", "Au revoir", "quit", {_l4}, {_n4})
+
+function za_rel_debut_lea(p: player):
+    set {_u} to {_p}'s uuid
+    set {_prem} to za_rel_init({_p}, "lea")
+    za_rel_visite({_p}, "lea")
+    set {_t} to za_rel({_p}, "lea")
+    set {_d} to za_rel_dossier({_u})
+    set {_txt} to "Chut... j'écoute les fréquences. Il y a des voix là-dedans qui ne devraient pas parler. Tu cherches des nouvelles ?"
+    if {_prem} is false:
+        if {_t} < 30:
+            set {_txt} to "Je ne sais pas si je peux te parler. Ils écoutent tous. Toi aussi, peut-être."
+        else if {_t} >= 85:
+            set {_txt} to "Toi, je t'entends venir. Assieds-toi. Il y a une fréquence que je ne partage qu'avec toi."
+        else if {_t} >= 60:
+            set {_txt} to "Ah, c'est toi. Ton pas est différent de celui des autres. Que veux-tu savoir ?"
+        if {_d} is "lea":
+            set {_txt} to "%{_txt}% Le rapport... les gens ont entendu. Ne t'inquiète pas, personne ne sait d'où il vient."
+    set {_l4} to ""
+    set {_n4} to "quit"
+    set {_np} to za_count_named({_p}, "Pièce de radio")
+    if {_d} is "en_cours" or "garde":
+        if za_count_named({_p}, "Rapport Bravo-3") >= 1:
+            set {_l4} to "J'ai un rapport pour toi..."
+            set {_n4} to "rel_dossier"
+    if {_l4} is "":
+        if {_np} >= 1:
+            set {_l4} to "J'ai des pièces de radio (%{_np}%)"
+            set {_n4} to "rel_piece"
+    set {_al} to za_apres_ligne("lea")
+    set {_sl} to za_souvenir_ligne({_p}, "lea")
+    if {_sl} is not "":
+        set {_al} to "%{_al}% %{_sl}%"
+    if {_al} is not "":
+        set {_txt} to "%{_al}% %{_txt}%"
+    za_dial_ui({_p}, "lea", "debut", {_txt}, "As-tu un travail pour moi ?", "quete", "Que dit la radio ?", "mystere", "Au revoir", "quit", {_l4}, {_n4})
+
+# ---------------------------------------------------------------- nœuds « rel_* » (appelés depuis za_dial_lefort / vega / lea)
+
+function za_rel_noeud(p: player, npc: text, node: text):
+    set {_u} to {_p}'s uuid
+    set {_d} to za_rel_dossier({_u})
+    set {_t} to za_rel({_p}, {_npc})
+    if {_npc} is "lefort":
+        if {_node} is "rel_ouvre":
+            if {_d} is not "":
+                za_dial_ui({_p}, "lefort", "debut", "On en a déjà parlé, toi et moi.", "Oui...", "debut", "", "quit", "", "quit")
+                stop
+            za_dial_ui({_p}, "lefort", "rel_ouvre", "Il y a une chose que je n'ai dite à personne. La nuit où l'hôpital a été scellé, l'escouade qui gardait les portes a rédigé un rapport. Bravo-3. Il doit dormir dans un poste de police ou une caserne. Rapporte-le-moi, et je saurai enfin qui a donné l'ordre.", "J'y vais", "rel_accepte", "Et Vega dans tout ça ?", "rel_vega", "Pas maintenant", "quit")
+        else if {_node} is "rel_accepte":
+            if {_d} is not "":
+                stop
+            set {_k} to za_rel_placer_rapport({_p})
+            if {_k} is "":
+                za_dial_ui({_p}, "lefort", "rel_accepte", "Rien n'a été signalé pour l'instant : ni poste de police, ni caserne. Écoute la radio, et reviens me voir quand on en aura repéré un.", "D'accord", "debut", "", "quit", "", "quit")
+                stop
+            set {za::rel::dossier::%{_u}%} to "en_cours"
+            set {za::rel::dossier::cle::%{_u}%} to {_k}
+            send "&aDr Lefort &8» &fCherche &e%za_rel_lieu_rapport({_u})%&f, dans un coffre. Sois prudent : ces endroits ne sont pas vides." to {_p}
+            send "&8[Quête] &7Le dossier Bravo-3 : trouve le &eRapport Bravo-3&7 et décide à qui le confier. &8(/relations)" to {_p}
+            za_zm("son %{_p}% minecraft:ui.toast.challenge_complete 0.6 1")
+        else if {_node} is "rel_dossier":
+            if za_count_named({_p}, "Rapport Bravo-3") >= 1:
+                za_rel_dossier_menu({_p}, "lefort")
+            else:
+                za_dial_ui({_p}, "lefort", "rel_dossier", "Tu n'as pas encore le rapport. Il est dans un coffre : %za_rel_lieu_rapport({_u})%. Sois prudent.", "J'ai perdu le rapport", "rel_perdu", "J'y retourne", "quit", "", "quit")
+        else if {_node} is "rel_perdu":
+            if {_d} is not "en_cours" or "garde":
+                stop
+            if {za::rel::dossier::relance::%{_u}%} is za_rel_jours():
+                send "&aDr Lefort &8» &fUn jour à la fois. Cherche encore : il doit être dans le coffre." to {_p}
+                stop
+            set {za::rel::dossier::relance::%{_u}%} to za_rel_jours()
+            set {_k} to za_rel_placer_rapport({_p})
+            if {_k} is not "":
+                set {za::rel::dossier::%{_u}%} to "en_cours"
+                set {za::rel::dossier::cle::%{_u}%} to {_k}
+                send "&aDr Lefort &8» &fJ'ai fait passer un message : une copie a été déposée. &e%za_rel_lieu_rapport({_u})%&f." to {_p}
+        else if {_node} is "rel_vega":
+            za_rel_lefort_sur_vega({_p})
+    else if {_npc} is "vega":
+        if {_node} is "rel_froid":
+            za_dial_ui({_p}, "vega", "rel_froid", "Prouve-le. Tue des morts pour la Milice, aide les gens du secteur, et on reparlera. Tant que tu portes l'odeur du labo, je n'ai rien à te dire.", "Compris", "quit", "", "quit", "", "quit")
+        else if {_node} is "rel_dossier":
+            if za_count_named({_p}, "Rapport Bravo-3") >= 1:
+                za_rel_dossier_menu({_p}, "vega")
+        else if {_node} starts with "rel_conf_":
+            za_rel_confront_reponse({_p}, {_node})
+    else if {_npc} is "lea":
+        if {_node} is "rel_piece":
+            za_rel_lea_pieces({_p})
+        else if {_node} is "rel_dossier":
+            if za_count_named({_p}, "Rapport Bravo-3") >= 1:
+                za_rel_dossier_menu({_p}, "lea")
+
+function za_rel_lefort_sur_vega(p: player):
+    set {_u} to {_p}'s uuid
+    set {_t} to za_rel({_p}, "lefort")
+    set {_d} to za_rel_dossier({_u})
+    set {_txt} to "Je ne vais pas discuter de Vega avec quelqu'un que je connais à peine."
+    if {_t} >= 30:
+        set {_txt} to "Vega était au poste de garde de l'hôpital, le premier soir. Il n'en parle jamais. Un homme qui n'en parle jamais en sait toujours plus qu'il ne dit."
+    if {_t} >= 60:
+        set {_txt} to "Vega était au poste de garde de l'hôpital, le premier soir. On a fermé les portes avec des gens derrière. Quelqu'un a donné cet ordre, et je crois que Vega sait qui. Il me hait, parce que je lui rappelle ce qu'il a fait."
+    if {_d} is "vega":
+        set {_txt} to "Tu es allé voir Vega avec ce rapport. Je ne te reproche rien. Mais il ne m'a jamais rien dit, et toi... tu sais peut-être ce que je ne saurai jamais."
+    else if {_d} is "lefort":
+        set {_txt} to "Grâce à toi, je sais. Vega a signé de sa main. Il a obéi, oui. Mais il savait. Méfie-toi de lui."
+    else if {_d} is "lea":
+        set {_txt} to "Léa a lu le rapport à la radio. Vega doit être furieux. Reste loin de lui quelque temps."
+    za_dial_ui({_p}, "lefort", "rel_vega", {_txt}, "Merci", "debut", "", "quit", "", "quit")
+
+# ---------------------------------------------------------------- le choix du dossier (menu)
+
+function za_rel_dossier_menu(p: player, npc: text):
+    set {_u} to {_p}'s uuid
+    set {_d} to za_rel_dossier({_u})
+    if {_d} is not "en_cours" or "garde":
+        stop
+    set {_txt} to "Tu tiens le rapport de Bravo-3. À qui le confies-tu ?"
+    if {_npc} is "lefort":
+        set {_txt} to "Lefort te regarde, immobile. Tu tiens le Rapport Bravo-3. À qui le confies-tu ?"
+    else if {_npc} is "vega":
+        set {_txt} to "Vega a reconnu le papier avant même que tu le sortes. Que fais-tu du Rapport Bravo-3 ?"
+    else if {_npc} is "lea":
+        set {_txt} to "Léa tend la main sans rien dire. Le Rapport Bravo-3 est entre tes doigts. Que fais-tu ?"
+    if {_npc} is "lea":
+        set {_o::*} to "Le remettre à Léa|d:lea" and "Le donner au Dr Lefort|d:lefort" and "Le rendre au Sergent Vega|d:vega" and "Le garder encore|quit"
+    else:
+        set {_o::*} to "Le donner au Dr Lefort|d:lefort" and "Le rendre au Sergent Vega|d:vega" and "Le garder... et l'apporter à Léa|d:garde" and "Pas encore|quit"
+    za_menu({_p}, "zarelclic", "Le dossier Bravo-3", {_txt}, {_o::*})
+
+function za_rel_dossier_choix(p: player, c: text):
+    set {_u} to {_p}'s uuid
+    set {_d} to za_rel_dossier({_u})
+    if {_d} is not "en_cours" or "garde":
+        stop
+    if {_c} is "garde":
+        set {za::rel::dossier::%{_u}%} to "garde"
+        send "&7Tu glisses le rapport dans ta veste. &bLéa &7saura quoi en faire... elle est quelque part sur les ondes." to {_p}
+        stop
+    if za_take_named({_p}, "Rapport Bravo-3", 1) is false:
+        send "&cTu n'as plus le rapport sur toi." to {_p}
+        stop
+    set {_j} to za_rel_jours()
+    set {za::rel::dossier::%{_u}%} to {_c}
+    set {za::rel::dossier::jour::%{_u}%} to {_j}
+    if {_c} is "lefort":
+        za_rel_ajouter({_p}, "lefort", 15)
+        za_rel_ajouter({_p}, "vega", -40)
+        za_faction_ajouter({_p}, "scientifiques", 12)
+        za_faction_ajouter({_p}, "milice", -3)
+        za_jetons_ajouter({_p}, 20)
+        set {za::rel::dossier::conf::%{_u}%} to "attend"
+        za_zm("son %{_p}% za_modeles:sfx.sting_revelation 0.7 1")
+        send "&aDr Lefort &8» &fLe rapport Bravo-3... « Sceller les portes. Personne ne sort. » Signé de la main de Vega." to {_p}
+        wait 5 seconds
+        send "&aDr Lefort &8» &fJe m'en doutais. Des gens sont morts derrière ces vitres pendant que lui obéissait. Merci. Tu as fait ce qu'il fallait. &7(+20 jetons)" to {_p}
+        wait 4 seconds
+        send "&aDr Lefort &8» &fFais attention à Vega. Il n'aime pas qu'on fouille." to {_p}
+        za_journal("%{_p}% a remis le rapport Bravo-3 a Lefort.")
+    else if {_c} is "vega":
+        za_rel_ajouter({_p}, "vega", 25)
+        za_rel_ajouter({_p}, "lefort", -20)
+        za_faction_ajouter({_p}, "milice", 12)
+        za_faction_ajouter({_p}, "scientifiques", -3)
+        za_jetons_ajouter({_p}, 15)
+        za_zm("son %{_p}% za_modeles:sfx.sting_revelation 0.7 1")
+        send "&6Sergent Vega &8» &fOù as-tu trouvé ça...? Tu aurais pu le donner à Lefort. À n'importe qui." to {_p}
+        wait 5 seconds
+        send "&6Sergent Vega &8» &fJe vais te dire ce que personne ne sait. L'ordre de fermer les portes de l'hôpital venait de NORDA. Pas de l'armée." to {_p}
+        wait 6 seconds
+        send "&6Sergent Vega &8» &fOn a obéi. On croyait sauver des vies. Je te dois une dette, soldat. &7(+15 jetons)" to {_p}
+        za_journal("%{_p}% a rendu le rapport Bravo-3 a Vega.")
+    else if {_c} is "lea":
+        za_rel_ajouter({_p}, "lea", 15)
+        set {za::rel::dossier::lecture::%{_u}%} to {_j} + {@dossier_delai_lecture}
+        za_zm("son %{_p}% za_modeles:sfx.radio_statique 0.7 0.9")
+        send "&bLéa &8» &fChut... donne. ...Oh. Oh non. Je le lirai quand ce sera le bon moment. Les gens ont le droit de savoir. Ne le dis à personne d'ici là. Personne." to {_p}
+        za_journal("%{_p}% a remis le rapport Bravo-3 a Lea.")
+
+# Léa lit le rapport en ondes (deux jours plus tard)
+function za_rel_lecture(p: player):
+    set {_u} to {_p}'s uuid
+    if {za::rel::dossier::lu::%{_u}%} is set:
+        stop
+    set {za::rel::dossier::lu::%{_u}%} to true
+    za_radio("&bLéa", "Auditeurs de CKZA, ce que je vais lire m'a été remis par %{_p}%. Je ne changerai pas un mot.")
+    wait 9 seconds
+    za_radio("&bLéa", "« Rapport de l'escouade Bravo-3. 21 h 47. Ordre reçu par la ligne privée : sceller les portes de l'hôpital. Personne ne sort. »")
+    wait 9 seconds
+    za_radio("&bLéa", "« Le lieutenant a demandé qui signait. On lui a répondu : le mandataire de NORDA Biotech. Pas l'armée. »")
+    wait 9 seconds
+    za_radio("&bLéa", "Voilà. Maintenant vous savez qui a fermé les portes. ...Je ne dormirai pas ce soir.")
+    set {za::rel::dossier::jour::%{_u}%} to za_rel_jours()
+    set {za::rel::dossier::conf::%{_u}%} to "attend"
+    if {_p} is online:
+        za_rel_ajouter({_p}, "vega", -15)
+        za_rel_ajouter({_p}, "lefort", 10)
+        za_faction_ajouter({_p}, "milice", -3)
+        za_faction_ajouter({_p}, "scientifiques", 3)
+        send "&8[Radio] &7Le rapport est public. &aLefort &7et &6Vega &7ont entendu. Ils vont réagir." to {_p}
+    za_journal("Lea a lu le rapport Bravo-3 a la radio.")
+
+every 1 minute:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        set {_u} to {_p}'s uuid
+        if {za::rel::dossier::%{_u}%} is "lea":
+            if {za::rel::dossier::lu::%{_u}%} is not set:
+                if za_rel_jours() >= ({za::rel::dossier::lecture::%{_u}%} ? 9999):
+                    za_rel_lecture({_p})
+        if {za::rel::dossier::conf::%{_u}%} is "attend":
+            if za_rel_jours() >= (({za::rel::dossier::jour::%{_u}%} ? 0) + 1):
+                set {za::rel::dossier::conf::%{_u}%} to "signale"
+                send "&8[Radio militaire] &6Sgt Vega &8» &7Toi. Passe me voir. Dès que tu peux." to {_p}
+                za_zm("son %{_p}% za_modeles:sfx.radio_statique 0.6 0.8")
+
+# ---------------------------------------------------------------- Vega te confronte
+
+function za_rel_confront(p: player):
+    set {_u} to {_p}'s uuid
+    set {_d} to za_rel_dossier({_u})
+    if {_d} is "lefort":
+        za_dial_ui({_p}, "vega", "rel_confront", "Le dossier Bravo-3. Tu l'as donné à Lefort. Il y a des gens derrière ces portes que je revois chaque nuit. J'ai obéi à un ordre. Toi, tu as choisi ton camp.", "Je cherchais la vérité.", "rel_conf_a", "Ce n'était pas à toi de décider.", "rel_conf_b", "Je suis désolé, Sergent.", "rel_conf_c")
+    else:
+        za_dial_ui({_p}, "vega", "rel_confront", "Le rapport est passé à la radio, mot pour mot. Trois personnes savaient : Léa, moi... et toi. Alors dis-moi. C'était toi ?", "Oui. Les gens devaient savoir.", "rel_conf_a", "Je ne sais pas comment elle l'a eu.", "rel_conf_b", "Léa avait le droit de savoir.", "rel_conf_c")
+
+function za_rel_confront_reponse(p: player, node: text):
+    set {_u} to {_p}'s uuid
+    set {_d} to za_rel_dossier({_u})
+    set {_conf} to {za::rel::dossier::conf::%{_u}%} ? ""
+    if {_conf} is not "attend" or "signale":
+        stop
+    set {za::rel::dossier::conf::%{_u}%} to "fait"
+    if {_d} is "lefort":
+        if {_node} is "rel_conf_a":
+            za_rel_ajouter({_p}, "vega", 8)
+            za_dial_ui({_p}, "vega", "rel_confront", "La vérité... elle est pire que ce que Lefort imagine. Mais tu as eu le courage de la chercher. Ça, je le respecte. Va.", "Merci, Sergent.", "quit", "", "quit", "", "quit")
+        else if {_node} is "rel_conf_b":
+            za_rel_ajouter({_p}, "vega", -8)
+            za_faction_ajouter({_p}, "milice", -2)
+            za_dial_ui({_p}, "vega", "rel_confront", "Alors on n'a plus rien à se dire. Retourne voir ton médecin.", "...", "quit", "", "quit", "", "quit")
+        else:
+            za_rel_ajouter({_p}, "vega", 3)
+            za_dial_ui({_p}, "vega", "rel_confront", "Sois désolé pour ceux qui sont morts derrière ces vitres. Pas pour moi.", "...", "quit", "", "quit", "", "quit")
+    else:
+        if {_node} is "rel_conf_a":
+            za_rel_ajouter({_p}, "vega", -10)
+            za_faction_ajouter({_p}, "milice", -3)
+            za_dial_ui({_p}, "vega", "rel_confront", "...Alors je ne suis plus ton sergent. Ni ton ami. Mais au moins, tu ne mens pas. Ça vaut quelque chose.", "...", "quit", "", "quit", "", "quit")
+        else if {_node} is "rel_conf_b":
+            if chance of 50%:
+                za_dial_ui({_p}, "vega", "rel_confront", "Léa a ses sources, c'est vrai. Mm. Je te crois... à moitié. Va.", "Merci.", "quit", "", "quit", "", "quit")
+            else:
+                za_rel_ajouter({_p}, "vega", -15)
+                za_dial_ui({_p}, "vega", "rel_confront", "Menteur. Tu as la même tête que ceux qui fuyaient le checkpoint. Sors d'ici.", "...", "quit", "", "quit", "", "quit")
+        else:
+            za_rel_ajouter({_p}, "vega", -5)
+            za_dial_ui({_p}, "vega", "rel_confront", "Le droit... Ces gens avaient le droit de vivre, aussi. Va-t'en.", "...", "quit", "", "quit", "", "quit")
+
+# ---------------------------------------------------------------- Léa : pièces de radio et secrets
+
+function za_rel_lea_pieces(p: player):
+    set {_u} to {_p}'s uuid
+    set {_n} to za_count_named({_p}, "Pièce de radio")
+    if {_n} < 1:
+        send "&bLéa &8» &fTu n'as rien pour moi." to {_p}
+        stop
+    set {_j} to za_rel_jours()
+    set {_deja} to {za::rel::lea::piece::%{_u}%::%{_j}%} ? 0
+    set {_utile} to min({_n}, 3 - {_deja})
+    if {_utile} < 0:
+        set {_utile} to 0
+    za_take_named({_p}, "Pièce de radio", {_n})
+    if {_utile} > 0:
+        set {za::rel::lea::piece::%{_u}%::%{_j}%} to {_deja} + {_utile}
+        za_rel_ajouter({_p}, "lea", {_utile} * 4)
+    set {_reste} to {_n} - {_utile}
+    if {_reste} > 0:
+        za_jetons_ajouter({_p}, {_reste} * 3)
+    za_zm("son %{_p}% za_modeles:sfx.radio_statique 0.6 1.3")
+    if {_utile} > 0:
+        send "&bLéa &8» &fOh... une bobine intacte. Ça va me permettre de capter plus loin. &7(%{_n}% pièce(s))" to {_p}
+    else:
+        send "&bLéa &8» &fJ'en ai assez pour aujourd'hui. Mais garde ça pour toi, je te les paie quand même. &7(+%{_reste} * 3% jetons)" to {_p}
+    if {_reste} > 0:
+        if {_utile} > 0:
+            send "&7(Trop de pièces d'un coup : &f+%{_reste} * 3% jetons&7 pour le reste.)" to {_p}
+    # à partir de 45, elle confie un secret
+    if za_rel({_p}, "lea") >= 45:
+        za_rel_lea_secret({_p})
+
+function za_rel_lea_secret_texte(n: number) :: text:
+    if {_n} is 1:
+        return "Je ne dors plus. Quand je coupe le micro, les fréquences continuent... dans ma tête."
+    if {_n} is 2:
+        return "Le signal qui connaît ton nom... il est plus fort près de l'hôpital de Saint-Aurèle. Comme si quelqu'un, en dessous, parlait dans un micro."
+    if {_n} is 3:
+        return "J'ai déjà entendu la voix du Sergent Vega sur une bande du jour zéro. Il répétait un ordre. Il ne dit jamais lequel."
+    if {_n} is 4:
+        return "NORDA a une fréquence privée. Je ne l'ai écoutée qu'une fois. Ils comptaient. Pas les morts : les vivants."
+    return "Léa n'est pas mon vrai nom. Je l'ai pris sur une voix que je n'arrivais plus à oublier. Je ne sais plus qui j'étais avant."
+
+function za_rel_lea_secret(p: player):
+    set {_u} to {_p}'s uuid
+    set {_j} to za_rel_jours()
+    if {za::rel::lea::secretjour::%{_u}%} is {_j}:
+        stop
+    set {_n} to ({za::rel::lea::secret::%{_u}%} ? 0) + 1
+    if {_n} > 5:
+        stop
+    set {_seuil} to 35 + ({_n} * 8)
+    if za_rel({_p}, "lea") < {_seuil}:
+        stop
+    set {za::rel::lea::secretjour::%{_u}%} to {_j}
+    set {za::rel::lea::pending::%{_u}%} to {_n}
+    za_zm("son %{_p}% za_modeles:voix.lea_noms 0.8 1")
+    za_menu({_p}, "zarelclic", "Le secret de Léa", "Léa baisse la voix : « %za_rel_lea_secret_texte({_n})% Tu ne le répètes à personne, hein ? »", ("Je garde ça pour moi|s:garde", "Les autres devraient savoir|s:dire", "Je ne veux rien savoir|quit"))
+
+command /zarelclic <player> <text>:
+    executable by: console
+    trigger:
+        set {_p} to arg-1
+        set {_u} to {_p}'s uuid
+        set {_a::*} to split arg-2 at ":"
+        if {_a::1} is "d":
+            za_rel_dossier_choix({_p}, {_a::2})
+        else if {_a::1} is "s":
+            set {_n} to {za::rel::lea::pending::%{_u}%} ? 0
+            if {_n} < 1:
+                stop
+            delete {za::rel::lea::pending::%{_u}%}
+            set {za::rel::lea::secret::%{_u}%} to {_n}
+            if {_a::2} is "garde":
+                za_rel_ajouter({_p}, "lea", 5)
+                send "&bLéa &8» &fMerci. Personne d'autre n'a jamais su me laisser un secret tranquille. &7(Tu gardes ça pour toi.)" to {_p}
+            else:
+                za_rel_ajouter({_p}, "lea", -8)
+                send "&bLéa &8» &fJe m'en doutais. Tout le monde parle. ...Je n'aurais pas dû. &7(Léa se referme un peu.)" to {_p}
+
+# ---------------------------------------------------------------- /relations
+
+function za_rel_barre(n: number) :: text:
+    set {_k} to round({_n} / 10)
+    set {_s} to ""
+    loop 10 times:
+        if loop-number <= {_k}:
+            set {_s} to "%{_s}%▮"
+        else:
+            set {_s} to "%{_s}%&8▯"
+    return "&a%{_s}%"
+
+function za_rel_ligne(p: player, npc: text) :: text:
+    set {_u} to {_p}'s uuid
+    if {za::rel::init::%{_npc}%::%{_u}%} is not set:
+        return "%za_rel_nom({_npc})% &8: &7pas encore rencontré. Parle-lui."
+    set {_v} to floor(za_rel({_p}, {_npc}))
+    return "%za_rel_nom({_npc})% &8: %za_rel_barre({_v})% &f%{_v}% &8(%za_rel_mot({_v})%&8)"
+
+command /relations:
+    trigger:
+        if sender is not a player:
+            send "&7Commande de joueur." to sender
+            stop
+        if za_pro(player) is true:
+            send "&7Ces gens-là n'existent pas encore." to player
+            stop
+        set {_u} to player's uuid
+        set {_d} to za_rel_dossier({_u})
+        send "&6&lRELATIONS &8— &7ce que les survivants pensent de toi" to player
+        send za_rel_ligne(player, "lefort") to player
+        send za_rel_ligne(player, "vega") to player
+        send za_rel_ligne(player, "lea") to player
+        send "&8Entre eux :" to player
+        # Lefort -> Vega
+        set {_a} to "soupçonne Vega de cacher quelque chose sur la fermeture de l'hôpital."
+        set {_b} to "les scientifiques « sentent le labo » ; il n'a que du mépris pour Lefort."
+        set {_c} to "ne fait confiance ni au médecin ni au sergent. Elle écoute."
+        if {_d} is "lefort":
+            set {_a} to "est convaincu que Vega a signé la fermeture des portes."
+            set {_b} to "t'en veut d'avoir donné le rapport à Lefort. Et Lefort le sait."
+        else if {_d} is "vega":
+            set {_a} to "te croit trop proche de Vega. Il se méfie de ce qu'il ne sait pas."
+            set {_b} to "te doit une dette : il t'a dit ce que NORDA a fait. Lefort ne l'apprendra pas de lui."
+        else if {_d} is "lea":
+            set {_a} to "a entendu le rapport à la radio. Il attend de voir qui en paiera le prix."
+            set {_b} to "a entendu le rapport à la radio. Il cherche qui a parlé."
+            set {_c} to "en sait maintenant plus que les deux hommes. Elle garde ça pour elle... ou pas."
+        send "&a Lefort &8→ &6Vega &8: &7%{_a}%" to player
+        send "&6 Vega &8→ &aLefort &8: &7%{_b}%" to player
+        send "&b Léa &8→ &7tous &8: &7%{_c}%" to player
+        if za_rel_vega_froid(player) is true:
+            send "&c⚠ Vega te trouve trop proche des scientifiques : plus de mission tant que ta réputation Milice est sous 25 (/faction)." to player
+        # dossier
+        if {_d} is "":
+            if za_rel(player, "lefort") >= 60:
+                send "&8Dossier Bravo-3 : &7Lefort a quelque chose à te demander. Va lui parler." to player
+            else:
+                send "&8Dossier Bravo-3 : &7pas commencé. &8(Gagne la confiance de Lefort : confiance 60 requise.)" to player
+        else if {_d} is "en_cours" or "garde":
+            send "&8Dossier Bravo-3 : &een cours &7— le rapport est dans %za_rel_lieu_rapport({_u})%." to player
+        else if {_d} is "lefort":
+            send "&8Dossier Bravo-3 : &7remis à &aLefort&7." to player
+        else if {_d} is "vega":
+            send "&8Dossier Bravo-3 : &7rendu à &6Vega&7." to player
+        else:
+            send "&8Dossier Bravo-3 : &7remis à &bLéa&7 (lu à la radio)." to player
+        send "&8Léa : apporte-lui des Pièces de radio (les infectés en portent parfois) et garde ses secrets." to player
+
+# ---------------------------------------------------------------- admin
+
+command /zarel <text> [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "dossier":
+            set {_pl} to arg-2 parsed as player
+            if {_pl} is not set:
+                send "&cUsage : /zarel dossier <joueur> <vide|en_cours|garde|lefort|vega|lea>" to sender
+                stop
+            set {_u} to {_pl}'s uuid
+            delete {za::rel::dossier::lu::%{_u}%}
+            delete {za::rel::dossier::conf::%{_u}%}
+            if arg-3 is "vide":
+                delete {za::rel::dossier::%{_u}%}
+            else:
+                set {za::rel::dossier::%{_u}%} to arg-3
+                set {za::rel::dossier::jour::%{_u}%} to za_rel_jours()
+                set {za::rel::dossier::lecture::%{_u}%} to za_rel_jours()
+                if arg-3 is "lefort":
+                    set {za::rel::dossier::conf::%{_u}%} to "attend"
+            send "&aDossier de %{_pl}% = %arg-3%" to sender
+        else if arg-1 is "pieces":
+            set {_pl} to arg-2 parsed as player
+            if {_pl} is not set:
+                send "&cUsage : /zarel pieces <joueur> [n]" to sender
+                stop
+            set {_q} to 3
+            if arg-3 is set:
+                set {_q} to arg-3 parsed as number
+            give ({_q} of za_rel_piece()) to {_pl}
+            send "&a%{_q}% Pièce(s) de radio données à %{_pl}%." to sender
+        else if arg-1 is "lecture":
+            set {_pl} to arg-2 parsed as player
+            if {_pl} is not set:
+                stop
+            za_rel_lecture({_pl})
+        else if arg-1 is "rapport":
+            set {_pl} to arg-2 parsed as player
+            if {_pl} is not set:
+                stop
+            give za_rel_rapport() to {_pl}
+            send "&aRapport Bravo-3 donné à %{_pl}%." to sender
+        else if arg-1 is "lefort" or "vega" or "lea":
+            set {_pl} to arg-2 parsed as player
+            if {_pl} is not set:
+                send "&cUsage : /zarel <lefort|vega|lea> <joueur> <valeur 0-100>" to sender
+                stop
+            set {za::rel::%arg-1%::%{_pl}'s uuid%} to (arg-3 parsed as number)
+            set {za::rel::init::%arg-1%::%{_pl}'s uuid%} to true
+            send "&aConfiance de %arg-1% envers %{_pl}% = %arg-3%" to sender
+        else:
+            send "&cUsage : /zarel <lefort|vega|lea> <joueur> <0-100> | dossier <joueur> <état> | pieces <joueur> [n] | lecture <joueur> | rapport <joueur>" to sender

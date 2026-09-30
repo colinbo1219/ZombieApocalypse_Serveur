@@ -1,0 +1,608 @@
+{
+ "pools": [
+  {
+   "rolls": {
+    "type": "minecraft:uniform",
+    "min": 3,
+    "max": 5
+   },
+   "entries": [
+    {
+     "type": "minecraft:empty",
+     "weight": 8
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:iron_ingot",
+     "weight": 8,
+     "functions": [
+      {
+       "function": "minecraft:set_count",
+       "count": {
+        "type": "minecraft:uniform",
+        "min": 2,
+        "max": 5
+       }
+      }
+     ]
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:rail",
+     "weight": 6,
+     "functions": [
+      {
+       "function": "minecraft:set_count",
+       "count": {
+        "type": "minecraft:uniform",
+        "min": 4,
+        "max": 10
+       }
+      }
+     ]
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:powered_rail",
+     "weight": 2,
+     "functions": [
+      {
+       "function": "minecraft:set_count",
+       "count": {
+        "type": "minecraft:uniform",
+        "min": 1,
+        "max": 3
+       }
+      }
+     ]
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:redstone",
+     "weight": 4,
+     "functions": [
+      {
+       "function": "minecraft:set_count",
+       "count": {
+        "type": "minecraft:uniform",
+        "min": 2,
+        "max": 6
+       }
+      }
+     ]
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:coal",
+     "weight": 5,
+     "functions": [
+      {
+       "function": "minecraft:set_count",
+       "count": {
+        "type": "minecraft:uniform",
+        "min": 2,
+        "max": 5
+       }
+      }
+     ]
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:torch",
+     "weight": 5,
+     "functions": [
+      {
+       "function": "minecraft:set_count",
+       "count": {
+        "type": "minecraft:uniform",
+        "min": 2,
+        "max": 6
+       }
+      }
+     ]
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:iron_pickaxe",
+     "weight": 1
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:stone_pickaxe",
+     "weight": 2
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:bread",
+     "weight": 4,
+     "functions": [
+      {
+       "function": "minecraft:set_count",
+       "count": {
+        "type": "minecraft:uniform",
+        "min": 1,
+        "max": 2
+       }
+      }
+     ]
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:cooked_beef",
+     "weight": 3,
+     "functions": [
+      {
+       "function": "minecraft:set_count",
+       "count": {
+        "type": "minecraft:uniform",
+        "min": 1,
+        "max": 2
+       }
+      }
+     ]
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:arrow",
+     "weight": 3,
+     "functions": [
+      {
+       "function": "minecraft:set_count",
+       "count": {
+        "type": "minecraft:uniform",
+        "min": 3,
+        "max": 8
+       }
+      }
+     ]
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:tnt",
+     "weight": 1,
+     "functions": [
+      {
+       "function": "minecraft:set_count",
+       "count": {
+        "type": "minecraft:uniform",
+        "min": 1,
+        "max": 2
+       }
+      }
+     ]
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:string",
+     "weight": 3,
+     "functions": [
+      {
+       "function": "minecraft:set_count",
+       "count": {
+        "type": "minecraft:uniform",
+        "min": 1,
+        "max": 3
+       }
+      }
+     ]
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:lever",
+     "weight": 2
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:iron_nugget",
+     "weight": 4,
+     "functions": [
+      {
+       "function": "minecraft:set_count",
+       "count": {
+        "type": "minecraft:uniform",
+        "min": 3,
+        "max": 8
+       }
+      }
+     ]
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:minecart",
+     "weight": 1
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:gunpowder",
+     "weight": 3,
+     "functions": [
+      {
+       "function": "minecraft:set_count",
+       "count": {
+        "type": "minecraft:uniform",
+        "min": 1,
+        "max": 3
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "rolls": 1,
+   "conditions": [
+    {
+     "condition": "minecraft:random_chance",
+     "chance": 0.5
+    }
+   ],
+   "entries": [
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:gold_nugget",
+     "weight": 1,
+     "functions": [
+      {
+       "function": "minecraft:set_count",
+       "count": {
+        "type": "minecraft:uniform",
+        "min": 2,
+        "max": 4
+       }
+      },
+      {
+       "function": "minecraft:set_name",
+       "name": {
+        "text": "Jeton de Survie",
+        "color": "gold",
+        "italic": false
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "rolls": 1,
+   "conditions": [
+    {
+     "condition": "minecraft:random_chance",
+     "chance": 0.3
+    }
+   ],
+   "entries": [
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:paper",
+     "weight": 1,
+     "functions": [
+      {
+       "function": "minecraft:set_name",
+       "name": {
+        "text": "Note de survivant",
+        "color": "white",
+        "italic": false
+       }
+      },
+      {
+       "function": "minecraft:set_lore",
+       "lore": [
+        {
+         "text": "Journal: Jour 14. Le voisin a mordu sa femme. Je l'ai enfermee dans la cave.",
+         "color": "gray",
+         "italic": false
+        }
+       ],
+       "replace": true
+      }
+     ]
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:paper",
+     "weight": 1,
+     "functions": [
+      {
+       "function": "minecraft:set_name",
+       "name": {
+        "text": "Note de survivant",
+        "color": "white",
+        "italic": false
+       }
+      },
+      {
+       "function": "minecraft:set_lore",
+       "lore": [
+        {
+         "text": "Carte griffonnee: Bunker a l'est. Ne laissez pas les morts entendre la radio.",
+         "color": "gray",
+         "italic": false
+        }
+       ],
+       "replace": true
+      }
+     ]
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:paper",
+     "weight": 1,
+     "functions": [
+      {
+       "function": "minecraft:set_name",
+       "name": {
+        "text": "Note de survivant",
+        "color": "white",
+        "italic": false
+       }
+      },
+      {
+       "function": "minecraft:set_lore",
+       "lore": [
+        {
+         "text": "Ordre militaire: Evacuer la zone 4. Abandonner les infectes.",
+         "color": "gray",
+         "italic": false
+        }
+       ],
+       "replace": true
+      }
+     ]
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:paper",
+     "weight": 1,
+     "functions": [
+      {
+       "function": "minecraft:set_name",
+       "name": {
+        "text": "Note de survivant",
+        "color": "white",
+        "italic": false
+       }
+      },
+      {
+       "function": "minecraft:set_lore",
+       "lore": [
+        {
+         "text": "Lettre: Si tu lis ceci, je n'ai pas tenu. Il reste des jetons dans la cave.",
+         "color": "gray",
+         "italic": false
+        }
+       ],
+       "replace": true
+      }
+     ]
+    },
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:paper",
+     "weight": 1,
+     "functions": [
+      {
+       "function": "minecraft:set_name",
+       "name": {
+        "text": "Note de survivant",
+        "color": "white",
+        "italic": false
+       }
+      },
+      {
+       "function": "minecraft:set_lore",
+       "lore": [
+        {
+         "text": "Etiquette de labo: Souche Z-7. Ne pas exposer a la lumiere.",
+         "color": "gray",
+         "italic": false
+        }
+       ],
+       "replace": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "rolls": 1,
+   "conditions": [
+    {
+     "condition": "minecraft:random_chance",
+     "chance": 0.25
+    }
+   ],
+   "entries": [
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:paper",
+     "weight": 1,
+     "functions": [
+      {
+       "function": "minecraft:set_name",
+       "name": {
+        "text": "Bandage",
+        "color": "white",
+        "italic": false
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "rolls": 1,
+   "conditions": [
+    {
+     "condition": "minecraft:random_chance",
+     "chance": 0.15
+    }
+   ],
+   "entries": [
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:honey_bottle",
+     "weight": 1,
+     "functions": [
+      {
+       "function": "minecraft:set_name",
+       "name": {
+        "text": "Antidote",
+        "color": "green",
+        "italic": false
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "rolls": 1,
+   "conditions": [
+    {
+     "condition": "minecraft:random_chance",
+     "chance": 0.05
+    }
+   ],
+   "entries": [
+    {
+     "type": "minecraft:item",
+     "name": "minecraft:paper",
+     "weight": 1,
+     "functions": [
+      {
+       "function": "minecraft:set_name",
+       "name": {
+        "text": "Carte d'acces",
+        "color": "aqua",
+        "italic": false
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "rolls": 1,
+   "conditions": [
+    {
+     "condition": "minecraft:random_chance",
+     "chance": 0.12
+    }
+   ],
+   "entries": [
+    {
+     "type": "minecraft:item",
+     "name": "tacz:ammo",
+     "weight": 1,
+     "functions": [
+      {
+       "function": "minecraft:set_count",
+       "count": {
+        "type": "minecraft:uniform",
+        "min": 8,
+        "max": 16
+       }
+      },
+      {
+       "function": "minecraft:set_nbt",
+       "tag": "{AmmoId:\"tacz:9mm\"}"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "rolls": 1,
+   "conditions": [
+    {
+     "condition": "minecraft:random_chance",
+     "chance": 0.06
+    }
+   ],
+   "entries": [
+    {
+     "type": "minecraft:item",
+     "name": "tacz:ammo",
+     "weight": 1,
+     "functions": [
+      {
+       "function": "minecraft:set_count",
+       "count": {
+        "type": "minecraft:uniform",
+        "min": 4,
+        "max": 8
+       }
+      },
+      {
+       "function": "minecraft:set_nbt",
+       "tag": "{AmmoId:\"tacz:12g\"}"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "rolls": 1,
+   "conditions": [
+    {
+     "condition": "minecraft:random_chance",
+     "chance": 0.06
+    }
+   ],
+   "entries": [
+    {
+     "type": "minecraft:item",
+     "name": "tacz:ammo",
+     "weight": 1,
+     "functions": [
+      {
+       "function": "minecraft:set_count",
+       "count": {
+        "type": "minecraft:uniform",
+        "min": 8,
+        "max": 14
+       }
+      },
+      {
+       "function": "minecraft:set_nbt",
+       "tag": "{AmmoId:\"tacz:762x39\"}"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "rolls": 1,
+   "conditions": [
+    {
+     "condition": "minecraft:random_chance",
+     "chance": 0.03
+    }
+   ],
+   "entries": [
+    {
+     "type": "minecraft:item",
+     "name": "tacz:attachment",
+     "weight": 1,
+     "functions": [
+      {
+       "function": "minecraft:set_nbt",
+       "tag": "{AttachmentId:\"tacz:muzzle_silencer_ursus\"}"
+      }
+     ]
+    },
+    {
+     "type": "minecraft:item",
+     "name": "tacz:attachment",
+     "weight": 1,
+     "functions": [
+      {
+       "function": "minecraft:set_nbt",
+       "tag": "{AttachmentId:\"tacz:extended_mag_1\"}"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

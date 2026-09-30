@@ -1,0 +1,1351 @@
+# =====================================================================
+#  ZombieApocalypse - MARCHÉ ENTRE JOUEURS (#5)
+#  Petites annonces entre survivants. On vend et on achète au Marché de la Trêve ({za::treve::loc}, rayon 18)
+#  ou dans un camp vivant ({za::camp::<id>::etat} = "vivant", rayon 25). Consultation possible partout.
+#
+#  Joueur : /marche (alias /mk /market)
+#     /marche                       catalogue (coffre de 6 rangées, 45 annonces par page, tri, filtre, pages)
+#     /marche vendre <prix> [qté]   met en vente l'objet en main (la pile entière par défaut) : frais d'annonce 2 jetons,
+#                                   taxe de vente 5 %% prélevée sur le vendeur. Max 10 annonces, expiration après 7 jours de jeu.
+#     /marche mes                   tes annonces (clic = retirer l'annonce, l'objet te revient)
+#     /marche recuperer             objets expirés / retirés / achetés avec un sac plein
+#     /marche prix [nom]            cours de l'objet en main : moyenne des 10 dernières ventes, annonces en cours, PÉNURIE
+#     /marche chercher <mot>        filtre le catalogue (nom, modèle d'arme, origine...)
+#  Les frais du marché (annonce + taxe) sont supprimés tant que {za::reseau::commerce} est vrai (quartier commerçant alimenté).
+#
+#  Sécurité anti-duplication : l'objet est retiré de la main AVANT la création de l'annonce (et la main est revérifiée) ;
+#  à l'achat / au retrait / à l'expiration l'annonce est supprimée AVANT de livrer l'objet ; toute la transaction se fait dans
+#  le même tick (aucun « wait » entre la suppression et la livraison) ; tous les clics du catalogue sont annulés (y compris
+#  shift-clic, glisser, double-clic) ; les objets de vitrine portent une ligne « Annonce du Marché n°… » et sont supprimés
+#  de tout inventaire de joueur (balayage) si jamais l'un d'eux s'échappait.
+#
+#  Données (persistantes) : {za::mk::prix|item|qte|vend|vnom|jour|exp|nom|cle|arme|txt::<id>} (une liste plate par champ),
+#     {za::mk::seq} {za::mk::h::<clé>::<0-9>} {za::mk::hn::<clé>} (historique des prix, 10 dernières ventes)
+#     {za::mk::hnom::<clé>} (nom lisible), {za::mk::rc::<uuid>::<n>} {za::mk::rcw::<uuid>::<n>} (objets à récupérer) {za::mk::notif::<uuid>::*} (messages hors-ligne)
+#     {za::mk::stat::ventes|volume|taxes} {za::mk::tip::<uuid>}
+#  Temporaires : {-mk::...}
+#  Stats joueur : ventes_marche (vendeur), achats_marche (acheteur).
+#  Fonctions publiques : za_mk_lieu(loc) :: text  (utilisée par za_p48_ressources : "Marché de la Trêve", nom du camp ou "")
+#                        za_mk_moyenne(clé) :: number, za_mk_cle(objet) :: text, za_mk_nom(objet) :: text
+#  Admin / console : /zamarche <etat|liste|simuler|acheter|retirer|expirer|balayer|recup|histo|lieu|vitrine|tout-retirer>
+# =====================================================================
+
+options:
+    frais_annonce: 2
+    taxe: 0.05
+    max_annonces: 10
+    max_total: 400
+    duree: 7
+    seuil_annonce: 300
+    prix_max: 1000000
+    max_recup: 40
+
+on load:
+    if {za::mk::seq} is not set:
+        set {za::mk::seq} to 0
+    if {za::mk::rseq} is not set:
+        set {za::mk::rseq} to 0
+    # noms français des objets courants (clé = nom Skript du type)
+    delete {-mk::fr::*}
+    set {_d::1} to "iron ingot=Lingot de fer;gold ingot=Lingot d'or;copper ingot=Lingot de cuivre;netherite ingot=Lingot de netherite;diamond=Diamant;emerald=Émeraude;coal=Charbon;charcoal=Charbon de bois;redstone item=Redstone;lapis lazuli=Lapis-lazuli;quartz=Quartz;iron nugget=Pépite de fer;gold nugget=Pépite d'or;stick=Bâton;string=Ficelle;feather=Plume;leather=Cuir;flint=Silex;gunpowder=Poudre à canon;bone=Os;rotten flesh=Chair putréfiée;spider eye=Oeil d'araignée;slimeball=Boule de slime;piece of paper=Papier;paper=Papier;book=Livre"
+    set {_d::2} to "loaves of bread=Pain;bread=Pain;apple=Pomme;golden apple=Pomme dorée;steak=Steak;cooked pork=Côtelette cuite;cooked chicken=Poulet cuit;cooked mutton=Mouton cuit;cooked salmon=Saumon cuit;cooked cod=Morue cuite;baked potato=Patate cuite;carrot=Carotte;potato=Patate;beef=Boeuf cru;pork=Porc cru;chicken=Poulet cru;potion of water=Bouteille d'eau;empty bottle=Bouteille vide;bucket=Seau;water bucket=Seau d'eau;milk=Seau de lait;honey bottle=Bouteille de miel;golden carrot=Carotte dorée;pumpkin pie=Tarte à la citrouille;cookie=Biscuit;melon slice=Tranche de melon;sweet berries=Baies sucrées;mushroom soup=Soupe de champignons;rabbit soup=Ragoût de lapin;dried kelp=Algue séchée;sugar=Sucre;wheat item=Blé"
+    set {_d::3} to "diamond sword=Épée en diamant;iron sword=Épée en fer;stone sword=Épée en pierre;wood sword=Épée en bois;bow=Arc;arrow=Flèche;crossbow=Arbalète;shield=Bouclier;iron helmet=Casque en fer;iron chestplate=Plastron en fer;iron leggings=Jambières en fer;iron boots=Bottes en fer;leather helmet=Casque en cuir;leather chestplate=Tunique en cuir;diamond pickaxe=Pioche en diamant;iron pickaxe=Pioche en fer;iron axe=Hache en fer;iron shovel=Pelle en fer;iron hoe=Houe en fer;shear=Cisailles;flint and steel=Briquet;fishing rod=Canne à pêche;compass=Boussole;gold clock=Horloge;map=Carte;leash=Laisse;nametag=Étiquette;saddle=Selle;totem of undying=Totem d'immortalité;elytra=Élytres;trident=Trident;enchanted book=Livre enchanté;bottle o' enchanting=Fiole d'expérience;splash potion=Potion jetable"
+    set {_d::4} to "floor torch=Torche;campfire=Feu de camp;chest=Coffre;barrel=Tonneau;ender chest=Coffre de l'Ender;furnace or lit furnace=Fourneau;workbench=Établi;unbroken anvil=Enclume;white bed=Lit;ladder=Échelle;iron bar=Barreaux de fer;lantern=Lanterne;iron door=Porte en fer;oak wood door=Porte;redstone lever=Levier;tripwire hook=Crochet de fil;normal piston=Piston;redstone repeater=Répéteur;redstone comparator item=Comparateur;redstone observer=Observateur;hopper=Entonnoir;dispenser=Distributeur;tnt block=TNT;iron block=Bloc de fer;gold block=Bloc d'or;cobweb=Toile d'araignée;blaze rod=Bâton de blaze;eye of ender=Oeil d'Ender;echo shard=Éclat d'écho;fire charge=Boule de feu;fermented spider eye=Oeil d'araignée fermenté;nether star=Étoile du Nether;bundle=Sac;tacz_modern_kinetic_gun=Arme;tacz_ammo=Munitions;tacz_attachment=Accessoire d'arme"
+    set {_i} to 1
+    while {_d::%{_i}%} is set:
+        set {_e::*} to split {_d::%{_i}%} at ";"
+        loop {_e::*}:
+            set {_kv::*} to split loop-value at "="
+            set {-mk::fr::%{_kv::1}%} to {_kv::2}
+        add 1 to {_i}
+
+# ---------------------------------------------------------------- lieu de marché (utilisé par za_p48_ressources)
+
+# "Marché de la Trêve" à moins de 18 blocs de {za::treve::loc}, le nom du camp vivant à moins de 25 blocs, sinon ""
+function za_mk_lieu(l: location) :: text:
+    if {_l} is not set:
+        return ""
+    if "%world of {_l}%" is "za_prologue":
+        return ""
+    if {za::treve::loc} is set:
+        if world of {za::treve::loc} is world of {_l}:
+            if distance between {za::treve::loc} and {_l} < 18:
+                return "Marché de la Trêve"
+    set {_best} to 25
+    set {_res} to ""
+    loop {za::camp::liste::*}:
+        set {_id} to loop-value
+        if {za::camp::%{_id}%::etat} is "vivant":
+            set {_c} to {za::camp::%{_id}%::loc}
+            if {_c} is set:
+                if world of {_c} is world of {_l}:
+                    set {_d} to distance between {_c} and {_l}
+                    if {_d} < {_best}:
+                        set {_best} to {_d}
+                        set {_res} to "%{za::camp::%{_id}%::nom}%"
+                        if {_res} is "<none>":
+                            set {_res} to "Camp"
+    return {_res}
+
+# frais du marché (annonce + taxe) supprimés tant que le quartier commerçant est alimenté
+function za_mk_frais_actifs() :: boolean:
+    if {za::reseau::commerce} is true:
+        return false
+    return true
+
+function za_mk_taxe(prix: number) :: number:
+    if za_mk_frais_actifs() is false:
+        return 0
+    return round({_prix} * {@taxe})
+
+function za_mk_son(p: player, cle: text, vol: number, pitch: number):
+    za_zm("son %{_p}% %{_cle}% %{_vol}% %{_pitch}%")
+
+# ---------------------------------------------------------------- noms, clés, catégories
+
+# texte sans couleurs ni caractères gênants (variables, journaux)
+function za_mk_propre(t: text) :: text:
+    set {_r} to uncolored {_t}
+    replace all "'" with "’" in {_r}
+    replace all """" with "" in {_r}
+    replace all "::" with ":" in {_r}
+    replace all "*" with "" in {_r}
+    replace all "%%" with "" in {_r}
+    replace all "@" with "" in {_r}
+    return {_r}
+
+function za_mk_est_arme(it: itemtype) :: boolean:
+    set {_ty} to "%type of {_it}%"
+    set {_ty} to {_ty} in lowercase
+    if {_ty} contains "kinetic_gun":
+        return true
+    return false
+
+# valeur d'une ligne de lore « <préfixe><valeur> » (sans couleurs), "" si absente
+function za_mk_lore_ligne(it: itemtype, pre: text) :: text:
+    set {_l::*} to lore of {_it}
+    loop {_l::*}:
+        set {_u} to uncolored loop-value
+        if {_u} starts with {_pre}:
+            if length of {_u} <= length of {_pre}:
+                return ""
+            return subtext of {_u} from characters (length of {_pre} + 1) to length of {_u}
+    return ""
+
+function za_mk_collection(it: itemtype) :: boolean:
+    set {_l::*} to lore of {_it}
+    loop {_l::*}:
+        set {_u} to uncolored loop-value
+        if {_u} starts with "Pièce de collection":
+            return true
+    return false
+
+# objet de vitrine (copie affichée dans le catalogue) : ne doit jamais se trouver dans un inventaire de joueur
+function za_mk_est_vitrine(it: itemtype) :: boolean:
+    set {_l::*} to lore of {_it}
+    loop {_l::*}:
+        set {_u} to uncolored loop-value
+        if {_u} starts with "Annonce du Marché n°":
+            return true
+    return false
+
+function za_mk_fr(it: itemtype) :: text:
+    set {_ty} to "%type of {_it}%"
+    set {_ty} to {_ty} in lowercase
+    if {_ty} is "<none>":
+        return "Objet"
+    if {-mk::fr::%{_ty}%} is set:
+        return "%{-mk::fr::%{_ty}%}%"
+    replace all "_" with " " in {_ty}
+    if length of {_ty} < 2:
+        return {_ty}
+    set {_a} to subtext of {_ty} from characters 1 to 1
+    set {_a} to {_a} in uppercase
+    return "%{_a}%%subtext of {_ty} from characters 2 to length of {_ty}%"
+
+# nom lisible : nom donné à l'objet, sinon modèle de l'arme (lore), sinon nom français du type
+function za_mk_nom(it: itemtype) :: text:
+    if name of {_it} is set:
+        set {_n} to za_mk_propre(name of {_it})
+        if {_n} is not "":
+            return {_n}
+    if za_mk_est_arme({_it}) is true:
+        set {_m} to za_mk_lore_ligne({_it}, "Modèle : ")
+        if {_m} is not "":
+            return za_mk_propre({_m})
+        return "Arme"
+    return za_mk_fr({_it})
+
+# clé d'historique des prix : « nom@type » ; armes : « modèle@arme » (ou « modèle (collection)@arme »)
+function za_mk_cle(it: itemtype) :: text:
+    if za_mk_est_arme({_it}) is true:
+        set {_m} to za_mk_lore_ligne({_it}, "Modèle : ")
+        set {_c} to "Arme"
+        if {_m} is not "":
+            set {_c} to za_mk_propre({_m})
+        if za_mk_collection({_it}) is true:
+            return "%{_c}% (collection)@arme"
+        return "%{_c}%@arme"
+    set {_ty} to "%type of {_it}%"
+    set {_ty} to {_ty} in lowercase
+    return "%za_mk_nom({_it})%@%za_mk_propre({_ty})%"
+
+# nom lisible d'une clé (les index de variables sont mis en minuscules par Skript : on garde la casse à part)
+function za_mk_cle_nom(cle: text) :: text:
+    if {za::mk::hnom::%{_cle}%} is set:
+        return "%{za::mk::hnom::%{_cle}%}%"
+    set {_p::*} to split {_cle} at "@"
+    return {_p::1}
+
+# texte de recherche (minuscules) : nom, type, lore
+function za_mk_texte(it: itemtype) :: text:
+    set {_l::*} to lore of {_it}
+    set {_t::*} to za_mk_nom({_it}) and "%type of {_it}%"
+    loop {_l::*}:
+        add uncolored loop-value to {_t::*}
+    set {_r} to join {_t::*} with " "
+    return {_r} in lowercase
+
+# ---------------------------------------------------------------- historique des prix (10 dernières ventes, prix à l'unité)
+
+function za_mk_hist_ajouter(cle: text, unit: number):
+    if {za::mk::hn::%{_cle}%} is not set:
+        set {za::mk::hn::%{_cle}%} to 0
+    add 1 to {za::mk::hn::%{_cle}%}
+    set {_pn::*} to split {_cle} at "@"
+    set {za::mk::hnom::%{_cle}%} to {_pn::1}
+    set {_n} to {za::mk::hn::%{_cle}%}
+    set {_j} to {za::serveur::jours}
+    if {_j} is not set:
+        set {_j} to 0
+    set {za::mk::h::%{_cle}%::%mod({_n}, 10)%} to "%{_n}%;%{_j}%;%{_unit}%"
+    # borne : au plus 250 clés d'historique (on oublie les plus anciennes ventes)
+    if size of {za::mk::hn::*} > 250:
+        loop {za::mk::hn::*}:
+            if {_vieux} is not set:
+                set {_vieux} to loop-index
+                set {_min} to loop-value
+            else if loop-value < {_min}:
+                set {_vieux} to loop-index
+                set {_min} to loop-value
+        if {_vieux} is not {_cle}:
+            delete {za::mk::hn::%{_vieux}%}
+            delete {za::mk::hnom::%{_vieux}%}
+            delete {za::mk::h::%{_vieux}%::*}
+
+# valeurs des ventes de la plus récente à la plus ancienne (prix à l'unité)
+function za_mk_hist_valeurs(cle: text) :: numbers:
+    set {_n} to {za::mk::hn::%{_cle}%}
+    if {_n} is not set:
+        return {_r::*}
+    set {_k} to 0
+    while {_k} < 10:
+        set {_e} to {za::mk::h::%{_cle}%::%mod({_n} - {_k}, 10)%}
+        if {_e} is set:
+            set {_p::*} to split {_e} at ";"
+            if {_p::1} is "%{_n} - {_k}%":
+                add ({_p::3} parsed as number) to {_r::*}
+        add 1 to {_k}
+    return {_r::*}
+
+function za_mk_moyenne(cle: text) :: number:
+    set {_v::*} to za_mk_hist_valeurs({_cle})
+    if size of {_v::*} is 0:
+        return 0
+    set {_t} to 0
+    loop {_v::*}:
+        add loop-value to {_t}
+    return round(({_t} / size of {_v::*}) * 10) / 10
+
+# nombre de ventes de cette clé pendant les N derniers jours de jeu
+function za_mk_ventes_recentes(cle: text, jours: number) :: number:
+    set {_c} to 0
+    set {_j} to {za::serveur::jours}
+    if {_j} is not set:
+        set {_j} to 0
+    loop {za::mk::h::%{_cle}%::*}:
+        set {_p::*} to split loop-value at ";"
+        if ({_p::2} parsed as number) >= {_j} - {_jours}:
+            add 1 to {_c}
+    return {_c}
+
+# pénurie : plus aucune annonce pour cet objet mais des ventes récentes (>= 2 sur les 3 derniers jours de jeu)
+function za_mk_penurie(cle: text, annonces: number) :: boolean:
+    if {_annonces} > 0:
+        return false
+    if za_mk_ventes_recentes({_cle}, 3) >= 2:
+        return true
+    return false
+
+# ---------------------------------------------------------------- données des annonces
+
+function za_mk_nb_annonces(u: text) :: number:
+    set {_n} to 0
+    loop {za::mk::vend::*}:
+        if loop-value is {_u}:
+            add 1 to {_n}
+    return {_n}
+
+function za_mk_nb_recup(u: text) :: number:
+    return size of {za::mk::rc::%{_u}%::*}
+
+# supprime toutes les données d'une annonce (le prix en premier : c'est le marqueur d'existence)
+function za_mk_supprimer(id: text):
+    delete {za::mk::prix::%{_id}%}
+    delete {za::mk::item::%{_id}%}
+    delete {za::mk::qte::%{_id}%}
+    delete {za::mk::vend::%{_id}%}
+    delete {za::mk::vnom::%{_id}%}
+    delete {za::mk::jour::%{_id}%}
+    delete {za::mk::exp::%{_id}%}
+    delete {za::mk::nom::%{_id}%}
+    delete {za::mk::cle::%{_id}%}
+    delete {za::mk::arme::%{_id}%}
+    delete {za::mk::txt::%{_id}%}
+
+# crée une annonce (l'objet a DÉJÀ été retiré de son propriétaire) ; renvoie l'identifiant
+function za_mk_creer(uv: text, vnom: text, it: itemtype, prix: number) :: text:
+    add 1 to {za::mk::seq}
+    set {_id} to "%{za::mk::seq}%"
+    set {_j} to {za::serveur::jours}
+    if {_j} is not set:
+        set {_j} to 0
+    set {za::mk::item::%{_id}%} to {_it}
+    set {za::mk::qte::%{_id}%} to item amount of {_it}
+    set {za::mk::vend::%{_id}%} to {_uv}
+    set {za::mk::vnom::%{_id}%} to {_vnom}
+    set {za::mk::jour::%{_id}%} to {_j}
+    set {za::mk::exp::%{_id}%} to {_j} + {@duree}
+    set {za::mk::nom::%{_id}%} to za_mk_nom({_it})
+    set {za::mk::cle::%{_id}%} to za_mk_cle({_it})
+    set {za::mk::arme::%{_id}%} to za_mk_est_arme({_it})
+    set {za::mk::txt::%{_id}%} to za_mk_texte({_it})
+    set {za::mk::prix::%{_id}%} to {_prix}
+    return {_id}
+
+# ajoute un objet à la liste « à récupérer » d'un joueur
+function za_mk_recup_ajouter(u: text, it: itemtype, why: text):
+    add 1 to {za::mk::rseq}
+    set {_r} to "%{za::mk::rseq}%"
+    set {za::mk::rc::%{_u}%::%{_r}%} to {_it}
+    set {za::mk::rcw::%{_u}%::%{_r}%} to {_why}
+
+# message à un joueur (en ligne : tout de suite ; hors ligne : à sa prochaine connexion)
+function za_mk_notifier(u: text, msg: text):
+    set {_vu} to false
+    loop all players:
+        if {_vu} is false:
+            if loop-player's uuid is {_u}:
+                if za_pro(loop-player) is false:
+                    send {_msg} to loop-player
+                    set {_vu} to true
+    if {_vu} is false:
+        add {_msg} to {za::mk::notif::%{_u}%::*}
+        if size of {za::mk::notif::%{_u}%::*} > 15:
+            set {_first} to first element of {za::mk::notif::%{_u}%::*}
+            remove {_first} from {za::mk::notif::%{_u}%::*}
+
+# ---------------------------------------------------------------- place dans l'inventaire (sac principal 0-35 seulement)
+
+function za_mk_place(p: player, it: itemtype) :: boolean:
+    set {_need} to item amount of {_it}
+    set {_max} to max stack size of {_it}
+    if {_max} < 1:
+        set {_max} to 1
+    set {_un} to 1 of {_it}
+    set {_dispo} to 0
+    set {_i} to 0
+    while {_i} < 36:
+        set {_s} to slot {_i} of inventory of {_p}
+        if {_s} is air:
+            add {_max} to {_dispo}
+        else if {_max} > 1:
+            if {_s} is {_un}:
+                add ({_max} - (item amount of {_s})) to {_dispo}
+        add 1 to {_i}
+    if {_dispo} >= {_need}:
+        return true
+    return false
+
+# livre l'objet : dans le sac s'il y a de la place, sinon dans « à récupérer » ; renvoie true si livré dans le sac
+function za_mk_livrer(p: player, it: itemtype, why: text) :: boolean:
+    if za_mk_place({_p}, {_it}) is true:
+        give {_it} to {_p}
+        return true
+    za_mk_recup_ajouter({_p}'s uuid, {_it}, {_why})
+    return false
+
+# ---------------------------------------------------------------- vitrine : l'objet réel + lignes du marché (copie, jamais l'original)
+
+function za_mk_vitrine(id: text, u: text, apercu: boolean) :: itemtype:
+    set {_it} to {za::mk::item::%{_id}%}
+    if {_it} is not set:
+        return za_item("barrier", "Annonce vide", "&c", 1)
+    set {_c} to {_it}
+    set {_l::*} to lore of {_c}
+    set {_prix} to {za::mk::prix::%{_id}%}
+    set {_q} to {za::mk::qte::%{_id}%}
+    if {_q} is not set:
+        set {_q} to item amount of {_it}
+    set {_cle} to {za::mk::cle::%{_id}%}
+    add "&8──────────────────" to {_l::*}
+    if {_q} > 1:
+        set {_unit} to round(({_prix} / {_q}) * 10) / 10
+        add "&6Prix : &e%{_prix}% jetons &8(%{_unit}%/u · ×%{_q}%)" to {_l::*}
+    else:
+        set {_unit} to {_prix}
+        add "&6Prix : &e%{_prix}% jetons" to {_l::*}
+    add "&7Vendeur : &f%{za::mk::vnom::%{_id}%}%" to {_l::*}
+    set {_jl} to {za::mk::exp::%{_id}%} - {za::serveur::jours}
+    if {_jl} < 1:
+        add "&7Expire dans : &c< 1 jour" to {_l::*}
+    else:
+        add "&7Expire dans : &f%{_jl}% j" to {_l::*}
+    set {_moy} to za_mk_moyenne({_cle})
+    if {_moy} > 0:
+        if {_unit} <= {_moy} * 0.8:
+            add "&a★ Bonne affaire &8(cours ~%{_moy}%/u)" to {_l::*}
+        else if {_unit} >= {_moy} * 1.3:
+            add "&c▲ Au-dessus du cours &8(~%{_moy}%/u)" to {_l::*}
+        else:
+            add "&7Cours récent : &f~%{_moy}%/u" to {_l::*}
+    if {_apercu} is false:
+        if {za::mk::vend::%{_id}%} is {_u}:
+            add "&e▶ Ton annonce &8— &7clique pour la retirer" to {_l::*}
+        else:
+            set {_sol} to {za::jetons::%{_u}%}
+            if {_sol} is not set:
+                set {_sol} to 0
+            if {_sol} < {_prix}:
+                add "&c✖ Il te manque %{_prix} - {_sol}% jetons" to {_l::*}
+            else:
+                add "&a▶ Clique pour acheter" to {_l::*}
+    add "&8Annonce du Marché n°%{_id}%" to {_l::*}
+    set lore of {_c} to {_l::*}
+    return {_c}
+
+# ---------------------------------------------------------------- catalogue (coffre 6 rangées)
+
+function za_mk_tri_nom(t: text) :: text:
+    if {_t} is "prixasc":
+        return "Prix croissant"
+    if {_t} is "prixdesc":
+        return "Prix décroissant"
+    if {_t} is "expire":
+        return "Expire bientôt"
+    return "Plus récentes"
+
+function za_mk_filtre_nom(f: text) :: text:
+    if {_f} is "armes":
+        return "Armes"
+    if {_f} is "ressource":
+        return "Ressource de la saison"
+    return "Tout"
+
+# remplit le catalogue OUVERT du joueur (ne touche à rien d'autre : vérifie le titre et l'état)
+function za_mk_rendre(p: player):
+    set {_u} to {_p}'s uuid
+    if {-mk::ouvert::%{_u}%} is not set:
+        stop
+    if uncolored name of (current inventory of {_p}) is not "Marché des survivants":
+        stop
+    set {_mode} to {-mk::e::%{_u}%::mode}
+    set {_tri} to {-mk::e::%{_u}%::tri}
+    set {_filtre} to {-mk::e::%{_u}%::filtre}
+    set {_mot} to {-mk::e::%{_u}%::mot}
+    set {_page} to {-mk::e::%{_u}%::page}
+    if {_mode} is not set:
+        set {_mode} to "tout"
+    if {_tri} is not set:
+        set {_tri} to "recent"
+    if {_filtre} is not set:
+        set {_filtre} to "tout"
+    if {_page} is not set:
+        set {_page} to 1
+    delete {-mk::slot::%{_u}%::*}
+    # sélection
+    set {_total} to 0
+    loop {za::mk::prix::*}:
+        set {_id} to loop-index
+        add 1 to {_total}
+        set {_k} to {za::mk::cle::%{_id}%}
+        add 1 to {_cnt::%{_k}%}
+        set {_ok} to true
+        if {_mode} is "mes":
+            if {za::mk::vend::%{_id}%} is not {_u}:
+                set {_ok} to false
+        if {_filtre} is "armes":
+            if {za::mk::arme::%{_id}%} is not true:
+                set {_ok} to false
+        else if {_filtre} is "ressource":
+            if {za::mk::nom::%{_id}%} is not "%{za::ressource::nom}%":
+                set {_ok} to false
+        if {_mot} is set:
+            if {za::mk::txt::%{_id}%} does not contain {_mot}:
+                set {_ok} to false
+        if {_ok} is true:
+            add {_id} to {_ids::*}
+    if {_tri} is "prixasc":
+        sort {_ids::*} by {za::mk::prix::%input%}
+    else if {_tri} is "prixdesc":
+        sort {_ids::*} by 0 - {za::mk::prix::%input%}
+    else if {_tri} is "expire":
+        sort {_ids::*} by {za::mk::exp::%input%}
+    else:
+        sort {_ids::*} by 0 - (input parsed as number)
+    set {_n} to size of {_ids::*}
+    set {_pages} to ceil({_n} / 45)
+    if {_pages} < 1:
+        set {_pages} to 1
+    if {_page} > {_pages}:
+        set {_page} to {_pages}
+    if {_page} < 1:
+        set {_page} to 1
+    set {-mk::e::%{_u}%::page} to {_page}
+    set {_debut} to ({_page} - 1) * 45
+    set {_inv} to current inventory of {_p}
+    loop 45 times:
+        set {_slot} to loop-number - 1
+        set {_k2} to {_debut} + loop-number
+        if {_ids::%{_k2}%} is set:
+            set {_id2} to {_ids::%{_k2}%}
+            set slot {_slot} of {_inv} to za_mk_vitrine({_id2}, {_u}, false)
+            set {-mk::slot::%{_u}%::%{_slot}%} to {_id2}
+        else:
+            set slot {_slot} of {_inv} to air
+    # barre de navigation
+    set {_vide} to za_item("gray stained glass pane", " ", "&8", 1)
+    loop 9 times:
+        set slot (44 + loop-number) of {_inv} to {_vide}
+    if {_page} > 1:
+        set {_a} to za_item("arrow", "Page précédente", "&e", 1)
+        set lore of {_a} to "&7Page %{_page} - 1%/%{_pages}%"
+        set slot 45 of {_inv} to {_a}
+    set {_a} to za_item("hopper", "Trier : %za_mk_tri_nom({_tri})%", "&b", 1)
+    set lore of {_a} to "&7Clique pour changer l'ordre :" and "&8Plus récentes · Prix croissant" and "&8Prix décroissant · Expire bientôt"
+    set slot 46 of {_inv} to {_a}
+    set {_a} to za_item("compass", "Filtre : %za_mk_filtre_nom({_filtre})%", "&b", 1)
+    set {_lf::*} to "&7Clique pour changer :", "&8Tout · Armes · Ressource de la saison" and "&8Recherche : &7/marche chercher <mot>"
+    if {_mot} is set:
+        add "&eRecherche en cours : &f%{_mot}% &8(clique : effacer)" to {_lf::*}
+    set lore of {_a} to {_lf::*}
+    set slot 47 of {_inv} to {_a}
+    if {_mode} is "mes":
+        set {_a} to za_item("oak door", "Retour au marché", "&a", 1)
+        set lore of {_a} to "&7Voir toutes les annonces."
+    else:
+        set {_a} to za_item("chest", "Mes annonces", "&a", 1)
+        set lore of {_a} to "&7Tes annonces (%za_mk_nb_annonces({_u})%/{@max_annonces})" and "&7Clique pour les gérer ou les retirer."
+    set slot 48 of {_inv} to {_a}
+    # info
+    set {_lieu} to za_mk_lieu(location of {_p})
+    set {_a} to za_item("paper", "Marché des survivants", "&6", 1)
+    set {_li::*} to "&7Page &f%{_page}%&7/&f%{_pages}% &8· &f%{_n}% &7annonce(s) affichée(s) sur %{_total}%"
+    if {_lieu} is "":
+        add "&cTu n'es pas dans un marché : consultation seulement." to {_li::*}
+        add "&8Achats et ventes : Marché de la Trêve ou camp." to {_li::*}
+    else:
+        add "&aTu es à : &f%{_lieu}%" to {_li::*}
+        add "&8Vendre : &e/marche vendre <prix> [qté]" to {_li::*}
+    if za_mk_frais_actifs() is true:
+        add "&8Frais : annonce {@frais_annonce} jetons · taxe 5 %%" to {_li::*}
+    else:
+        add "&aFrais du marché suspendus (quartier commerçant alimenté)." to {_li::*}
+    set {_np} to 0
+    loop {za::mk::hn::*}:
+        if {_np} < 3:
+            set {_c2} to {_cnt::%loop-index%}
+            if {_c2} is not set:
+                set {_c2} to 0
+            if za_mk_penurie(loop-index, {_c2}) is true:
+                if {_np} is 0:
+                    add "&d⚑ PÉNURIE (plus d'annonces, forte demande) :" to {_li::*}
+                add "&d  - &f%za_mk_cle_nom(loop-index)%" to {_li::*}
+                add 1 to {_np}
+    set lore of {_a} to {_li::*}
+    set slot 49 of {_inv} to {_a}
+    set {_r} to za_mk_nb_recup({_u})
+    if {_r} > 0:
+        set {_a} to za_item("ender chest", "À récupérer (%{_r}%)", "&d", 1)
+        set lore of {_a} to "&7Objets expirés, retirés ou achetés" and "&7pendant que ton sac était plein." and "&e▶ Clique pour les récupérer"
+    else:
+        set {_a} to za_item("ender chest", "À récupérer", "&8", 1)
+        set lore of {_a} to "&7Rien pour l'instant."
+    set slot 50 of {_inv} to {_a}
+    set {_a} to za_item("book", "Comment ça marche", "&e", 1)
+    set lore of {_a} to "&7Clique pour afficher l'aide dans le chat."
+    set slot 51 of {_inv} to {_a}
+    if {_page} < {_pages}:
+        set {_a} to za_item("arrow", "Page suivante", "&e", 1)
+        set lore of {_a} to "&7Page %{_page} + 1%/%{_pages}%"
+        set slot 53 of {_inv} to {_a}
+
+# ouvre (ou ré-ouvre) le catalogue
+function za_mk_ouvrir(p: player):
+    set {_u} to {_p}'s uuid
+    open chest inventory with 6 rows named "&8Marché des survivants" to {_p}
+    set {-mk::ouvert::%{_u}%} to true
+    set {-mk::ecran::%{_u}%} to "liste"
+    za_mk_rendre({_p})
+
+# réinitialise l'état de navigation puis ouvre
+function za_mk_ouvrir_neuf(p: player, mode: text, mot: text):
+    set {_u} to {_p}'s uuid
+    delete {-mk::e::%{_u}%::*}
+    set {-mk::e::%{_u}%::mode} to {_mode}
+    set {-mk::e::%{_u}%::page} to 1
+    if {_mot} is not "":
+        set {-mk::e::%{_u}%::mot} to {_mot} in lowercase
+    za_mk_ouvrir({_p})
+
+# fenêtre de confirmation (achat ou retrait d'une annonce)
+function za_mk_ouvrir_conf(p: player, id: text, mode: text):
+    set {_u} to {_p}'s uuid
+    if {za::mk::prix::%{_id}%} is not set:
+        send "&c[Marché] Cette annonce n'existe plus." to {_p}
+        stop
+    open chest inventory with 3 rows named "&8Marché · Confirmation" to {_p}
+    set {-mk::ouvert::%{_u}%} to true
+    set {-mk::ecran::%{_u}%} to "conf"
+    set {-mk::conf::%{_u}%} to "%{_mode}%;%{_id}%"
+    set {_inv} to current inventory of {_p}
+    set {_vide} to za_item("gray stained glass pane", " ", "&8", 1)
+    loop 27 times:
+        set slot (loop-number - 1) of {_inv} to {_vide}
+    set slot 13 of {_inv} to za_mk_vitrine({_id}, {_u}, true)
+    set {_prix} to {za::mk::prix::%{_id}%}
+    if {_mode} is "achat":
+        set {_sol} to za_jetons({_p})
+        set {_a} to za_item("emerald", "Confirmer l'achat", "&a", 1)
+        set lore of {_a} to "&7Prix : &6%{_prix}% jetons" and "&7Tu as : &e%{_sol}% jetons &8→ &e%{_sol} - {_prix}%" and "&8L'objet arrive dans ton sac (sac plein :" and "&8il t'attend dans /marche recuperer)."
+        set slot 11 of {_inv} to {_a}
+    else:
+        set {_a} to za_item("emerald", "Retirer mon annonce", "&a", 1)
+        set lore of {_a} to "&7L'objet te revient." and "&8Les frais d'annonce ne sont pas remboursés."
+        set slot 11 of {_inv} to {_a}
+    set {_a} to za_item("barrier", "Annuler", "&c", 1)
+    set lore of {_a} to "&7Retour au catalogue."
+    set slot 15 of {_inv} to {_a}
+
+# ---------------------------------------------------------------- transactions
+
+# retrait d'une annonce par son propriétaire
+function za_mk_retirer(p: player, id: text) :: boolean:
+    set {_u} to {_p}'s uuid
+    if {za::mk::prix::%{_id}%} is not set:
+        send "&c[Marché] Cette annonce n'existe plus." to {_p}
+        return false
+    if {za::mk::vend::%{_id}%} is not {_u}:
+        send "&c[Marché] Ce n'est pas ton annonce." to {_p}
+        return false
+    set {_it} to {za::mk::item::%{_id}%}
+    set {_nom} to {za::mk::nom::%{_id}%}
+    if {_it} is not set:
+        za_mk_supprimer({_id})
+        log "MARCHE retrait #%{_id}% : objet introuvable (%{_p}%)" to file "za_economie.log"
+        return false
+    set {_place} to za_mk_place({_p}, {_it})
+    if {_place} is false:
+        if za_mk_nb_recup({_u}) >= {@max_recup}:
+            send "&c[Marché] Ton sac est plein et ton casier « à récupérer » aussi. Fais de la place." to {_p}
+            return false
+    # point de non-retour : l'annonce disparaît d'abord, puis l'objet est livré (même tick)
+    za_mk_supprimer({_id})
+    if {_place} is true:
+        give {_it} to {_p}
+        send "&a[Marché] Annonce retirée : &f%{_nom}% &7est de retour dans ton sac." to {_p}
+    else:
+        za_mk_recup_ajouter({_u}, {_it}, "annonce retirée")
+        send "&a[Marché] Annonce retirée. Ton sac est plein : l'objet t'attend (&e/marche recuperer&a)." to {_p}
+    za_audit("MARCHE RETRAIT #%{_id}% par %{_p}% : %{_nom}%", 0)
+    return true
+
+# achat : toutes les vérifications, puis suppression de l'annonce, paiement, livraison (même tick)
+function za_mk_acheter(p: player, id: text, test: boolean) :: boolean:
+    if za_pro({_p}) is true:
+        return false
+    set {_ub} to {_p}'s uuid
+    if {za::mk::prix::%{_id}%} is not set:
+        send "&c[Marché] Trop tard : cette annonce n'existe plus (vendue, retirée ou expirée)." to {_p}
+        return false
+    set {_uv} to {za::mk::vend::%{_id}%}
+    if {_uv} is {_ub}:
+        send "&c[Marché] C'est ton annonce. Utilise &e/marche mes &cpour la retirer." to {_p}
+        return false
+    if {_test} is false:
+        if za_mk_lieu(location of {_p}) is "":
+            send "&c[Marché] Pour acheter, rends-toi au &6Marché de la Trêve &cou dans un &acamp&c." to {_p}
+            return false
+    set {_prix} to {za::mk::prix::%{_id}%}
+    if za_jetons({_p}) < {_prix}:
+        send "&c[Marché] Il te manque &6%{_prix} - za_jetons({_p})% jetons&c (prix : %{_prix}%, tu as %za_jetons({_p})%)." to {_p}
+        return false
+    set {_it} to {za::mk::item::%{_id}%}
+    set {_nom} to {za::mk::nom::%{_id}%}
+    if {_it} is not set:
+        za_mk_supprimer({_id})
+        log "MARCHE annonce #%{_id}% corrompue (objet introuvable), supprimée à l'achat par %{_p}%" to file "za_economie.log"
+        send "&c[Marché] Annonce invalide, elle a été supprimée." to {_p}
+        return false
+    set {_place} to za_mk_place({_p}, {_it})
+    if {_place} is false:
+        if za_mk_nb_recup({_ub}) >= {@max_recup}:
+            send "&c[Marché] Ton sac est plein et ton casier « à récupérer » aussi. Fais de la place avant d'acheter." to {_p}
+            return false
+    set {_q} to {za::mk::qte::%{_id}%}
+    if {_q} is not set:
+        set {_q} to item amount of {_it}
+    set {_vnom} to {za::mk::vnom::%{_id}%}
+    set {_cle} to {za::mk::cle::%{_id}%}
+    set {_taxe} to za_mk_taxe({_prix})
+    set {_net} to {_prix} - {_taxe}
+    set {_j} to {za::serveur::jours}
+    # ---- point de non-retour : suppression AVANT paiement et livraison, sans aucune attente entre les deux ----
+    za_mk_supprimer({_id})
+    za_jetons_ajouter({_p}, 0 - {_prix})
+    if {za::jetons::%{_uv}%} is not set:
+        set {za::jetons::%{_uv}%} to 0
+    add {_net} to {za::jetons::%{_uv}%}
+    if {_place} is true:
+        give {_it} to {_p}
+    else:
+        za_mk_recup_ajouter({_ub}, {_it}, "achat (sac plein)")
+    # ---- suites : stats, historique, messages ----
+    add 1 to {za::mk::stat::ventes}
+    add {_prix} to {za::mk::stat::volume}
+    add {_taxe} to {za::mk::stat::taxes}
+    za_stat_ajouter({_uv}, "ventes_marche", 1)
+    za_stat_ajouter({_ub}, "achats_marche", 1)
+    za_mk_hist_ajouter({_cle}, round(({_prix} / {_q}) * 100) / 100)
+    za_audit("MARCHE VENTE #%{_id}% : %{_p}% achète %{_nom}% x%{_q}% à %{_vnom}% (%{_uv}%) pour %{_prix}% jetons (taxe %{_taxe}%, vendeur reçoit %{_net}%)", {_prix})
+    set {_aff} to {_nom}
+    if {_q} > 1:
+        set {_aff} to "%{_q}%× %{_nom}%"
+    if {_place} is true:
+        send "&a[Marché] Achat : &f%{_aff}% &7pour &6%{_prix}% jetons &8(vendeur : %{_vnom}%)&7. Il te reste &e%za_jetons({_p})% &7jetons." to {_p}
+    else:
+        send "&a[Marché] Achat : &f%{_aff}% &7pour &6%{_prix}% jetons&7. &eTon sac est plein : l'objet t'attend dans &6/marche recuperer&e." to {_p}
+    za_mk_son({_p}, "minecraft:entity.villager.trade", 0.8, 1)
+    if {_taxe} > 0:
+        za_mk_notifier({_uv}, "&6[Marché] &f%{_p}% &7t'a acheté &f%{_aff}% &7: &a+%{_net}% jetons &8(taxe de vente : %{_taxe}%).")
+    else:
+        za_mk_notifier({_uv}, "&6[Marché] &f%{_p}% &7t'a acheté &f%{_aff}% &7: &a+%{_net}% jetons.")
+    if {_prix} >= {@seuil_annonce}:
+        za_diffuser("&6[Marché] &f%{_aff}% &7vendue &6%{_prix}% jetons")
+        set {_jn} to za_mk_propre({_aff})
+        za_journal("Marché : %{_jn}% vendue %{_prix}% jetons.")
+    return true
+
+# une annonce arrive à échéance : l'objet retourne chez le vendeur (à récupérer)
+function za_mk_expirer(id: text):
+    if {za::mk::prix::%{_id}%} is not set:
+        stop
+    set {_it} to {za::mk::item::%{_id}%}
+    set {_u} to {za::mk::vend::%{_id}%}
+    set {_nom} to {za::mk::nom::%{_id}%}
+    za_mk_supprimer({_id})
+    if {_it} is not set:
+        log "MARCHE annonce #%{_id}% expirée sans objet (%{_nom}%, %{_u}%)" to file "za_economie.log"
+        stop
+    if {_u} is not set:
+        log "MARCHE annonce #%{_id}% expirée sans vendeur : %{_nom}% x%item amount of {_it}% PERDU" to file "za_economie.log"
+        stop
+    za_mk_recup_ajouter({_u}, {_it}, "annonce expirée")
+    za_audit("MARCHE EXPIRATION #%{_id}% : %{_nom}% retourne à %{_u}%", 0)
+    za_mk_notifier({_u}, "&6[Marché] &7Ton annonce &f%{_nom}% &7a expiré : l'objet t'attend (&e/marche recuperer&7).")
+
+# récupération : tout ce qui rentre dans le sac ; le reste attend
+function za_mk_recuperer(p: player):
+    set {_u} to {_p}'s uuid
+    set {_rids::*} to indices of {za::mk::rc::%{_u}%::*}
+    if size of {_rids::*} is 0:
+        send "&7[Marché] Rien à récupérer." to {_p}
+        stop
+    set {_ok} to 0
+    set {_reste} to 0
+    loop {_rids::*}:
+        set {_r} to loop-value
+        set {_it} to {za::mk::rc::%{_u}%::%{_r}%}
+        if {_it} is not set:
+            delete {za::mk::rcw::%{_u}%::%{_r}%}
+        else if za_mk_place({_p}, {_it}) is true:
+            delete {za::mk::rc::%{_u}%::%{_r}%}
+            delete {za::mk::rcw::%{_u}%::%{_r}%}
+            give {_it} to {_p}
+            add 1 to {_ok}
+        else:
+            add 1 to {_reste}
+    if {_ok} > 0:
+        send "&a[Marché] &7Tu récupères &f%{_ok}% &7objet(s)." to {_p}
+        za_mk_son({_p}, "minecraft:entity.item.pickup", 0.8, 1)
+    if {_reste} > 0:
+        send "&e[Marché] &7Il reste &f%{_reste}% &7objet(s) : fais de la place dans ton sac puis refais &e/marche recuperer&7." to {_p}
+
+# ---------------------------------------------------------------- mise en vente
+
+function za_mk_vendre(p: player, prix: number, qte: number):
+    if za_pro({_p}) is true:
+        stop
+    set {_u} to {_p}'s uuid
+    set {_lieu} to za_mk_lieu(location of {_p})
+    if {_lieu} is "":
+        send "&c[Marché] On ne vend qu'au &6Marché de la Trêve &cou dans un &acamp &c(près du chef). Tu n'es dans aucun marché." to {_p}
+        stop
+    set {_t} to {_p}'s tool
+    if {_t} is air:
+        send "&c[Marché] Tiens en main l'objet à vendre, puis &e/marche vendre <prix> [quantité]&c." to {_p}
+        stop
+    if {_prix} is not set:
+        send "&cUsage : &e/marche vendre <prix> [quantité] &c(prix en jetons, entier)." to {_p}
+        stop
+    if {_prix} is not floor({_prix}):
+        send "&c[Marché] Le prix doit être un nombre entier de jetons." to {_p}
+        stop
+    if {_prix} < 1:
+        send "&c[Marché] Le prix minimum est de 1 jeton." to {_p}
+        stop
+    if {_prix} > {@prix_max}:
+        send "&c[Marché] Prix maximum : {@prix_max} jetons." to {_p}
+        stop
+    set {_amt} to item amount of {_t}
+    set {_q} to {_qte}
+    if {_q} is 0:
+        set {_q} to {_amt}
+    if {_q} is not floor({_q}):
+        send "&c[Marché] La quantité doit être un nombre entier." to {_p}
+        stop
+    if {_q} < 1:
+        send "&c[Marché] Quantité invalide." to {_p}
+        stop
+    if {_q} > {_amt}:
+        send "&c[Marché] Tu n'as que &f%{_amt}% &cexemplaire(s) en main." to {_p}
+        stop
+    if uncolored name of {_t} is "Jeton de Survie":
+        send "&c[Marché] Les jetons ne se vendent pas : &e/payer <joueur> <n> &cpour en envoyer, &e/jetons deposer &cpour les ranger." to {_p}
+        stop
+    if za_mk_est_vitrine({_t}) is true:
+        send "&c[Marché] Cet objet ne peut pas être mis en vente." to {_p}
+        stop
+    if za_mk_nb_annonces({_u}) >= {@max_annonces}:
+        send "&c[Marché] Tu as déjà {@max_annonces} annonces. Retire-en une (&e/marche mes&c) ou attends qu'elles expirent." to {_p}
+        stop
+    if size of {za::mk::prix::*} >= {@max_total}:
+        send "&c[Marché] Le marché est saturé pour le moment ({@max_total} annonces). Réessaie plus tard." to {_p}
+        stop
+    set {_frais} to 0
+    if za_mk_frais_actifs() is true:
+        set {_frais} to {@frais_annonce}
+    if za_jetons({_p}) < {_frais}:
+        send "&c[Marché] Les frais d'annonce sont de &6%{_frais}% jetons &c(tu en as %za_jetons({_p})%)." to {_p}
+        stop
+    # ---- l'objet quitte la main d'abord ; on revérifie avant de créer l'annonce ----
+    set {_it} to ({_q}) of {_t}
+    if {_q} >= {_amt}:
+        set {_p}'s tool to air
+    else:
+        set {_p}'s tool to ({_amt} - {_q}) of {_t}
+    set {_ap} to {_p}'s tool
+    set {_bon} to false
+    if {_q} >= {_amt}:
+        if {_ap} is air:
+            set {_bon} to true
+    else:
+        if item amount of {_ap} is ({_amt} - {_q}):
+            set {_bon} to true
+    if {_bon} is false:
+        set {_p}'s tool to {_t}
+        send "&c[Marché] Impossible de retirer l'objet de ta main. Rien n'a été mis en vente." to {_p}
+        log "MARCHE ECHEC retrait main de %{_p}% (%za_mk_nom({_t})%)" to file "za_economie.log"
+        stop
+    if {_frais} > 0:
+        za_jetons_ajouter({_p}, 0 - {_frais})
+    set {_id} to za_mk_creer({_u}, "%{_p}%", {_it}, {_prix})
+    set {_nom} to za_mk_nom({_it})
+    set {_aff} to {_nom}
+    if {_q} > 1:
+        set {_aff} to "%{_q}%× %{_nom}%"
+    za_audit("MARCHE ANNONCE #%{_id}% par %{_p}% (%{_u}%) : %{_nom}% x%{_q}% à %{_prix}% jetons (frais %{_frais}%)", 0)
+    if {_frais} > 0:
+        send "&a[Marché] &f%{_aff}% &7mis en vente à &6%{_prix}% jetons &8(frais d'annonce : -%{_frais}%)&7. Expire dans &f{@duree} jours de jeu&7. Annonces : &f%za_mk_nb_annonces({_u})%/{@max_annonces}" to {_p}
+    else:
+        send "&a[Marché] &f%{_aff}% &7mis en vente à &6%{_prix}% jetons &8(frais suspendus)&7. Expire dans &f{@duree} jours de jeu&7. Annonces : &f%za_mk_nb_annonces({_u})%/{@max_annonces}" to {_p}
+    if {_q} > 1:
+        send "&8Prix à l'unité : %round(({_prix} / {_q}) * 10) / 10% jetons. &e/marche mes &8pour gérer tes annonces." to {_p}
+    else:
+        send "&8&e/marche mes &8pour gérer tes annonces, &e/marche prix &8pour connaître le cours." to {_p}
+    set {_moy} to za_mk_moyenne(za_mk_cle({_it}))
+    if {_moy} > 0:
+        send "&8Cours récent de cet objet : ~%{_moy}% jetons l'unité." to {_p}
+    za_mk_son({_p}, "minecraft:block.note_block.bell", 0.6, 1.3)
+
+# ---------------------------------------------------------------- aide et cours
+
+function za_mk_aide(p: player):
+    send "&6&l━━ MARCHÉ DES SURVIVANTS ━━" to {_p}
+    send "&e/marche &7ouvre le catalogue (lecture seule partout). Achats et ventes : au &6Marché de la Trêve &7ou dans un &acamp&7." to {_p}
+    send "&e/marche vendre <prix> [quantité] &7vend l'objet en main (la pile entière par défaut). Frais d'annonce : &6{@frais_annonce} jetons&7, taxe de vente : &65 %%&7 (prélevée sur ce que tu reçois)." to {_p}
+    send "&e/marche mes &7tes annonces (un clic = la retirer, l'objet te revient) · &e/marche recuperer &7objets expirés ou achetés sac plein." to {_p}
+    send "&e/marche prix [nom] &7cours de l'objet en main (moyenne des 10 dernières ventes) · &e/marche chercher <mot> &7filtre le catalogue." to {_p}
+    send "&8Max {@max_annonces} annonces par joueur, elles expirent après {@duree} jours de jeu (1 jour = 20 min réelles). Ventes de {@seuil_annonce} jetons et plus : annoncées à tous. Frais suspendus quand le quartier commerçant a du courant (&e/reseau&8)." to {_p}
+
+function za_mk_prix_info(p: player, mot: text):
+    set {_cle} to ""
+    set {_nom} to ""
+    set {_q} to 1
+    if {_mot} is "":
+        set {_t} to {_p}'s tool
+        if {_t} is air:
+            send "&7[Marché] Tiens un objet en main ou tape &e/marche prix <nom>&7." to {_p}
+            stop
+        set {_cle} to za_mk_cle({_t})
+        set {_nom} to za_mk_nom({_t})
+        set {_q} to item amount of {_t}
+    else:
+        set {_m} to {_mot} in lowercase
+        loop {za::mk::hn::*}:
+            if {_cle} is "":
+                if (za_mk_cle_nom(loop-index) in lowercase) contains {_m}:
+                    set {_cle} to loop-index
+        loop {za::mk::cle::*}:
+            if {_cle} is "":
+                if (za_mk_cle_nom(loop-value) in lowercase) contains {_m}:
+                    set {_cle} to loop-value
+        if {_cle} is "":
+            send "&7[Marché] Aucune vente ni annonce connue pour « %{_mot}% »." to {_p}
+            stop
+        set {_nom} to za_mk_cle_nom({_cle})
+    # annonces en cours pour cette clé
+    set {_na} to 0
+    set {_min} to 0
+    set {_max} to 0
+    loop {za::mk::cle::*}:
+        if loop-value is {_cle}:
+            set {_id} to loop-index
+            set {_qq} to {za::mk::qte::%{_id}%}
+            if {_qq} is not set:
+                set {_qq} to 1
+            set {_pu} to round(({za::mk::prix::%{_id}%} / {_qq}) * 10) / 10
+            add 1 to {_na}
+            if {_na} is 1:
+                set {_min} to {_pu}
+                set {_max} to {_pu}
+            else:
+                if {_pu} < {_min}:
+                    set {_min} to {_pu}
+                if {_pu} > {_max}:
+                    set {_max} to {_pu}
+    send "&6&l━━ COURS : %{_nom}% ━━" to {_p}
+    set {_v::*} to za_mk_hist_valeurs({_cle})
+    if size of {_v::*} > 0:
+        set {_moy} to za_mk_moyenne({_cle})
+        send "&7Moyenne des &f%size of {_v::*}% &7dernière(s) vente(s) : &e%{_moy}% jetons &7l'unité." to {_p}
+        set {_l} to ""
+        set {_i} to 0
+        loop {_v::*}:
+            add 1 to {_i}
+            if {_i} <= 6:
+                set {_l} to "%{_l}%&f%loop-value% &8· "
+        send "&7Dernières ventes (à l'unité) : %{_l}%" to {_p}
+        if {_q} > 1:
+            send "&7Ta pile de &f%{_q}% &7vaudrait environ &e%round({_moy} * {_q})% jetons&7." to {_p}
+    else:
+        send "&7Aucune vente récente : fixe ton prix toi-même (le marché en tiendra compte)." to {_p}
+    if {_na} > 0:
+        send "&7Annonces en cours : &f%{_na}% &8(de &f%{_min}% &8à &f%{_max}% &8jetons l'unité)" to {_p}
+    else:
+        send "&7Annonces en cours : &f0" to {_p}
+    if za_mk_penurie({_cle}, {_na}) is true:
+        send "&d&l⚑ PÉNURIE &dplus aucune annonce, et ça s'arrache : c'est le bon moment pour vendre." to {_p}
+
+# ---------------------------------------------------------------- commande /marche
+
+command /marche [<text>] [<text>] [<text>]:
+    aliases: /mk, /market
+    executable by: players
+    trigger:
+        if za_pro(player) is true:
+            send "&7Il n'y a pas encore de marché dans ce monde." to player
+            stop
+        set {_s} to arg-1
+        if {_s} is not set:
+            za_mk_ouvrir_neuf(player, "tout", "")
+            stop
+        set {_s} to {_s} in lowercase
+        if {_s} is "vendre" or "v" or "sell":
+            if arg-2 is not set:
+                send "&cUsage : &e/marche vendre <prix> [quantité] &c(l'objet à vendre dans la main)" to player
+                stop
+            set {_prix} to arg-2 parsed as number
+            if {_prix} is not set:
+                send "&c[Marché] « %arg-2% » n'est pas un prix. Exemple : &e/marche vendre 120" to player
+                stop
+            set {_q} to 0
+            if arg-3 is set:
+                set {_q} to arg-3 parsed as number
+                if {_q} is not set:
+                    send "&c[Marché] « %arg-3% » n'est pas une quantité." to player
+                    stop
+                if {_q} < 1:
+                    send "&c[Marché] Quantité invalide." to player
+                    stop
+            za_mk_vendre(player, {_prix}, {_q})
+        else if {_s} is "mes" or "mine" or "annonces":
+            za_mk_ouvrir_neuf(player, "mes", "")
+        else if {_s} is "recuperer" or "récupérer" or "recup":
+            za_mk_recuperer(player)
+        else if {_s} is "prix" or "cours":
+            if arg-3 is set:
+                za_mk_prix_info(player, "%arg-2% %arg-3%")
+            else if arg-2 is set:
+                za_mk_prix_info(player, arg-2)
+            else:
+                za_mk_prix_info(player, "")
+        else if {_s} is "chercher" or "cherche" or "search":
+            if arg-2 is not set:
+                za_mk_ouvrir_neuf(player, "tout", "")
+            else if arg-3 is set:
+                za_mk_ouvrir_neuf(player, "tout", "%arg-2% %arg-3%")
+            else:
+                za_mk_ouvrir_neuf(player, "tout", arg-2)
+        else if {_s} is "aide" or "help" or "?":
+            za_mk_aide(player)
+        else:
+            send "&cUsage : &e/marche &7[vendre <prix> [qté] | mes | recuperer | prix [nom] | chercher <mot> | aide]" to player
+
+# ---------------------------------------------------------------- clics dans le catalogue et la confirmation
+
+function za_mk_clic_liste(p: player, slot: number):
+    set {_u} to {_p}'s uuid
+    if {_slot} < 45:
+        set {_id} to {-mk::slot::%{_u}%::%{_slot}%}
+        if {_id} is not set:
+            stop
+        if {za::mk::prix::%{_id}%} is not set:
+            send "&c[Marché] Cette annonce vient de disparaître (vendue, retirée ou expirée)." to {_p}
+            za_mk_son({_p}, "minecraft:entity.villager.no", 0.6, 1)
+            za_mk_rendre({_p})
+            stop
+        if {za::mk::vend::%{_id}%} is {_u}:
+            set {_mode} to "retrait"
+        else:
+            set {_mode} to "achat"
+            if za_mk_lieu(location of {_p}) is "":
+                send "&c[Marché] Pour acheter, rends-toi au &6Marché de la Trêve &cou dans un &acamp&c (ici : consultation seulement)." to {_p}
+                za_mk_son({_p}, "minecraft:entity.villager.no", 0.6, 1)
+                stop
+        za_mk_son({_p}, "minecraft:ui.button.click", 0.5, 1.2)
+        close {_p}'s inventory
+        wait 1 tick
+        za_mk_ouvrir_conf({_p}, {_id}, {_mode})
+        stop
+    za_mk_son({_p}, "minecraft:ui.button.click", 0.4, 1.4)
+    if {_slot} is 45:
+        add -1 to {-mk::e::%{_u}%::page}
+    else if {_slot} is 53:
+        add 1 to {-mk::e::%{_u}%::page}
+    else if {_slot} is 46:
+        set {_t} to {-mk::e::%{_u}%::tri}
+        if {_t} is not set:
+            set {_t} to "recent"
+        if {_t} is "recent":
+            set {-mk::e::%{_u}%::tri} to "prixasc"
+        else if {_t} is "prixasc":
+            set {-mk::e::%{_u}%::tri} to "prixdesc"
+        else if {_t} is "prixdesc":
+            set {-mk::e::%{_u}%::tri} to "expire"
+        else:
+            set {-mk::e::%{_u}%::tri} to "recent"
+        set {-mk::e::%{_u}%::page} to 1
+    else if {_slot} is 47:
+        if {-mk::e::%{_u}%::mot} is set:
+            delete {-mk::e::%{_u}%::mot}
+        else:
+            set {_f} to {-mk::e::%{_u}%::filtre}
+            if {_f} is not set:
+                set {_f} to "tout"
+            if {_f} is "tout":
+                set {-mk::e::%{_u}%::filtre} to "armes"
+            else if {_f} is "armes":
+                set {-mk::e::%{_u}%::filtre} to "ressource"
+            else:
+                set {-mk::e::%{_u}%::filtre} to "tout"
+        set {-mk::e::%{_u}%::page} to 1
+    else if {_slot} is 48:
+        if {-mk::e::%{_u}%::mode} is "mes":
+            set {-mk::e::%{_u}%::mode} to "tout"
+        else:
+            set {-mk::e::%{_u}%::mode} to "mes"
+        set {-mk::e::%{_u}%::page} to 1
+    else if {_slot} is 50:
+        za_mk_recuperer({_p})
+    else if {_slot} is 51:
+        za_mk_aide({_p})
+    za_mk_rendre({_p})
+
+on inventory click:
+    if za_pro(player) is true:
+        stop
+    set {_u} to player's uuid
+    if {-mk::ouvert::%{_u}%} is not set:
+        stop
+    if uncolored name of (player's current inventory) does not start with "Marché":
+        stop
+    cancel the event
+    if event-inventory is not player's current inventory:
+        stop
+    set {_slot} to index of event-slot
+    if {-mk::clk::%{_u}%} is set:
+        if difference between {-mk::clk::%{_u}%} and now is less than 0.15 seconds:
+            stop
+    set {-mk::clk::%{_u}%} to now
+    if {-mk::ecran::%{_u}%} is "conf":
+        set {_c} to {-mk::conf::%{_u}%}
+        if {_slot} is 11:
+            if {_c} is not set:
+                stop
+            delete {-mk::conf::%{_u}%}
+            set {_pp::*} to split {_c} at ";"
+            set {_mode} to {_pp::1}
+            set {_id} to {_pp::2}
+            close player's inventory
+            if {_mode} is "achat":
+                set {_ok} to za_mk_acheter(player, {_id}, false)
+            else:
+                set {_ok} to za_mk_retirer(player, {_id})
+            wait 1 tick
+            if player is online:
+                za_mk_ouvrir(player)
+        else if {_slot} is 15:
+            delete {-mk::conf::%{_u}%}
+            close player's inventory
+            wait 1 tick
+            if player is online:
+                za_mk_ouvrir(player)
+    else:
+        za_mk_clic_liste(player, {_slot})
+
+on inventory drag:
+    if za_pro(player) is true:
+        stop
+    if {-mk::ouvert::%player's uuid%} is set:
+        if uncolored name of (player's current inventory) starts with "Marché":
+            cancel the event
+
+on inventory close:
+    delete {-mk::ouvert::%player's uuid%}
+    delete {-mk::slot::%player's uuid%::*}
+    delete {-mk::ecran::%player's uuid%}
+
+on quit:
+    delete {-mk::ouvert::%player's uuid%}
+    delete {-mk::slot::%player's uuid%::*}
+    delete {-mk::e::%player's uuid%::*}
+    delete {-mk::conf::%player's uuid%}
+    delete {-mk::rappel::%player's uuid%}
+
+# ---------------------------------------------------------------- balayage : expiration, rappels, objets de vitrine échappés
+
+function za_mk_balayer():
+    set {_j} to {za::serveur::jours}
+    if {_j} is not set:
+        stop
+    loop {za::mk::exp::*}:
+        if loop-value <= {_j}:
+            add loop-index to {_perimees::*}
+        else if loop-value > {_j} + {@duree}:
+            add loop-index to {_recale::*}
+    loop {_recale::*}:
+        set {za::mk::exp::%loop-value%} to {_j} + {@duree}
+    loop {_perimees::*}:
+        za_mk_expirer(loop-value)
+    # annonces sans prix (restes d'un plantage) : nettoyées ; annonces sans objet : supprimées et journalisées
+    loop {za::mk::item::*}:
+        if {za::mk::prix::%loop-index%} is not set:
+            add loop-index to {_orph::*}
+    loop {_orph::*}:
+        log "MARCHE orphelin #%loop-value% (objet sans prix) : %za_mk_nom({za::mk::item::%loop-value%})% — remis à %{za::mk::vend::%loop-value%}%" to file "za_economie.log"
+        if {za::mk::vend::%loop-value%} is set:
+            za_mk_recup_ajouter({za::mk::vend::%loop-value%}, {za::mk::item::%loop-value%}, "annonce récupérée")
+        za_mk_supprimer(loop-value)
+
+# messages reçus hors ligne + rappel unique par connexion
+function za_mk_flush(p: player):
+    set {_u} to {_p}'s uuid
+    if {za::mk::notif::%{_u}%::*} is set:
+        send "&6[Marché] &7Pendant ton absence :" to {_p}
+        loop {za::mk::notif::%{_u}%::*}:
+            send loop-value to {_p}
+        delete {za::mk::notif::%{_u}%::*}
+    if {-mk::rappel::%{_u}%} is not set:
+        set {-mk::rappel::%{_u}%} to true
+        if za_mk_nb_recup({_u}) > 0:
+            send "&d[Marché] &7Tu as &f%za_mk_nb_recup({_u})% &7objet(s) à récupérer : &e/marche recuperer" to {_p}
+
+every 30 seconds:
+    za_mk_balayer()
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_mk_flush(loop-player)
+
+every 4 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            loop all items in inventory of loop-player:
+                if za_mk_est_vitrine(loop-item) is true:
+                    remove loop-item from inventory of loop-player
+                    za_audit("MARCHE FUITE : objet de vitrine trouvé dans l'inventaire de %loop-player% (%za_mk_nom(loop-item)%), supprimé", 999)
+
+on drop:
+    if za_pro(player) is true:
+        stop
+    if za_mk_est_vitrine(event-item) is true:
+        cancel the event
+
+# astuce à la première visite d'un marché
+every 12 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_u} to loop-player's uuid
+            if {za::mk::tip::%{_u}%} is not set:
+                set {_lieu} to za_mk_lieu(location of loop-player)
+                if {_lieu} is not "":
+                    set {za::mk::tip::%{_u}%} to true
+                    send "&6[Marché] &7Tu es à un point de commerce (&f%{_lieu}%&7). &e/marche &7pour voir les annonces des survivants, &e/marche vendre <prix> &7pour vendre l'objet en main, &e/marche aide &7pour tout savoir." to loop-player
+
+# ---------------------------------------------------------------- admin / console : /zamarche
+command /zamarche <text> [<text>] [<text>] [<text>] [<text>] [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        set {_sub} to arg-1
+        if {_sub} is "etat":
+            send "&7annonces=%size of {za::mk::prix::*}% (max {@max_total}) seq=%{za::mk::seq}% ventes=%{za::mk::stat::ventes}% volume=%{za::mk::stat::volume}% taxes=%{za::mk::stat::taxes}%" to sender
+            send "&7frais actifs=%za_mk_frais_actifs()% (commerce=%{za::reseau::commerce}%) jour=%{za::serveur::jours}% treve=%{za::treve::loc}%" to sender
+            set {_n} to 0
+            loop {za::mk::rc::*}:
+                add 1 to {_n}
+            send "&7objets à récupérer (tous joueurs) : %{_n}% · clés d'historique : %size of {za::mk::hn::*}%" to sender
+        else if {_sub} is "liste":
+            loop {za::mk::prix::*}:
+                set {_id} to loop-index
+                send "&7#%{_id}% &f%{za::mk::nom::%{_id}%}% x%{za::mk::qte::%{_id}%}% &7prix=%loop-value% vendeur=%{za::mk::vnom::%{_id}%}% (%{za::mk::vend::%{_id}%}%) exp=jour %{za::mk::exp::%{_id}%}% clé=%{za::mk::cle::%{_id}%}%" to sender
+            send "&7(%size of {za::mk::prix::*}% annonce(s))" to sender
+        else if {_sub} is "simuler":
+            # zamarche simuler <uuid-vendeur> <pseudo> <prix> <matiere_avec_underscores> <quantité> [nom…]
+            set {_uv} to arg-2
+            set {_pseudo} to arg-3
+            set {_prix} to arg-4 parsed as number
+            set {_mat} to arg-5
+            set {_q} to arg-6 parsed as number
+            if {_q} is not set:
+                send "&cUsage : zamarche simuler <uuid-vendeur> <pseudo> <prix> <matiere_underscores> <quantité> [nom…]" to sender
+                stop
+            replace all "_" with " " in {_mat}
+            set {_ty} to {_mat} parsed as itemtype
+            if {_ty} is not set:
+                send "&cMatière inconnue : %{_mat}%" to sender
+                stop
+            set {_nom} to arg-7
+            if {_nom} is not set:
+                set {_it} to {_q} of {_ty}
+            else:
+                set {_it} to za_item({_mat}, {_nom}, "&f", {_q})
+            set {_id} to za_mk_creer({_uv}, {_pseudo}, {_it}, {_prix})
+            za_audit("MARCHE SIMULATION #%{_id}% (admin %sender%) : %{_pseudo}% (%{_uv}%) : %za_mk_nom({_it})% x%{_q}% à %{_prix}% jetons", 0)
+            send "&a[zamarche] annonce #%{_id}% créée : %za_mk_nom({_it})% x%{_q}% à %{_prix}% jetons (vendeur fictif %{_pseudo}%, aucun objet retiré)." to sender
+        else if {_sub} is "acheter":
+            # zamarche acheter <joueur> <id> : passe par la même fonction que le clic (sans exiger d'être dans un marché)
+            set {_pl} to arg-2 parsed as player
+            if {_pl} is not set:
+                send "&cJoueur introuvable : %arg-2%" to sender
+                stop
+            set {_ok} to za_mk_acheter({_pl}, arg-3, true)
+            send "&7[zamarche] achat #%arg-3% par %{_pl}% : %{_ok}%" to sender
+        else if {_sub} is "retirer":
+            # zamarche retirer <id> : l'objet retourne au vendeur (à récupérer)
+            set {_id} to arg-2
+            if {za::mk::prix::%{_id}%} is not set:
+                send "&cAnnonce introuvable." to sender
+                stop
+            set {_it} to {za::mk::item::%{_id}%}
+            set {_u} to {za::mk::vend::%{_id}%}
+            set {_nom} to {za::mk::nom::%{_id}%}
+            za_mk_supprimer({_id})
+            if {_it} is set:
+                if {_u} is set:
+                    za_mk_recup_ajouter({_u}, {_it}, "annonce retirée par un administrateur")
+                    za_mk_notifier({_u}, "&6[Marché] &7Ton annonce &f%{_nom}% &7a été retirée par un administrateur : l'objet t'attend (&e/marche recuperer&7).")
+            za_audit("MARCHE RETRAIT ADMIN #%{_id}% par %sender% : %{_nom}%", 0)
+            send "&a[zamarche] annonce #%{_id}% retirée (objet renvoyé au vendeur)." to sender
+        else if {_sub} is "expirer":
+            # zamarche expirer <id> : force l'expiration
+            if {za::mk::prix::%arg-2%} is not set:
+                send "&cAnnonce introuvable." to sender
+                stop
+            za_mk_expirer(arg-2)
+            send "&a[zamarche] annonce #%arg-2% expirée." to sender
+        else if {_sub} is "balayer":
+            za_mk_balayer()
+            send "&a[zamarche] balayage effectué." to sender
+        else if {_sub} is "recup":
+            # zamarche recup <uuid> : objets à récupérer d'un joueur
+            set {_u} to arg-2
+            loop {za::mk::rc::%{_u}%::*}:
+                send "&7 - #%loop-index% %loop-value% (%{za::mk::rcw::%{_u}%::%loop-index%}%)" to sender
+            send "&7(%za_mk_nb_recup({_u})% objet(s))" to sender
+        else if {_sub} is "histo":
+            # zamarche histo [mot]
+            loop {za::mk::hn::*}:
+                set {_aff} to true
+                if arg-2 is set:
+                    set {_kl} to loop-index in lowercase
+                    if {_kl} does not contain (arg-2 in lowercase):
+                        set {_aff} to false
+                if {_aff} is true:
+                    set {_v::*} to za_mk_hist_valeurs(loop-index)
+                    send "&7%loop-index% : moyenne %za_mk_moyenne(loop-index)% sur %size of {_v::*}% vente(s) — %{_v::*}%" to sender
+        else if {_sub} is "lieu":
+            # zamarche lieu <joueur>  |  zamarche lieu <x> <y> <z> <monde>
+            if arg-3 is set:
+                set {_w} to world(arg-5)
+                if {_w} is not set:
+                    send "&cMonde introuvable." to sender
+                    stop
+                set {_l} to location(arg-2 parsed as number, arg-3 parsed as number, arg-4 parsed as number, {_w})
+            else:
+                set {_pl} to arg-2 parsed as player
+                if {_pl} is not set:
+                    send "&cUsage : zamarche lieu <joueur> | zamarche lieu <x> <y> <z> <monde>" to sender
+                    stop
+                set {_l} to location of {_pl}
+            send "&7[zamarche] lieu de marché en %{_l}% : « %za_mk_lieu({_l})% »" to sender
+        else if {_sub} is "vitrine":
+            # zamarche vitrine <joueur> : donne un faux objet de vitrine (test du balayage anti-fuite)
+            set {_pl} to arg-2 parsed as player
+            if {_pl} is not set:
+                send "&cJoueur introuvable." to sender
+                stop
+            set {_it} to za_item("stick", "Faux objet de vitrine", "&c", 1)
+            set lore of {_it} to "&7test" and "&8Annonce du Marché n°0"
+            give {_it} to {_pl}
+            send "&a[zamarche] faux objet donné à %{_pl}% : il doit disparaître en moins de 5 secondes." to sender
+        else if {_sub} is "tout-retirer":
+            # zamarche tout-retirer oui : remet TOUTES les annonces dans les casiers « à récupérer » de leurs vendeurs
+            if arg-2 is not "oui":
+                send "&cConfirmation requise : zamarche tout-retirer oui" to sender
+                stop
+            set {_n} to 0
+            loop {za::mk::prix::*}:
+                add loop-index to {_tous::*}
+            loop {_tous::*}:
+                set {_id} to loop-value
+                set {_it} to {za::mk::item::%{_id}%}
+                set {_u} to {za::mk::vend::%{_id}%}
+                za_mk_supprimer({_id})
+                if {_it} is set:
+                    if {_u} is set:
+                        za_mk_recup_ajouter({_u}, {_it}, "marché vidé par un administrateur")
+                        add 1 to {_n}
+            za_audit("MARCHE VIDÉ par %sender% : %{_n}% annonce(s) renvoyées aux vendeurs", 0)
+            send "&a[zamarche] %{_n}% annonce(s) renvoyées aux casiers des vendeurs." to sender
+        else:
+            send "&cUsage : /zamarche <etat|liste|simuler|acheter|retirer|expirer|balayer|recup|histo|lieu|vitrine|tout-retirer> …" to sender

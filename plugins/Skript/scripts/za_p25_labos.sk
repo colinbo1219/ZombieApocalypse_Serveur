@@ -1,0 +1,250 @@
+# =====================================================================
+#  ZombieApocalypse - LABOS SCELLES, ZONES MORTES, CAMPS ABANDONNES
+#  * Labo : bunker de fer avec une porte noire scellee. Le terminal (lutrin) devant ne l'ouvre QUE pendant une Blood Moon avec une
+#    "Carte d'acces" (ou avec la relique "Cle du Labo Zero"). Ouvert 10 minutes : gardiens a l'interieur, butin rare.
+#    Cartes d'acces : quete de Lea (50 pourcent), Collectionneur, rares coffres. Maximum 6 labos dans le monde.
+#    Contrairement aux 8 batiments de za_p35_batiments.sk (abandonnes, decades), le labo est SCELLE : reste propre, sauf
+#    un coin ou le confinement a ete brise (vitre cassee, toiles, trainee de sang, ossements) - c'est de la qu'est venu le probleme.
+#  * Zone morte : plus de butin, plus de spawn scripte, sante mentale qui s'effondre, seulement du lore. /zonemorte creer <rayon> (admin)
+#  * Camp abandonne : restes de survivants fictifs (tente, feu, panneau, journal, butin, deux morts).
+#  Admin : /evenement labo | /evenement camp | /labo (liste)
+# =====================================================================
+
+function za_point_loin(p: player, dmin: number, dmax: number) :: location:
+    set {_l} to location of {_p}
+    set {_d} to random number between {_dmin} and {_dmax}
+    set {_a} to random number between 0 and 360
+    add ({_d} * cos({_a})) to x-coordinate of {_l}
+    add ({_d} * sin({_a})) to z-coordinate of {_l}
+    return location of (highest block at {_l})
+
+# ===================== ZONES MORTES =====================
+function za_zone_morte(l: location) :: boolean:
+    loop {za::zm::liste::*}:
+        set {_id} to loop-value
+        set {_c} to {za::zm::%{_id}%::loc}
+        if world of {_c} is world of {_l}:
+            if distance between {_c} and {_l} < {za::zm::%{_id}%::rayon}:
+                return true
+    return false
+
+function za_zone_morte_creer(l: location, rayon: number):
+    if {za::zm::next} is not set:
+        set {za::zm::next} to 0
+    add 1 to {za::zm::next}
+    set {_id} to {za::zm::next}
+    set {za::zm::%{_id}%::loc} to {_l}
+    set {za::zm::%{_id}%::rayon} to {_rayon}
+    add {_id} to {za::zm::liste::*}
+
+command /zonemorte <text> [<number>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "creer":
+            set {_r} to arg-2
+            if {_r} is not set:
+                set {_r} to 40
+            za_zone_morte_creer(location of player, {_r})
+            send "&8Zone morte creee ici (rayon %{_r}%)." to player
+        else if arg-1 is "liste":
+            send "&7Zones mortes : %size of {za::zm::liste::*}%" to player
+        else:
+            send "&cUsage : /zonemorte <creer [rayon]|liste>" to player
+
+every 10 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            if za_zone_morte(location of loop-player) is true:
+                set {_u} to "%loop-player's uuid%"
+                if {za::sanite::%{_u}%} is set:
+                    remove 2 from {za::sanite::%{_u}%}
+                za_effet(loop-player, "hunger", 8, 0)
+                execute console command "execute at %loop-player% run particle minecraft:ash ~ ~2 ~ 6 3 6 0 60 force"
+                if chance of 20%:
+                    set {_m::*} to "&8Ici, plus rien ne pousse. Plus rien ne vit... sauf ce qui n'a pas de nom.", "&8Des cendres. Des os. Un nom grave dans la pierre, efface.", "&8Tu entends respirer sous tes pieds.", "&8Personne n'est revenu de cette zone."
+                    send random element out of {_m::*} to loop-player
+
+# ===================== LABOS =====================
+function za_labo_acces(p: player) :: text:
+    if uncolored name of {_p}'s tool is "Cle du Labo Zero":
+        return "cle"
+    if {za::evt::bloodmoon} is true:
+        if za_count_named({_p}, "Carte d'acces") >= 1:
+            return "carte"
+    return "non"
+
+function za_labo_generer():
+    if size of {za::labo::liste::*} >= 6:
+        stop
+    if size of za_monde_joueurs() is 0:
+        stop
+    set {_p} to random element out of za_monde_joueurs()
+    set {_g} to za_point_loin({_p}, 70, 100)
+    set {_bx} to floor(x-coordinate of {_g})
+    set {_gy} to floor(y-coordinate of {_g})
+    set {_bz} to floor(z-coordinate of {_g})
+    set {_w} to world of {_g}
+    set {_wd} to za_dim({_w})
+    execute console command "execute in %{_wd}% run fill %{_bx} - 1% %{_gy} + 1% %{_bz} - 1% %{_bx} + 11% %{_gy} + 8% %{_bz} + 11% minecraft:air"
+    execute console command "execute in %{_wd}% run fill %{_bx}% %{_gy} - 3% %{_bz}% %{_bx} + 10% %{_gy} - 1% %{_bz} + 10% minecraft:stone_bricks keep"
+    execute console command "execute in %{_wd}% run fill %{_bx}% %{_gy}% %{_bz}% %{_bx} + 10% %{_gy} + 4% %{_bz} + 10% minecraft:iron_block hollow"
+    execute console command "execute in %{_wd}% run fill %{_bx} + 4% %{_gy} + 1% %{_bz}% %{_bx} + 6% %{_gy} + 3% %{_bz}% minecraft:polished_blackstone_bricks"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 1% %{_gy} + 3% %{_bz} + 1% minecraft:sea_lantern"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 9% %{_gy} + 3% %{_bz} + 1% minecraft:sea_lantern"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 1% %{_gy} + 3% %{_bz} + 9% minecraft:sea_lantern"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 9% %{_gy} + 3% %{_bz} + 9% minecraft:sea_lantern"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 2% %{_gy} + 1% %{_bz} + 8% minecraft:chest[facing=north]"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 8% %{_gy} + 1% %{_bz} + 8% minecraft:chest[facing=north]"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 3% %{_gy}% %{_bz} - 1% minecraft:stone_bricks"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 3% %{_gy} + 1% %{_bz} - 1% minecraft:lectern[facing=south]"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 7% %{_gy} + 1% %{_bz} - 1% minecraft:oak_sign[rotation=8]"
+    set {_sw} to block at location({_bx} + 7, {_gy} + 1, {_bz} - 1, {_w})
+    set line 1 of {_sw} to "&e&lDANGER"
+    set line 2 of {_sw} to "&eConfinement"
+    set line 3 of {_sw} to "&eNiveau 4"
+    # ---------- confinement brise, dans un coin : c'est de la qu'est venu le probleme ----------
+    execute console command "execute in %{_wd}% run fill %{_bx} + 1% %{_gy} + 1% %{_bz} + 1% %{_bx} + 3% %{_gy} + 3% %{_bz} + 3% minecraft:glass_pane hollow"
+    execute console command "execute in %{_wd}% run fill %{_bx} + 2% %{_gy} + 1% %{_bz} + 1% %{_bx} + 2% %{_gy} + 2% %{_bz} + 1% minecraft:air"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 2% %{_gy}% %{_bz} + 2% minecraft:red_terracotta"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 3% %{_gy}% %{_bz} + 2% minecraft:red_terracotta"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 4% %{_gy}% %{_bz} + 3% minecraft:red_terracotta"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 5% %{_gy}% %{_bz} + 4% minecraft:red_terracotta"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 1% %{_gy} + 3% %{_bz} + 2% minecraft:cobweb"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 2% %{_gy} + 2% %{_bz} + 3% minecraft:cobweb"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 1% %{_gy}% %{_bz} + 1% minecraft:bone_block"
+    # butin
+    set {_c1} to block at location({_bx} + 2, {_gy} + 1, {_bz} + 8, {_w})
+    set {_c2} to block at location({_bx} + 8, {_gy} + 1, {_bz} + 8, {_w})
+    add za_item("gold nugget", "Jeton de Survie", "&6", random integer between 10 and 20) to inventory of {_c1}
+    add za_item("honey bottle", "Serum", "&d", 2) to inventory of {_c1}
+    add za_item("honey bottle", "Antibiotique", "&b", 3) to inventory of {_c1}
+    add za_item("paper", "Bandage", "&f", 4) to inventory of {_c1}
+    add 16 of iron ingot to inventory of {_c2}
+    add 2 of golden apple to inventory of {_c2}
+    set {_note} to za_item("paper", "Note de survivant", "&f", 1)
+    set lore of {_note} to "Rapport interne : le patient zero n'a jamais ete retrouve. Ne pas ouvrir la chambre 4."
+    add {_note} to inventory of {_c2}
+    za_relique_coffre({_c2})
+    execute console command "execute in %{_wd}% run item replace block %{_bx} + 8% %{_gy} + 1% %{_bz} + 8% container.20 with tacz:attachment{AttachmentId:""tacz:muzzle_silencer_ursus""} 1"
+    execute console command "execute in %{_wd}% run item replace block %{_bx} + 8% %{_gy} + 1% %{_bz} + 8% container.21 with tacz:ammo{AmmoId:""tacz:762x39""} 30"
+    # enregistrement
+    if {za::labo::next} is not set:
+        set {za::labo::next} to 0
+    add 1 to {za::labo::next}
+    set {_id} to {za::labo::next}
+    set {za::labo::%{_id}%::bx} to {_bx}
+    set {za::labo::%{_id}%::gy} to {_gy}
+    set {za::labo::%{_id}%::bz} to {_bz}
+    set {za::labo::%{_id}%::monde} to "%{_w}%"
+    set {za::labo::%{_id}%::dim} to {_wd}
+    set {_t} to location({_bx} + 3, {_gy} + 1, {_bz} - 1, {_w})
+    set {za::labo::term::%za_lkey({_t})%} to {_id}
+    add {_id} to {za::labo::liste::*}
+    set {_ax} to floor({_bx} / 100) * 100
+    set {_az} to floor({_bz} / 100) * 100
+    za_journal("Un laboratoire scelle a ete repere.")
+    za_diffuser("&8[Radio] &7Un laboratoire scelle a ete repere vers X=%{_ax}% Z=%{_az}% (+/- 100). Il ne s'ouvre que pendant une Blood Moon, avec une Carte d'acces.")
+
+function za_labo_ouvrir(id: number):
+    set {za::labo::%{_id}%::ouvert} to true
+    set {_bx} to {za::labo::%{_id}%::bx}
+    set {_gy} to {za::labo::%{_id}%::gy}
+    set {_bz} to {za::labo::%{_id}%::bz}
+    set {_wd} to {za::labo::%{_id}%::dim}
+    execute console command "execute in %{_wd}% run fill %{_bx} + 4% %{_gy} + 1% %{_bz}% %{_bx} + 6% %{_gy} + 3% %{_bz}% minecraft:air"
+    execute console command "execute in %{_wd}% run playsound minecraft:block.iron_door.open block @a %{_bx}% %{_gy}% %{_bz}% 3 0.6"
+    set {_wn} to {za::labo::%{_id}%::monde}
+    loop 3 times:
+        execute console command "mm mobs spawn ZA_Brute 1 %{_wn}%,%{_bx} + 5%,%{_gy} + 1%,%{_bz} + 5%"
+    loop 9 times:
+        set {_ox} to random integer between 2 and 8
+        set {_oz} to random integer between 2 and 8
+        execute console command "mm mobs spawn ZA_Shambler 1 %{_wn}%,%{_bx} + {_ox}%,%{_gy} + 1%,%{_bz} + {_oz}%"
+    add 1 to {za::saison::labos}
+    za_journal("Un laboratoire a ete ouvert.")
+    set {_ll} to location({_bx}, {_gy}, {_bz}, world({_wn}))
+    if {_ll} is set:
+        za_monde_evt("Un laboratoire scellé est ouvert. Ce qu'il y avait dedans est sorti.", {_ll}, 2, "labo")
+    za_diffuser("&8[Radio] &7Un laboratoire vient de s'ouvrir. La porte se refermera dans 10 minutes.")
+    wait 10 minutes
+    execute console command "execute in %{_wd}% run fill %{_bx} + 4% %{_gy} + 1% %{_bz}% %{_bx} + 6% %{_gy} + 3% %{_bz}% minecraft:polished_blackstone_bricks"
+    set {za::labo::%{_id}%::ouvert} to false
+
+on right click on lectern:
+    if za_pro(player) is true:
+        stop
+    set {_k} to za_lkey(location of event-block)
+    if {za::labo::term::%{_k}%} is set:
+        cancel the event
+        set {_id} to {za::labo::term::%{_k}%}
+        if {za::labo::%{_id}%::ouvert} is true:
+            send "&7Le laboratoire est deja ouvert." to player
+        else:
+            set {_a} to za_labo_acces(player)
+            if {_a} is "non":
+                send "&8Terminal verrouille. Il faut une Carte d'acces ET la Blood Moon, ou la Cle du Labo Zero." to player
+                execute console command "execute at %player% run playsound minecraft:block.note_block.bass block %player% ~ ~ ~ 1 0.5"
+            else:
+                if {_a} is "carte":
+                    set {_ok} to za_take_named(player, "Carte d'acces", 1)
+                send "&aAcces accorde. La porte s'ouvre..." to player
+                za_labo_ouvrir({_id})
+
+command /labo:
+    permission: za.admin
+    trigger:
+        send "&7Labos existants : %size of {za::labo::liste::*}% / 6 | ouverts ou non, voir /evenement labo pour en creer un" to player
+
+# ===================== CAMPS ABANDONNES =====================
+function za_camp_generer():
+    if size of {za::camp::liste::*} >= 8:
+        stop
+    if size of za_monde_joueurs() is 0:
+        stop
+    set {_p} to random element out of za_monde_joueurs()
+    set {_g} to za_point_loin({_p}, 60, 110)
+    set {_bx} to floor(x-coordinate of {_g})
+    set {_gy} to floor(y-coordinate of {_g})
+    set {_bz} to floor(z-coordinate of {_g})
+    set {_w} to world of {_g}
+    set {_wd} to za_dim({_w})
+    execute console command "execute in %{_wd}% run fill %{_bx} - 3% %{_gy} + 1% %{_bz} - 3% %{_bx} + 5% %{_gy} + 4% %{_bz} + 3% minecraft:air"
+    execute console command "execute in %{_wd}% run setblock %{_bx}% %{_gy} + 1% %{_bz}% minecraft:campfire[lit=false]"
+    execute console command "execute in %{_wd}% run fill %{_bx} + 2% %{_gy} + 1% %{_bz} - 1% %{_bx} + 4% %{_gy} + 2% %{_bz} + 1% minecraft:red_wool hollow"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 2% %{_gy} + 1% %{_bz}% minecraft:air"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 3% %{_gy} + 1% %{_bz}% minecraft:chest[facing=west]"
+    execute console command "execute in %{_wd}% run setblock %{_bx} - 1% %{_gy} + 1% %{_bz}% minecraft:oak_sign[rotation=4]"
+    set {_noms::*} to "Elias", "Nadia", "Marc-Andre", "Sophie", "Hugo", "Camille", "Jerome", "Isabelle"
+    set {_nom} to random element out of {_noms::*}
+    set {_s} to block at location({_bx} - 1, {_gy} + 1, {_bz}, {_w})
+    set line 1 of {_s} to "Ici campait"
+    set line 2 of {_s} to {_nom}
+    set line 3 of {_s} to "Disparu"
+    set line 4 of {_s} to "Jour %{za::serveur::jours}%"
+    set {_c} to block at location({_bx} + 3, {_gy} + 1, {_bz}, {_w})
+    add za_item("gold nugget", "Jeton de Survie", "&6", random integer between 1 and 3) to inventory of {_c}
+    if chance of 40%:
+        add za_item("paper", "Bandage", "&f", 2) to inventory of {_c}
+    if chance of 15%:
+        add za_item("honey bottle", "Antibiotique", "&b", 1) to inventory of {_c}
+    set {_j} to za_item("paper", "Journal de %{_nom}%", "&f", 1)
+    set {_txt::*} to "Jour 3. On a mange les dernieres conserves. Les autres sont partis chercher de l'eau.", "Ils ne sont pas revenus. J'entends marcher autour de la tente toute la nuit.", "Si tu lis ceci : ne suis pas la lumiere au nord. Ce n'est pas un camp.", "Je crois que la morsure de Paul s'est refermee. Il ne dort plus, mais il sourit."
+    set lore of {_j} to random element out of {_txt::*}
+    add {_j} to inventory of {_c}
+    loop 2 times:
+        set {_ox} to random integer between 1 and 5
+        execute console command "mm mobs spawn ZA_Shambler 1 %{_w}%,%{_bx} + {_ox}%,%{_gy} + 1%,%{_bz} + 2%"
+    if {za::camp::next} is not set:
+        set {za::camp::next} to 0
+    add 1 to {za::camp::next}
+    add {za::camp::next} to {za::camp::liste::*}
+
+every 3 hours:
+    if size of za_monde_joueurs() is greater than 0:
+        if chance of 60%:
+            za_labo_generer()
+
+every 90 minutes:
+    if size of za_monde_joueurs() is greater than 0:
+        if chance of 60%:
+            za_camp_generer()

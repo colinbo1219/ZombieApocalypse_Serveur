@@ -1,0 +1,194 @@
+# =====================================================================
+#  ZombieApocalypse - SAISONS : objectifs globaux, recompenses uniques, soft reset
+#  Objectifs de la saison (tout le serveur ensemble) :
+#    1) survivre 30 jours  2) eliminer 3000 zombies  3) vaincre 3 Undead Overlord  4) piller 5 cargaisons crashees  5) ouvrir 3 labos
+#  L'Undead Overlord apparait comme evenement mondial rare (toutes les ~5h, 30 pourcent, jamais 2 a la fois) tant que la saison
+#  n'est pas revelee : chaque mort compte pour l'objectif 3. Une fois les 5 objectifs a 100 pourcent, la saison se REVELE :
+#  annonce mondiale, un dernier Overlord apparait a un endroit annonce (respawn automatique s'il se perd sans mourir).
+#  Sa mort a lui, precisement, termine la saison : annonce, puis chaque joueur reclame sa medaille avec /saison recompense.
+#  Fin de saison (admin, /saison finir) = soft reset : contamination +40 partout, gisements regeneres,
+#  nouvelle souche du virus, nouvelle regle de saison (nuits plus frequentes, penurie, morsures plus dangereuses).
+#  Commandes : /saison | /saison recompense | /saison finir (admin)
+# =====================================================================
+
+on load:
+    if {za::saison::num} is not set:
+        set {za::saison::num} to 1
+        set {za::saison::debut} to {za::serveur::jours}
+        set {za::saison::kills} to 0
+        set {za::saison::overlords} to 0
+        set {za::saison::cargaisons} to 0
+        set {za::saison::labos} to 0
+        set {za::saison::regle} to "aucune"
+    if {za::evt::chance} is not set:
+        set {za::evt::chance} to 60
+    if {za::saison::prix} is not set:
+        set {za::saison::prix} to 1
+    if {za::saison::bonus} is not set:
+        set {za::saison::bonus} to 0
+
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        add 1 to {za::saison::kills}
+    if uncolored name of victim contains "Overlord":
+        set {za::boss::vivant} to false
+        if {za::saison::finale::actif} is true:
+            delete {za::saison::finale::actif}
+            set {za::saison::finie} to true
+            set {za::saison::reussie::%{za::saison::num}%} to true
+            set {_h} to "un heros anonyme"
+            if attacker is a player:
+                set {_h} to "%attacker%"
+            za_diffuser("&6&lSAISON %{za::saison::num}% ACCOMPLIE ! &7%{_h}% a terrasse la source du fleau. Tape /saison recompense pour reclamer ta medaille.")
+            za_journal("La Saison est accomplie : l'Overlord final est tombe.")
+            za_saison_ceremonie({_h})
+        else:
+            add 1 to {za::saison::overlords}
+
+# ---------- l'Overlord : evenement mondial rare, puis Overlord final unique une fois la saison revelee ----------
+function za_overlord_spawn(finale: boolean):
+    if size of za_monde_joueurs() is 0:
+        stop
+    set {_p} to random element out of za_monde_joueurs()
+    set {_g} to za_point_loin({_p}, 60, 100)
+    set {_bx} to floor(x-coordinate of {_g})
+    set {_by} to floor(y-coordinate of {_g})
+    set {_bz} to floor(z-coordinate of {_g})
+    set {_wn} to "%world of {_g}%"
+    execute console command "mm mobs spawn ZA_Overlord 1 %{_wn}%,%{_bx}%,%{_by}%,%{_bz}%"
+    set {za::boss::vivant} to true
+    if {_finale} is true:
+        set {za::saison::finale::actif} to true
+        set {_ax} to floor({_bx} / 100) * 100
+        set {_az} to floor({_bz} / 100) * 100
+        za_diffuser("&4&l======================================")
+        za_diffuser("&4&lLA SOURCE DU FLEAU EST LOCALISEE.")
+        za_diffuser("&7L'Undead Overlord se dresse vers X=%{_ax}% Z=%{_az}% (+/- 100). C'est lui, ou personne. Rassemblez-vous.")
+        za_diffuser("&4&l======================================")
+        za_journal("La source du fleau a ete localisee : l'Overlord final est apparu.")
+    else:
+        set {_ax} to floor({_bx} / 150) * 150
+        set {_az} to floor({_bz} / 150) * 150
+        za_diffuser("&8[Radio militaire] &7...signal de detresse... un Undead Overlord a ete repere vers X=%{_ax}% Z=%{_az}% (+/- 150)...")
+        za_journal("Un Undead Overlord est apparu.")
+
+every 5 hours:
+    if size of za_monde_joueurs() is greater than 0:
+        if {za::saison::revele} is not true:
+            if {za::boss::vivant} is not true:
+                if chance of 30%:
+                    za_overlord_spawn(false)
+
+# filet de securite : si l'Overlord final se perd (despawn) sans mourir, il revient
+every 3 hours:
+    if {za::saison::revele} is true:
+        if {za::saison::finie} is not true:
+            if {za::boss::vivant} is not true:
+                za_overlord_spawn(true)
+
+# ---------- cargaison pillee (le coffre est marque a sa creation dans za_cargaison) ----------
+on right click on chest:
+    if za_pro(player) is true:
+        stop
+    set {_k} to za_lkey(location of event-block)
+    if {za::cargo::%{_k}%} is true:
+        delete {za::cargo::%{_k}%}
+        add 1 to {za::saison::cargaisons}
+        za_journal("Une cargaison crashee a ete pillee.")
+
+function za_saison_jours() :: number:
+    return {za::serveur::jours} - {za::saison::debut}
+
+function za_saison_ok() :: boolean:
+    if za_saison_jours() < 30:
+        return false
+    if {za::saison::kills} < 3000:
+        return false
+    if {za::saison::overlords} < 3:
+        return false
+    if {za::saison::cargaisons} < 5:
+        return false
+    if {za::saison::labos} < 3:
+        return false
+    return true
+
+every 1 minute:
+    if {za::saison::revele} is not true:
+        if za_saison_ok() is true:
+            set {za::saison::revele} to true
+            za_finale_revelation()
+
+function za_saison_finir():
+    set {_n} to {za::saison::num}
+    za_saison_archiver({_n})
+    za_diffuser("&5&lFIN DE LA SAISON %{_n}%. &7Le monde se degrade... et le virus mute.")
+    za_journal("Fin de la saison. Le monde se degrade.")
+    loop {za::contam::*}:
+        add 40 to {za::contam::%loop-index%}
+    delete {za::mine::*}
+    if size of za_monde_joueurs() is greater than 0:
+        za_zone_morte_creer(za_point_loin(random element out of za_monde_joueurs(), 100, 200), 40)
+    za_muter()
+    add 1 to {za::saison::num}
+    set {za::saison::debut} to {za::serveur::jours}
+    set {za::saison::kills} to 0
+    set {za::saison::overlords} to 0
+    set {za::saison::cargaisons} to 0
+    set {za::saison::labos} to 0
+    delete {za::saison::finie}
+    delete {za::saison::revele}
+    delete {za::saison::finale::actif}
+    set {za::evt::chance} to 60
+    set {za::saison::prix} to 1
+    set {za::saison::bonus} to 0
+    set {_r} to random element out of "nuits", "penurie", "morsures"
+    set {za::saison::regle} to {_r}
+    if {_r} is "nuits":
+        set {za::evt::chance} to 90
+        za_diffuser("&8Regle de saison : &fNuits agitees &7(les evenements sont plus frequents).")
+    else if {_r} is "penurie":
+        set {za::saison::prix} to 1.3
+        za_diffuser("&8Regle de saison : &fPenurie durable &7(les marchands sont 30 pourcent plus chers).")
+    else:
+        set {za::saison::bonus} to 10
+        za_diffuser("&8Regle de saison : &fMorsures profondes &7(+10 pourcent de chance d'infection).")
+    za_saison_nouvelle({za::saison::num})
+
+command /saison [<text>]:
+    trigger:
+        set {_n} to {za::saison::num}
+        if arg-1 is "recompense":
+            if {za::saison::reussie::%{_n}%} is not true:
+                send "&cLa saison n'est pas encore accomplie." to player
+            else if {za::saison::recu::%{_n}%::%player's uuid%} is true:
+                send "&7Tu as deja reclame ta medaille." to player
+            else:
+                set {za::saison::recu::%{_n}%::%player's uuid%} to true
+                za_jetons_ajouter(player, 50)
+                give za_item("nether star", "Medaille de la Saison %{_n}%", "&6", 1) to player
+                send "&6Tu recois la Medaille de la Saison %{_n}% et 50 jetons. Merci d'avoir tenu." to player
+        else if arg-1 is "finir":
+            if player has permission "za.admin":
+                za_saison_finir()
+            else:
+                send "&cReserve aux admins." to player
+        else:
+            set {_j} to za_saison_jours()
+            set {_k} to {za::saison::kills}
+            set {_o} to {za::saison::overlords}
+            set {_c} to {za::saison::cargaisons}
+            set {_lb} to {za::saison::labos}
+            set {_r} to {za::saison::regle}
+            send "&6&lSAISON %{_n}%" to player
+            send "&7Survivre 30 jours : &f%{_j}%/30" to player
+            send "&7Eliminer 3000 zombies : &f%{_k}%/3000" to player
+            send "&7Vaincre 3 Undead Overlord : &f%{_o}%/3" to player
+            send "&7Piller 5 cargaisons crashees : &f%{_c}%/5" to player
+            send "&7Ouvrir 3 laboratoires scelles : &f%{_lb}%/3" to player
+            send "&8Regle de saison : %{_r}%" to player
+            send "&8Theme de la saison : &f%{za::theme}% &8- &7%{za::theme::desc}%  &8(&7/chroniques&8)" to player
+            if {za::saison::revele} is true:
+                if {za::saison::finie} is not true:
+                    send "&4La source du fleau est localisee : trouvez et tuez l'Overlord final !" to player

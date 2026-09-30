@@ -1,0 +1,1637 @@
+# =====================================================================
+#  ZombieApocalypse - TERRITOIRES DE FACTIONS (#4)
+#  Les bâtiments spéciaux de za_p35 (hôpital, poste de police, supermarché, station, labo, caserne, école, centrale) appartiennent
+#  à une faction : Milice, Scientifiques, Marchands, Pilleurs, Survivants, Culte... ou aux MORTS (envahi) / PERSONNE (contesté).
+#  * Présence visible : plateforme aux couleurs de la faction, bannière, panneaux « Territoire de la Milice », feu de camp,
+#    caisse de ravitaillement, gardes (villageois humains). Pilleurs : des pillards hostiles tant que tu n'es pas allié (rép. >= 25).
+#  * Chaque jour du serveur : l'emprise (0-100) baisse sous la pression des morts, des nids et des factions rivales.
+#    À 0 : le territoire tombe (aux morts, ou à un rival voisin).
+#  * Événements (un à la fois, annoncés à la radio) : DÉFENSE (tenir 3 minutes), RAID (attaquer un territoire ennemi :
+#    combat contre des pillards, ou sabotage de caisses pour les factions « amies »), RECONQUÊTE (nettoyer un territoire perdu
+#    puis le confier à une faction alliée).
+#  * Récompenses : un joueur allié (rép. >= 25) peut réclamer un ravitaillement par jour et par territoire
+#    (clic droit sur le panneau ou la caisse).
+#  Commandes : /territoires [tout] | admin : /zaterr etat|defense|raid|reconquete|tick|owner|ctrl|poser|pillards|stop
+#  Données : {za::terr::<type;index>::fac|ctrl|jour|loc|sig|claim::<uuid>|recon::<uuid>} (persistantes)
+#            {za::terr::bloc::<x_y_z_monde>} = clé du territoire pour les blocs interactifs
+#            {-zt::...} = état temporaire des événements (perdu au redémarrage : jamais bloqué)
+#  Autres modules : za_terr_fac(cle), za_terr_ctrl(cle), za_terr_compte(faction), za_terr_faction_a(lieu), za_terr_cles()
+# =====================================================================
+
+options:
+    recon_kills: 15
+    duree_defense: 180
+    attente: 360
+
+# ---------------------------------------------------------------- noms, couleurs, règles
+
+function za_terr_fnom(f: text) :: text:
+    if {_f} is "morts":
+        return "&4Les morts"
+    if {_f} is "personne":
+        return "&7Personne"
+    return za_faction_nom({_f})
+
+# « de la Milice », « des Pilleurs »... (sans couleur, pour les phrases)
+function za_terr_art(f: text) :: text:
+    if {_f} is "milice":
+        return "de la Milice"
+    if {_f} is "scientifiques":
+        return "des Scientifiques"
+    if {_f} is "marchands":
+        return "des Marchands"
+    if {_f} is "pilleurs":
+        return "des Pilleurs"
+    if {_f} is "survivants":
+        return "des Survivants"
+    if {_f} is "culte":
+        return "du Culte de la Fin"
+    if {_f} is "morts":
+        return "des morts"
+    return "de personne"
+
+function za_terr_col(f: text) :: text:
+    if {_f} is "milice":
+        return "&9"
+    if {_f} is "scientifiques":
+        return "&a"
+    if {_f} is "marchands":
+        return "&6"
+    if {_f} is "pilleurs":
+        return "&8"
+    if {_f} is "survivants":
+        return "&f"
+    if {_f} is "culte":
+        return "&5"
+    if {_f} is "morts":
+        return "&4"
+    return "&7"
+
+# couleur des blocs (concrete / banner)
+function za_terr_bcol(f: text) :: text:
+    if {_f} is "milice":
+        return "blue"
+    if {_f} is "scientifiques":
+        return "lime"
+    if {_f} is "marchands":
+        return "orange"
+    if {_f} is "pilleurs":
+        return "black"
+    if {_f} is "survivants":
+        return "white"
+    if {_f} is "culte":
+        return "purple"
+    if {_f} is "morts":
+        return "red"
+    return "gray"
+
+function za_terr_bpat(f: text) :: text:
+    if {_f} is "milice":
+        return "{Patterns:[{Color:0,Pattern:""cr""}]}"
+    if {_f} is "scientifiques":
+        return "{Patterns:[{Color:0,Pattern:""mc""}]}"
+    if {_f} is "marchands":
+        return "{Patterns:[{Color:15,Pattern:""bo""}]}"
+    if {_f} is "pilleurs":
+        return "{Patterns:[{Color:14,Pattern:""sku""}]}"
+    if {_f} is "survivants":
+        return "{Patterns:[{Color:5,Pattern:""bt""}]}"
+    if {_f} is "culte":
+        return "{Patterns:[{Color:0,Pattern:""mr""}]}"
+    if {_f} is "morts":
+        return "{Patterns:[{Color:15,Pattern:""sku""}]}"
+    return ""
+
+# rival d'une faction (hostilité) : milice <-> pilleurs, scientifiques <-> culte
+function za_terr_rival(f: text) :: text:
+    if {_f} is "milice":
+        return "pilleurs"
+    if {_f} is "pilleurs":
+        return "milice"
+    if {_f} is "scientifiques":
+        return "culte"
+    if {_f} is "culte":
+        return "scientifiques"
+    return ""
+
+function za_terr_reelle(f: text) :: boolean:
+    if {_f} is "milice" or "scientifiques" or "marchands" or "pilleurs" or "survivants" or "culte":
+        return true
+    return false
+
+function za_terr_defaut(t: text) :: text:
+    if {_t} is "police" or "caserne":
+        return "milice"
+    if {_t} is "labo2" or "hopital":
+        return "scientifiques"
+    if {_t} is "super":
+        return "pilleurs"
+    if {_t} is "station":
+        return "marchands"
+    if {_t} is "ecole":
+        return "survivants"
+    return "personne"
+
+function za_terr_jour() :: number:
+    if {za::serveur::jours} is not set:
+        return 0
+    return {za::serveur::jours}
+
+# réputation d'un joueur auprès d'une faction (0 si inconnue)
+function za_terr_repval(p: player, f: text) :: number:
+    set {_v} to {za::fac::%{_f}%::%{_p}'s uuid%}
+    if {_v} is not set:
+        return 0
+    return {_v}
+
+# gain de réputation : aider une faction abaisse un peu son rival
+function za_terr_rep(p: player, f: text, n: number):
+    za_faction_ajouter({_p}, {_f}, {_n})
+    if {_n} > 0:
+        set {_r} to za_terr_rival({_f})
+        if {_r} is not "":
+            za_faction_ajouter({_p}, {_r}, 0 - ceil({_n} / 4))
+
+# ---------------------------------------------------------------- clés et données
+
+function za_terr_cles() :: texts:
+    loop za_bat_types():
+        set {_t} to loop-value-1
+        loop za_bat_liste({_t}):
+            add loop-value-2 to {_r::*}
+    return {_r::*}
+
+# "police_1" ou "police;1" -> "police;1"
+function za_terr_norm(s: text) :: text:
+    set {_r} to {_s}
+    replace all "_" with ";" in {_r}
+    return {_r}
+
+# identifiant sans « ; » (pour tags et commandes)
+function za_terr_id(cle: text) :: text:
+    set {_r} to {_cle}
+    replace all ";" with "_" in {_r}
+    return {_r}
+
+function za_terr_type(cle: text) :: text:
+    set {_k::*} to split {_cle} at ";"
+    return {_k::1}
+
+function za_terr_init(cle: text):
+    set {_k::*} to split {_cle} at ";"
+    set {_s} to {za::bat::%{_k::1}%::liste::%{_k::2}%}
+    if {_s} is not set:
+        stop
+    if {za::terr::%{_cle}%::sig} is not {_s}:
+        delete {za::terr::%{_cle}%::*}
+        set {za::terr::%{_cle}%::sig} to {_s}
+    if {za::terr::%{_cle}%::fac} is not set:
+        set {za::terr::%{_cle}%::fac} to za_terr_defaut({_k::1})
+        set {za::terr::%{_cle}%::ctrl} to 70
+        if {_k::1} is "centrale":
+            set {za::terr::%{_cle}%::ctrl} to 50
+        set {za::terr::%{_cle}%::jour} to za_terr_jour()
+    if {za::terr::%{_cle}%::loc} is not set:
+        set {_l} to za_bat_centre({_cle})
+        if {_l} is set:
+            set {za::terr::%{_cle}%::loc} to {_l}
+
+function za_terr_sync():
+    loop za_terr_cles():
+        za_terr_init(loop-value)
+
+function za_terr_fac(cle: text) :: text:
+    if {za::terr::%{_cle}%::fac} is not set:
+        za_terr_init({_cle})
+    if {za::terr::%{_cle}%::fac} is not set:
+        return ""
+    return "%{za::terr::%{_cle}%::fac}%"
+
+function za_terr_ctrl(cle: text) :: number:
+    if {za::terr::%{_cle}%::ctrl} is not set:
+        za_terr_init({_cle})
+    if {za::terr::%{_cle}%::ctrl} is not set:
+        return 0
+    return {za::terr::%{_cle}%::ctrl}
+
+function za_terr_loc(cle: text) :: location:
+    if {za::terr::%{_cle}%::loc} is not set:
+        za_terr_init({_cle})
+    return {za::terr::%{_cle}%::loc}
+
+# nombre de territoires tenus par une faction (pour les autres modules)
+function za_terr_compte(f: text) :: number:
+    set {_n} to 0
+    loop za_terr_cles():
+        if za_terr_fac(loop-value) is {_f}:
+            add 1 to {_n}
+    return {_n}
+
+# faction du territoire dans lequel se trouve un lieu (rayon 40), "" sinon
+function za_terr_faction_a(l: location) :: text:
+    set {_best} to 40
+    set {_res} to ""
+    loop za_terr_cles():
+        set {_c} to za_terr_loc(loop-value)
+        if {_c} is set:
+            if world of {_c} is world of {_l}:
+                if distance between {_c} and {_l} < {_best}:
+                    set {_best} to distance between {_c} and {_l}
+                    set {_res} to za_terr_fac(loop-value)
+    return {_res}
+
+function za_terr_nom(cle: text) :: text:
+    return za_bat_nom(za_terr_type({_cle}))
+
+function za_terr_pos(cle: text) :: text:
+    set {_c} to za_terr_loc({_cle})
+    if {_c} is not set:
+        return "position inconnue"
+    set {_x} to floor((x-coordinate of {_c}) / 50) * 50
+    set {_z} to floor((z-coordinate of {_c}) / 50) * 50
+    return "vers X=%{_x}% Z=%{_z}% (+/- 50)"
+
+function za_terr_pos_c(cle: text) :: text:
+    set {_c} to za_terr_loc({_cle})
+    if {_c} is not set:
+        return "?"
+    set {_x} to floor((x-coordinate of {_c}) / 50) * 50
+    set {_z} to floor((z-coordinate of {_c}) / 50) * 50
+    return "X %{_x}% Z %{_z}%"
+
+# « le poste de police », « l'hôpital »... (avec article, minuscules)
+function za_terr_det(cle: text) :: text:
+    set {_t} to za_terr_type({_cle})
+    if {_t} is "hopital":
+        return "l'hôpital"
+    if {_t} is "police":
+        return "le poste de police"
+    if {_t} is "super":
+        return "le supermarché"
+    if {_t} is "station":
+        return "la station-service"
+    if {_t} is "labo2":
+        return "le laboratoire"
+    if {_t} is "caserne":
+        return "la caserne"
+    if {_t} is "ecole":
+        return "l'école"
+    return "la centrale électrique"
+
+# « au poste de police », « à l'hôpital »
+function za_terr_au(cle: text) :: text:
+    set {_t} to za_terr_type({_cle})
+    if {_t} is "hopital":
+        return "à l'hôpital"
+    if {_t} is "police":
+        return "au poste de police"
+    if {_t} is "super":
+        return "au supermarché"
+    if {_t} is "station":
+        return "à la station-service"
+    if {_t} is "labo2":
+        return "au laboratoire"
+    if {_t} is "caserne":
+        return "à la caserne"
+    if {_t} is "ecole":
+        return "à l'école"
+    return "à la centrale électrique"
+
+function za_terr_maj(t: text) :: text:
+    set {_a} to subtext of {_t} from characters 1 to 1
+    set {_a} to {_a} in upper case
+    return "%{_a}%%subtext of {_t} from characters 2 to length of {_t}%"
+
+# « à la Milice », « aux Pilleurs »
+function za_terr_aux(f: text) :: text:
+    if {_f} is "milice":
+        return "à la Milice"
+    if {_f} is "culte":
+        return "au Culte de la Fin"
+    if {_f} is "morts":
+        return "aux morts"
+    if {_f} is "personne":
+        return "à personne"
+    return "aux %za_terr_court({_f})%"
+
+# coordonnées du coin du bâtiment (à partir du centre stocké)
+function za_terr_bx(c: location) :: number:
+    return floor((x-coordinate of {_c}) - 6.5)
+
+function za_terr_gy(c: location) :: number:
+    return floor((y-coordinate of {_c}) - 1)
+
+function za_terr_bz(c: location) :: number:
+    return floor((z-coordinate of {_c}) - 4.5)
+
+function za_terr_bkey(l: location) :: text:
+    return "%floor(x-coordinate of {_l})%_%floor(y-coordinate of {_l})%_%floor(z-coordinate of {_l})%_%world of {_l}%"
+
+function za_terr_joueurs_pres(c: location, r: number) :: number:
+    set {_n} to 0
+    loop all players in radius {_r} around {_c}:
+        if za_pro(loop-player) is false:
+            add 1 to {_n}
+    return {_n}
+
+# un territoire est-il proche d'un joueur du monde de survie ?
+function za_terr_pres_joueur(cle: text, r: number) :: boolean:
+    set {_c} to za_terr_loc({_cle})
+    if {_c} is not set:
+        return false
+    loop za_monde_joueurs():
+        if world of loop-value is world of {_c}:
+            if distance between loop-value and {_c} < {_r}:
+                return true
+    return false
+
+# tous les territoires dans un rayon autour d'un lieu
+function za_terr_proches(l: location, r: number) :: texts:
+    loop za_terr_cles():
+        set {_c} to za_terr_loc(loop-value)
+        if {_c} is set:
+            if world of {_c} is world of {_l}:
+                if distance between {_c} and {_l} < {_r}:
+                    add loop-value to {_res::*}
+    return {_res::*}
+
+function za_terr_nids(c: location, r: number) :: number:
+    set {_n} to 0
+    loop {za::nid::liste::*}:
+        set {_p} to {za::nid::%loop-value%::loc}
+        if {_p} is set:
+            if world of {_p} is world of {_c}:
+                if distance between {_p} and {_c} < {_r}:
+                    add 1 to {_n}
+    return {_n}
+
+# territoires rivaux (tenus par le rival de la faction) à moins de r blocs
+function za_terr_rivaux(cle: text, f: text, r: number) :: number:
+    set {_rv} to za_terr_rival({_f})
+    if {_rv} is "":
+        return 0
+    set {_c} to za_terr_loc({_cle})
+    if {_c} is not set:
+        return 0
+    set {_n} to 0
+    loop za_terr_cles():
+        if loop-value is not {_cle}:
+            if za_terr_fac(loop-value) is {_rv}:
+                set {_c2} to za_terr_loc(loop-value)
+                if {_c2} is set:
+                    if world of {_c2} is world of {_c}:
+                        if distance between {_c} and {_c2} < {_r}:
+                            add 1 to {_n}
+    return {_n}
+
+# ---------------------------------------------------------------- changement de propriétaire
+
+function za_terr_change(cle: text, f: text, ctrl: number):
+    set {_old} to za_terr_fac({_cle})
+    set {za::terr::%{_cle}%::fac} to {_f}
+    set {za::terr::%{_cle}%::ctrl} to {_ctrl}
+    set {za::terr::%{_cle}%::jour} to za_terr_jour()
+    delete {za::terr::%{_cle}%::pose}
+    delete {za::terr::%{_cle}%::sigctrl}
+    delete {za::terr::%{_cle}%::claim::*}
+    delete {za::terr::%{_cle}%::recon::*}
+    if {_f} is not "morts":
+        delete {za::terr::%{_cle}%::ruine}
+    za_journal("%za_terr_nom({_cle})% %za_terr_pos_c({_cle})% : %{_old}% -> %{_f}%.")
+    za_lieu_terr({_cle}, {_old}, {_f})
+
+# un territoire tombe : chez un rival voisin (35 %%) ou aux morts
+function za_terr_chute(cle: text, motif: text):
+    set {_f} to za_terr_fac({_cle})
+    set {_nouveau} to "morts"
+    set {_riv} to za_terr_rival({_f})
+    if {_riv} is not "":
+        if za_terr_rivaux({_cle}, {_f}, 350) > 0:
+            if chance of 40%:
+                set {_nouveau} to {_riv}
+    if {_motif} is "pillards":
+        set {_nouveau} to "pilleurs"
+        if {_f} is "pilleurs":
+            set {_nouveau} to "morts"
+    za_terr_change({_cle}, {_nouveau}, 35)
+    if {_nouveau} is "morts":
+        set {za::terr::%{_cle}%::ctrl} to 0
+        za_radio(za_terr_fnom({_f}), "Nous avons perdu %za_terr_det({_cle})%, %za_terr_pos({_cle})%. Les morts occupent les lieux. Si quelqu'un peut y retourner...")
+    else:
+        za_radio(za_terr_fnom({_nouveau}), "Changement de main : %za_terr_det({_cle})%, %za_terr_pos({_cle})%, appartient désormais %za_terr_aux({_nouveau})%. Ceux %za_terr_col({_f})%%za_terr_art({_f})% &7ont été chassés.")
+
+# ---------------------------------------------------------------- présence visuelle
+
+function za_terr_lignes(cle: text) :: texts:
+    set {_f} to za_terr_fac({_cle})
+    set {_ctrl} to floor(za_terr_ctrl({_cle}))
+    if {_f} is "morts":
+        return "&8Territoire perdu", "&4&lENVAHI", "&7Tue des infectes" and "&7pour le reprendre"
+    if {_f} is "personne":
+        return "&8Zone", "&7&lCONTESTÉE", "&7Personne n'en a" and "&7le contrôle"
+    set {_a} to "&8Territoire %za_terr_prep({_f})%"
+    set {_b} to "%za_terr_col({_f})%&l%za_terr_court({_f})%"
+    set {_c3} to "&7Emprise : &f%{_ctrl}% %%"
+    return {_a}, {_b}, {_c3} and "&8Clic droit : caisse"
+
+function za_terr_prep(f: text) :: text:
+    if {_f} is "milice":
+        return "de"
+    if {_f} is "culte":
+        return "du"
+    return "des"
+
+# nom court pour le panneau (2e ligne)
+function za_terr_court(f: text) :: text:
+    if {_f} is "milice":
+        return "la Milice"
+    if {_f} is "scientifiques":
+        return "Scientifiques"
+    if {_f} is "marchands":
+        return "Marchands"
+    if {_f} is "pilleurs":
+        return "Pilleurs"
+    if {_f} is "survivants":
+        return "Survivants"
+    if {_f} is "culte":
+        return "Culte"
+    return {_f}
+
+function za_terr_panneau(cle: text):
+    set {_c} to za_terr_loc({_cle})
+    if {_c} is not set:
+        stop
+    set {_bx} to za_terr_bx({_c})
+    set {_gy} to za_terr_gy({_c})
+    set {_bz} to za_terr_bz({_c})
+    set {_w} to world of {_c}
+    set {_l::*} to za_terr_lignes({_cle})
+    loop 2 times:
+        set {_z} to {_bz} - 5
+        if loop-number is 2:
+            set {_z} to {_bz} - 3
+        set {_s} to block at location({_bx} + 5, {_gy} + 2, {_z}, {_w})
+        if "%type of {_s}%" contains "sign":
+            set line 1 of {_s} to {_l::1}
+            set line 2 of {_s} to {_l::2}
+            set line 3 of {_s} to {_l::3}
+            set line 4 of {_s} to {_l::4}
+    set {za::terr::%{_cle}%::sigctrl} to "%floor(za_terr_ctrl({_cle}) / 5)%|%za_terr_fac({_cle})%|%{-zt::evt::cle}%"
+
+# plateforme + poteau + bannière + panneaux + caisse + lampadaires + feu de camp
+function za_terr_pose(cle: text):
+    set {_c} to za_terr_loc({_cle})
+    if {_c} is not set:
+        stop
+    set {_f} to za_terr_fac({_cle})
+    set {_w} to world of {_c}
+    set {_wd} to za_dim({_w})
+    set {_bx} to za_terr_bx({_c})
+    set {_gy} to za_terr_gy({_c})
+    set {_bz} to za_terr_bz({_c})
+    set {_col} to za_terr_bcol({_f})
+    execute console command "execute in %{_wd}% run fill %{_bx} + 3% %{_gy} + 1% %{_bz} - 5% %{_bx} + 7% %{_gy} + 5% %{_bz} - 2% minecraft:air"
+    execute console command "execute in %{_wd}% run fill %{_bx} + 3% %{_gy} - 3% %{_bz} - 5% %{_bx} + 7% %{_gy} - 1% %{_bz} - 2% minecraft:cobblestone keep"
+    execute console command "execute in %{_wd}% run fill %{_bx} + 3% %{_gy}% %{_bz} - 5% %{_bx} + 7% %{_gy}% %{_bz} - 2% minecraft:%{_col}%_concrete"
+    # poteau central (3 blocs) + bannière
+    execute console command "execute in %{_wd}% run fill %{_bx} + 5% %{_gy} + 1% %{_bz} - 4% %{_bx} + 5% %{_gy} + 3% %{_bz} - 4% minecraft:dark_oak_log"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 5% %{_gy} + 4% %{_bz} - 4% minecraft:%{_col}%_banner[rotation=8]%za_terr_bpat({_f})%"
+    # panneaux sur les deux faces du poteau
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 5% %{_gy} + 2% %{_bz} - 5% minecraft:oak_wall_sign[facing=north]"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 5% %{_gy} + 2% %{_bz} - 3% minecraft:oak_wall_sign[facing=south]"
+    # caisse de ravitaillement (baril nommé) et lampadaires
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 7% %{_gy} + 1% %{_bz} - 4% minecraft:barrel[facing=up]{CustomName:'{""text"":""Caisse de ravitaillement"",""color"":""gold""}'}"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 3% %{_gy} + 1% %{_bz} - 2% minecraft:oak_fence"
+    execute console command "execute in %{_wd}% run setblock %{_bx} + 7% %{_gy} + 1% %{_bz} - 2% minecraft:oak_fence"
+    if {_f} is "morts":
+        execute console command "execute in %{_wd}% run setblock %{_bx} + 3% %{_gy} + 1% %{_bz} - 4% minecraft:campfire[lit=false]"
+        execute console command "execute in %{_wd}% run setblock %{_bx} + 3% %{_gy} + 2% %{_bz} - 2% minecraft:cobweb"
+        execute console command "execute in %{_wd}% run setblock %{_bx} + 7% %{_gy} + 2% %{_bz} - 2% minecraft:cobweb"
+    else if {_f} is "personne":
+        execute console command "execute in %{_wd}% run setblock %{_bx} + 3% %{_gy} + 1% %{_bz} - 4% minecraft:campfire[lit=false]"
+    else:
+        execute console command "execute in %{_wd}% run setblock %{_bx} + 3% %{_gy} + 1% %{_bz} - 4% minecraft:campfire[lit=true]"
+        execute console command "execute in %{_wd}% run setblock %{_bx} + 3% %{_gy} + 2% %{_bz} - 2% minecraft:lantern"
+        execute console command "execute in %{_wd}% run setblock %{_bx} + 7% %{_gy} + 2% %{_bz} - 2% minecraft:lantern"
+    # les blocs interactifs / protégés
+    set {za::terr::bloc::%za_terr_bkey(location({_bx} + 5, {_gy} + 2, {_bz} - 5, {_w}))%} to {_cle}
+    set {za::terr::bloc::%za_terr_bkey(location({_bx} + 5, {_gy} + 2, {_bz} - 3, {_w}))%} to {_cle}
+    set {za::terr::bloc::%za_terr_bkey(location({_bx} + 7, {_gy} + 1, {_bz} - 4, {_w}))%} to {_cle}
+    set {za::terr::bloc::%za_terr_bkey(location({_bx} + 5, {_gy} + 1, {_bz} - 4, {_w}))%} to {_cle}
+    set {za::terr::bloc::%za_terr_bkey(location({_bx} + 5, {_gy} + 4, {_bz} - 4, {_w}))%} to {_cle}
+    set {za::terr::bloc::%za_terr_bkey(location({_bx} + 5, {_gy} + 3, {_bz} - 4, {_w}))%} to {_cle}
+    za_terr_panneau({_cle})
+
+# ---------------------------------------------------------------- gardes
+
+function za_terr_nb_gardes(f: text, ctrl: number) :: number:
+    if {_f} is "milice" or "scientifiques" or "marchands" or "survivants" or "culte":
+        if {_ctrl} < 40:
+            return 1
+        return 2
+    return 0
+
+function za_terr_nom_garde(f: text) :: text:
+    set {_noms::*} to "Tremblay", "Gagnon", "Roy", "Bouchard", "Gauthier", "Morin", "Lavoie", "Fortin", "Ouellet", "Pelletier", "Bélanger", "Lévesque", "Bergeron", "Paquette", "Simard", "Cloutier", "Poirier", "Fournier", "Caron" and "Dubé"
+    set {_pre::*} to "Marc", "Jocelyne", "Gilles", "Norbert", "Lucie", "Réjean", "Sylvie", "Yvon", "Carole" and "Denis"
+    if {_f} is "milice":
+        return "Soldat Milice %random element out of {_noms::*}%"
+    if {_f} is "scientifiques":
+        if chance of 50%:
+            return "Infirmière %random element out of {_noms::*}%"
+        return "Chercheur %random element out of {_noms::*}%"
+    if {_f} is "marchands":
+        return "Marchand %random element out of {_pre::*}%"
+    if {_f} is "culte":
+        return "Adepte %random element out of {_pre::*}%"
+    return "%random element out of {_pre::*}%"
+
+function za_terr_gardes(cle: text):
+    set {_c} to za_terr_loc({_cle})
+    if {_c} is not set:
+        stop
+    set {_f} to za_terr_fac({_cle})
+    set {_id} to za_terr_id({_cle})
+    set {_want} to za_terr_nb_gardes({_f}, za_terr_ctrl({_cle}))
+    set {_n} to 0
+    loop all villagers in radius 26 around {_c}:
+        set {_tags} to "%scoreboard tags of loop-entity%"
+        if {_tags} contains "za_terr_%{_id}%":
+            if {_tags} contains "za_tf_%{_f}%":
+                if {_n} < {_want}:
+                    add 1 to {_n}
+                else:
+                    delete loop-entity
+            else:
+                delete loop-entity
+    if {_n} >= {_want}:
+        stop
+    set {_w} to world of {_c}
+    set {_wd} to za_dim({_w})
+    set {_bx} to za_terr_bx({_c})
+    set {_gy} to za_terr_gy({_c})
+    set {_bz} to za_terr_bz({_c})
+    set {_prev} to ""
+    while {_n} < {_want}:
+        set {_x} to {_bx} + 4.5
+        if {_n} is 1:
+            set {_x} to {_bx} + 6.5
+        set {_nom} to za_terr_nom_garde({_f})
+        if {_nom} is {_prev}:
+            set {_nom} to za_terr_nom_garde({_f})
+        if {_nom} is {_prev}:
+            set {_nom} to "%{_nom}% Jr"
+        set {_prev} to {_nom}
+        execute console command "execute in %{_wd}% run summon villager %{_x}% %{_gy} + 1% %{_bz} - 1.5% {CustomName:'""%{_nom}%""',CustomNameVisible:1b,PersistenceRequired:1b,Invulnerable:1b,NoAI:1b,Silent:1b,Rotation:[180f,0f],VillagerData:{profession:""minecraft:none"",level:1,type:""minecraft:plains""},Tags:[""za_terr"",""za_terr_%{_id}%"",""za_tf_%{_f}%""]}"
+        add 1 to {_n}
+
+# ---------------------------------------------------------------- pillards (territoires Pilleurs)
+
+function za_terr_nb_pillards(c: location, r: number) :: number:
+    set {_n} to 0
+    loop all entities in radius {_r} around {_c}:
+        if uncolored name of loop-entity starts with "Pillard":
+            add 1 to {_n}
+    return {_n}
+
+function za_terr_pillards(cle: text, n: number):
+    set {_c} to za_terr_loc({_cle})
+    if {_c} is not set:
+        stop
+    loop {_n} times:
+        set {_t} to "ZA_Pillard"
+        if chance of 35%:
+            set {_t} to "ZA_Pillard_Tireur"
+        za_spawn_at({_c}, {_t}, 8, 15)
+
+# ---------------------------------------------------------------- vérification (quand un joueur est proche)
+
+function za_terr_verif(cle: text, p: player):
+    set {_c} to za_terr_loc({_cle})
+    if {_c} is not set:
+        stop
+    set {_f} to za_terr_fac({_cle})
+    set {_ctrl} to za_terr_ctrl({_cle})
+    set {_bx} to za_terr_bx({_c})
+    set {_gy} to za_terr_gy({_c})
+    set {_bz} to za_terr_bz({_c})
+    set {_recree} to false
+    if {za::terr::%{_cle}%::pose} is not {_f}:
+        set {_recree} to true
+    else:
+        set {_pb} to block at location({_bx} + 5, {_gy} + 2, {_bz} - 4, world of {_c})
+        if "%type of {_pb}%" does not contain "log":
+            set {_recree} to true
+    if {_recree} is true:
+        za_terr_pose({_cle})
+        set {za::terr::%{_cle}%::pose} to {_f}
+    else if {za::terr::%{_cle}%::sigctrl} is not "%floor({_ctrl} / 5)%|%{_f}%|%{-zt::evt::cle}%":
+        za_terr_panneau({_cle})
+    za_terr_gardes({_cle})
+    # ruines : un territoire tombé aux morts prend l'air abandonné (une fois)
+    if {_f} is "morts":
+        if {za::terr::%{_cle}%::ruine} is not set:
+            set {za::terr::%{_cle}%::ruine} to true
+            set {_wd} to za_dim(world of {_c})
+            za_decay({_wd}, {_bx}, {_gy}, {_bz}, {_bx} + 12, {_gy} + 4, {_bz} + 8, 16)
+    set {_d} to distance between {_p} and {_c}
+    # pilleurs : hostiles pour ceux qui ne sont pas alliés
+    if {_f} is "pilleurs":
+        if {_d} < 45:
+            if za_terr_repval({_p}, "pilleurs") >= 25:
+                set {_k} to {_p}'s uuid
+                if {-zt::passe::%{_cle}%::%{_k}%} is not set:
+                    send "&7Les pillards te laissent passer." to {_p}
+                    set {-zt::passe::%{_cle}%::%{_k}%} to now
+                else if difference between {-zt::passe::%{_cle}%::%{_k}%} and now is greater than 6 minutes:
+                    send "&7Les pillards te laissent passer." to {_p}
+                    set {-zt::passe::%{_cle}%::%{_k}%} to now
+            else:
+                set {_ok} to true
+                if {-zt::pil::%{_cle}%} is set:
+                    if difference between {-zt::pil::%{_cle}%} and now is less than 35 seconds:
+                        set {_ok} to false
+                if {_ok} is true:
+                    set {_cap} to 3
+                    if {_ctrl} >= 60:
+                        add 1 to {_cap}
+                    if {_ctrl} >= 90:
+                        add 1 to {_cap}
+                    set {_nb} to za_terr_nb_pillards({_c}, 55)
+                    if {_nb} < {_cap}:
+                        set {-zt::pil::%{_cle}%} to now
+                        if {_nb} is 0:
+                            send "&8Des pillards te repèrent. &7Ce territoire n'est pas pour toi." to {_p}
+                            za_zm("son %{_p}% za_modeles:sfx.sting_danger 0.6 1")
+                        za_terr_pillards({_cle}, min(2, {_cap} - {_nb}))
+    # morts : les infectés reviennent tant que le territoire n'est pas nettoyé
+    if {_f} is "morts":
+        if {_d} < 42:
+            set {_ok} to true
+            if {-zt::mspawn::%{_cle}%} is set:
+                if difference between {-zt::mspawn::%{_cle}%} and now is less than 20 seconds:
+                    set {_ok} to false
+            if {_ok} is true:
+                set {_nb} to 0
+                loop all zombies in radius 35 around {_c}:
+                    add 1 to {_nb}
+                if {_nb} < 6:
+                    set {-zt::mspawn::%{_cle}%} to now
+                    set {_types::*} to "ZA_Shambler", "ZA_Shambler", "ZA_Runner" and "ZA_Crawler"
+                    loop 2 times:
+                        za_spawn_at({_c}, random element out of {_types::*}, 9, 22)
+
+every 8 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value-1
+        loop za_terr_proches(location of {_p}, 60):
+            za_terr_verif(loop-value-2, {_p})
+
+on load:
+    wait 20 seconds
+    za_terr_sync()
+
+every 1 minute:
+    za_terr_sync()
+    if {za::terr::jourtick} is not set:
+        set {za::terr::jourtick} to za_terr_jour()
+    if za_terr_jour() > {za::terr::jourtick}:
+        set {_n} to min(3, za_terr_jour() - {za::terr::jourtick})
+        set {za::terr::jourtick} to za_terr_jour()
+        loop {_n} times:
+            za_terr_tick()
+    # sécurité : un événement ne reste jamais bloqué
+    if {-zt::evt::debut} is set:
+        if difference between {-zt::evt::debut} and now is greater than 20 minutes:
+            za_terr_evt_fin()
+
+# ---------------------------------------------------------------- tick quotidien : pression sur les territoires
+
+function za_terr_tick():
+    za_terr_sync()
+    loop za_terr_cles():
+        set {_k} to loop-value-1
+        set {_f} to za_terr_fac({_k})
+        set {_c} to za_terr_loc({_k})
+        if {_c} is set:
+            if {_f} is "morts":
+                # après 5 jours, le propriétaire d'origine peut reprendre sa place tout seul
+                set {_age} to za_terr_jour() - ({za::terr::%{_k}%::jour} ? 0)
+                if {_age} >= 5:
+                    set {_def} to za_terr_defaut(za_terr_type({_k}))
+                    if za_terr_reelle({_def}) is true:
+                        if chance of 25%:
+                            za_terr_change({_k}, {_def}, 40)
+                            za_radio(za_terr_fnom({_def}), "Nous avons repris %za_terr_det({_k})%, %za_terr_pos({_k})%. Les morts sont partis... pour l'instant.")
+            else if {_f} is not "personne":
+                set {_ctrl} to za_terr_ctrl({_k})
+                set {_dg} to za_danger({_c})
+                set {_ni} to za_terr_nids({_c}, 150)
+                set {_rv} to za_terr_rivaux({_k}, {_f}, 350)
+                set {_delta} to 6 - ({_dg} * 4) - ({_ni} * 5) - ({_rv} * 3)
+                add {_delta} to {_ctrl}
+                if {_ctrl} > 100:
+                    set {_ctrl} to 100
+                if {_ctrl} < 0:
+                    set {_ctrl} to 0
+                set {za::terr::%{_k}%::ctrl} to {_ctrl}
+                # une position bien tenue nettoie un peu la contamination autour
+                if {_ctrl} >= 60:
+                    set {_ck} to za_ckey({_c})
+                    if {za::contam::%{_ck}%} is set:
+                        remove 10 from {za::contam::%{_ck}%}
+                        if {za::contam::%{_ck}%} <= 0:
+                            delete {za::contam::%{_ck}%}
+                if {_ctrl} <= 0:
+                    za_terr_chute({_k}, "usure")
+                else if {_ctrl} < 20:
+                    if chance of 50%:
+                        za_radio(za_terr_fnom({_f}), "%za_terr_maj(za_terr_det({_k}))%, %za_terr_pos({_k})%, est sur le point de tomber. On manque de bras !")
+
+# ---------------------------------------------------------------- événements : tirage
+
+function za_terr_raid_req(f: text) :: text:
+    if {_f} is "pilleurs":
+        set {_o::*} to "milice" and "scientifiques"
+        return random element out of {_o::*}
+    if {_f} is "milice":
+        return "pilleurs"
+    if {_f} is "scientifiques":
+        set {_o::*} to "culte" and "pilleurs"
+        return random element out of {_o::*}
+    if {_f} is "culte":
+        return "scientifiques"
+    return ""
+
+function za_terr_evt_fin():
+    delete {-zt::evt::type}
+    delete {-zt::evt::cle}
+    delete {-zt::evt::phase}
+    delete {-zt::evt::debut}
+    delete {-zt::evt::att}
+    delete {-zt::evt::req}
+    delete {-zt::evt::mode}
+    delete {-zt::evt::kills}
+    delete {-zt::evt::crates}
+    delete {-zt::evt::part::*}
+    set {_m} to random integer between 25 and 40
+    set {_ts} to "%{_m}% minutes" parsed as timespan
+    set {-zt::evt::prochain} to now + {_ts}
+    add 1 to {-zt::run}
+
+function za_terr_tirage():
+    if {-zt::evt::type} is set:
+        stop
+    if {-zt::evt::prochain} is set:
+        if now < {-zt::evt::prochain}:
+            stop
+    if size of za_monde_joueurs() is 0:
+        stop
+    loop za_terr_cles():
+        set {_k} to loop-value-1
+        if za_terr_pres_joueur({_k}, 320) is true:
+            set {_f} to za_terr_fac({_k})
+            if {_f} is "morts" or "personne":
+                add {_k} to {_libres::*}
+            else:
+                add {_k} to {_def::*}
+                if za_terr_raid_req({_f}) is not "":
+                    add {_k} to {_raid::*}
+    set {_r} to random integer between 1 and 100
+    if {_r} <= 45:
+        if size of {_def::*} > 0:
+            set {_k} to random element out of {_def::*}
+            za_terr_defense({_k}, "auto")
+            stop
+    if {_r} <= 80:
+        if size of {_raid::*} > 0:
+            set {_k} to random element out of {_raid::*}
+            za_terr_raid({_k}, za_terr_raid_req(za_terr_fac({_k})))
+            stop
+    if size of {_libres::*} > 0:
+        set {_k} to random element out of {_libres::*}
+        za_terr_reconquete_annonce({_k})
+        stop
+    if size of {_def::*} > 0:
+        set {_k} to random element out of {_def::*}
+        za_terr_defense({_k}, "auto")
+
+every 7 minutes:
+    if chance of 45%:
+        za_terr_tirage()
+
+# ---------------------------------------------------------------- événement : DÉFENSE
+
+# un assaillant (selon la manche)
+function za_terr_assaillant(c: location, att: text, r: number):
+    if {_att} is "pillards":
+        set {_t} to "ZA_Pillard"
+        if chance of 35%:
+            set {_t} to "ZA_Pillard_Tireur"
+        za_spawn_at({_c}, {_t}, 12, 20)
+    else:
+        set {_types::*} to "ZA_Shambler", "ZA_Shambler", "ZA_Runner" and "ZA_Crawler"
+        set {_t} to random element out of {_types::*}
+        if {_r} >= 8:
+            if chance of 15%:
+                set {_t} to "ZA_Spitter"
+        za_spawn_at({_c}, {_t}, 12, 20)
+
+function za_terr_defense(cle: text, att: text):
+    if {-zt::evt::type} is set:
+        stop
+    set {_c} to za_terr_loc({_cle})
+    if {_c} is not set:
+        stop
+    set {_f} to za_terr_fac({_cle})
+    if za_terr_reelle({_f}) is false:
+        stop
+    if {_att} is "auto":
+        set {_att} to "zombies"
+        if {_f} is "milice" or "marchands" or "survivants" or "scientifiques":
+            if chance of 40%:
+                set {_att} to "pillards"
+    add 1 to {-zt::run}
+    set {_run} to {-zt::run}
+    set {-zt::evt::type} to "defense"
+    set {-zt::evt::cle} to {_cle}
+    set {-zt::evt::att} to {_att}
+    set {-zt::evt::phase} to "attente"
+    set {-zt::evt::kills} to 0
+    set {-zt::evt::debut} to now
+    delete {-zt::evt::part::*}
+    set {_qui} to "des zombies"
+    if {_att} is "pillards":
+        set {_qui} to "des pillards"
+    za_radio(za_terr_fnom({_f}), "Attaque en cours %za_terr_au({_cle})%, %za_terr_pos({_cle})% : %{_qui}% approchent ! Il faut tenir {@duree_defense} secondes. Venez nous aider, on paiera !")
+    za_journal("Defense de %za_terr_nom({_cle})% lancee.")
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_zm("son %loop-player% za_modeles:sfx.sting_danger 0.5 1")
+    # attente : les défenseurs ont 6 minutes pour arriver
+    set {_etat} to "att"
+    set {_t} to 0
+    while {_etat} is "att":
+        wait 5 seconds
+        if {-zt::run} is not {_run}:
+            stop
+        add 5 to {_t}
+        if za_terr_joueurs_pres({_c}, 45) > 0:
+            set {_etat} to "go"
+        else if {_t} >= {@attente}:
+            set {_etat} to "non"
+    if {_etat} is "non":
+        za_radio(za_terr_fnom({_f}), "Personne n'est venu. On a dû abandonner %za_terr_det({_cle})%...")
+        za_terr_chute({_cle}, {_att})
+        za_terr_evt_fin()
+        stop
+    # combat : 18 manches de 10 secondes
+    set {-zt::evt::phase} to "combat"
+    set {_r} to 0
+    set {_actif} to 0
+    set {_tot} to ({@duree_defense} / 10)
+    while {_r} < {_tot}:
+        wait 10 seconds
+        if {-zt::run} is not {_run}:
+            stop
+        add 1 to {_r}
+        set {_pres} to 0
+        set {_reste} to ({_tot} - {_r}) * 10
+        loop all players in radius 55 around {_c}:
+            if za_pro(loop-player) is false:
+                add 1 to {_pres}
+                if {-zt::evt::part::%loop-player's uuid%} is not set:
+                    set {-zt::evt::part::%loop-player's uuid%} to 0
+                add 1 to {-zt::evt::part::%loop-player's uuid%}
+                send action bar "&c&lDÉFENSE &7%{_reste}% s &8| &7Assaillants abattus : &f%{-zt::evt::kills}%" to loop-player
+                if {_r} is 1:
+                    send title "&c&lTIENS BON" with subtitle "&7%za_terr_nom({_cle})% : {@duree_defense} secondes" to loop-player for 3 seconds
+        if {_pres} > 0:
+            add 1 to {_actif}
+        set {_n} to 2 + floor({_r} / 6) + min({_pres}, 3)
+        loop {_n} times:
+            za_terr_assaillant({_c}, {_att}, {_r})
+        if {_r} is 9 or 15:
+            if {_att} is "pillards":
+                za_terr_assaillant({_c}, "pillards", {_r})
+                za_terr_assaillant({_c}, "pillards", {_r})
+            else:
+                za_spawn_at({_c}, "ZA_Brute", 14, 22)
+    # bilan
+    set {_ok} to false
+    if {_actif} >= ({_tot} * 0.55):
+        if {-zt::evt::kills} >= 3:
+            set {_ok} to true
+    za_terr_defense_bilan({_cle}, {_att}, {_ok})
+
+function za_terr_defense_bilan(cle: text, att: text, ok: boolean):
+    set {_f} to za_terr_fac({_cle})
+    if {_ok} is true:
+        set {za::terr::%{_cle}%::ctrl} to min(100, za_terr_ctrl({_cle}) + 35)
+        delete {za::terr::%{_cle}%::sigctrl}
+        loop all players:
+            if za_pro(loop-player) is false:
+                if {-zt::evt::part::%loop-player's uuid%} >= 3:
+                    set {_u} to loop-player's uuid
+                    set {_gain} to 20 + min({-zt::evt::kills}, 15)
+                    za_jetons_ajouter(loop-player, {_gain})
+                    za_terr_rep(loop-player, {_f}, 8)
+                    za_stat_ajouter({_u}, "territoires_defendus", 1)
+                    send title "&a&lTERRITOIRE TENU" with subtitle "&7+%{_gain}% jetons, réputation %za_terr_fnom({_f})%" to loop-player for 4 seconds
+                    za_zm("son %loop-player% minecraft:ui.toast.challenge_complete 0.8 1")
+        za_radio(za_terr_fnom({_f}), "On a tenu %za_terr_det({_cle})% ! Merci à ceux qui sont venus. On n'oubliera pas.")
+        za_journal("%za_terr_nom({_cle})% a ete defendu (%{-zt::evt::kills}% assaillants abattus).")
+    else:
+        za_radio(za_terr_fnom({_f}), "Ils nous ont submergés... on perd %za_terr_det({_cle})%.")
+        za_terr_chute({_cle}, {_att})
+    za_terr_evt_fin()
+
+# ---------------------------------------------------------------- événement : RAID
+
+function za_terr_caisses(cle: text) :: number:
+    set {_c} to za_terr_loc({_cle})
+    if {_c} is not set:
+        return 0
+    set {_w} to world of {_c}
+    set {_wd} to za_dim({_w})
+    set {_cx} to floor(x-coordinate of {_c})
+    set {_cz} to floor(z-coordinate of {_c})
+    set {_n} to 0
+    set {_dx::*} to -9, 9 and 0
+    set {_dz::*} to -1, 2 and 9
+    while {_n} < 3:
+        set {_x} to {_cx} + {_dx::%{_n} + 1%}
+        set {_z} to {_cz} + {_dz::%{_n} + 1%}
+        set {_g} to highest block at location({_x}, 120, {_z}, {_w})
+        set {_y} to floor(y-coordinate of (location of {_g})) + 1
+        execute console command "execute in %{_wd}% run setblock %{_x}% %{_y}% %{_z}% minecraft:barrel[facing=up]{CustomName:'{""text"":""Caisse de ravitaillement"",""color"":""red""}'}"
+        set {-zt::caisse::%za_terr_bkey(location({_x}, {_y}, {_z}, {_w}))%} to {_cle}
+        add 1 to {_n}
+    return 3
+
+function za_terr_caisses_nettoyer(cle: text):
+    set {_c} to za_terr_loc({_cle})
+    if {_c} is not set:
+        stop
+    set {_wd} to za_dim(world of {_c})
+    loop {-zt::caisse::*}:
+        if "%loop-value%" is {_cle}:
+            set {_a::*} to split loop-index at "_"
+            execute console command "execute in %{_wd}% run setblock %{_a::1}% %{_a::2}% %{_a::3}% minecraft:air"
+            delete {-zt::caisse::%loop-index%}
+
+function za_terr_raid(cle: text, req: text):
+    if {-zt::evt::type} is set:
+        stop
+    set {_c} to za_terr_loc({_cle})
+    if {_c} is not set:
+        stop
+    set {_f} to za_terr_fac({_cle})
+    if za_terr_reelle({_f}) is false:
+        stop
+    if {_req} is "":
+        set {_req} to "pilleurs"
+    if {_req} is {_f}:
+        stop
+    add 1 to {-zt::run}
+    set {_run} to {-zt::run}
+    set {_mode} to "sabotage"
+    if {_f} is "pilleurs":
+        set {_mode} to "combat"
+    set {-zt::evt::type} to "raid"
+    set {-zt::evt::cle} to {_cle}
+    set {-zt::evt::req} to {_req}
+    set {-zt::evt::mode} to {_mode}
+    set {-zt::evt::phase} to "attente"
+    set {-zt::evt::kills} to 0
+    set {-zt::evt::debut} to now
+    delete {-zt::evt::part::*}
+    if {_mode} is "combat":
+        za_radio(za_terr_fnom({_req}), "On lance un raid contre %za_terr_det({_cle})% %za_terr_art({_f})%, %za_terr_pos({_cle})%. Nettoyez la zone, on vous récompensera. Vous avez 6 minutes pour vous y rendre.")
+    else:
+        za_radio(za_terr_fnom({_req}), "On veut saboter %za_terr_det({_cle})% %za_terr_art({_f})%, %za_terr_pos({_cle})% : détruisez leurs 3 caisses de ravitaillement, sans toucher aux gens. Discrétion, pas de sang !")
+    za_journal("Raid contre %za_terr_nom({_cle})% lance par %{_req}%.")
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_zm("son %loop-player% za_modeles:sfx.radio_accord 0.6 1")
+    set {_etat} to "att"
+    set {_t} to 0
+    while {_etat} is "att":
+        wait 5 seconds
+        if {-zt::run} is not {_run}:
+            stop
+        add 5 to {_t}
+        if za_terr_joueurs_pres({_c}, 45) > 0:
+            set {_etat} to "go"
+        else if {_t} >= {@attente}:
+            set {_etat} to "non"
+    if {_etat} is "non":
+        za_radio(za_terr_fnom({_req}), "Personne n'est venu. Le raid est annulé.")
+        za_terr_evt_fin()
+        stop
+    set {-zt::evt::phase} to "combat"
+    if {_mode} is "combat":
+        set {_n} to 5 + min(za_terr_joueurs_pres({_c}, 60), 3)
+        loop {_n} times:
+            set {_tp} to "ZA_Pillard"
+            if chance of 35%:
+                set {_tp} to "ZA_Pillard_Tireur"
+            za_spawn_at({_c}, {_tp}, 6, 14)
+        loop all players in radius 55 around {_c}:
+            if za_pro(loop-player) is false:
+                send title "&c&lRAID" with subtitle "&7Abats tous les pillards de la zone" to loop-player for 3 seconds
+                za_zm("son %loop-player% za_modeles:sfx.sting_danger 0.6 1")
+        set {_r} to 0
+        set {_absent} to 0
+        set {_fin} to "en cours"
+        while {_fin} is "en cours":
+            wait 10 seconds
+            if {-zt::run} is not {_run}:
+                stop
+            add 1 to {_r}
+            set {_pres} to 0
+            set {_vivants} to za_terr_nb_pillards({_c}, 60)
+            loop all players in radius 60 around {_c}:
+                if za_pro(loop-player) is false:
+                    add 1 to {_pres}
+                    if {-zt::evt::part::%loop-player's uuid%} is not set:
+                        set {-zt::evt::part::%loop-player's uuid%} to 0
+                    add 1 to {-zt::evt::part::%loop-player's uuid%}
+                    send action bar "&c&lRAID &7Pillards restants : &f%{_vivants}%" to loop-player
+            if {_pres} is 0:
+                add 1 to {_absent}
+            else:
+                set {_absent} to 0
+            if {_vivants} is 0:
+                if {_r} >= 2:
+                    set {_fin} to "ok"
+            if {_absent} >= 6:
+                set {_fin} to "ko"
+            if {_r} >= 30:
+                set {_fin} to "ko"
+        set {_reussi} to false
+        if {_fin} is "ok":
+            set {_reussi} to true
+    else:
+        set {_nb} to za_terr_caisses({_cle})
+        set {-zt::evt::crates} to {_nb}
+        loop all players in radius 55 around {_c}:
+            if za_pro(loop-player) is false:
+                send title "&e&lSABOTAGE" with subtitle "&7Détruis les 3 caisses rouges autour du bâtiment" to loop-player for 3 seconds
+                if za_terr_repval(loop-player, {_f}) >= 25:
+                    send "&cAttention : saboter %za_terr_fnom({_f})% &cabîmera ta réputation avec eux." to loop-player
+        set {_r} to 0
+        set {_absent} to 0
+        set {_fin} to "en cours"
+        while {_fin} is "en cours":
+            wait 10 seconds
+            if {-zt::run} is not {_run}:
+                stop
+            add 1 to {_r}
+            set {_pres} to za_terr_joueurs_pres({_c}, 60)
+            if {_pres} is 0:
+                add 1 to {_absent}
+            else:
+                set {_absent} to 0
+            if {-zt::evt::crates} <= 0:
+                set {_fin} to "ok"
+            if {_absent} >= 6:
+                set {_fin} to "ko"
+            if {_r} >= 30:
+                set {_fin} to "ko"
+        set {_reussi} to false
+        if {_fin} is "ok":
+            set {_reussi} to true
+        za_terr_caisses_nettoyer({_cle})
+    za_terr_raid_bilan({_cle}, {_req}, {_reussi})
+
+function za_terr_raid_bilan(cle: text, req: text, reussi: boolean):
+    set {_f} to za_terr_fac({_cle})
+    if {_reussi} is true:
+        loop all players:
+            if za_pro(loop-player) is false:
+                if {-zt::evt::part::%loop-player's uuid%} is set:
+                    za_jetons_ajouter(loop-player, 25)
+                    za_terr_rep(loop-player, {_req}, 10)
+                    za_faction_ajouter(loop-player, {_f}, -5)
+                    send title "&a&lRAID RÉUSSI" with subtitle "&7+25 jetons" to loop-player for 4 seconds
+                    za_zm("son %loop-player% minecraft:ui.toast.challenge_complete 0.8 1")
+        za_terr_change({_cle}, {_req}, 45)
+        za_radio(za_terr_fnom({_req}), "%za_terr_maj(za_terr_det({_cle}))% est à nous ! Ceux %za_terr_col({_f})%%za_terr_art({_f})% &7ont été chassés. Merci pour le coup de main.")
+    else:
+        za_radio(za_terr_fnom({_req}), "Le raid sur %za_terr_det({_cle})% a échoué. On se replie.")
+    za_terr_evt_fin()
+
+# les pillards de la zone abattus, les caisses cassées : comptage via les morts et les blocs
+function za_terr_mort(vl: location, tueur: entity, sorte: text):
+    if "%world of {_vl}%" is "za_prologue":
+        stop
+    # événement en cours : les morts près du territoire comptent
+    if {-zt::evt::type} is set:
+        set {_c} to za_terr_loc({-zt::evt::cle})
+        if {_c} is set:
+            if world of {_c} is world of {_vl}:
+                if distance between {_c} and {_vl} < 65:
+                    add 1 to {-zt::evt::kills}
+                    if {_tueur} is a player:
+                        set {_u} to {_tueur}'s uuid
+                        if {-zt::evt::part::%{_u}%} is not set:
+                            set {-zt::evt::part::%{_u}%} to 0
+    # pillards : abattre ceux d'un territoire Pilleurs use la sympathie des pilleurs
+    if {_sorte} is "humain":
+        if {_tueur} is a player:
+            loop za_terr_proches({_vl}, 60):
+                if za_terr_fac(loop-value) is "pilleurs":
+                    if chance of 35%:
+                        za_faction_ajouter({_tueur}, "pilleurs", -1)
+                    if chance of 20%:
+                        za_faction_ajouter({_tueur}, "milice", 1)
+    # reconquête : tuer des infectés autour d'un territoire perdu
+    if {_sorte} is "zombie":
+        if {_tueur} is a player:
+            loop za_terr_proches({_vl}, 30):
+                set {_f} to za_terr_fac(loop-value)
+                if {_f} is "morts" or "personne":
+                    set {_u} to {_tueur}'s uuid
+                    if {za::terr::%loop-value%::recon::%{_u}%} is not set:
+                        set {za::terr::%loop-value%::recon::%{_u}%} to 0
+                    if {za::terr::%loop-value%::recon::%{_u}%} < {@recon_kills}:
+                        add 1 to {za::terr::%loop-value%::recon::%{_u}%}
+                        set {_n} to {za::terr::%loop-value%::recon::%{_u}%}
+                        if {_n} >= {@recon_kills}:
+                            send action bar "&a&lZONE DÉGAGÉE &7Clic droit sur le panneau pour choisir qui reprend les lieux" to {_tueur}
+                            za_terr_menu_reprise({_tueur}, loop-value)
+                        else:
+                            send action bar "&7Reconquête de %za_terr_nom(loop-value)% : &f%{_n}%&7/{@recon_kills}" to {_tueur}
+
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    za_terr_mort(location of victim, attacker, "zombie")
+
+on death of vindicator:
+    if za_pro(victim) is true:
+        stop
+    za_terr_mort(location of victim, attacker, "humain")
+
+on death of pillager:
+    if za_pro(victim) is true:
+        stop
+    za_terr_mort(location of victim, attacker, "humain")
+
+# caisses de sabotage
+on break of barrel:
+    if za_pro(player) is true:
+        stop
+    set {_bk} to za_terr_bkey(location of event-block)
+    if {-zt::caisse::%{_bk}%} is set:
+        if {-zt::evt::type} is "raid":
+            cancel the event
+            set block at (location of event-block) to air
+            execute console command "execute in %za_dim(world of event-block)% run particle minecraft:poof %x-coordinate of event-block% %y-coordinate of event-block% %z-coordinate of event-block% 0.4 0.4 0.4 0.05 25 force"
+            delete {-zt::caisse::%{_bk}%}
+            set {_u} to player's uuid
+            if {-zt::evt::part::%{_u}%} is not set:
+                set {-zt::evt::part::%{_u}%} to 0
+            add 1 to {-zt::evt::part::%{_u}%}
+            remove 1 from {-zt::evt::crates}
+            za_zm("son %player% minecraft:block.barrel.break 1 0.8")
+            if {-zt::evt::crates} > 0:
+                send action bar "&e&lSABOTAGE &7Caisses restantes : &f%{-zt::evt::crates}%" to player
+            else:
+                send action bar "&a&lSABOTAGE RÉUSSI &7Filez avant que les gardes réagissent !" to player
+
+# blocs de présence protégés (panneaux, poteau, caisse, bannière)
+on break:
+    if za_pro(player) is true:
+        stop
+    set {_bk} to za_terr_bkey(location of event-block)
+    if {za::terr::bloc::%{_bk}%} is set:
+        if player does not have permission "za.admin":
+            cancel the event
+            send action bar "&7Les gardes ne laisseront pas faire ça." to player
+
+# ---------------------------------------------------------------- clic : ravitaillement, reprise
+
+on right click on sign:
+    if za_pro(player) is true:
+        stop
+    set {_k} to {za::terr::bloc::%za_terr_bkey(location of event-block)%}
+    if {_k} is set:
+        cancel the event
+        za_terr_clic(player, "%{_k}%")
+
+on right click on barrel:
+    if za_pro(player) is true:
+        stop
+    set {_k} to {za::terr::bloc::%za_terr_bkey(location of event-block)%}
+    if {_k} is set:
+        cancel the event
+        za_terr_clic(player, "%{_k}%")
+
+function za_terr_clic(p: player, cle: text):
+    set {_f} to za_terr_fac({_cle})
+    if {_f} is "morts" or "personne":
+        set {_u} to {_p}'s uuid
+        set {_n} to {za::terr::%{_cle}%::recon::%{_u}%} ? 0
+        if {_n} >= {@recon_kills}:
+            za_terr_menu_reprise({_p}, {_cle})
+        else:
+            send "&8[Territoire] &7%za_terr_nom({_cle})% est %za_terr_art({_f})%. Abats des infectés autour du bâtiment pour le reprendre : &f%{_n}%&7/{@recon_kills}" to {_p}
+        stop
+    if {-zt::evt::cle} is {_cle}:
+        send "&8[Territoire] &cAttaque en cours ! &7Défends-le ou aide au raid d'abord." to {_p}
+        stop
+    za_terr_reclamer({_p}, {_cle})
+
+# ---------------------------------------------------------------- récompenses de ravitaillement
+
+function za_terr_reclamer(p: player, cle: text):
+    set {_f} to za_terr_fac({_cle})
+    set {_u} to {_p}'s uuid
+    set {_rep} to za_terr_repval({_p}, {_f})
+    set {_nom} to za_terr_fnom({_f})
+    if {_rep} <= -25:
+        send "%{_nom}% &8» &cVa-t'en. On sait qui tu es." to {_p}
+        stop
+    if {_rep} < 25:
+        send "&8[Territoire %za_terr_art({_f})%] &7Les gardes te toisent : « On te connaît pas assez. » &8(Réputation %{_nom}% &8: &f%floor({_rep})%&8/25 — /faction)" to {_p}
+        stop
+    if za_terr_ctrl({_cle}) < 15:
+        send "&8[Territoire] &7La caisse est vide : l'emprise est trop faible. Aide à défendre les lieux." to {_p}
+        stop
+    set {_j} to za_terr_jour()
+    if {za::terr::%{_cle}%::claim::%{_u}%} is {_j}:
+        send "&8[Territoire] &7Tu as déjà pris ta part aujourd'hui (jour %{_j}%). Reviens demain." to {_p}
+        if {_f} is "marchands":
+            za_terr_comptoir({_p}, {_cle})
+        stop
+    set {za::terr::%{_cle}%::claim::%{_u}%} to {_j}
+    set {_fort} to false
+    if {_rep} >= 50:
+        set {_fort} to true
+    send "&8[Territoire] &7Un garde %{_nom}% &7te tend un ravitaillement." to {_p}
+    za_zm("son %{_p}% minecraft:entity.item.pickup 0.8 0.9")
+    if {_f} is "milice":
+        execute console command "give %{_p}% tacz:ammo{AmmoId:""tacz:9mm""} 30"
+        give za_item("paper", "Bandage", "&f", 2) to {_p}
+        if {_fort} is true:
+            execute console command "give %{_p}% tacz:ammo{AmmoId:""tacz:556x45""} 30"
+            give za_item("paper", "Bandage", "&f", 1) to {_p}
+        send "&7+ munitions et bandages." to {_p}
+    else if {_f} is "scientifiques":
+        give za_item("honey bottle", "Antibiotique", "&b", 2) to {_p}
+        if {_fort} is true:
+            give za_item("honey bottle", "Antidote", "&a", 1) to {_p}
+            if za_terr_ctrl({_cle}) >= 50:
+                if chance of 60%:
+                    give za_item("honey bottle", "Serum", "&d", 1) to {_p}
+                    send "&d+ un Sérum." to {_p}
+        send "&7+ antibiotiques du stock du labo." to {_p}
+    else if {_f} is "pilleurs":
+        set {_l::*} to "Fleches", "Piege", "Plaque de blindage", "Explosif artisanal" and "Pain rassis"
+        give za_item("arrow", "Fleches", "&7", 16) to {_p}
+        if chance of 60%:
+            give za_item("stone pressure plate", "Piege", "&c", 2) to {_p}
+        if chance of 50%:
+            give za_item("iron ingot", "Plaque de blindage", "&7", 4) to {_p}
+        if {_fort} is true:
+            if chance of 40%:
+                give za_item("tnt", "Explosif artisanal", "&c", 1) to {_p}
+        execute console command "give %{_p}% tacz:ammo{AmmoId:""tacz:9mm""} 15"
+        za_faction_ajouter({_p}, "milice", -2)
+        send "&7+ du butin de marché noir. &8(La Milice n'aime pas ça : réputation −2.)" to {_p}
+    else if {_f} is "marchands":
+        set {_n} to 1
+        if {_fort} is true:
+            set {_n} to 2
+        give za_item("blaze powder", "Essence (carburant)", "&e", {_n}) to {_p}
+        send "&7+ %{_n}% Essence (carburant)." to {_p}
+        za_terr_comptoir({_p}, {_cle})
+    else if {_f} is "survivants":
+        give za_item("paper", "Bandage", "&f", 2) to {_p}
+        give za_item("bread", "Pain rassis", "&f", 3) to {_p}
+        set {_c} to za_terr_loc({_cle})
+        set {_sl} to za_sol(location(x-coordinate of {_c}, y-coordinate of {_c}, (z-coordinate of {_c}) - 6, world of {_c}))
+        execute console command "zasurv creer %floor(x-coordinate of {_sl})% %floor(y-coordinate of {_sl})% %floor(z-coordinate of {_sl})% %world of {_sl}%"
+        send "&7Un survivant qu'ils ont recueilli veut te suivre. &8(Cherche-le près du poteau.)" to {_p}
+    else if {_f} is "culte":
+        give za_item("amethyst shard", "Essence de zombie", "&5", 3) to {_p}
+        send "&7+ 3 Essence de zombie. &8(« Rien ne se perd. »)" to {_p}
+
+# comptoir des Marchands : marchandises à prix réduit (-20 %)
+function za_terr_prixm(p: player, base: number) :: number:
+    return ceil(za_prix({_p}, {_base}) * 0.8)
+
+function za_terr_comptoir(p: player, cle: text):
+    if za_terr_repval({_p}, "marchands") < 25:
+        stop
+    za_menu({_p}, "zaterrclic", "Comptoir des Marchands", "Prix d'alliés : 20 %% de moins que partout ailleurs. Tes jetons : %za_jetons({_p})%.", ("Bandage x3 - %za_terr_prixm({_p}, 9)% jetons|achat:bandage", "Antibiotique - %za_terr_prixm({_p}, 8)% jetons|achat:antibio", "Antidote - %za_terr_prixm({_p}, 12)% jetons|achat:antidote", "Essence (carburant) - %za_terr_prixm({_p}, 8)% jetons|achat:essence", "Pain rassis x4 - %za_terr_prixm({_p}, 4)% jetons|achat:pain", "Fermer|quit"))
+
+# ---------------------------------------------------------------- reconquête
+
+function za_terr_reconquete_annonce(cle: text):
+    set {_f} to za_terr_fac({_cle})
+    set {_m} to random integer between 20 and 30
+    set {_ts} to "%{_m}% minutes" parsed as timespan
+    set {-zt::evt::prochain} to now + {_ts}
+    if {_f} is "morts":
+        za_radio("&bLéa", "%za_terr_maj(za_terr_det({_cle}))%, %za_terr_pos({_cle})%, est aux mains des morts. Si quelqu'un nettoie les lieux, les factions se battront pour les avoir.")
+    else:
+        za_radio("&bLéa", "%za_terr_maj(za_terr_det({_cle}))%, %za_terr_pos({_cle})%, n'appartient à personne. Il suffit de nettoyer les lieux pour choisir à qui les confier.")
+
+function za_terr_menu_reprise(p: player, cle: text):
+    set {_id} to za_terr_id({_cle})
+    loop "milice", "scientifiques", "marchands", "pilleurs", "survivants" and "culte":
+        if za_terr_repval({_p}, loop-value) >= 25:
+            add "Confier %za_terr_art(loop-value)%|rc:%loop-value%:%{_id}%" to {_o::*}
+    if size of {_o::*} is 0:
+        add "Le confier aux survivants du coin|rc:survivants:%{_id}%" to {_o::*}
+    add "Plus tard|quit" to {_o::*}
+    za_menu({_p}, "zaterrclic", "Reconquête", "%za_terr_nom({_cle})% est dégagé. Les factions que tu connais (réputation 25 ou plus) le voudraient. À qui le confies-tu ?", {_o::*})
+
+command /zaterrclic <player> <text>:
+    executable by: console
+    trigger:
+        set {_p} to arg-1
+        set {_a::*} to split arg-2 at ":"
+        if {_a::1} is "rc":
+            set {_f} to {_a::2}
+            set {_cle} to za_terr_norm({_a::3})
+            set {_cur} to za_terr_fac({_cle})
+            if {_cur} is not "morts" or "personne":
+                send "&7Quelqu'un a repris les lieux entre-temps." to {_p}
+                stop
+            set {_u} to {_p}'s uuid
+            if ({za::terr::%{_cle}%::recon::%{_u}%} ? 0) < {@recon_kills}:
+                send "&7Il reste des infectés à abattre autour du bâtiment." to {_p}
+                stop
+            set {_rep} to za_terr_repval({_p}, {_f})
+            if {_f} is not "survivants":
+                if {_rep} < 25:
+                    send "&7Cette faction ne te connaît pas assez." to {_p}
+                    stop
+            za_terr_change({_cle}, {_f}, 45)
+            za_jetons_ajouter({_p}, 25)
+            za_terr_rep({_p}, {_f}, 10)
+            za_stat_ajouter({_u}, "territoires_defendus", 1)
+            send title "&a&lTERRITOIRE REPRIS" with subtitle "&7%za_terr_nom({_cle})% : %za_terr_fnom({_f})%" to {_p} for 4 seconds
+            za_zm("son %{_p}% minecraft:ui.toast.challenge_complete 0.8 1")
+            send "&a+25 jetons et de la réputation auprès de %za_terr_fnom({_f})%&a." to {_p}
+            za_radio(za_terr_fnom({_f}), "%za_terr_maj(za_terr_det({_cle}))%, %za_terr_pos({_cle})%, est à nous. Merci, %{_p}%.")
+        else if {_a::1} is "achat":
+            set {_cle} to ""
+            set {_prix} to 0
+            set {_it} to za_item("paper", "Bandage", "&f", 3)
+            if {_a::2} is "bandage":
+                set {_prix} to za_terr_prixm({_p}, 9)
+            else if {_a::2} is "antibio":
+                set {_prix} to za_terr_prixm({_p}, 8)
+                set {_it} to za_item("honey bottle", "Antibiotique", "&b", 1)
+            else if {_a::2} is "antidote":
+                set {_prix} to za_terr_prixm({_p}, 12)
+                set {_it} to za_item("honey bottle", "Antidote", "&a", 1)
+            else if {_a::2} is "essence":
+                set {_prix} to za_terr_prixm({_p}, 8)
+                set {_it} to za_item("blaze powder", "Essence (carburant)", "&e", 1)
+            else if {_a::2} is "pain":
+                set {_prix} to za_terr_prixm({_p}, 4)
+                set {_it} to za_item("bread", "Pain rassis", "&f", 4)
+            else:
+                stop
+            if za_terr_repval({_p}, "marchands") < 25:
+                stop
+            if za_jetons({_p}) < {_prix}:
+                send "&cIl te faut %{_prix}% jetons (tu en as %za_jetons({_p})%)." to {_p}
+                stop
+            za_jetons_ajouter({_p}, 0 - {_prix})
+            give {_it} to {_p}
+            send "&aMarché conclu : &7-%{_prix}% jetons." to {_p}
+            za_zm("son %{_p}% minecraft:entity.villager.yes 0.8 1")
+
+# ---------------------------------------------------------------- gardes : ils parlent
+
+on right click on villager:
+    if za_pro(player) is true:
+        stop
+    if "%scoreboard tags of clicked entity%" contains "za_terr":
+        cancel the event
+        set {_t} to "%scoreboard tags of clicked entity%"
+        set {_f} to ""
+        loop "milice", "scientifiques", "marchands", "survivants" and "culte":
+            if {_t} contains "za_tf_%loop-value%":
+                set {_f} to loop-value
+        if {_f} is not "":
+            za_terr_parle_garde(player, {_f}, uncolored name of clicked entity)
+
+function za_terr_parle_garde(p: player, f: text, nom: text):
+    set {_rep} to za_terr_repval({_p}, {_f})
+    set {_c} to za_terr_col({_f})
+    if {_rep} <= -25:
+        send "%{_c}%%{_nom}% &8» &cReste où tu es. On t'a à l'oeil." to {_p}
+        stop
+    if {_rep} >= 25:
+        set {_l::*} to "Content de te voir. Le panneau, là : réclame ta part.", "Ça tient, pour l'instant. Grâce à des gens comme toi.", "Les morts rôdent moins depuis que tu passes par ici." and "Si tu vois quelque chose de louche, dis-le-nous."
+    else:
+        if {_f} is "milice":
+            set {_l::*} to "Circule. Ici, c'est un secteur de la Milice.", "T'as des papiers? Non? Alors reste tranquille." and "Fais-toi connaître en tuant des morts, et on parlera."
+        else if {_f} is "scientifiques":
+            set {_l::*} to "Ne touche à rien : c'est stérile... enfin, c'était.", "On travaille. Si tu veux de l'aide, fais-toi connaître." and "Tu as de la fièvre? Éloigne-toi."
+        else if {_f} is "marchands":
+            set {_l::*} to "On vend, on achète. Mais pas aux inconnus.", "Les affaires reprennent, doucement. Reviens quand on te connaîtra." and "Jetons ou troc, c'est pareil. Sois honnête."
+        else if {_f} is "survivants":
+            set {_l::*} to "On essaie de tenir. Aide-nous et on t'aidera.", "Ne fais pas de bruit, les morts entendent tout." and "Tu as vu des nids dans le coin?"
+        else:
+            set {_l::*} to "La fin vient pour tous. Tu es sage de venir l'écouter.", "Ne crains pas les morts. Crains ceux qui les oublient." and "Un sacrifice, et on te reconnaîtra."
+    send "%{_c}%%{_nom}% &8» &f%random element out of {_l::*}%" to {_p}
+
+# ---------------------------------------------------------------- /territoires
+
+function za_terr_barre(n: number) :: text:
+    set {_k} to round({_n} / 10)
+    set {_col} to "&a"
+    if {_n} < 50:
+        set {_col} to "&e"
+    if {_n} < 25:
+        set {_col} to "&c"
+    set {_s} to "%{_col}%"
+    loop 10 times:
+        if loop-number <= {_k}:
+            set {_s} to "%{_s}%▮"
+        else if loop-number is ({_k} + 1):
+            set {_s} to "%{_s}%&8▯"
+        else:
+            set {_s} to "%{_s}%▯"
+    return {_s}
+
+function za_terr_tri(l: location) :: texts:
+    set {_cles::*} to za_terr_cles()
+    loop {_cles::*}:
+        set {_c} to za_terr_loc(loop-value)
+        set {_d} to 999999
+        if {_c} is set:
+            if world of {_c} is world of {_l}:
+                set {_d} to distance between {_c} and {_l}
+        set {_dist::%loop-value%} to {_d}
+    while size of {_cles::*} > 0:
+        set {_best} to ""
+        set {_bd} to 9999999
+        set {_bi} to ""
+        loop {_cles::*}:
+            if {_dist::%loop-value%} < {_bd}:
+                set {_bd} to {_dist::%loop-value%}
+                set {_best} to loop-value
+                set {_bi} to loop-index
+        if {_bi} is "":
+            exit loop
+        add {_best} to {_r::*}
+        delete {_cles::%{_bi}%}
+    return {_r::*}
+
+function za_terr_flags(cle: text, p: player) :: text:
+    set {_f} to za_terr_fac({_cle})
+    set {_c} to za_terr_loc({_cle})
+    set {_s} to ""
+    if {-zt::evt::cle} is {_cle}:
+        set {_s} to "%{_s}% &c⚠ attaque en cours"
+    else if za_terr_reelle({_f}) is true:
+        if za_terr_ctrl({_cle}) < 35:
+            set {_s} to "%{_s}% &c⚠ en danger"
+        else if {_c} is set:
+            if za_terr_nids({_c}, 150) > 0:
+                set {_s} to "%{_s}% &6⚠ nid proche"
+    if {_f} is "morts" or "personne":
+        set {_s} to "%{_s}% &e➤ à reprendre"
+    else if za_terr_repval({_p}, {_f}) >= 25:
+        if {za::terr::%{_cle}%::claim::%{_p}'s uuid%} is not za_terr_jour():
+            set {_s} to "%{_s}% &a✔ ravitaillement dispo"
+    return {_s}
+
+command /territoires [<text>]:
+    aliases: /terr
+    trigger:
+        if sender is a player:
+            if za_pro(player) is true:
+                send "&7Rien de tel dans le monde d'avant." to player
+                stop
+        za_terr_sync()
+        send "&6&lTERRITOIRES &8— &7les bâtiments spéciaux appartiennent aux factions" to sender
+        set {_r::*} to "milice", "scientifiques", "marchands", "pilleurs", "survivants", "culte", "morts" and "personne"
+        set {_ligne} to ""
+        loop {_r::*}:
+            set {_n} to za_terr_compte(loop-value)
+            if {_n} > 0:
+                set {_ligne} to "%{_ligne}%%za_terr_fnom(loop-value)% &f%{_n}%  "
+        send "&8Répartition : %{_ligne}%" to sender
+        if {-zt::evt::type} is set:
+            set {_k} to {-zt::evt::cle}
+            set {_ev} to "Défense"
+            if {-zt::evt::type} is "raid":
+                set {_ev} to "Raid"
+            send "&c⚠ Événement : &f%{_ev}% &7— %za_terr_nom({_k})% %za_terr_pos_c({_k})%" to sender
+        if sender is a player:
+            set {_tri::*} to za_terr_tri(location of player)
+        else:
+            set {_tri::*} to za_terr_cles()
+        set {_max} to 10
+        if arg-1 is "tout":
+            set {_max} to 99
+        set {_i} to 0
+        loop {_tri::*}:
+            add 1 to {_i}
+            if {_i} <= {_max}:
+                set {_f} to za_terr_fac(loop-value)
+                set {_ctrl} to floor(za_terr_ctrl(loop-value))
+                set {_fl} to ""
+                if sender is a player:
+                    set {_fl} to za_terr_flags(loop-value, player)
+                send "&f%za_terr_nom(loop-value)% &8— %za_terr_fnom({_f})% &8| %za_terr_barre({_ctrl})% &7%{_ctrl}% %%&8 | &7%za_terr_pos_c(loop-value)%%{_fl}%" to sender
+        if size of {_tri::*} is 0:
+            send "&7Aucun bâtiment spécial repéré pour l'instant. Écoute la radio." to sender
+        else if {_max} < size of {_tri::*}:
+            send "&8… /territoires tout pour la liste complète." to sender
+        send "&8Clic droit sur le panneau ou la caisse d'un territoire allié (réputation 25+) : ravitaillement chaque jour." to sender
+        send "&8Les pillards attaquent ceux qui ne sont pas de leur côté. Les territoires perdus se reprennent en nettoyant les lieux." to sender
+
+# ---------------------------------------------------------------- admin
+
+command /zaterr [<text>] [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        za_terr_sync()
+        if arg-1 is "etat":
+            loop za_terr_cles():
+                send "&7%loop-value% &8| %za_terr_fnom(za_terr_fac(loop-value))% &8| &f%floor(za_terr_ctrl(loop-value))% &8| &7%za_terr_pos_c(loop-value)%" to sender
+            send "&7Événement : &f%{-zt::evt::type}% &7clé=%{-zt::evt::cle}% phase=%{-zt::evt::phase}% kills=%{-zt::evt::kills}% caisses=%{-zt::evt::crates}% &8| prochain après : %{-zt::evt::prochain}%" to sender
+        else if arg-1 is "tick":
+            za_terr_tick()
+            send "&aTick quotidien exécuté." to sender
+        else if arg-1 is "stop":
+            add 1 to {-zt::run}
+            if {-zt::evt::cle} is set:
+                za_terr_caisses_nettoyer({-zt::evt::cle})
+            za_terr_evt_fin()
+            delete {-zt::evt::prochain}
+            send "&aÉvénement arrêté." to sender
+        else if arg-1 is "tirage":
+            delete {-zt::evt::prochain}
+            za_terr_tirage()
+            send "&aTirage forcé." to sender
+        else if arg-2 is not set:
+            send "&cUsage : /zaterr <etat|tick|stop|tirage|defense <cle>|raid <cle>|reconquete <cle>|owner <cle> <faction>|ctrl <cle> <n>|poser <cle>|pillards <cle>>" to sender
+        else:
+            set {_k} to za_terr_norm(arg-2)
+            if za_terr_loc({_k}) is not set:
+                send "&cTerritoire inconnu : %{_k}% (ex. police;1). /zaterr etat pour la liste." to sender
+                stop
+            if arg-1 is "defense":
+                if {-zt::evt::type} is set:
+                    send "&cUn événement est déjà en cours (/zaterr stop)." to sender
+                    stop
+                if za_terr_reelle(za_terr_fac({_k})) is false:
+                    send "&cCe territoire n'a pas de propriétaire à défendre." to sender
+                    stop
+                za_terr_defense({_k}, "auto")
+                send "&aDéfense lancée sur %{_k}%." to sender
+            else if arg-1 is "raid":
+                if {-zt::evt::type} is set:
+                    send "&cUn événement est déjà en cours (/zaterr stop)." to sender
+                    stop
+                if za_terr_reelle(za_terr_fac({_k})) is false:
+                    send "&cCe territoire n'a pas de propriétaire à attaquer." to sender
+                    stop
+                set {_req} to za_terr_raid_req(za_terr_fac({_k}))
+                if arg-3 is set:
+                    set {_req} to arg-3
+                za_terr_raid({_k}, {_req})
+                send "&aRaid lancé sur %{_k}%." to sender
+            else if arg-1 is "reconquete":
+                if za_terr_reelle(za_terr_fac({_k})) is true:
+                    za_terr_chute({_k}, "admin")
+                    if za_terr_fac({_k}) is not "morts":
+                        za_terr_change({_k}, "morts", 0)
+                        set {za::terr::%{_k}%::ctrl} to 0
+                za_terr_reconquete_annonce({_k})
+                send "&a%{_k}% est à reprendre (abats {@recon_kills} infectés autour)." to sender
+            else if arg-1 is "owner":
+                if arg-3 is not set:
+                    send "&cUsage : /zaterr owner <cle> <milice|scientifiques|marchands|pilleurs|survivants|culte|morts|personne>" to sender
+                    stop
+                za_terr_change({_k}, arg-3, 60)
+                if arg-3 is "morts":
+                    set {za::terr::%{_k}%::ctrl} to 0
+                send "&a%{_k}% : propriétaire = %arg-3%." to sender
+            else if arg-1 is "ctrl":
+                set {za::terr::%{_k}%::ctrl} to (arg-3 parsed as number)
+                delete {za::terr::%{_k}%::sigctrl}
+                send "&aEmprise de %{_k}% = %arg-3%." to sender
+            else if arg-1 is "poser":
+                za_terr_pose({_k})
+                set {za::terr::%{_k}%::pose} to za_terr_fac({_k})
+                za_terr_gardes({_k})
+                send "&aPrésence posée pour %{_k}% (%za_terr_fac({_k})%)." to sender
+            else if arg-1 is "pillards":
+                za_terr_pillards({_k}, 2)
+                send "&a2 pillards envoyés près de %{_k}%." to sender
+            else:
+                send "&cSous-commande inconnue." to sender

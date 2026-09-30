@@ -1,0 +1,122 @@
+# =====================================================================
+#  ZombieApocalypse - CADAVRES : fouiller, bruler, enterrer
+#  A la mort d'un joueur, un tas d'ossements (bloc d'os) marque l'endroit pendant 25 minutes.
+#  * Clic droit : fouiller (loot + 25 pourcent de risque d'infection)
+#  * Briquet (flint and steel) sur le corps : le bruler -> il n'attire plus les morts
+#  * Pelle sur le corps : l'enterrer -> pareil
+#  * Un corps intact attire les zombies tant qu'un joueur est a moins de 80 blocs
+# =====================================================================
+
+options:
+    duree_minutes: 25
+
+function za_lkey(l: location) :: text:
+    return "%floor(x-coordinate of {_l})%_%floor(y-coordinate of {_l})%_%floor(z-coordinate of {_l})%_%world of {_l}%"
+
+function za_cadavre_retirer(key: text):
+    set {_l} to {za::cadavre::%{_key}%::loc}
+    if {_l} is set:
+        if block at {_l} is bone block:
+            set block at {_l} to air
+    remove {_key} from {za::cadavre::liste::*}
+    delete {za::cadavre::%{_key}%::*}
+
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    set {_l} to location of victim
+    if block at {_l} is air:
+        set {_k} to za_lkey({_l})
+        set block at {_l} to bone block
+        set {za::cadavre::%{_k}%::loc} to {_l}
+        set {za::cadavre::%{_k}%::depuis} to now
+        add {_k} to {za::cadavre::liste::*}
+
+# ---------- fouiller ----------
+on right click on bone block:
+    if za_pro(player) is true:
+        stop
+    set {_k} to za_lkey(location of event-block)
+    if {za::cadavre::%{_k}%::depuis} is set:
+        if player's tool is flint and steel:
+            stop
+        if "%player's tool%" contains "shovel":
+            stop
+        cancel the event
+        if {za::cadavre::%{_k}%::fouille} is true:
+            send "&7Il n'y a plus rien a prendre sur ce corps." to player
+        else:
+            set {za::cadavre::%{_k}%::fouille} to true
+            send "&8Tu fouilles le corps..." to player
+            give 2 of bone to player
+            give 1 of rotten flesh to player
+            if chance of 35%:
+                give za_item("gold nugget", "Jeton de Survie", "&6", random integer between 1 and 3) to player
+                send "&6Tu trouves des jetons !" to player
+            if za_role(player) is "eclaireur":
+                if chance of 40%:
+                    give za_item("gold nugget", "Jeton de Survie", "&6", 1) to player
+                    send "&7(Charognard : tu fouilles mieux que les autres.)" to player
+            if chance of 25%:
+                give za_item("paper", "Bandage", "&f", 1) to player
+            if chance of 10%:
+                give za_item("honey bottle", "Antidote", "&a", 1) to player
+            if chance of 25%:
+                send "&2Le corps etait infecte..." to player
+                za_infecter(player)
+
+# ---------- bruler ----------
+on right click with flint and steel:
+    if za_pro(player) is true:
+        stop
+    if event-block is bone block:
+        set {_k} to za_lkey(location of event-block)
+        if {za::cadavre::%{_k}%::depuis} is set:
+            cancel the event
+            set {_wd} to za_dim(world of event-block)
+            execute console command "execute in %{_wd}% run particle minecraft:flame %floor(x-coordinate of location of event-block)% %floor(y-coordinate of location of event-block)% %floor(z-coordinate of location of event-block)% 0.4 0.4 0.4 0.02 40 force"
+            za_cadavre_retirer({_k})
+            send "&6Tu brules le corps. Les morts ne le sentiront plus." to player
+            if {za::sanite::%player's uuid%} is set:
+                add 2 to {za::sanite::%player's uuid%}
+
+# ---------- enterrer (n'importe quelle pelle) ----------
+on right click with iron shovel or stone shovel or wooden shovel or golden shovel or diamond shovel or netherite shovel:
+    if za_pro(player) is true:
+        stop
+    if event-block is bone block:
+        set {_k} to za_lkey(location of event-block)
+        if {za::cadavre::%{_k}%::depuis} is set:
+            cancel the event
+            za_cadavre_retirer({_k})
+            send "&7Tu enterres le corps. Repose en paix." to player
+            if {za::sanite::%player's uuid%} is set:
+                add 2 to {za::sanite::%player's uuid%}
+
+# ---------- casser le bloc = retirer le corps ----------
+on break:
+    if za_pro(player) is true:
+        stop
+    if event-block is bone block:
+        set {_k} to za_lkey(location of event-block)
+        if {za::cadavre::%{_k}%::depuis} is set:
+            remove {_k} from {za::cadavre::liste::*}
+            delete {za::cadavre::%{_k}%::*}
+
+# ---------- les corps attirent les morts / disparition au bout de {@duree_minutes} minutes ----------
+every 60 seconds:
+    loop {za::cadavre::liste::*}:
+        set {_k} to loop-value
+        set {_l} to {za::cadavre::%{_k}%::loc}
+        if difference between {za::cadavre::%{_k}%::depuis} and now is greater than {@duree_minutes} minutes:
+            za_cadavre_retirer({_k})
+        else:
+            set {_near} to false
+            loop all players:
+                if za_pro(loop-player) is false:
+                    if world of loop-player is world of {_l}:
+                        if distance between loop-player and {_l} < 80:
+                            set {_near} to true
+            if {_near} is true:
+                if chance of 40%:
+                    za_spawn_at({_l}, "ZA_Shambler", 6, 16)

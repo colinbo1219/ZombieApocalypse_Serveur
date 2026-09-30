@@ -1,0 +1,148 @@
+# =====================================================================
+#  ZombieApocalypse - VIRUS, SUITE : souches regionales, resistance, patient zero
+#  * Le monde est decoupe en regions de 512 x 512 blocs. Chaque region a sa souche (ou suit la souche mondiale) : incubation acceleree,
+#    resistante, hyperactive, contagion aerienne, agressive, vorace. /virus indique la souche de ta region.
+#  * Resistance : chaque cure reussie donne +1 de resistance (max 8) : -2 pourcent de chance d'infection par niveau,
+#    mais tu deviens plus souvent porteur sain (+3 pourcent par niveau).
+#  * Serum instable (dans le script d'infection) : 80 pourcent de reussite (90 pour un medecin), sinon l'infection s'aggrave.
+#  * Patient zero : rare, pendant 10 minutes un joueur devient tres contagieux (il brille, ses proches sont infectes). Le tuer rapporte 15 jetons.
+#  Admin : /evenement patientzero
+# =====================================================================
+
+function za_region_cle(l: location) :: text:
+    return "%world of {_l}%_%floor(x-coordinate of {_l} / 512)%_%floor(z-coordinate of {_l} / 512)%"
+
+function za_souche_id(p: player) :: text:
+    set {_k} to za_region_cle(location of {_p})
+    if {za::region::%{_k}%::souche} is not set:
+        add {_k} to {za::region::liste::*}
+        set {_ids::*} to "aucune", "incubation", "resistance", "hyperactive", "aerienne", "agressive", "vorace"
+        set {za::region::%{_k}%::souche} to random element out of {_ids::*}
+    set {_s} to {za::region::%{_k}%::souche}
+    if {_s} is "aucune":
+        if {za::virus::id} is set:
+            return {za::virus::id}
+        return "aucune"
+    return {_s}
+
+function za_param(id: text, nom: text) :: number:
+    if {_nom} is "vitesse":
+        if {_id} is "incubation":
+            return 0.6
+        return 1
+    if {_nom} is "fenetre":
+        if {_id} is "resistance":
+            return 4
+        return 10
+    if {_nom} is "bonus":
+        if {_id} is "vorace":
+            return 15
+        return 0
+    if {_nom} is "rayon":
+        if {_id} is "aerienne":
+            return 8
+        return 4
+    return 0
+
+function za_souche_nom(id: text) :: text:
+    if {_id} is "incubation":
+        return "incubation acceleree"
+    if {_id} is "resistance":
+        return "resistante"
+    if {_id} is "hyperactive":
+        return "hyperactive"
+    if {_id} is "aerienne":
+        return "contagion aerienne"
+    if {_id} is "agressive":
+        return "agressive"
+    if {_id} is "vorace":
+        return "vorace"
+    return "originelle"
+
+# a chaque mutation mondiale, la moitie des regions tirent une nouvelle souche
+function za_regions_muter():
+    set {_ids::*} to "aucune", "incubation", "resistance", "hyperactive", "aerienne", "agressive", "vorace"
+    loop {za::region::liste::*}:
+        if chance of 50%:
+            set {za::region::%loop-value%::souche} to random element out of {_ids::*}
+
+# ---------- resistance progressive ----------
+function za_resistance(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    if {za::resist::%{_u}%} is not set:
+        set {za::resist::%{_u}%} to 0
+    if {za::resist::%{_u}%} < 8:
+        add 1 to {za::resist::%{_u}%}
+        set {_n} to {za::resist::%{_u}%}
+        send "&aTon corps a survecu : resistance niveau %{_n}%. Moins de risque d'infection... mais tu portes plus souvent la maladie sans le savoir." to {_p}
+
+# ---------- patient zero ----------
+function za_patient_zero():
+    if {za::pz::actuel} is set:
+        stop
+    if size of za_monde_joueurs() < 2:
+        stop
+    set {_p} to random element out of za_monde_joueurs()
+    set {za::pz::actuel} to "%{_p}'s uuid%"
+    set {za::pz::fin} to now
+    add 10 minutes to {za::pz::fin}
+    send "&2&lTu es le PATIENT ZERO. &7Pendant 10 minutes tu es tres contagieux et tout le monde te voit. Survis... ou fais-toi tuer." to {_p}
+    za_effet({_p}, "strength", 600, 0)
+    za_effet({_p}, "speed", 600, 0)
+    za_journal("Un patient zero est apparu.")
+    za_diffuser("&2&lPATIENT ZERO &7L'un de vous est devenu tres contagieux. Il brille : ne le laissez pas s'approcher... ou tuez-le (15 jetons).")
+
+every 5 seconds:
+    if {za::pz::actuel} is set:
+        loop all players:
+            if za_pro(loop-player) is false:
+                if "%loop-player's uuid%" is {za::pz::actuel}:
+                    za_effet(loop-player, "glowing", 8, 0)
+                    execute console command "execute at %loop-player% run particle minecraft:sculk_soul ~ ~1 ~ 0.5 1 0.5 0.02 12 force"
+                    set {_pz} to loop-player
+                    set {_near::*} to all players in radius 6 around {_pz}
+                    loop {_near::*}:
+                        if loop-value-2 is not {_pz}:
+                            if chance of 40%:
+                                za_infecter(loop-value-2)
+                    if now is greater than {za::pz::fin}:
+                        delete {za::pz::actuel}
+                        delete {za::pz::fin}
+                        delete {za::infection::%{_pz}'s uuid%}
+                        za_jetons_ajouter({_pz}, 20)
+                        send "&aLa fievre retombe. Tu as survecu : 20 jetons." to {_pz}
+                        broadcast "&2Le patient zero a survecu. La contagion s'apaise."
+
+# nettoyage : si le patient zero s'est deconnecte, on ne bloque pas les prochains
+every 60 seconds:
+    if {za::pz::fin} is set:
+        if now is greater than ({za::pz::fin} + 5 minutes):
+            delete {za::pz::actuel}
+            delete {za::pz::fin}
+
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    if {za::pz::actuel} is "%victim's uuid%":
+        delete {za::pz::actuel}
+        delete {za::pz::fin}
+        if attacker is a player:
+            za_jetons_ajouter(attacker, 15)
+            send "&2Tu as abattu le patient zero : 15 jetons." to attacker
+            za_journal("%attacker% a abattu le patient zero.")
+        za_diffuser("&2Le patient zero est mort.")
+
+# ---------- regions : effets des souches hyperactive / agressive selon la region de chaque joueur ----------
+every 30 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_s} to za_souche_id(loop-player)
+            if {_s} is "hyperactive":
+                za_boost_zombies(loop-player, 50, "speed", 35, 0)
+            else if {_s} is "agressive":
+                za_boost_zombies(loop-player, 50, "strength", 35, 0)
+
+every 3 hours:
+    if size of za_monde_joueurs() is greater than 1:
+        if chance of 40%:
+            za_patient_zero()

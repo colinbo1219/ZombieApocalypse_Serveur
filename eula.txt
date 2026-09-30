@@ -1,0 +1,2 @@
+#Mets eula=true apres avoir lu et accepte le CLUF de Minecraft : https://aka.ms/MinecraftEULA
+eula=false

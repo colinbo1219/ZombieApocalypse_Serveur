@@ -1,0 +1,221 @@
+# =====================================================================
+#  ZombieApocalypse - CORE : fonctions partagees (charge en premier)
+#  Skript 2.9.5 - Arclight 1.20.1
+# =====================================================================
+
+on load:
+    if {za::eco::mult} is not set:
+        set {za::eco::mult} to 1
+    if {za::serveur::jours} is not set:
+        set {za::serveur::jours} to 0
+    # mode Tough As Nails actif par defaut (mod fourni) : /za tan off si le mod ne demarre pas
+    if {za::tan} is not set:
+        set {za::tan} to true
+
+# ---------- PROLOGUE : le monde "za_prologue" (Saint-Aurele, avant l'apocalypse) est hors du jeu de survie ----------
+# Les systemes du monde en ruine (faim, soif, infection, sante mentale, evenements, messages) ignorent les joueurs qui s'y trouvent.
+function za_pro(e: entity) :: boolean:
+    if "%world of {_e}%" is "za_prologue":
+        return true
+    return false
+
+# joueurs du monde de survie (tous sauf ceux du prologue)
+function za_monde_joueurs() :: players:
+    loop all players:
+        if "%world of loop-player%" is not "za_prologue":
+            add loop-player to {_l::*}
+    return {_l::*}
+
+# remplace "broadcast" : message a tous les joueurs du monde de survie (pas a ceux du prologue) + console
+function za_diffuser(m: text):
+    loop all players:
+        if "%world of loop-player%" is not "za_prologue":
+            send colored {_m} to loop-player
+    log "%uncolored {_m}%" to file "za_diffusion.log"
+
+# ---------- effets de potion via commande vanilla (plus fiable que la syntaxe Skript) ----------
+function za_effet(p: player, e: text, s: number, l: number):
+    execute console command "effect give %{_p}% minecraft:%{_e}% %{_s}% %{_l}% true"
+
+# ---------- dimension Minecraft d'un monde (pour "execute in ... run") ----------
+function za_dim(w: world) :: text:
+    set {_wn} to "%{_w}%"
+    if {_wn} contains "nether":
+        return "minecraft:the_nether"
+    if {_wn} contains "end":
+        return "minecraft:the_end"
+    return "minecraft:overworld"
+
+# ---------- decor d'abandon (toiles, fissures, taches, trous) sur une boite de coordonnees absolues ----------
+function za_decay(wd: text, x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, force: number):
+    loop {_force} times:
+        set {_dx} to random integer between {_x1} and {_x2}
+        set {_dy} to random integer between {_y1} and {_y2}
+        set {_dz} to random integer between {_z1} and {_z2}
+        set {_c} to random integer between 1 and 6
+        if {_c} is 1:
+            execute console command "execute in %{_wd}% run setblock %{_dx}% %{_dy}% %{_dz}% minecraft:cobweb"
+        else if {_c} is 2:
+            execute console command "execute in %{_wd}% run setblock %{_dx}% %{_dy}% %{_dz}% minecraft:cracked_stone_bricks"
+        else if {_c} is 3:
+            execute console command "execute in %{_wd}% run setblock %{_dx}% %{_dy}% %{_dz}% minecraft:red_terracotta"
+        else if {_c} is 4:
+            execute console command "execute in %{_wd}% run setblock %{_dx}% %{_dy}% %{_dz}% minecraft:air"
+        else if {_c} is 5:
+            execute console command "execute in %{_wd}% run setblock %{_dx}% %{_dy}% %{_dz}% minecraft:vine"
+        else:
+            execute console command "execute in %{_wd}% run setblock %{_dx}% %{_dy}% %{_dz}% minecraft:coarse_dirt"
+
+# ---------- fait apparaitre un mob MythicMobs autour d'un joueur ----------
+function za_spawn_near(p: player, t: text, dmin: number, dmax: number):
+    if za_pro({_p}) is true:
+        stop
+    if {za::calme::fin} is set:
+        if {za::calme::fin} is greater than now:
+            stop
+    if za_zone_morte(location of {_p}) is true:
+        stop
+    set {_l} to location of {_p}
+    set {_d} to random number between {_dmin} and {_dmax}
+    set {_a} to random number between 0 and 360
+    add ({_d} * cos({_a})) to x-coordinate of {_l}
+    add ({_d} * sin({_a})) to z-coordinate of {_l}
+    set {_b} to highest block at {_l}
+    set {_y} to (y-coordinate of (location of {_b})) + 1
+    execute console command "mm mobs spawn %{_t}% 1 %world of {_l}%,%floor(x-coordinate of {_l})%,%{_y}%,%floor(z-coordinate of {_l})%"
+
+# ---------- fait apparaitre un mob autour d'un point ----------
+function za_spawn_at(l: location, t: text, dmin: number, dmax: number):
+    if "%world of {_l}%" is "za_prologue":
+        stop
+    if za_zone_morte({_l}) is true:
+        stop
+    set {_l2} to {_l}
+    set {_d} to random number between {_dmin} and {_dmax}
+    set {_a} to random number between 0 and 360
+    add ({_d} * cos({_a})) to x-coordinate of {_l2}
+    add ({_d} * sin({_a})) to z-coordinate of {_l2}
+    set {_b} to highest block at {_l2}
+    set {_y} to (y-coordinate of (location of {_b})) + 1
+    execute console command "mm mobs spawn %{_t}% 1 %world of {_l2}%,%floor(x-coordinate of {_l2})%,%{_y}%,%floor(z-coordinate of {_l2})%"
+
+# ---------- cle de chunk ----------
+function za_ckey(l: location) :: text:
+    return "%world of {_l}%_%floor(x-coordinate of {_l} / 16)%_%floor(z-coordinate of {_l} / 16)%"
+
+# ---------- jetons de survie (solde virtuel) ----------
+function za_jetons(p: player) :: number:
+    if {za::jetons::%{_p}'s uuid%} is not set:
+        set {za::jetons::%{_p}'s uuid%} to 0
+    return {za::jetons::%{_p}'s uuid%}
+
+function za_audit(txt: text, montant: number):
+    log "%{_txt}%" to file "za_economie.log"
+    if {_montant} >= 200:
+        loop all players:
+            if loop-player has permission "za.admin":
+                send "&c[Audit] %{_txt}%" to loop-player
+
+function za_jetons_ajouter(p: player, n: number):
+    if {_n} >= 200:
+        za_audit("GAIN %{_p}% : %{_n}% jetons", {_n})
+    if {za::jetons::%{_p}'s uuid%} is not set:
+        set {za::jetons::%{_p}'s uuid%} to 0
+    add {_n} to {za::jetons::%{_p}'s uuid%}
+    if {za::jetons::%{_p}'s uuid%} < 0:
+        set {za::jetons::%{_p}'s uuid%} to 0
+
+# ---------- score / rang de survie ----------
+function za_score(p: player) :: number:
+    set {_u} to "%{_p}'s uuid%"
+    if {za::jours::%{_u}%} is not set:
+        set {za::jours::%{_u}%} to 0
+    if {za::kills::%{_u}%} is not set:
+        set {za::kills::%{_u}%} to 0
+    if {za::quetes::%{_u}%} is not set:
+        set {za::quetes::%{_u}%} to 0
+    return ({za::jours::%{_u}%} * 3) + floor({za::kills::%{_u}%} / 10) + ({za::quetes::%{_u}%} * 5)
+
+function za_rang(p: player) :: text:
+    set {_s} to za_score({_p})
+    if {_s} >= 500:
+        return "Mythe"
+    if {_s} >= 200:
+        return "Legende"
+    if {_s} >= 80:
+        return "Veteran"
+    if {_s} >= 25:
+        return "Survivant"
+    return "Rodeur"
+
+function za_remise(p: player) :: number:
+    set {_s} to za_score({_p})
+    if {_s} >= 500:
+        return 0.20
+    if {_s} >= 200:
+        return 0.15
+    if {_s} >= 80:
+        return 0.10
+    if {_s} >= 25:
+        return 0.05
+    return 0
+
+# prix final = base x multiplicateur economique x (1 - remise de rang), arrondi au-dessus
+function za_prix(p: player, base: number) :: number:
+    set {_sp} to {za::saison::prix}
+    if {_sp} is not set:
+        set {_sp} to 1
+    return ceil({_base} * {za::eco::mult} * {_sp} * (1 - za_remise({_p})))
+
+# ---------- compter / retirer des objets par nom ----------
+function za_count_named(p: player, nom: text) :: number:
+    set {_c} to 0
+    loop all items in inventory of {_p}:
+        if uncolored name of loop-item is {_nom}:
+            add item amount of loop-item to {_c}
+    return {_c}
+
+function za_take_named(p: player, nom: text, n: number) :: boolean:
+    if za_count_named({_p}, {_nom}) < {_n}:
+        return false
+    set {_left} to {_n}
+    loop all items in inventory of {_p}:
+        if {_left} > 0:
+            if uncolored name of loop-item is {_nom}:
+                set {_take} to min({_left}, item amount of loop-item)
+                remove {_take} of loop-item from inventory of {_p}
+                remove {_take} from {_left}
+    return true
+
+# ---------- fabrique un objet nomme ----------
+function za_item(mat: text, nom: text, col: text, qte: number) :: itemtype:
+    set {_it} to ({_mat} parsed as itemtype)
+    set name of {_it} to "%{_col}%%{_nom}%"
+    return {_qte} of {_it}
+
+# ---------- outils admin ----------
+command /za <text> [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "etat":
+            send "&7Jours serveur: %{za::serveur::jours}% | multiplicateur eco: %{za::eco::mult}%" to sender
+            send "&7Blood Moon: %{za::evt::bloodmoon}% | Migration: %{za::migr::actif}% | Boss vivant: %{za::boss::vivant}%" to sender
+            send "&7Joueurs: %size of all players%" to sender
+        else if arg-1 is "tan":
+            if arg-2 is "on":
+                set {za::tan} to true
+                execute console command "sk reload za_p7_economie"
+                send "&aMode Tough As Nails actif : la soif et la temperature de Skript sont coupees." to sender
+            else if arg-2 is "off":
+                set {za::tan} to false
+                execute console command "sk reload za_p7_economie"
+                send "&aMode Tough As Nails coupe : la soif et la temperature de Skript sont actives." to sender
+            else:
+                send "&cUsage: /za tan <on|off>  (on = tu as installe Tough As Nails, off = sans le mod)" to sender
+        else if arg-1 is "usines":
+            send "&7Machines detectees (Create / Immersive Engineering / ...): %size of {za::usines::liste::*}%" to sender
+        else if arg-1 is "reset-eco":
+            set {za::eco::mult} to 1
+            send "&aEconomie reinitialisee." to sender
+        else:
+            send "&cUsage: /za <etat|tan|usines|reset-eco>" to sender

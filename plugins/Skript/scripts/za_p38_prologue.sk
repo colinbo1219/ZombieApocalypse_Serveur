@@ -1,0 +1,1329 @@
+# =====================================================================
+#  ZombieApocalypse - PROLOGUE : SAINT-AURÈLE, JOUR 0 → JOUR 8
+#  « Avant de survivre à l'apocalypse, vous l'avez vécue. »
+#
+#  Chaque nouveau joueur vit, seul (instance privée), les 8 jours qui précèdent l'apocalypse dans la ville de Saint-Aurèle
+#  (monde « za_prologue », construit par le plugin ZAMonde) : une journée normale, les premiers signaux, la quarantaine,
+#  le premier incident, le premier mort qui se relève, l'effondrement, le blackout. Puis il se réveille au JOUR 8 dans la
+#  ville en ruine (monde principal), près de l'autobus d'évacuation écrasé.  Durée : ~25 minutes.  Sautable : /prologue passer
+#
+#  Tout le décor par joueur (PNJ, zombies, véhicules, clôtures, feux, lumières, heure, météo) passe par /zamonde (plugin ZAMonde).
+#  Admin : /prologue lancer <joueur> | fin <joueur> | chapitre <joueur> <j0|j1|j3|j5|j7|blackout> | etat | reinit <joueur>
+#  Les anciens joueurs (intro déjà vue) ne sont PAS forcés : ils peuvent le vivre avec /prologue.
+# =====================================================================
+
+options:
+    # heures (ticks Minecraft : 0 = 6 h 00)
+    h_j0: 2233
+    h_j1: 10667
+    h_j3: 15083
+    h_j5: 833
+    h_j7: 13500
+    h_blackout: 18200
+
+# ---------------------------------------------------------------- outils
+
+function za_us(t: text) :: text:
+    set {_r} to {_t}
+    replace all " " with "_" in {_r}
+    return {_r}
+
+function za_zm(c: text):
+    execute console command "zamonde %{_c}%"
+
+function za_pro_ok(p: player, run: number) :: boolean:
+    if {_p} is not online:
+        return false
+    if za_pro({_p}) is false:
+        return false
+    if {za::pro::run::%{_p}'s uuid%} is not {_run}:
+        return false
+    return true
+
+# réplique d'un personnage (chat) + voix attachée à son entité si fournie
+function za_pro_dit(p: player, qui: text, texte: text):
+    send "&e%{_qui}% &8» &f%{_texte}%" to {_p}
+
+function za_pro_voix(p: player, cle: text, entite: text):
+    if {_entite} is "":
+        za_zm("son %{_p}% za_modeles:voix.%{_cle}% 1 1")
+    else:
+        za_zm("son %{_p}% za_modeles:voix.%{_cle}% 1.2 1 entite:%{_entite}%")
+
+function za_pro_radio(p: player, cle: text, texte: text):
+    za_zm("son %{_p}% za_modeles:voix.%{_cle}% 0.9 1")
+    send "&8[&3♫ CKZA 98,5&8] &bLéa &8» &7%{_texte}%" to {_p}
+    set {za::pro::radio::%{_p}'s uuid%} to "%{_cle}%|%{_texte}%"
+
+function za_pro_sms(p: player, de: text, texte: text):
+    za_zm("son %{_p}% za_modeles:sfx.texto 1 1")
+    send "&8[&a☎ %{_de}%&8] &f%{_texte}%" to {_p}
+
+function za_pro_sfx(p: player, cle: text, vol: number):
+    za_zm("son %{_p}% za_modeles:sfx.%{_cle}% %{_vol}% 1")
+
+function za_pro_sfx_a(p: player, cle: text, vol: number, lieu: text):
+    set {_l} to za_lieu({_lieu})
+    za_zm("son %{_p}% za_modeles:sfx.%{_cle}% %{_vol}% 1 %x-coordinate of {_l}%,%y-coordinate of {_l}%,%z-coordinate of {_l}%")
+
+function za_pro_obj(p: player, texte: text, lieu: text):
+    za_zm("objectif %{_p}% %za_us({_texte})% %{_lieu}%")
+    send "&6➜ &e%{_texte}%" to {_p}
+    za_zm("son %{_p}% minecraft:block.note_block.chime 0.6 1.2")
+
+function za_pro_carte(p: player, titre: text, sous: text, secondes: number):
+    za_zm("noir-texte %{_p}% 20 %{_secondes} * 20% 20 %za_us({_titre})% %za_us({_sous})%")
+
+function za_pro_pnj(p: player, id: text, lieu: text, nom: text, mode: text):
+    set {_l} to za_lieu({_lieu})
+    za_zm("pnj %{_p}% %{_id}% villager %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% %yaw of {_l}% %za_us({_nom})% %{_mode}%")
+
+function za_pro_zpnj(p: player, id: text, lieu: text, nom: text):
+    set {_l} to za_lieu({_lieu})
+    za_zm("pnj %{_p}% %{_id}% zombie_villager %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% %yaw of {_l}% %za_us({_nom})% ia")
+
+function za_pro_mm(p: player, id: text, type: text, lieu: text):
+    set {_l} to za_lieu({_lieu})
+    za_zm("mm %{_p}% %{_id}% %{_type}% %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% %yaw of {_l}%")
+
+# retire toutes les entités privées du joueur (PNJ, zombies) et ses véhicules
+function za_pro_vider(p: player):
+    za_zm("retirer %{_p}% tout")
+    set {_u} to "%{_p}'s uuid%"
+    loop {za::pro::props::%{_u}%::*}:
+        za_zm("prop-retirer %loop-value%")
+    delete {za::pro::props::%{_u}%::*}
+
+function za_pro_vehicule(p: player, id: text, modele: text, chemin: text, vitesse: number, son: text, boucle: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {_pid} to "%{_id}%_%{_p}%"
+    add {_pid} to {za::pro::props::%{_u}%::*}
+    za_zm("vehicule %{_p}% %{_pid}% %{_modele}% %{_chemin}% %{_vitesse}% %{_son}% %{_boucle}%")
+
+# citoyens qui déambulent (villageois privés, peau choisie au hasard par le pack)
+function za_pro_foule(p: player, n: number):
+    set {_noms::*} to "Sylvie", "Benoît", "Mathieu", "Chloé", "Martin", "Nathalie", "Karine", "Olivier", "Mélanie", "Denis", "Émilie", "Jonathan"
+    loop {_n} times:
+        set {_i} to loop-number
+        za_pro_pnj({_p}, "passant%{_i}%", "passant%{_i}%", {_noms::%{_i}%}, "ia")
+
+# ---------------------------------------------------------------- départ
+
+function za_pro_lancer(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    add 1 to {za::pro::run::%{_u}%}
+    set {_run} to {za::pro::run::%{_u}%}
+    # sac de départ mis de côté (joueur qui refait le prologue)
+    if {za::pro::retour::%{_u}%} is not set:
+        if za_pro({_p}) is false:
+            set {za::pro::retour::%{_u}%} to location of {_p}
+    delete {za::pro::sac::%{_u}%::*}
+    loop all items in inventory of {_p}:
+        add loop-item to {za::pro::sac::%{_u}%::*}
+    clear {_p}'s inventory
+    if world("za_prologue") is not set:
+        # monde du prologue indisponible (plugin ZAMonde absent ?) : on passe directement à la survie
+        set {za::pro::etat::%{_u}%} to "fini"
+        za_intro_survie({_p})
+        stop
+    set {za::pro::etat::%{_u}%} to "j0"
+    za_zm("noir %{_p}% 0 120 0")
+    wait 1 second
+    if {_p} is not online:
+        stop
+    za_zm("tp %{_p}% reveil")
+    set {_p}'s gamemode to adventure
+    heal {_p}
+    set {_p}'s food level to 10
+    za_zm("isoler %{_p}% on")
+    za_zm("calques-reset %{_p}%")
+    za_zm("temps %{_p}% {@h_j0}")
+    za_zm("meteo %{_p}% clair")
+    execute console command "effect clear %{_p}%"
+    za_pro_j0({_p}, {_run})
+
+# ---------------------------------------------------------------- JOUR 0 : une journée ordinaire
+
+function za_pro_j0(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::pro::etat::%{_u}%} to "j0"
+    set {za::pro::cp::%{_u}%} to "reveil"
+    delete {za::pro::attend::%{_u}%}
+    za_pro_vider({_p})
+    wait 1 second
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("noir-texte %{_p}% 0 110 30 @logo Avant_de_survivre_à_l'apocalypse,_vous_l'avez_vécue.")
+    za_zm("son %{_p}% za_modeles:musique.journee_ordinaire 0.55 1")
+    wait 4 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("camera %{_p}% camera_intro reveil")
+    # PNJ du jour 0 (pendant le survol)
+    za_pro_foule({_p}, 12)
+    za_pro_pnj({_p}, "ginette", "depanneur_comptoir", "Ginette", "fige")
+    za_pro_pnj({_p}, "rita", "rita_comptoir", "Rita", "fige")
+    za_pro_pnj({_p}, "lefort", "hopital_accueil", "Dr Lefort", "fige")
+    za_pro_pnj({_p}, "cote", "hopital_pharmacien", "Infirmière Côté", "fige")
+    za_pro_pnj({_p}, "infirmiere", "hopital_infirmiere", "Infirmière Leblanc", "ia")
+    za_pro_pnj({_p}, "arel", "cafe_comptoir", "Samuel Arel", "fige")
+    za_pro_pnj({_p}, "roy", "police_entree", "Agent Roy", "ia")
+    set {za::pro::amb::%{_u}%} to "ville_jour"
+    wait 11 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("titre %{_p}% 20 60 30 &f08:14 &7Une_journée_ordinaire.")
+    give {_p} 1 clock named "&fTéléphone" with lore "&7Maman, Léa, les nouvelles." and "&8Un vieux cellulaire à l'écran fendu."
+    give {_p} 1 paper named "&fPhoto de famille" with lore "&7Toi et Maman, au chalet de Saint-Donat." and "&8L'été où tout allait bien."
+    give {_p} 2 water bottle named "&fBouteille d'eau"
+    wait 6 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_sms({_p}, "Maman", "Tu peux passer au dépanneur avant de rentrer? Du lait pis du pain. Bisous ❤")
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    send "&8&o(La radio de ton appartement joue doucement. Clic droit dessus pour l'écouter.)" to {_p}
+    za_pro_obj({_p}, "Passe au dépanneur Chez Ginette", "depanneur_client")
+    set {za::pro::attend::%{_u}%} to "depanneur"
+    wait 20 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    # si le joueur n'a pas encore écouté la radio, elle se fait entendre quand même
+    if {za::pro::radio::%{_u}%} is not set:
+        za_pro_radio({_p}, "radio_j0_meteo", "Bon matin Saint-Aurèle! Ici Léa, au Réveil CKZA. Ciel dégagé, dix-huit degrés. Une belle journée qui commence.")
+
+function za_pro_j0_depanneur(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::pro::attend::%{_u}%} to "occupe"
+    za_zm("objectif %{_p}% off")
+    za_zm("regarder %{_p}% ginette %{_p}%")
+    za_pro_dit({_p}, "Ginette", "Tiens, bonjour mon grand! Comme d'habitude? Du lait pis du pain pour ta mère?")
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_dit({_p}, "Toi", "Oui, merci Ginette.")
+    wait 2 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("animer %{_p}% ginette bras")
+    give {_p} 1 milk bucket named "&fLait 2%%"
+    give {_p} 2 bread named "&fPain tranché"
+    za_pro_dit({_p}, "Ginette", "C'est sur moi aujourd'hui. Mon neveu travaille à l'hôpital, y dit qu'y a une grosse grippe qui court. Fais attention à toi.")
+    wait 5 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_dit({_p}, "Ginette", "Pis passe donc prendre les pilules de ta grand-mère à la pharmacie de l'hôpital, sont prêtes depuis hier.")
+    give {_p} 1 paper named "&fBillet de 20 $" with lore "&7Tes économies de la semaine."
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_obj({_p}, "Va chercher les médicaments de grand-maman (pharmacie de l'hôpital)", "hopital_pharmacie")
+    set {za::pro::attend::%{_u}%} to "hopital0"
+    wait 25 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_radio({_p}, "radio_j0_trafic", "Côté circulation, petit ralentissement sur la rue Principale : une ambulance est sur les lieux d'un accrochage. Rien de grave.")
+
+function za_pro_j0_hopital(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::pro::attend::%{_u}%} to "pharmacie"
+    za_zm("suivre-regard %{_p}% lefort on")
+    za_pro_voix({_p}, "lefort_j0", "lefort")
+    za_pro_dit({_p}, "Dr Lefort", "Excusez-moi, c'est la folie aujourd'hui. Plusieurs patients avec une fièvre inhabituelle... Je n'ai jamais vu ça.")
+    wait 9 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("animer %{_p}% infirmiere tousse")
+    wait 4 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("suivre-regard %{_p}% lefort off")
+
+function za_pro_j0_pharmacie(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::pro::attend::%{_u}%} to "occupe"
+    za_zm("objectif %{_p}% off")
+    za_zm("regarder %{_p}% cote %{_p}%")
+    za_pro_dit({_p}, "Infirmière Côté", "Pour ta grand-mère? Voilà. Une fois par jour, avec de l'eau. Excuse-moi, on est débordés.")
+    give {_p} 1 paper named "&fMédicaments de grand-maman" with lore "&7Un pilulier. « Thérèse — 1 fois par jour »."
+    wait 4 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_obj({_p}, "Rentre à la maison (appartement 2A)", "porte_2A")
+    set {za::pro::attend::%{_u}%} to "maison0"
+    wait 30 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_radio({_p}, "radio_j0_infos", "Aux nouvelles : l'hôpital Saint-Aurèle signale une hausse des consultations pour une forte fièvre. On vous rappelle de bien vous laver les mains.")
+
+# ---------------------------------------------------------------- JOUR 1 : les premiers signaux
+
+function za_pro_j1(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::pro::etat::%{_u}%} to "j1"
+    set {za::pro::cp::%{_u}%} to "reveil"
+    set {za::pro::attend::%{_u}%} to "occupe"
+    za_zm("objectif %{_p}% off")
+    za_pro_carte({_p}, "JOUR 1", "16:40 — Les premiers signaux", 4)
+    wait 1 second
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_vider({_p})
+    za_zm("tp %{_p}% reveil")
+    za_zm("temps %{_p}% {@h_j1}")
+    za_zm("calque %{_p}% depanneur_ferme on")
+    za_pro_foule({_p}, 7)
+    za_pro_pnj({_p}, "roy", "hopital_entree", "Agent Roy", "fige")
+    za_pro_pnj({_p}, "lefort", "hopital_infirmiere_ext", "Dr Lefort", "fige")
+    loop 8 times:
+        za_pro_pnj({_p}, "patient%loop-number%", "hopital_lit%loop-number%", "Patient %loop-number%", "dort")
+    set {za::pro::amb::%{_u}%} to "ville_jour"
+    wait 5 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_radio({_p}, "radio_j1_cas", "Mise à jour : une trentaine de patients sont hospitalisés pour une fièvre d'origine inconnue. La santé publique demande de ne pas se présenter aux urgences sans raison.")
+    wait 11 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    # une ambulance passe devant la fenêtre, sirène hurlante
+    za_pro_vehicule({_p}, "ambulance", "ambulance", "chemin_ambulance", 11, "za_modeles:sfx.sirene_ambulance", 160)
+    send "&8&o(Une sirène approche...)" to {_p}
+    wait 8 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    loop 3 times:
+        za_zm("animer %{_p}% passant%loop-number% tousse")
+    za_pro_obj({_p}, "Va voir ce qui se passe à l'hôpital", "hopital_entree")
+    set {za::pro::attend::%{_u}%} to "hopital1"
+    wait 30 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_radio({_p}, "radio_j1_rassemblements", "Les autorités recommandent d'éviter les rassemblements, jusqu'à nouvel ordre.")
+    wait 20 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_sfx({_p}, "sirene_civile", 0.7)
+
+function za_pro_j1_hopital(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::pro::attend::%{_u}%} to "occupe"
+    za_zm("objectif %{_p}% off")
+    za_zm("regarder %{_p}% roy %{_p}%")
+    za_pro_voix({_p}, "police_personne", "roy")
+    za_pro_dit({_p}, "Agent Roy", "Personne ne rentre! Reculez!")
+    wait 4 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("regarder %{_p}% lefort %{_p}%")
+    za_pro_voix({_p}, "lefort_j1", "lefort")
+    za_pro_dit({_p}, "Dr Lefort", "On ne sait toujours pas ce qu'ils ont. Rentrez chez vous. Lavez-vous les mains.")
+    wait 7 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    send "&8&o(Par les fenêtres, tu vois des lits partout. Tous occupés.)" to {_p}
+    loop 4 times:
+        za_zm("animer %{_p}% patient%loop-number% tousse")
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    # CHOIX 1 : aider l'hôpital ou rentrer avec les civils
+    za_pro_choix_ouvrir({_p}, "j1")
+
+function za_pro_j1_aide(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::choix::%{_u}%::hopital} to "aide"
+    set {za::pro::attend::%{_u}%} to "occupe"
+    za_zm("regarder %{_p}% lefort %{_p}%")
+    za_pro_dit({_p}, "Dr Lefort", "Vraiment? ... Merci. Ces caisses de soluté vont à la pharmacie, au fond. Ne touche à rien d'autre.")
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("regarder %{_p}% roy %{_p}%")
+    za_pro_dit({_p}, "Agent Roy", "Doc, personne ne rentre!")
+    wait 2 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_dit({_p}, "Dr Lefort", "Laissez-le passer, Roy. Il m'aide. Moi, j'ai deux bras et quarante patients.")
+    give {_p} 1 barrel named "&fCaisse de soluté" with lore "&7Chlorure de sodium 0,9 %%. Douze sacs." and "&8Pour la pharmacie de l'hôpital."
+    za_pro_obj({_p}, "Porte la caisse de soluté à la pharmacie", "hopital_pharmacie")
+    set {za::pro::attend::%{_u}%} to "aide_pharmacie"
+
+function za_pro_j1_aide_fin(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::pro::attend::%{_u}%} to "occupe"
+    za_zm("objectif %{_p}% off")
+    remove all barrel named "&fCaisse de soluté" from {_p}'s inventory
+    za_pro_sfx({_p}, "porte_grince", 0.5)
+    send "&8&o(Tu déposes la caisse. Une infirmière aux yeux rougis te remercie d'un signe de tête. Son badge : LEBLANC.)" to {_p}
+    wait 4 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_dit({_p}, "Dr Lefort", "Tu as fait plus que bien des gens aujourd'hui. Rentre, maintenant. Et lave-toi les mains.")
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_obj({_p}, "Rentre à la maison", "porte_2A")
+    set {za::pro::attend::%{_u}%} to "maison1"
+
+function za_pro_j1_fui(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::choix::%{_u}%::hopital} to "fui"
+    set {za::pro::attend::%{_u}%} to "occupe"
+    send "&8&o(Tu rentres avec les autres. Derrière toi, le Dr Lefort pousse seul un chariot de caisses vers l'entrée.)" to {_p}
+    wait 2 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_obj({_p}, "Rentre à la maison", "porte_2A")
+    set {za::pro::attend::%{_u}%} to "maison1"
+
+# ---------------------------------------------------------------- JOUR 3 : quarantaine (le premier incident)
+
+function za_pro_j3(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::pro::etat::%{_u}%} to "j3"
+    set {za::pro::cp::%{_u}%} to "passant6"
+    set {za::pro::attend::%{_u}%} to "occupe"
+    za_zm("objectif %{_p}% off")
+    za_pro_carte({_p}, "JOUR 3", "21:05 — Quarantaine", 4)
+    wait 1 second
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_vider({_p})
+    za_zm("tp %{_p}% passant6")
+    za_zm("temps %{_p}% {@h_j3}")
+    za_zm("calque %{_p}% depanneur_ferme on")
+    za_zm("calque %{_p}% quarantaine on")
+    za_zm("clignoter %{_p}% gyro_a gyro_b 8 -1")
+    za_pro_foule({_p}, 3)
+    za_pro_pnj({_p}, "roy", "hopital_barriere", "Agent Roy", "fige")
+    za_pro_pnj({_p}, "pelletier", "hopital_entree", "Agente Pelletier", "fige")
+    za_pro_pnj({_p}, "infirmiere", "hopital_cour_incident", "Infirmière Leblanc", "fige")
+    set {za::pro::amb::%{_u}%} to "ville_nuit_crise"
+    wait 4 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    send "&8&o(Tu descends du dernier autobus. La rue est presque vide.)" to {_p}
+    wait 2 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    # alerte d'urgence sur le cellulaire
+    za_pro_sfx({_p}, "alerte_urgence", 1)
+    za_zm("titre %{_p}% 5 80 20 &4&lALERTE_D'URGENCE &cOrdre_de_confinement_—_Saint-Aurèle")
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_voix({_p}, "alerte_urgence", "")
+    send "&4[☎ ALERTE] &cOrdre de confinement pour la région de Saint-Aurèle. Restez à l'intérieur." to {_p}
+    wait 7 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_obj({_p}, "Rentre à la maison avant le couvre-feu", "porte_2A")
+    set {za::pro::attend::%{_u}%} to "incident"
+    za_pro_radio({_p}, "radio_j3_couvrefeu", "Un couvre-feu est en vigueur à partir de vingt heures. Restez chez vous. Je répète : restez chez vous.")
+
+function za_pro_j3_incident(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::pro::attend::%{_u}%} to "occupe"
+    # le patient (Samuel Arel, qu'on a vu tousser au café le jour 0...) sort en courant de l'urgence
+    za_zm("pnj %{_p}% arel villager 100.5 64 62.5 -90 Patient_Arel fige")
+    za_pro_sfx_a({_p}, "verre", 2, "hopital_entree")
+    za_zm("calque %{_p}% incident on")
+    wait 1 second
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_sfx_a({_p}, "cri_foule", 1, "hopital_entree")
+    za_zm("regarder %{_p}% infirmiere 100.5 65 62.5")
+    za_zm("marcher %{_p}% arel 6 chemin_patient")
+    wait 2 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("animer %{_p}% arel bras")
+    za_zm("animer %{_p}% infirmiere degat")
+    execute console command "execute in minecraft:za_prologue run playsound minecraft:entity.player.hurt neutral %{_p}% 118 65 60 1 1.3"
+    # CHOIX 2 : courir aider l'infirmière... ou reculer comme la police l'ordonne (7 secondes)
+    za_zm("titre %{_p}% 0 70 10 &c&lELLE_EST_BLESSÉE &7Aide-la..._ou_recule.")
+    za_pro_sfx({_p}, "coeur_rapide", 0.8)
+    set {_sauvee} to false
+    set {_i} to 0
+    while {_i} < 7:
+        wait 1 second
+        if za_pro_ok({_p}, {_run}) is false:
+            stop
+        add 1 to {_i}
+        if za_dist({_p}, "hopital_cour_incident") < 4:
+            set {_sauvee} to true
+            set {_i} to 99
+        else if {_i} is 1:
+            za_pro_voix({_p}, "police_reculez", "roy")
+            za_pro_dit({_p}, "Agent Roy", "Reculez! Reculez! Arrêtez-vous!")
+        else if {_i} is 3:
+            za_zm("animer %{_p}% arel bras")
+            za_zm("animer %{_p}% infirmiere degat")
+        else if {_i} is 5:
+            za_zm("animer %{_p}% arel bras")
+    if {_sauvee} is true:
+        set {za::choix::%{_u}%::leblanc} to "sauvee"
+        za_zm("animer %{_p}% roy bras")
+        za_pro_sfx_a({_p}, "coup_de_feu", 2, "hopital_barriere")
+        wait 1 second
+        if za_pro_ok({_p}, {_run}) is false:
+            stop
+        za_zm("animer %{_p}% arel mort")
+        za_zm("regarder %{_p}% infirmiere %{_p}%")
+        send "&8&o(Tu la tires en arrière par le bras. Elle s'accroche à ta veste.)" to {_p}
+        wait 2 seconds
+        if za_pro_ok({_p}, {_run}) is false:
+            stop
+        za_pro_dit({_p}, "Infirmière Leblanc", "Il... il a voulu me mordre. Tu m'as tirée de là à temps. Leblanc. Je m'appelle Leblanc.")
+        wait 4 seconds
+        if za_pro_ok({_p}, {_run}) is false:
+            stop
+        za_pro_dit({_p}, "Agente Pelletier", "Toi! Recule! ... Non, attends. Reste avec elle. L'ambulance arrive.")
+    else:
+        set {za::choix::%{_u}%::leblanc} to "perdue"
+        za_zm("animer %{_p}% infirmiere mort")
+        za_zm("animer %{_p}% arel bras")
+        wait 1 second
+        if za_pro_ok({_p}, {_run}) is false:
+            stop
+        za_zm("animer %{_p}% roy bras")
+        za_pro_sfx_a({_p}, "coup_de_feu", 2, "hopital_barriere")
+        wait 1 second
+        if za_pro_ok({_p}, {_run}) is false:
+            stop
+        za_zm("animer %{_p}% arel mort")
+    wait 2 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_sfx_a({_p}, "acouphene", 0.8, "hopital_barriere")
+    send "&8&oQuelque chose d'anormal vient de se passer." to {_p}
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("regarder %{_p}% pelletier %{_p}%")
+    if {_sauvee} is true:
+        za_pro_dit({_p}, "Agente Pelletier", "Les ambulanciers la prennent. Toi, rentre chez vous. MAINTENANT.")
+    else:
+        za_pro_dit({_p}, "Agente Pelletier", "Circulez! Rentrez chez vous, MAINTENANT!")
+    wait 2 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_vehicule({_p}, "ambulance", "ambulance", "chemin_ambulance", 12, "za_modeles:sfx.sirene_ambulance", 160)
+    za_pro_obj({_p}, "Rentre à la maison", "porte_2A")
+    set {za::pro::attend::%{_u}%} to "maison3"
+    wait 12 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    if {_sauvee} is true:
+        za_zm("retirer %{_p}% infirmiere")
+        send "&8&o(L'ambulance emporte l'infirmière Leblanc. Par la vitre arrière, elle te fait un petit signe.)" to {_p}
+    za_pro_radio({_p}, "radio_j3_contradiction", "Le ministre affirme qu'il n'y a aucune raison de paniquer. Pourtant, des témoins rapportent des comportements violents près de l'hôpital. Je... je lis ce qu'on me donne.")
+
+# ---------------------------------------------------------------- JOUR 5 : le premier mort
+
+function za_pro_j5(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::pro::etat::%{_u}%} to "j5"
+    set {za::pro::cp::%{_u}%} to "reveil"
+    set {za::pro::attend::%{_u}%} to "occupe"
+    za_zm("objectif %{_p}% off")
+    za_pro_carte({_p}, "JOUR 5", "06:50 — Le premier mort", 4)
+    wait 1 second
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_vider({_p})
+    za_zm("tp %{_p}% reveil")
+    za_zm("temps %{_p}% {@h_j5}")
+    za_zm("meteo %{_p}% pluie")
+    za_zm("clignoter %{_p}% stop")
+    za_zm("calque %{_p}% depanneur_ferme on")
+    za_zm("calque %{_p}% quarantaine on")
+    za_zm("calque %{_p}% incident on")
+    za_zm("clignoter %{_p}% gyro_a gyro_b 10 -1")
+    delete {za::pro::amb::%{_u}%}
+    za_pro_pnj({_p}, "gagnon", "lit_2B", "Mme Gagnon", "dort")
+    wait 5 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_radio({_p}, "radio_j5_urgence", "Si vous m'entendez... ne laissez entrer personne. Même quelqu'un que vous connaissez. Surtout quelqu'un que vous connaissez.")
+    wait 9 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_sms({_p}, "Maman", "Ça va? Réponds-moi. Sors pas. Je t'aime.")
+    wait 4 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    send "&8&o(Mme Gagnon, la voisine du 2B, n'a pas répondu hier. Elle vit seule. Elle a 78 ans.)" to {_p}
+    za_pro_obj({_p}, "Va voir Mme Gagnon (appartement 2B)", "lit_2B")
+    set {za::pro::attend::%{_u}%} to "gagnon"
+
+function za_pro_j5_gagnon(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::pro::attend::%{_u}%} to "occupe"
+    za_zm("objectif %{_p}% off")
+    za_zm("stopson %{_p}%")
+    wait 2 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_voix({_p}, "gagnon_froid", "gagnon")
+    za_pro_dit({_p}, "Mme Gagnon", "J'ai tellement froid... Reste avec moi, veux-tu?")
+    wait 6 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("animer %{_p}% gagnon tousse")
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("animer %{_p}% gagnon tousse")
+    send "&8&oSa respiration ralentit..." to {_p}
+    wait 4 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("animer %{_p}% gagnon mort")
+    send "&8&oElle ne respire plus." to {_p}
+    # silence. Long. Trop long.
+    wait 9 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_sfx({_p}, "coeur", 0.8)
+    wait 4 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    execute console command "effect give %{_p}% minecraft:blindness 1 0 true"
+    za_zm("retirer %{_p}% gagnon")
+    za_pro_mm({_p}, "gagnon", "ZA_Gagnon", "gagnon_debout")
+    za_pro_sfx({_p}, "sting_danger", 1)
+    za_zm("regarder %{_p}% gagnon %{_p}%")
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("titre %{_p}% 5 70 25 &4TU_N'ES_PLUS_EN_SÉCURITÉ.")
+    send "&c&oDéfends-toi. Ton vieux bâton de baseball est dans ta main." to {_p}
+    za_pro_sfx({_p}, "coeur_rapide", 0.8)
+    if {_p} does not have wooden sword named "&fBâton de baseball":
+        give {_p} 1 wooden sword named "&fBâton de baseball" with lore "&7Souvenir de la ligue de balle." and "&8Il n'a jamais servi à ça."
+    set {za::pro::attend::%{_u}%} to "gagnon_combat"
+    set {za::pro::combat::%{_u}%} to now
+
+function za_pro_j5_apres(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::pro::attend::%{_u}%} to "occupe"
+    za_zm("stopson %{_p}%")
+    send "&8&oMme Gagnon ne se relèvera plus. Tes mains tremblent." to {_p}
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    # CHOIX 3 : appeler Théo, son petit-fils... ou prendre ses provisions
+    za_pro_sfx({_p}, "cri_foule", 0.5)
+    send "&8&o(Dans l'escalier, quelqu'un hurle. Des pas qui courent. Tu n'as le temps que pour une chose.)" to {_p}
+    wait 2 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_choix_ouvrir({_p}, "j5")
+
+function za_pro_j5_theo(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::choix::%{_u}%::theo} to "appele"
+    set {za::pro::attend::%{_u}%} to "occupe"
+    loop 3 times:
+        execute console command "execute as %{_p}% at @s run playsound minecraft:block.note_block.bit master @s ~ ~ ~ 0.6 1.6"
+        wait 1 second
+        if za_pro_ok({_p}, {_run}) is false:
+            stop
+    za_pro_dit({_p}, "Théo (au téléphone)", "Allô? ... Mamie? C'est toi?")
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    send "&8&o(Tu lui dis de fermer la porte à clé. De ne pas ouvrir à personne. D'aller vers le nord, vers le lac, quand ce sera calme.)" to {_p}
+    wait 5 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_dit({_p}, "Théo (au téléphone)", "Mamie va bien? ... Allô? Pourquoi tu dis rien?")
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    send "&8&o(Tu raccroches. Tu n'as pas pu lui dire.)" to {_p}
+    wait 2 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_obj({_p}, "Sors de l'immeuble", "entree_immeuble")
+    set {za::pro::attend::%{_u}%} to "sortie5"
+
+function za_pro_j5_provisions(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::choix::%{_u}%::theo} to "provisions"
+    set {za::pro::attend::%{_u}%} to "occupe"
+    give {_p} za_item("baked potato", "Conserve de Mme Gagnon", "&f", 4)
+    give {_p} za_item("honey bottle", "Antibiotique", "&b", 1)
+    give {_p} za_item("paper", "Bandage", "&f", 2)
+    give {_p} 1 paper named "&fEnveloppe de Mme Gagnon" with lore "&7« Pour Théo, pour ses 13 ans. »" and "&8Soixante dollars. Ça ne vaudra bientôt plus rien."
+    za_pro_sfx({_p}, "porte_grince", 0.5)
+    wait 2 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    loop 4 times:
+        execute console command "execute as %{_p}% at @s run playsound minecraft:block.note_block.bit master @s ~ ~ ~ 0.6 1.6"
+        wait 1 second
+        if za_pro_ok({_p}, {_run}) is false:
+            stop
+    send "&8&o(Le téléphone sonne pendant que tu remplis ton sac. L'afficheur dit : THÉO. Tu ne réponds pas.)" to {_p}
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_obj({_p}, "Sors de l'immeuble", "entree_immeuble")
+    set {za::pro::attend::%{_u}%} to "sortie5"
+
+# ---------------------------------------------------------------- JOUR 7 : l'effondrement
+
+function za_pro_j7(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::pro::etat::%{_u}%} to "j7"
+    set {za::pro::cp::%{_u}%} to "entree_immeuble"
+    set {za::pro::attend::%{_u}%} to "occupe"
+    za_zm("objectif %{_p}% off")
+    za_pro_carte({_p}, "JOUR 7", "19:30 — L'effondrement", 4)
+    wait 1 second
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_vider({_p})
+    za_zm("tp %{_p}% entree_immeuble")
+    za_zm("temps %{_p}% {@h_j7}")
+    za_zm("meteo %{_p}% clair")
+    za_zm("clignoter %{_p}% stop")
+    za_zm("calque %{_p}% depanneur_ferme on")
+    za_zm("calque %{_p}% quarantaine on")
+    za_zm("calque %{_p}% incident on")
+    za_zm("calque %{_p}% chaos on")
+    za_zm("calque %{_p}% checkpoint on")
+    za_zm("clignoter %{_p}% gyro_a gyro_b 8 -1")
+    set {za::pro::amb::%{_u}%} to "ville_nuit_crise"
+    # la ville tombe : citoyens en panique, morts dans les rues, barrage militaire
+    za_pro_foule({_p}, 5)
+    loop 8 times:
+        za_pro_mm({_p}, "z%loop-number%", "ZA_Citoyen_Infecte", "chaos%loop-number%")
+    za_pro_zpnj({_p}, "zv1", "chaos9", "Infecté")
+    za_pro_zpnj({_p}, "zv2", "chaos10", "Infecté")
+    za_pro_zpnj({_p}, "zv3", "chaos11", "Infecté")
+    za_pro_pnj({_p}, "vega", "checkpoint_vega", "Sergent Vega", "fige")
+    set {_l} to za_lieu("checkpoint_vega")
+    za_zm("pnj %{_p}% soldat1 villager %x-coordinate of {_l}% %y-coordinate of {_l}% %(z-coordinate of {_l}) - 2% 90 Soldat_Nguyen fige")
+    za_zm("pnj %{_p}% soldat2 villager %x-coordinate of {_l}% %y-coordinate of {_l}% %(z-coordinate of {_l}) + 2% 90 Soldat_Ortiz fige")
+    if {_p} does not have wooden sword named "&fBâton de baseball":
+        give {_p} 1 wooden sword named "&fBâton de baseball" with lore "&7Souvenir de la ligue de balle." and "&8Il n'a jamais servi à ça."
+    wait 4 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_sfx({_p}, "alarme_auto", 0.6)
+    za_pro_vehicule({_p}, "convoi", "camion_militaire", "chemin_convoi", 9, "za_modeles:sfx.camion", 80)
+    za_pro_vehicule({_p}, "heli", "helicoptere", "-40,112,20;60,108,60;120,110,90;220,114,130", 16, "za_modeles:sfx.helico", 80)
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_radio({_p}, "radio_j7_evac", "Des autobus d'évacuation partent de la station-service de la rue Principale. Allez-y maintenant. N'attendez pas.")
+    wait 7 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_obj({_p}, "Rejoins l'autobus d'évacuation (station-service)", "bus_porte")
+    set {za::pro::attend::%{_u}%} to "checkpoint"
+    wait 10 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_sfx({_p}, "rafale", 0.9)
+    wait 15 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_sfx({_p}, "cri_foule", 0.7)
+
+function za_pro_j7_checkpoint(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::pro::attend::%{_u}%} to "bus"
+    za_zm("regarder %{_p}% vega %{_p}%")
+    za_pro_voix({_p}, "vega_j7", "vega")
+    za_pro_dit({_p}, "Sergent Vega", "Civil! Par ici! Le dernier autobus part dans trois minutes. Grouille-toi!")
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    # CHOIX 4 : se soumettre au contrôle de Vega... ou filer par la ruelle
+    za_pro_dit({_p}, "Sergent Vega", "STOP! Contrôle. Montre tes bras. Personne ne monte s'il a été mordu.")
+    za_pro_choix_ouvrir({_p}, "j7")
+    loop 5 times:
+        wait 2 seconds
+        if za_pro_ok({_p}, {_run}) is false:
+            stop
+        za_zm("animer %{_p}% soldat1 bras")
+        za_pro_sfx_a({_p}, "coup_de_feu", 1.5, "checkpoint_vega")
+        set {_c} to za_lieu("checkpoint_vega")
+        set {_tue} to false
+        loop all zombies in radius 30 around {_c}:
+            if {_tue} is false:
+                if "%scoreboard tags of loop-entity%" contains "za_owner:%{_u}%":
+                    kill loop-entity
+                    set {_tue} to true
+        za_zm("animer %{_p}% soldat2 bras")
+
+function za_pro_j7_obei(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::choix::%{_u}%::vega} to "obei"
+    send "&8&o(Tu relèves tes manches. Un soldat braque sa lampe sur tes avant-bras, ta nuque, tes mains.)" to {_p}
+    za_zm("regarder %{_p}% soldat1 %{_p}%")
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_dit({_p}, "Soldat Nguyen", "Rien. Propre, Sergent.")
+    wait 2 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_dit({_p}, "Sergent Vega", "Monte. Vite. Et reste assis.")
+
+function za_pro_j7_ruelle(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::choix::%{_u}%::vega} to "clandestin"
+    send "&8&o(Pendant que les soldats tirent sur les infectés, tu te glisses entre deux camions, par la ruelle.)" to {_p}
+    za_pro_sfx({_p}, "pas_course", 0.7)
+    wait 2 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("regarder %{_p}% vega %{_p}%")
+    za_pro_dit({_p}, "Sergent Vega", "HÉ! TOI! Reviens ici! ... Merde. Laissez-le. Surveillez l'autobus!")
+
+# ---------------------------------------------------------------- CHOIX : fenêtre à options (menu coffre du noyau)
+
+function za_pro_choix_ouvrir(p: player, c: text):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::pro::choix::%{_u}%} to {_c}
+    set {za::pro::choix_n::%{_u}%} to 0
+    if {_c} is "j1":
+        set {za::pro::attend::%{_u}%} to "choix_j1"
+    else if {_c} is "j5":
+        set {za::pro::attend::%{_u}%} to "choix_j5"
+    za_pro_choix_menu({_p}, {_c})
+
+function za_pro_choix_menu(p: player, c: text):
+    if {_c} is "j1":
+        za_menu({_p}, "zaprochoix", "Que fais-tu ?", "Le Dr Lefort a l'air épuisé. Derrière lui, des caisses de soluté attendent sur un chariot. Personne pour les porter. Les autres badauds s'en vont.", ("Proposer ton aide au Dr Lefort|j1_aide", "Rentrer avec les autres|j1_fui"))
+    else if {_c} is "j5":
+        za_menu({_p}, "zaprochoix", "Que fais-tu ?", "Sur la table : un téléphone à fil et un papier « THÉO — mon petit-fils, 12 ans ». Dans l'armoire : des conserves, ses pilules, une enveloppe. Dans l'escalier, quelqu'un hurle. Tu n'as le temps que pour une chose.", ("Appeler Théo pour l'avertir|j5_theo", "Prendre ses provisions|j5_prov"))
+    else if {_c} is "j7":
+        za_menu({_p}, "zaprochoix", "Que fais-tu ?", "Le Sergent Vega te barre le chemin. Derrière lui, des soldats contrôlent chaque civil à la lampe. À ta gauche, une ruelle sombre longe les camions jusqu'à l'autobus.", ("Obéir au contrôle|j7_obei", "Filer par la ruelle|j7_ruelle"))
+
+function za_pro_choix_faire(p: player, n: text):
+    set {_u} to "%{_p}'s uuid%"
+    set {_c} to {za::pro::choix::%{_u}%}
+    if {_c} is not set:
+        stop
+    if {_n} does not start with {_c}:
+        stop
+    delete {za::pro::choix::%{_u}%}
+    set {_run} to {za::pro::run::%{_u}%}
+    za_zm("son %{_p}% minecraft:ui.button.click 0.6 1")
+    if {_n} is "j1_aide":
+        za_pro_j1_aide({_p}, {_run})
+    else if {_n} is "j1_fui":
+        za_pro_j1_fui({_p}, {_run})
+    else if {_n} is "j5_theo":
+        za_pro_j5_theo({_p}, {_run})
+    else if {_n} is "j5_prov":
+        za_pro_j5_provisions({_p}, {_run})
+    else if {_n} is "j7_obei":
+        za_pro_j7_obei({_p}, {_run})
+    else if {_n} is "j7_ruelle":
+        za_pro_j7_ruelle({_p}, {_run})
+
+command /zaprochoix <player> <text>:
+    executable by: console
+    trigger:
+        if za_pro(arg-1) is true:
+            za_pro_choix_faire(arg-1, arg-2)
+
+# ---------------------------------------------------------------- LE BLACKOUT
+
+function za_pro_blackout(p: player, run: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::pro::etat::%{_u}%} to "blackout"
+    delete {za::pro::choix::%{_u}%}
+    if {za::choix::%{_u}%::vega} is not set:
+        set {za::choix::%{_u}%::vega} to "obei"
+    set {za::pro::attend::%{_u}%} to "occupe"
+    delete {za::pro::amb::%{_u}%}
+    za_zm("objectif %{_p}% off")
+    za_zm("stopson %{_p}%")
+    za_zm("clignoter %{_p}% stop")
+    za_zm("temps %{_p}% {@h_blackout}")
+    send "&8&oL'autobus démarre. Par la vitre, tu regardes Saint-Aurèle une dernière fois." to {_p}
+    za_zm("son %{_p}% za_modeles:musique.effondrement 0.6 1")
+    za_zm("camera %{_p}% camera_blackout retour")
+    wait 2 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("blackout %{_p}% 19 za_modeles:sfx.coupure")
+    za_pro_sfx({_p}, "radio_statique", 0.6)
+    wait 2 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_voix({_p}, "radio_blackout_1", "")
+    send "&8[&3♫ CKZA&8] &7...si quelqu'un reçoit ce message..." to {_p}
+    wait 4 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_voix({_p}, "radio_blackout_2", "")
+    send "&8[&3♫ CKZA&8] &7...ne venez pas au centre-ville..." to {_p}
+    wait 4 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_voix({_p}, "radio_blackout_3", "")
+    send "&8[&3♫ CKZA&8] &7...ils ne sont plus humains." to {_p}
+    wait 2 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_sfx({_p}, "radio_fin", 0.8)
+    send "&8&o— Fin de transmission —" to {_p}
+    wait 1 second
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("noir %{_p}% 25 300 30")
+    wait 2 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("stopson %{_p}%")
+    wait 3 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("noir-texte %{_p}% 0 70 10 @jour8 Il_n'y_a_plus_de_réseau.")
+    wait 3.5 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("noir-texte %{_p}% 0 70 10 @jour8 Il_n'y_a_plus_d'électricité.")
+    wait 3.5 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_zm("noir-texte %{_p}% 0 110 40 @jour8 Il_n'y_a_plus_personne_pour_vous_protéger.")
+    wait 4 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    za_pro_arrivee({_p})
+
+# ---------------------------------------------------------------- JOUR 8 : réveil dans la ville en ruine
+
+function za_pro_arrivee(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    add 1 to {za::pro::run::%{_u}%}
+    set {za::pro::etat::%{_u}%} to "fini"
+    delete {za::pro::attend::%{_u}%}
+    delete {za::pro::amb::%{_u}%}
+    za_zm("objectif %{_p}% off")
+    za_zm("camera-stop %{_p}%")
+    za_zm("calques-reset %{_p}%")
+    za_pro_vider({_p})
+    # objets du prologue : on garde la photo, le bâton, le pain ; l'argent ne vaut plus rien
+    set {_billet} to false
+    if {_p} has paper named "&fBillet de 20 $":
+        set {_billet} to true
+    remove all paper named "&fBillet de 20 $" from {_p}'s inventory
+    remove all paper named "&fMédicaments de grand-maman" from {_p}'s inventory
+    remove all clock named "&fTéléphone" from {_p}'s inventory
+    remove all milk bucket from {_p}'s inventory
+    if {_billet} is true:
+        give {_p} 1 paper named "&8Billet de 20 $ (sans valeur)" with lore "&7Il y a huit jours, ça achetait du lait." and "&8Plus personne n'en veut."
+    give {_p} 1 dead bush named "&8Cellulaire mort" with lore "&7Plus de réseau. Plus de batterie." and "&8Le dernier texto de Maman : « Je t'aime. »"
+    if {za::pro::retour::%{_u}%} is set:
+        # joueur qui avait déjà une partie : retour là où il était, avec son sac
+        teleport {_p} to {za::pro::retour::%{_u}%}
+        delete {za::pro::retour::%{_u}%}
+        loop {za::pro::sac::%{_u}%::*}:
+            give {_p} loop-value
+        delete {za::pro::sac::%{_u}%::*}
+        set {_p}'s gamemode to survival
+        za_zm("titre %{_p}% 20 60 30 &7JOUR_8 &8De_retour_dans_les_ruines.")
+        stop
+    teleport {_p} to spawn of world("world")
+    za_zm("tp %{_p}% arrivee:reveil")
+    set {_p}'s gamemode to survival
+    heal {_p}
+    wait 1 second
+    if {_p} is not online:
+        stop
+    za_zm("son %{_p}% za_modeles:sfx.acouphene 1 1")
+    za_zm("titre %{_p}% 30 80 40 &7JOUR_8 &8Le_convoi_n'est_jamais_arrivé.")
+    execute console command "effect give %{_p}% minecraft:nausea 6 0 true"
+    execute console command "effect give %{_p}% minecraft:slowness 8 0 true"
+    wait 7 seconds
+    if {_p} is not online:
+        stop
+    za_zm("son %{_p}% za_modeles:sfx.silence_ville 0.8 1")
+    send "&8&oL'autobus est couché sur le flanc. Les autres passagers ne sont plus là. Le silence est énorme." to {_p}
+    za_pro_recap({_p})
+    za_intro_survie({_p})
+
+# ce que tu as fait à Saint-Aurèle te suivra
+function za_pro_recap(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_n} to 0
+    if {za::choix::%{_u}%::hopital} is set:
+        add 1 to {_n}
+    if {za::choix::%{_u}%::leblanc} is set:
+        add 1 to {_n}
+    if {za::choix::%{_u}%::theo} is set:
+        add 1 to {_n}
+    if {za::choix::%{_u}%::vega} is set:
+        add 1 to {_n}
+    if {_n} is 0:
+        stop
+    wait 2 seconds
+    if {_p} is not online:
+        stop
+    send "&8&m                                   " to {_p}
+    send "&7&oCe que tu as fait à Saint-Aurèle te suivra :" to {_p}
+    if {za::choix::%{_u}%::hopital} is "aide":
+        send "&8 • &7Tu as aidé le Dr Lefort à l'hôpital." to {_p}
+    else if {za::choix::%{_u}%::hopital} is "fui":
+        send "&8 • &7Tu as laissé le Dr Lefort seul avec ses caisses." to {_p}
+    if {za::choix::%{_u}%::leblanc} is "sauvee":
+        send "&8 • &7Tu as sauvé l'infirmière Leblanc." to {_p}
+    else if {za::choix::%{_u}%::leblanc} is "perdue":
+        send "&8 • &7Tu as reculé. L'infirmière Leblanc est restée au sol." to {_p}
+    if {za::choix::%{_u}%::theo} is "appele":
+        send "&8 • &7Tu as appelé Théo, le petit-fils de Mme Gagnon." to {_p}
+    else if {za::choix::%{_u}%::theo} is "provisions":
+        send "&8 • &7Tu as pris les provisions de Mme Gagnon. Le téléphone a sonné." to {_p}
+    if {za::choix::%{_u}%::vega} is "obei":
+        send "&8 • &7Tu t'es soumis au contrôle du Sergent Vega." to {_p}
+    else if {za::choix::%{_u}%::vega} is "clandestin":
+        send "&8 • &7Tu as filé par la ruelle, sous le nez du Sergent Vega." to {_p}
+    send "&8&m                                   " to {_p}
+
+# introduction de la survie (anciennement donnée à la connexion) : journal, kit du premier matin, tutoriel scénarisé
+function za_intro_survie(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::intro::%{_u}%} to true
+    wait 3 seconds
+    if {_p} is not online:
+        stop
+    send "&8&m-----------------------------" to {_p}
+    send "&4&lZOMBIE APOCALYPSE &8— &7Jour 8" to {_p}
+    send "&7Il n'y a plus de réseau. Plus d'électricité. Plus personne pour vous protéger." to {_p}
+    send "&7Le jour sert à préparer. &cLa nuit sert à survivre." to {_p}
+    send "&7Tape &e/aide &7quand tu es perdu. &8(Tu as trouvé un journal dans les débris.)" to {_p}
+    send "&8&m-----------------------------" to {_p}
+    execute console command "give %{_p}% written_book{title:""Le Journal du Survivant"",author:""Inconnu"",pages:['{""text"":""Jour 1. La sirene a hurle toute la nuit. Le matin, la ville etait silencieuse. Trop silencieuse.""}','{""text"":""Jour 9. Ils reviennent la nuit. Ne sortez pas sans lumiere. Ne restez jamais seuls. Et si on vous mord... cherchez un antidote.""}','{""text"":""Regles: les jetons sont rares. Les marchands nomades passent sans prevenir. Les morts sentent le sang. Bonne chance.""}']}"
+    give {_p} za_item("paper", "Bandage", "&f", 3)
+    give {_p} za_item("bread", "Pain rassis", "&f", 2)
+    give {_p} 1 water bottle named "&fFond de bouteille d'eau"
+    za_jetons_ajouter({_p}, 3)
+    wait 5 seconds
+    if {_p} is not online:
+        stop
+    za_dial_tuto({_p}, "debut")
+
+# ---------------------------------------------------------------- moteur : déclencheurs (toutes les secondes)
+
+function za_pro_evt(p: player, e: text):
+    set {_run} to {za::pro::run::%{_p}'s uuid%}
+    if {_e} is "depanneur":
+        za_pro_j0_depanneur({_p}, {_run})
+    else if {_e} is "hopital0":
+        za_pro_j0_hopital({_p}, {_run})
+    else if {_e} is "pharmacie":
+        za_pro_j0_pharmacie({_p}, {_run})
+    else if {_e} is "maison0":
+        za_pro_j1({_p}, {_run})
+    else if {_e} is "hopital1":
+        za_pro_j1_hopital({_p}, {_run})
+    else if {_e} is "maison1":
+        za_pro_j3({_p}, {_run})
+    else if {_e} is "incident":
+        za_pro_j3_incident({_p}, {_run})
+    else if {_e} is "maison3":
+        za_pro_j5({_p}, {_run})
+    else if {_e} is "gagnon":
+        za_pro_j5_gagnon({_p}, {_run})
+    else if {_e} is "gagnon_fin":
+        za_pro_j5_apres({_p}, {_run})
+    else if {_e} is "sortie5":
+        za_pro_j7({_p}, {_run})
+    else if {_e} is "checkpoint":
+        za_pro_j7_checkpoint({_p}, {_run})
+    else if {_e} is "bus":
+        za_pro_blackout({_p}, {_run})
+    else if {_e} is "aide_fin":
+        za_pro_j1_aide_fin({_p}, {_run})
+
+function za_pro_tick(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_a} to {za::pro::attend::%{_u}%}
+    if {_a} is not set:
+        stop
+    if {_a} is "occupe":
+        stop
+    if {_a} is "depanneur":
+        if za_dist({_p}, "depanneur_client") < 3.5:
+            za_pro_evt({_p}, "depanneur")
+    else if {_a} is "hopital0":
+        if za_dist({_p}, "hopital_accueil") < 9:
+            za_pro_evt({_p}, "hopital0")
+    else if {_a} is "pharmacie":
+        if za_dist({_p}, "hopital_pharmacie") < 3:
+            za_pro_evt({_p}, "pharmacie")
+    else if {_a} is "hopital1":
+        if za_dist({_p}, "hopital_entree") < 11:
+            za_pro_evt({_p}, "hopital1")
+    else if {_a} is "incident":
+        if za_dist({_p}, "hopital_barriere") < 13:
+            za_pro_evt({_p}, "incident")
+    else if {_a} is "gagnon":
+        if za_dans({_p}, "appart_2B") is true:
+            za_pro_evt({_p}, "gagnon")
+    else if {_a} is "gagnon_combat":
+        set {_vivante} to false
+        loop all zombies in radius 30 around {_p}:
+            if "%scoreboard tags of loop-entity%" contains "za_owner:%{_u}%":
+                set {_vivante} to true
+        if {_vivante} is false:
+            za_pro_evt({_p}, "gagnon_fin")
+        else if za_dist({_p}, "entree_immeuble") < 5:
+            # il a fui : on ne le force pas à tuer sa voisine
+            za_pro_evt({_p}, "sortie5")
+    else if {_a} is "sortie5":
+        if za_dist({_p}, "entree_immeuble") < 5:
+            za_pro_evt({_p}, "sortie5")
+    else if {_a} is "checkpoint":
+        if za_dist({_p}, "intersection") < 22:
+            za_pro_evt({_p}, "checkpoint")
+    else if {_a} is "bus":
+        if za_dans({_p}, "bus_interieur") is true:
+            za_pro_evt({_p}, "bus")
+    else if {_a} starts with "maison":
+        if za_dist({_p}, "porte_2A") < 2.8:
+            za_pro_evt({_p}, {_a})
+    else if {_a} is "aide_pharmacie":
+        if za_dist({_p}, "hopital_pharmacie") < 3.5:
+            za_pro_evt({_p}, "aide_fin")
+    else if {_a} starts with "choix_":
+        # menu fermé sans choisir : on le rouvre toutes les 20 s ; au bout d'une minute, la vie décide pour toi
+        set {_c} to {za::pro::choix::%{_u}%}
+        if {_c} is set:
+            add 1 to {za::pro::choix_n::%{_u}%}
+            if {za::pro::choix_n::%{_u}%} >= 60:
+                delete {za::pro::choix::%{_u}%}
+                if {_c} is "j1":
+                    send "&8&o(Tu hésites trop longtemps. Un policier te fait signe de circuler.)" to {_p}
+                    za_pro_j1_fui({_p}, {za::pro::run::%{_u}%})
+                else if {_c} is "j5":
+                    send "&8&o(Tu restes figé trop longtemps. Le téléphone se tait. Tu pars les mains vides.)" to {_p}
+                    za_pro_obj({_p}, "Sors de l'immeuble", "entree_immeuble")
+                    set {za::pro::attend::%{_u}%} to "sortie5"
+            else if mod({za::pro::choix_n::%{_u}%}, 20) is 0:
+                if uncolored name of ({_p}'s current inventory) does not start with "» ":
+                    za_pro_choix_menu({_p}, {_c})
+
+every 1 second:
+    loop all players:
+        if za_pro(loop-player) is true:
+            za_pro_tick(loop-player)
+
+# ambiance sonore de la ville (boucles de 30 s)
+every 30 seconds:
+    loop all players:
+        if za_pro(loop-player) is true:
+            set {_a} to {za::pro::amb::%loop-player's uuid%}
+            if {_a} is set:
+                za_zm("son %loop-player% za_modeles:sfx.%{_a}% 0.45 1")
+
+# ---------------------------------------------------------------- interactions
+
+on right click on villager:
+    if za_pro(player) is false:
+        stop
+    cancel event
+    set {_n} to uncolored name of clicked entity
+    set {_u} to "%player's uuid%"
+    set {_a} to {za::pro::attend::%{_u}%}
+    if {_n} is "Ginette":
+        if {_a} is "depanneur":
+            za_pro_evt(player, "depanneur")
+        else:
+            za_pro_dit(player, "Ginette", "Salue ta mère pour moi!")
+    else if {_n} is "Infirmière Côté":
+        if {_a} is "pharmacie":
+            za_pro_evt(player, "pharmacie")
+        else if {_a} is "hopital0":
+            za_pro_evt(player, "pharmacie")
+        else:
+            za_pro_dit(player, "Infirmière Côté", "Pas maintenant, s'il vous plaît.")
+    else if {_n} is "Dr Lefort":
+        za_pro_dit(player, "Dr Lefort", "Lavez-vous les mains. Souvent.")
+    else if {_n} is "Samuel Arel":
+        za_zm("animer %player% arel tousse")
+        za_pro_dit(player, "Samuel Arel", "Désolé... je sors d'un quart de nuit au labo NORDA. Je me sens vraiment pas bien.")
+    else if {_n} is "Rita":
+        za_pro_dit(player, "Rita", "Une poutine pour emporter? Non? Reviens ce soir, on a la spéciale!")
+    else if {_n} is "Agent Roy":
+        za_pro_dit(player, "Agent Roy", "Circulez, s'il vous plaît.")
+    else if {_n} is "Agente Pelletier":
+        za_pro_dit(player, "Agente Pelletier", "Rentrez chez vous.")
+    else if {_n} is "Sergent Vega":
+        za_pro_dit(player, "Sergent Vega", "L'autobus! À la station-service! Go!")
+    else if {_n} is "Mme Gagnon":
+        za_pro_dit(player, "Mme Gagnon", "...")
+    else:
+        set {_r::*} to "Belle journée, hein?", "T'as entendu? L'hôpital est plein à craquer.", "Mon boss a annulé la réunion, y'est malade.", "Faut que j'aille chercher les enfants.", "On annonce de la pluie pour jeudi.", "Paraît que c'est une grippe. Une grosse."
+        if {za::pro::etat::%{_u}%} is "j7":
+            set {_r::*} to "Laisse-moi passer!", "Ils sont partout! PARTOUT!", "L'armée est à l'intersection!", "Ma femme... je retrouve plus ma femme..."
+        za_pro_dit(player, {_n}, random element out of {_r::*})
+
+on right click on jukebox:
+    if za_pro(player) is false:
+        stop
+    cancel event
+    set {_u} to "%player's uuid%"
+    set {_e} to {za::pro::etat::%{_u}%}
+    za_zm("son %player% za_modeles:sfx.radio_accord 0.8 1")
+    wait 2 seconds
+    if {_e} is "j0":
+        if {za::pro::radio::%{_u}%} is not set:
+            za_pro_radio(player, "radio_j0_meteo", "Bon matin Saint-Aurèle! Ici Léa, au Réveil CKZA. Ciel dégagé, dix-huit degrés. Une belle journée qui commence.")
+            stop
+    if {za::pro::radio::%{_u}%} is set:
+        set {_r::*} to split {za::pro::radio::%{_u}%} at "|"
+        za_pro_radio(player, {_r::1}, {_r::2})
+    else:
+        za_pro_sfx(player, "radio_statique", 0.6)
+
+on right click on chest:
+    if za_pro(player) is false:
+        stop
+    cancel event
+    if za_dist(player, "coffre_2A") < 3:
+        if player does not have wooden sword named "&fBâton de baseball":
+            give player 1 wooden sword named "&fBâton de baseball" with lore "&7Souvenir de la ligue de balle." and "&8Il n'a jamais servi à ça."
+            send "&8&oTon vieux bâton de baseball. Au cas où." to player
+        else:
+            send "&8&oIl n'y a rien d'autre d'utile ici." to player
+
+# la mort dans le prologue ramène au dernier point de passage (le joueur ne perd rien)
+on respawn:
+    set {_u} to "%player's uuid%"
+    set {_e} to {za::pro::etat::%{_u}%}
+    if {_e} is not set:
+        stop
+    if {_e} is "fini":
+        stop
+    set {_cp} to {za::pro::cp::%{_u}%}
+    if {_cp} is not set:
+        set {_cp} to "reveil"
+    set respawn location to za_lieu({_cp})
+    wait 2 ticks
+    set player's gamemode to adventure
+    send "&8&oTu reprends tes esprits..." to player
+
+# le chat du prologue est privé ; le monde en ruine ne l'entend pas (et inversement)
+on chat:
+    if za_pro(player) is true:
+        loop all players:
+            if loop-player is not player:
+                remove loop-player from chat recipients
+    else:
+        loop all players:
+            if za_pro(loop-player) is true:
+                remove loop-player from chat recipients
+
+# ---------------------------------------------------------------- arrivée / reprise
+
+on join:
+    set {_u} to "%player's uuid%"
+    set {_e} to {za::pro::etat::%{_u}%}
+    if {_e} is not set:
+        if {za::intro::%{_u}%} is set:
+            # joueur d'avant le prologue : on ne le force pas
+            set {za::pro::etat::%{_u}%} to "fini"
+            wait 5 seconds
+            send "&8[&6Nouveau&8] &7Un prologue jouable raconte les 8 jours avant l'apocalypse : &e/prologue" to player
+            stop
+        wait 3 seconds
+        if player is online:
+            za_pro_lancer(player)
+        stop
+    if {_e} is "fini":
+        stop
+    # reprise du chapitre en cours (les PNJ ont été retirés à la déconnexion)
+    wait 3 seconds
+    if player is not online:
+        stop
+    za_pro_chapitre(player, {_e})
+
+function za_pro_chapitre(p: player, e: text):
+    set {_u} to "%{_p}'s uuid%"
+    add 1 to {za::pro::run::%{_u}%}
+    set {_run} to {za::pro::run::%{_u}%}
+    set {_p}'s gamemode to adventure
+    za_zm("isoler %{_p}% on")
+    za_zm("calques-reset %{_p}%")
+    if {_e} is "j0":
+        za_zm("tp %{_p}% reveil")
+        za_zm("temps %{_p}% {@h_j0}")
+        za_pro_j0({_p}, {_run})
+    else if {_e} is "j1":
+        za_pro_j1({_p}, {_run})
+    else if {_e} is "j3":
+        za_pro_j3({_p}, {_run})
+    else if {_e} is "j5":
+        za_pro_j5({_p}, {_run})
+    else if {_e} is "j7":
+        za_pro_j7({_p}, {_run})
+    else if {_e} is "blackout":
+        za_zm("tp %{_p}% bus_siege")
+        za_pro_blackout({_p}, {_run})
+
+# ---------------------------------------------------------------- commandes
+
+command /prologue [<text>] [<text>] [<text>]:
+    trigger:
+        if sender has permission "za.admin":
+            if arg-1 is "lancer" or "fin" or "chapitre" or "reinit" or "etat":
+                set {_c} to arg-2 parsed as player
+                if arg-1 is "etat":
+                    loop all players:
+                        send "&7%loop-player% : &f%{za::pro::etat::%loop-player's uuid%}% &8(attend %{za::pro::attend::%loop-player's uuid%}%)" to sender
+                else if {_c} is not set:
+                    send "&cJoueur introuvable : %arg-2%" to sender
+                else if arg-1 is "lancer":
+                    za_pro_lancer({_c})
+                else if arg-1 is "fin":
+                    za_pro_arrivee({_c})
+                else if arg-1 is "chapitre":
+                    set {za::pro::etat::%{_c}'s uuid%} to arg-3
+                    za_pro_chapitre({_c}, arg-3)
+                else if arg-1 is "reinit":
+                    delete {za::pro::etat::%{_c}'s uuid%}
+                    send "&aPrologue réinitialisé pour %{_c}% (il le vivra à sa prochaine connexion)." to sender
+                stop
+        if sender is not a player:
+            send "Usage console : prologue <lancer|fin|chapitre|reinit|etat> <joueur> [chapitre]" to sender
+            stop
+        if arg-1 is not set:
+            if za_pro(player) is true:
+                send "&7Tu es dans le prologue. &e/prologue passer &7pour le sauter (tu te réveilleras au Jour 8)." to player
+            else:
+                send "&6Le prologue &7raconte les 8 jours avant l'apocalypse à Saint-Aurèle (~25 min, seul)." to player
+                send "&7Tape &e/prologue vivre &7pour le vivre. Tu reviendras ici avec ton inventaire à la fin." to player
+        else if arg-1 is "vivre":
+            if za_pro(player) is true:
+                send "&7Tu y es déjà." to player
+            else:
+                za_pro_lancer(player)
+        else if arg-1 is "passer":
+            if za_pro(player) is false:
+                send "&7Tu n'es pas dans le prologue." to player
+            else if arg-2 is "confirmer":
+                set {za::pro::passe::%player's uuid%} to true
+                za_pro_arrivee(player)
+            else:
+                send "&7Sauter l'histoire et te réveiller directement au Jour 8? &e/prologue passer confirmer" to player
+        else:
+            send "&cUsage : /prologue [vivre|passer]" to player
+
+# appelé par MythicMobs (mort de Mme Gagnon) : le moteur la détecte déjà tout seul
+command /zapro [<text>]:
+    executable by: console
+    trigger:
+        stop

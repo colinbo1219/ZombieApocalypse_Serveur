@@ -1,0 +1,171 @@
+# =====================================================================
+#  ZombieApocalypse - LEGENDE : hauts faits graves, reliques uniques, rang Mythe
+#  * Gravures : chaque mort laisse un panneau sur sa tombe ("Ici est mort X, jour N") ; l'Undead Overlord aussi.
+#  * Reliques (1 seul exemplaire chacune, butin de labo) :
+#      Scalpel de Lefort (en main : regeneration legere) | Medaillon de Vega (en main : bruit /2) | Cle du Labo Zero (ouvre un labo sans Blood Moon)
+#  * Rang Mythe : score de 500. Son arrivee est annoncee a tout le monde ; remise de 20 pourcent chez les marchands.
+#  * Faits d'armes : 30 zombies tues en 2 minutes = annonce.
+#  Commandes : /legende | /tombes | /legende reset <scalpel|medaillon|cle> (admin)
+# =====================================================================
+
+function za_gravure(l: location, a: text, b: text, c: text, d: text):
+    set {_x} to floor(x-coordinate of {_l})
+    set {_y} to floor(y-coordinate of {_l})
+    set {_z} to floor(z-coordinate of {_l})
+    set {_w} to world of {_l}
+    if block at location({_x}, {_y}, {_z}, {_w}) is not air:
+        stop
+    if block at location({_x}, {_y} - 1, {_z}, {_w}) is air:
+        stop
+    set {_wd} to za_dim({_w})
+    execute console command "execute in %{_wd}% run setblock %{_x}% %{_y}% %{_z}% minecraft:oak_sign[rotation=8]"
+    set {_s} to block at location({_x}, {_y}, {_z}, {_w})
+    set line 1 of {_s} to {_a}
+    set line 2 of {_s} to {_b}
+    set line 3 of {_s} to {_c}
+    set line 4 of {_s} to {_d}
+
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    set {_l} to location of victim
+    set {_j} to {za::serveur::jours}
+    if {_j} is not set:
+        set {_j} to 0
+    add "%victim% - jour %{_j}%" to {za::tombes::*}
+    if size of {za::tombes::*} > 50:
+        set {_f} to first element of {za::tombes::*}
+        remove {_f} from {za::tombes::*}
+    wait 1 second
+    add 1 to y-coordinate of {_l}
+    za_gravure({_l}, "Ici est mort", "%victim%", "Jour %{_j}%", "Repose en paix")
+
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    if uncolored name of victim contains "Overlord":
+        set {_l} to location of (highest block at (location of victim))
+        add 1 to y-coordinate of {_l}
+        set {_k} to "un heros"
+        if attacker is a player:
+            set {_k} to "%attacker%"
+        za_gravure({_l}, "L Undead Overlord", "est tombe ici", "Termine par", "%{_k}%")
+        za_diffuser("&4&lL'UNDEAD OVERLORD EST TOMBE ! &7Termine par &e%{_k}%&7. La legende s'ecrit.")
+
+command /tombes:
+    trigger:
+        if size of {za::tombes::*} is 0:
+            send "&7Aucune tombe pour l'instant." to player
+        else:
+            send "&6&lLES TOMBES" to player
+            set {_n} to size of {za::tombes::*}
+            set {_i} to 0
+            loop {za::tombes::*}:
+                add 1 to {_i}
+                if {_i} > {_n} - 10:
+                    send "&7%loop-value%" to player
+
+# ===================== RELIQUES =====================
+function za_relique_item(id: text) :: itemtype:
+    if {_id} is "scalpel":
+        set {_it} to za_item("iron sword", "Scalpel de Lefort", "&d", 1)
+        set lore of {_it} to "&8Relique unique." and "&7Le scalpel du Dr Lefort." and "&7En main : tes plaies se referment doucement."
+        return {_it}
+    if {_id} is "medaillon":
+        set {_it} to za_item("compass", "Medaillon de Vega", "&6", 1)
+        set lore of {_it} to "&8Relique unique." and "&7Le medaillon du Sergent Vega." and "&7En main : tes pas font deux fois moins de bruit."
+        return {_it}
+    set {_it} to za_item("tripwire hook", "Cle du Labo Zero", "&b", 1)
+    set lore of {_it} to "&8Relique unique." and "&7Ouvre n'importe quel laboratoire scelle," and "&7meme sans Blood Moon."
+    return {_it}
+
+# donne dans un coffre la premiere relique encore introuvable
+function za_relique_coffre(blk: block):
+    set {_ids::*} to "cle", "scalpel", "medaillon"
+    loop {_ids::*}:
+        if {za::relique::%loop-value%} is not set:
+            set {za::relique::%loop-value%} to "en circulation"
+            add za_relique_item(loop-value) to inventory of {_blk}
+            za_journal("Une relique unique est apparue dans un laboratoire.")
+            exit loop
+
+every 5 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            if uncolored name of loop-player's tool is "Scalpel de Lefort":
+                za_effet(loop-player, "regeneration", 7, 0)
+
+command /legende [<text>] [<text>]:
+    trigger:
+        if arg-1 is "reset":
+            if player has permission "za.admin":
+                delete {za::relique::%arg-2%}
+                send "&aRelique %arg-2% remise en jeu." to player
+            else:
+                send "&cReserve aux admins." to player
+        else:
+            send "&6&lLEGENDE" to player
+            set {_a} to {za::relique::scalpel}
+            set {_b} to {za::relique::medaillon}
+            set {_c} to {za::relique::cle}
+            if {_a} is not set:
+                set {_a} to "introuvable pour l'instant"
+            if {_b} is not set:
+                set {_b} to "introuvable pour l'instant"
+            if {_c} is not set:
+                set {_c} to "introuvable pour l'instant"
+            send "&dScalpel de Lefort : &7%{_a}%" to player
+            send "&6Medaillon de Vega : &7%{_b}%" to player
+            send "&bCle du Labo Zero : &7%{_c}%" to player
+            send "&8Rang Mythe : score de 500 (/rang)." to player
+
+# ===================== RANG MYTHE, FAITS D'ARMES =====================
+every 10 minutes:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_u} to "%loop-player's uuid%"
+            set {_r} to za_rang(loop-player)
+            if {za::rang::connu::%{_u}%} is set:
+                if {za::rang::connu::%{_u}%} is not {_r}:
+                    if {_r} is "Mythe":
+                        broadcast "&4&lUNE LEGENDE NAIT ! &e%loop-player% &7atteint le rang &4MYTHE&7."
+                        za_journal("%loop-player% est devenu un Mythe.")
+                    else:
+                        send "&6Nouveau rang : &e%{_r}%" to loop-player
+            set {za::rang::connu::%{_u}%} to {_r}
+
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        if {za::massacre::%attacker's uuid%} is not set:
+            set {za::massacre::%attacker's uuid%} to 0
+        add 1 to {za::massacre::%attacker's uuid%}
+
+every 2 minutes:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_u} to "%loop-player's uuid%"
+            if {za::massacre::%{_u}%} >= 30:
+                if any:
+                    {za::massacre::cd::%{_u}%} is not set
+                    {za::massacre::cd::%{_u}%} is less than now
+                then:
+                    broadcast "&4&l%loop-player% &cmassacre les morts : 30 zombies en 2 minutes !"
+                    za_journal("%loop-player% a massacre trente zombies en deux minutes.")
+                    set {za::massacre::cd::%{_u}%} to now
+                    add 30 minutes to {za::massacre::cd::%{_u}%}
+            set {za::massacre::%{_u}%} to 0
+
+# ---------- sang leger : un peu de particules quand tu frappes ou tues un zombie (rien de plus, pas un mod) ----------
+on damage of zombie:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        execute console command "execute at %uuid of victim% run particle minecraft:dust 0.6 0.0 0.0 1 ~ ~1 ~ 0.15 0.2 0.15 0 4 force"
+
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        execute console command "execute at %uuid of victim% run particle minecraft:dust 0.6 0.0 0.0 1 ~ ~0.3 ~ 0.25 0.15 0.25 0 8 force"

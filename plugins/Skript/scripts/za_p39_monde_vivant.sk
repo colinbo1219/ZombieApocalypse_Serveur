@@ -1,0 +1,621 @@
+# =====================================================================
+#  ZombieApocalypse - LE MONDE RÉAGIT
+#  ACTION DU JOUEUR → RÉACTION DU MONDE : chaque tir, chaque mort, chaque base bruyante laisse une trace.
+#  * Carte de danger (/zone) : 🟢 Sûre · 🟡 Activité · 🟠 Dangereuse · 🔴 Horde · ☠ Zone morte (activité + contamination + nids + nuit)
+#  * NIDS : un cœur vivant qui fait naître les morts. Le détruire = récompense, baisse du danger, trace permanente.
+#  * ALPHA DÉTECTÉ : quand trop de morts se rassemblent, l'un d'eux prend la tête.
+#  * CONVOI BRAVO : un convoi militaire échoué (camions, caisses, soldats infectés de l'escouade de Vega).
+#  * ÉVACUATION MÉDICALE : /extraction avec une Fusée de détresse → un hélicoptère, 3 minutes à tenir, un largage.
+#  * SOS : /sos — aider, ignorer... ou tendre un piège.
+#  * CENTRALE : la remettre en marche (3 Composants électroniques) change le monde pendant 3 jours.
+#  * LIEUX QUI ÉVOLUENT : un bâtiment abandonné devient contaminé, puis un nid, puis une zone morte.
+#  Admin : /mondevivant <nid|convoi|alpha|zone|evoluer>
+# =====================================================================
+
+options:
+    nids_max: 3
+    extraction_duree: 180
+
+# ---------------------------------------------------------------- activité (mémoire du monde)
+
+function za_akey(l: location) :: text:
+    return "%world of {_l}%_%floor(x-coordinate of {_l} / 64)%_%floor(z-coordinate of {_l} / 64)%"
+
+function za_activite_ajouter(l: location, n: number):
+    if "%world of {_l}%" is "za_prologue":
+        stop
+    set {_k} to za_akey({_l})
+    if {za::act::%{_k}%} is not set:
+        set {za::act::%{_k}%} to 0
+    add {_n} to {za::act::%{_k}%}
+    if {za::act::%{_k}%} > 300:
+        set {za::act::%{_k}%} to 300
+
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    za_activite_ajouter(location of victim, 1)
+
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    za_activite_ajouter(location of victim, 20)
+
+every 10 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_b} to {za::bruit::%loop-player's uuid%}
+            if {_b} is set:
+                if {_b} >= 30:
+                    za_activite_ajouter(location of loop-player, floor({_b} / 30))
+
+every 5 minutes:
+    loop {za::act::*}:
+        set {_k} to loop-index
+        set {za::act::%{_k}%} to {za::act::%{_k}%} * 0.85
+        if {za::act::%{_k}%} < 1:
+            delete {za::act::%{_k}%}
+
+# ---------------------------------------------------------------- carte de danger
+
+function za_nid_proche(l: location, r: number) :: number:
+    loop {za::nid::liste::*}:
+        set {_c} to {za::nid::%loop-value%::loc}
+        if {_c} is set:
+            if world of {_c} is world of {_l}:
+                if distance between {_c} and {_l} < {_r}:
+                    return loop-value
+    return 0
+
+function za_danger(l: location) :: number:
+    if za_zone_morte({_l}) is true:
+        return 4
+    set {_a} to {za::act::%za_akey({_l})%}
+    if {_a} is not set:
+        set {_a} to 0
+    set {_c} to {za::contam::%za_ckey({_l})%}
+    if {_c} is not set:
+        set {_c} to 0
+    set {_s} to {_a} + ({_c} / 4)
+    if za_nid_proche({_l}, 72) is not 0:
+        add 90 to {_s}
+    if {za::evt::bloodmoon} is true:
+        add 60 to {_s}
+    if {za::horde::actif} is true:
+        add 60 to {_s}
+    set {_t} to time in world of {_l}
+    if any:
+        {_t} > 19:00
+        {_t} < 5:00
+    then:
+        add 25 to {_s}
+    if {_s} >= 160:
+        return 3
+    if {_s} >= 80:
+        return 2
+    if {_s} >= 30:
+        return 1
+    return 0
+
+function za_danger_nom(n: number) :: text:
+    if {_n} is 4:
+        return "&4&l☠ Zone morte"
+    if {_n} is 3:
+        return "&c&l🔴 Horde"
+    if {_n} is 2:
+        return "&6&l🟠 Dangereuse"
+    if {_n} is 1:
+        return "&e&l🟡 Activité"
+    return "&a&l🟢 Sûre"
+
+function za_zone_info(p: player):
+    set {_l} to location of {_p}
+    set {_n} to za_danger({_l})
+    send "%za_danger_nom({_n})%" to {_p}
+    set {_c} to {za::contam::%za_ckey({_l})%}
+    if {_c} is not set:
+        set {_c} to 0
+    set {_a} to {za::act::%za_akey({_l})%}
+    if {_a} is not set:
+        set {_a} to 0
+    send "&7Contamination : &f%floor({_c})% &8| &7Activité récente : &f%floor({_a})% &8| &7Souche : &f%za_souche_nom(za_souche_id({_p}))%" to {_p}
+    if za_nid_proche({_l}, 72) is not 0:
+        send "&4Un NID est tout proche. Les morts y naissent. Détruis son cœur." to {_p}
+    if {_n} is 0:
+        send "&8Rien ne bouge. Pour l'instant." to {_p}
+    else if {_n} is 1:
+        send "&8Les morts commencent à converger. Fais moins de bruit." to {_p}
+    else if {_n} is 2:
+        send "&8Le secteur est dangereux. Ne t'attarde pas la nuit." to {_p}
+    else if {_n} is 3:
+        send "&8Une horde se forme ici. Pars, ou prépare-toi." to {_p}
+    else:
+        send "&8Plus de butin, plus de vie. Personne ne revient d'ici." to {_p}
+
+# alerte quand on change de niveau de danger
+every 5 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_u} to "%loop-player's uuid%"
+            set {_n} to za_danger(location of loop-player)
+            if {za::danger::%{_u}%} is not set:
+                set {za::danger::%{_u}%} to {_n}
+            else if {za::danger::%{_u}%} is not {_n}:
+                if {_n} > {za::danger::%{_u}%}:
+                    send action bar "%za_danger_nom({_n})% &7— tu entres dans une zone plus dangereuse" to loop-player
+                    execute console command "execute at %loop-player% run playsound minecraft:block.note_block.bass ambient %loop-player% ~ ~ ~ 0.6 0.6"
+                else:
+                    send action bar "%za_danger_nom({_n})%" to loop-player
+                set {za::danger::%{_u}%} to {_n}
+
+# ---------------------------------------------------------------- NIDS
+
+function za_nid_creer(l: location):
+    if size of {za::nid::liste::*} >= {@nids_max}:
+        stop
+    if "%world of {_l}%" is "za_prologue":
+        stop
+    set {_x} to floor(x-coordinate of {_l})
+    set {_y} to floor(y-coordinate of {_l})
+    set {_z} to floor(z-coordinate of {_l})
+    set {_w} to world of {_l}
+    set {_wd} to za_dim({_w})
+    # tapis de chair (sculk), os, toiles, veines : ça respire
+    set {_dx} to -5
+    while {_dx} <= 5:
+        set {_dz} to -5
+        while {_dz} <= 5:
+            if ({_dx} * {_dx}) + ({_dz} * {_dz}) <= 26:
+                set {_r} to random integer between 1 and 10
+                set {_bl} to location({_x} + {_dx}, {_y} - 1, {_z} + {_dz}, {_w})
+                if {_r} <= 2:
+                    set block at {_bl} to crimson nylium
+                else if {_r} is 3:
+                    set block at {_bl} to bone block
+                else:
+                    set block at {_bl} to sculk
+            add 1 to {_dz}
+        add 1 to {_dx}
+    loop 5 times:
+        set {_a} to loop-number * 72
+        set {_px} to {_x} + round(4 * cos({_a}))
+        set {_pz} to {_z} + round(4 * sin({_a}))
+        execute console command "execute in %{_wd}% run fill %{_px}% %{_y}% %{_pz}% %{_px}% %{_y} + (random integer between 1 and 3)% %{_pz}% minecraft:bone_block keep"
+        execute console command "execute in %{_wd}% run setblock %{_px}% %{_y} + 3% %{_pz}% minecraft:cobweb keep"
+    execute console command "mm mobs spawn ZA_Coeur_Nid 1 %{_w}%,%{_x}%,%{_y}%,%{_z}%"
+    if {za::nid::next} is not set:
+        set {za::nid::next} to 0
+    add 1 to {za::nid::next}
+    set {_id} to {za::nid::next}
+    set {za::nid::%{_id}%::loc} to location({_x} + 0.5, {_y}, {_z} + 0.5, {_w})
+    set {za::nid::%{_id}%::jour} to {za::serveur::jours}
+    add {_id} to {za::nid::liste::*}
+    set {_ax} to floor({_x} / 100) * 100
+    set {_az} to floor({_z} / 100) * 100
+    za_diffuser("&4[Radio] &bLéa &8» &7Des survivants parlent d'un &4NID&7 vers X=%{_ax}% Z=%{_az}% (+/- 100). Les morts y naissent. Quelque chose bat, là-dessous.")
+    za_journal("Un nid est apparu.")
+    za_monde_evt("Un nid de chair s'est formé ici. Les morts s'y rassemblent.", {_l}, 1, "nid")
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_zm("son %loop-player% za_modeles:sfx.horde_grondement 0.5 0.8")
+
+# le nid fait naître des morts et contamine
+every 20 seconds:
+    loop {za::nid::liste::*}:
+        set {_id} to loop-value
+        set {_c} to {za::nid::%{_id}%::loc}
+        if {_c} is set:
+            set {_proche} to false
+            loop all players in radius 56 around {_c}:
+                if za_pro(loop-player) is false:
+                    set {_proche} to true
+            if {_proche} is true:
+                set {_types::*} to "ZA_Shambler", "ZA_Shambler", "ZA_Runner", "ZA_Crawler", "ZA_Shambler"
+                loop 2 times:
+                    set {_t} to random element out of {_types::*}
+                    if chance of 10%:
+                        set {_t} to "ZA_Screamer"
+                    if chance of 6%:
+                        set {_t} to "ZA_Brute"
+                    za_spawn_at({_c}, {_t}, 3, 9)
+                execute console command "execute in %za_dim(world of {_c})% run particle minecraft:sculk_soul %x-coordinate of {_c}% %y-coordinate of {_c} + 1% %z-coordinate of {_c}% 2 1 2 0.02 40 force"
+
+every 1 minute:
+    loop {za::nid::liste::*}:
+        set {_c} to {za::nid::%loop-value%::loc}
+        if {_c} is set:
+            set {_k} to za_ckey({_c})
+            if {za::contam::%{_k}%} is not set:
+                set {za::contam::%{_k}%} to 0
+            add 4 to {za::contam::%{_k}%}
+            za_activite_ajouter({_c}, 5)
+
+# appelé par MythicMobs à la mort du cœur
+command /zanid <text> [<text>] [<number>] [<number>] [<number>]:
+    executable by: console
+    trigger:
+        if arg-1 is "coeur_mort":
+            set {_w} to world(arg-2)
+            if {_w} is not set:
+                stop
+            set {_l} to location(arg-3, arg-4, arg-5, {_w})
+            set {_id} to za_nid_proche({_l}, 16)
+            if {_id} is not 0:
+                za_nid_detruit({_id})
+
+function za_nid_detruit(id: number):
+    set {_c} to {za::nid::%{_id}%::loc}
+    remove {_id} from {za::nid::liste::*}
+    delete {za::nid::%{_id}%::*}
+    if {_c} is not set:
+        stop
+    set {_x} to floor(x-coordinate of {_c})
+    set {_y} to floor(y-coordinate of {_c})
+    set {_z} to floor(z-coordinate of {_c})
+    set {_wd} to za_dim(world of {_c})
+    za_monde_evt("Un nid est détruit. Le secteur respire enfin.", {_c}, 2, "defense")
+    # trace permanente : terre brûlée, un feu d'âmes, une stèle
+    execute console command "execute in %{_wd}% run fill %{_x} - 5% %{_y} - 1% %{_z} - 5% %{_x} + 5% %{_y} - 1% %{_z} + 5% minecraft:blackstone replace minecraft:sculk"
+    execute console command "execute in %{_wd}% run fill %{_x} - 5% %{_y} - 1% %{_z} - 5% %{_x} + 5% %{_y} - 1% %{_z} + 5% minecraft:basalt replace minecraft:crimson_nylium"
+    execute console command "execute in %{_wd}% run fill %{_x} - 5% %{_y}% %{_z} - 5% %{_x} + 5% %{_y} + 1% %{_z} + 5% minecraft:air replace minecraft:sculk_vein"
+    execute console command "execute in %{_wd}% run setblock %{_x}% %{_y} - 1% %{_z}% minecraft:soul_soil"
+    execute console command "execute in %{_wd}% run setblock %{_x}% %{_y}% %{_z}% minecraft:soul_campfire[lit=true]"
+    execute console command "execute in %{_wd}% run setblock %{_x} + 2% %{_y}% %{_z}% minecraft:oak_sign[rotation=4]"
+    set {_s} to block at location({_x} + 2, {_y}, {_z}, world of {_c})
+    set {_h} to "des survivants"
+    set {_best} to 999
+    loop all players in radius 40 around {_c}:
+        if za_pro(loop-player) is false:
+            add 1 to {_nb}
+            za_jetons_ajouter(loop-player, 8)
+            za_faction_ajouter(loop-player, "survivants", 6)
+            send "&a&lNID DÉTRUIT. &7+8 jetons. Le secteur respire enfin." to loop-player
+            za_zm("son %loop-player% za_modeles:sfx.sting_revelation 0.7 1.2")
+            if distance between loop-player and {_c} < {_best}:
+                set {_best} to distance between loop-player and {_c}
+                set {_h} to "%loop-player%"
+    set line 1 of {_s} to "&4Ici battait"
+    set line 2 of {_s} to "&4un nid"
+    set line 3 of {_s} to "&8Detruit par"
+    set line 4 of {_s} to "&8%{_h}% J%{za::serveur::jours}%"
+    set {_k} to za_ckey({_c})
+    if {za::contam::%{_k}%} is set:
+        remove 150 from {za::contam::%{_k}%}
+        if {za::contam::%{_k}%} <= 0:
+            delete {za::contam::%{_k}%}
+    delete {za::act::%za_akey({_c})%}
+    if {za::saison::nids} is not set:
+        set {za::saison::nids} to 0
+    add 1 to {za::saison::nids}
+    za_journal("%{_h}% a detruit un nid.")
+    za_diffuser("&a[Radio] &bLéa &8» &7Un nid vient de tomber. Merci, %{_h}%. Il en reste d'autres.")
+
+every 90 minutes:
+    if size of za_monde_joueurs() > 0:
+        if chance of 35%:
+            set {_p} to random element out of za_monde_joueurs()
+            za_nid_creer(za_point_loin({_p}, 90, 150))
+
+# ---------------------------------------------------------------- ALPHA DÉTECTÉ
+
+every 60 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_p} to loop-player
+            set {_n} to size of (all zombies in radius 32 around {_p})
+            if {_n} >= 7:
+                set {_deja} to false
+                loop all zombies in radius 56 around {_p}:
+                    if uncolored name of loop-zombie is "Alpha":
+                        set {_deja} to true
+                if {_deja} is false:
+                    if chance of 14%:
+                        za_spawn_near({_p}, "ZA_Alpha", 14, 24)
+                        loop all players in radius 64 around {_p}:
+                            send title "&4&l⚠ ALPHA DÉTECTÉ" with subtitle "&7Il rend les morts plus forts. Abats-le en premier." to loop-player-2 for 3 seconds
+                            za_zm("son %loop-player-2% za_modeles:sfx.sting_danger 0.6 1.3")
+
+# ---------------------------------------------------------------- CONVOI BRAVO (échoué, gardé par l'escouade infectée de Vega)
+
+function za_convoi():
+    if size of za_monde_joueurs() is 0:
+        stop
+    if {za::convoi::actif} is true:
+        stop
+    set {za::convoi::actif} to true
+    set {_p} to random element out of za_monde_joueurs()
+    set {_g} to za_point_loin({_p}, 70, 110)
+    set {_x} to floor(x-coordinate of {_g}) + 0.5
+    set {_y} to y-coordinate of {_g}
+    set {_z} to floor(z-coordinate of {_g}) + 0.5
+    set {_w} to world of {_g}
+    set {_wd} to za_dim({_w})
+    set {_yaw} to random integer between -180 and 180
+    za_zm("prop public convoi_a camion_militaire %{_x}% %{_y}% %{_z}% %{_yaw}% %{_w}% za_modeles:sfx.camion 80")
+    za_zm("prop public convoi_b camion_militaire %{_x} + 9% %{_y}% %{_z} + 3% %{_yaw} + 20% %{_w}%")
+    # caisses militaires
+    loop 2 times:
+        set {_cx} to floor({_x}) + (loop-number * 3) - 1
+        set {_cz} to floor({_z}) + 5
+        set {_cl} to location({_cx}, {_y}, {_cz}, {_w})
+        set {_cy} to floor(y-coordinate of (location of (highest block at {_cl}))) + 1
+        execute console command "execute in %{_wd}% run setblock %{_cx}% %{_cy}% %{_cz}% minecraft:chest"
+        set {_blk} to block at location({_cx}, {_cy}, {_cz}, {_w})
+        add za_item("firework rocket", "Fusée de détresse", "&c", 1) to inventory of {_blk}
+        add za_item("paper", "Bandage", "&f", 4) to inventory of {_blk}
+        add za_item("gold nugget", "Jeton de Survie", "&6", random integer between 4 and 9) to inventory of {_blk}
+        set {_doc} to za_item("paper", "Rapport militaire", "&2", 1)
+        set lore of {_doc} to "Convoi Bravo. Escouade du Sgt Vega portee disparue au Jour 7." and "Les soldats mordus ont ete laisses sur place. Ordre de ne pas les achever."
+        add {_doc} to inventory of {_blk}
+        execute console command "execute in %{_wd}% run item replace block %{_cx}% %{_cy}% %{_cz}% container.20 with tacz:ammo{AmmoId:""tacz:556x45""} 30"
+        execute console command "execute in %{_wd}% run item replace block %{_cx}% %{_cy}% %{_cz}% container.21 with tacz:ammo{AmmoId:""tacz:9mm""} 30"
+        if chance of 35%:
+            # pièce de collection (module armes v2) : « M4A1 — Convoi Bravo-3 », n° de série et ancien propriétaire
+            set {_ind} to random element out of "Bravo-3", "Delta-7", "Écho-2", "Foxtrot-9" and "Alpha-5"
+            execute console command "zaarme coffre %{_cx}% %{_cy}% %{_cz}% %{_w}% m4a1 Convoi %{_ind}%"
+        if chance of 30%:
+            # ressource stratégique de saison (module ressources)
+            execute console command "zaress coffre %{_cx}% %{_cy}% %{_cz}% %{_w}% 3"
+    loop 3 times:
+        za_spawn_at({_g}, "ZA_Soldat_Infecte", 3, 10)
+    loop 4 times:
+        za_spawn_at({_g}, "ZA_Shambler", 5, 14)
+    set {_ax} to floor({_x} / 50) * 50
+    set {_az} to floor({_z} / 50) * 50
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_zm("son %loop-player% za_modeles:voix.militaire_convoi 0.9 1")
+            send "&2[Radio militaire] &7...Convoi Bravo en route vers le point de ravitaillement... &8(signal figé depuis des jours) &7— position vers &fX=%{_ax}% Z=%{_az}%" to loop-player
+    za_journal("Le convoi Bravo a ete repere.")
+    wait 25 minutes
+    za_zm("prop-retirer convoi_a")
+    za_zm("prop-retirer convoi_b")
+    set {za::convoi::actif} to false
+
+every 3 hours:
+    if size of za_monde_joueurs() > 0:
+        if chance of 45%:
+            za_convoi()
+
+# ---------------------------------------------------------------- ÉVACUATION MÉDICALE (/extraction)
+
+command /extraction:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        if {za::ext::actif} is true:
+            send "&cUne évacuation est déjà en cours ailleurs." to player
+            stop
+        if player does not have firework rocket named "&cFusée de détresse":
+            send "&7Il te faut une &cFusée de détresse &7(caisses militaires du convoi, marché noir) pour appeler l'hélicoptère." to player
+            stop
+        remove 1 firework rocket named "&cFusée de détresse" from player's inventory
+        za_extraction(player)
+
+function za_extraction(p: player):
+    set {za::ext::actif} to true
+    set {_c} to location of {_p}
+    set {_w} to world of {_c}
+    set {_x} to x-coordinate of {_c}
+    set {_y} to y-coordinate of {_c}
+    set {_z} to z-coordinate of {_c}
+    execute console command "execute at %{_p}% run summon firework_rocket ~ ~1 ~ {LifeTime:40,FireworksItem:{id:""firework_rocket"",Count:1,tag:{Fireworks:{Explosions:[{Type:1,Colors:[I;16711680]}]}}}}"
+    loop all players in radius 160 around {_c}:
+        za_zm("son %loop-player% za_modeles:voix.militaire_extraction 1 1")
+        send title "&c&lÉVACUATION MÉDICALE" with subtitle "&7Tenez la zone 3 minutes. Restez près de la fusée." to loop-player for 4 seconds
+        send "&2[Radio militaire] &7Hélicoptère en approche. Tenez la zone d'atterrissage pendant trois minutes." to loop-player
+    za_zm("vehicule public heli_ext helicoptere %{_x} - 130%,%{_y} + 45%,%{_z} - 40%;%{_x} - 40%,%{_y} + 30%,%{_z} - 10%;%{_x}%,%{_y} + 22%,%{_z}% 14 za_modeles:sfx.helico 80 reste %{_w}%")
+    za_journal("%{_p}% a appele une evacuation medicale.")
+    set {_t} to 0
+    set {_vide} to 0
+    set {_types::*} to "ZA_Shambler", "ZA_Runner", "ZA_Shambler", "ZA_Leaper", "ZA_Crawler"
+    while {_t} < {@extraction_duree}:
+        wait 6 seconds
+        add 6 to {_t}
+        set {_n} to 0
+        loop all players in radius 22 around {_c}:
+            if za_pro(loop-player) is false:
+                add 1 to {_n}
+                if mod({_t}, 12) is 0:
+                    za_vague(loop-player, random element out of {_types::*}, 2, 10, 18)
+        if {_n} is 0:
+            add 6 to {_vide}
+        else:
+            set {_vide} to 0
+        if {_vide} >= 30:
+            loop all players in radius 160 around {_c}:
+                send "&c[Radio militaire] &7Zone perdue. L'hélicoptère repart. Désolé." to loop-player
+            za_zm("prop-retirer heli_ext")
+            za_zm("vehicule public heli_dep helicoptere %{_x}%,%{_y} + 22%,%{_z}%;%{_x} + 120%,%{_y} + 60%,%{_z} + 60% 16 za_modeles:sfx.helico 80 - %{_w}%")
+            set {za::ext::actif} to false
+            stop
+        if mod({_t}, 60) is 0:
+            loop all players in radius 60 around {_c}:
+                send action bar "&c&lÉVACUATION &7— encore &f%{@extraction_duree} - {_t}% s" to loop-player
+    # réussite : largage
+    set {_cx} to floor({_x}) + 2
+    set {_cy} to floor(y-coordinate of (location of (highest block at location({_cx}, {_y}, floor({_z}), {_w})))) + 1
+    set {_cz} to floor({_z})
+    set {_wd} to za_dim({_w})
+    execute console command "execute in %{_wd}% run setblock %{_cx}% %{_cy}% %{_cz}% minecraft:barrel[facing=up]"
+    set {_blk} to block at location({_cx}, {_cy}, {_cz}, {_w})
+    add za_item("honey bottle", "Antibiotique", "&b", 2) to inventory of {_blk}
+    add za_item("honey bottle", "Serum", "&d", 1) to inventory of {_blk}
+    add za_item("paper", "Bandage", "&f", 6) to inventory of {_blk}
+    add za_item("gold nugget", "Jeton de Survie", "&6", 10) to inventory of {_blk}
+    execute console command "execute in %{_wd}% run item replace block %{_cx}% %{_cy}% %{_cz}% container.10 with tacz:ammo{AmmoId:""tacz:556x45""} 60"
+    execute console command "zaarme coffre %{_cx}% %{_cy}% %{_cz}% %{_w}% m4a1 Évacuation médicale"
+    loop all players in radius 30 around {_c}:
+        if za_pro(loop-player) is false:
+            za_jetons_ajouter(loop-player, 12)
+            za_faction_ajouter(loop-player, "milice", 8)
+            send title "&a&lÉVACUATION RÉUSSIE" with subtitle "&7Les blessés sont partis. Un largage vous attend." to loop-player for 4 seconds
+            za_zm("son %loop-player% za_modeles:sfx.sting_revelation 0.7 1.1")
+    za_journal("Une evacuation medicale a reussi.")
+    wait 3 seconds
+    za_zm("prop-retirer heli_ext")
+    za_zm("vehicule public heli_dep helicoptere %{_x}%,%{_y} + 22%,%{_z}%;%{_x} + 30%,%{_y} + 35%,%{_z} + 10%;%{_x} + 160%,%{_y} + 70%,%{_z} + 70% 16 za_modeles:sfx.helico 80 - %{_w}%")
+    set {za::ext::actif} to false
+
+# ---------------------------------------------------------------- SOS
+
+command /sos [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        if {za::sos::cd::%{_u}%} is set:
+            if difference between {za::sos::cd::%{_u}%} and now is less than 10 minutes:
+                send "&7Ta radio doit recharger (10 minutes entre deux SOS)." to player
+                stop
+        if za_jetons(player) < 2:
+            send "&cUn SOS coûte 2 jetons (batterie de radio)." to player
+            stop
+        za_jetons_ajouter(player, -2)
+        set {za::sos::cd::%{_u}%} to now
+        set {za::sos::loc::%{_u}%} to location of player
+        set {za::sos::fin::%{_u}%} to now
+        add 5 minutes to {za::sos::fin::%{_u}%}
+        set {_ax} to floor(x-coordinate of player / 25) * 25
+        set {_az} to floor(z-coordinate of player / 25) * 25
+        set {_m} to arg-1
+        if {_m} is not set:
+            set {_m} to "Quelqu'un... n'importe qui..."
+        loop all players:
+            if za_pro(loop-player) is false:
+                if loop-player is not player:
+                    za_zm("son %loop-player% za_modeles:sfx.radio_statique 0.5 1.2")
+                    send "&c[SOS] &f%player% &7appelle à l'aide vers &fX=%{_ax}% Z=%{_az}% &7: &o%{_m}%" to loop-player
+        send "&7Ton SOS est parti. Tout le monde sait maintenant où tu es. &8Tout le monde." to player
+        za_activite_ajouter(location of player, 15)
+
+every 5 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_u} to "%loop-player's uuid%"
+            if {za::sos::fin::%{_u}%} is set:
+                if now > {za::sos::fin::%{_u}%}:
+                    delete {za::sos::fin::%{_u}%}
+                    delete {za::sos::loc::%{_u}%}
+                else:
+                    loop all players in radius 8 around loop-player:
+                        if loop-player-2 is not loop-player-1:
+                            if {za::sos::aide::%{_u}%::%loop-player-2's uuid%} is not set:
+                                set {za::sos::aide::%{_u}%::%loop-player-2's uuid%} to true
+                                send "&a%loop-player-2% a répondu à ton SOS." to loop-player-1
+                                send "&aTu as répondu au SOS de %loop-player-1%. &7Les survivants s'en souviendront." to loop-player-2
+                                za_faction_ajouter(loop-player-2, "survivants", 4)
+                                za_jetons_ajouter(loop-player-2, 3)
+
+# ---------------------------------------------------------------- CENTRALE (réseau électrique)
+
+on right click on lectern:
+    if za_pro(player) is true:
+        stop
+    set {_ok} to false
+    loop {za::bat::centrale::pos::*}:
+        if world of loop-value is world of player:
+            if distance between loop-value and player < 16:
+                set {_ok} to true
+    if {_ok} is false:
+        stop
+    cancel event
+    if {za::elec::fin} is set:
+        if now < {za::elec::fin}:
+            send "&6La centrale tourne déjà. Le réseau tient... pour l'instant." to player
+            stop
+    if za_count_named(player, "Composant electronique") < 3:
+        send "&6Tableau de commande : &7il faut &b3 Composants électroniques &7pour relancer les turbines." to player
+        stop
+    za_take_named(player, "Composant electronique", 3)
+    set {za::elec::fin} to now
+    add 3 days to {za::elec::fin}
+    za_faction_ajouter(player, "scientifiques", 5)
+    za_jetons_ajouter(player, 10)
+    za_journal("%player% a remis la centrale en marche.")
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_zm("son %loop-player% za_modeles:sfx.bourdon_electrique 0.6 1")
+            send title "&6&lLE COURANT REVIENT" with subtitle "&7%player% a relancé la centrale. Pour combien de temps ?" to loop-player for 4 seconds
+    za_diffuser("&6[Radio] &bLéa &8» &7Le courant revient dans certains secteurs! Les marchands baissent leurs prix... mais la centrale attire les morts comme un phare.")
+
+function za_courant() :: boolean:
+    if {za::elec::fin} is set:
+        if now < {za::elec::fin}:
+            return true
+    return false
+
+# tant que le courant est là : la centrale attire les morts (activité), les prix baissent un peu
+every 1 minute:
+    if za_courant() is true:
+        loop {za::bat::centrale::pos::*}:
+            za_activite_ajouter(loop-value, 8)
+        if {za::eco::mult} is 1:
+            set {za::eco::mult} to 0.9
+    else if {za::eco::mult} is 0.9:
+        set {za::eco::mult} to 1
+        za_diffuser("&6[Radio] &7Le réseau est retombé. Noir complet.")
+
+# ---------------------------------------------------------------- LIEUX QUI ÉVOLUENT (abandonné → contaminé → nid → zone morte)
+
+function za_lieu_evoluer():
+    set {_types::*} to "hopital", "police", "supermarche", "station", "laboratoire", "caserne", "ecole", "centrale"
+    loop {_types::*}:
+        set {_t} to loop-value-1
+        loop {za::bat::%{_t}%::liste::*}:
+            set {_k} to loop-value-2
+            if {za::bat::jour::%{_k}%} is not set:
+                set {za::bat::jour::%{_k}%} to {za::serveur::jours}
+            set {_age} to {za::serveur::jours} - {za::bat::jour::%{_k}%}
+            set {_s::*} to split {_k} at "_"
+            set {_w} to world({_s::4})
+            if {_w} is set:
+                set {_l} to location(({_s::1} parsed as number) + 5, ({_s::2} parsed as number) + 1, ({_s::3} parsed as number) + 4, {_w})
+                if {_age} >= 10:
+                    if {za::bat::stade::%{_k}%} is not set:
+                        set {za::bat::stade::%{_k}%} to 1
+                        set {_ck} to za_ckey({_l})
+                        if {za::contam::%{_ck}%} is not set:
+                            set {za::contam::%{_ck}%} to 0
+                        add 160 to {za::contam::%{_ck}%}
+                        za_diffuser("&8[Radio] &7Le %{_t}% abandonné de X=%floor(x-coordinate of {_l} / 100) * 100% Z=%floor(z-coordinate of {_l} / 100) * 100% est maintenant &2contaminé&7. N'y allez pas sans masque.")
+                if {_age} >= 20:
+                    if {za::bat::stade::%{_k}%} is 1:
+                        set {za::bat::stade::%{_k}%} to 2
+                        za_nid_creer(za_point_loin_l({_l}, 6))
+                if {_age} >= 30:
+                    if {za::bat::stade::%{_k}%} is 2:
+                        set {za::bat::stade::%{_k}%} to 3
+                        za_zone_morte_creer({_l}, 24)
+                        za_diffuser("&4[Radio] &7Plus personne ne revient du %{_t}% de X=%floor(x-coordinate of {_l} / 100) * 100% Z=%floor(z-coordinate of {_l} / 100) * 100%. On l'appelle maintenant une &4zone morte&7.")
+
+function za_point_loin_l(c: location, d: number) :: location:
+    set {_l} to {_c}
+    add random number between (0 - {_d}) and {_d} to x-coordinate of {_l}
+    add random number between (0 - {_d}) and {_d} to z-coordinate of {_l}
+    return location of (highest block at {_l})
+
+every 30 minutes:
+    za_lieu_evoluer()
+
+# ---------------------------------------------------------------- admin
+
+command /mondevivant <text>:
+    permission: za.admin
+    trigger:
+        if arg-1 is "nid":
+            za_nid_creer(za_point_loin(player, 20, 30))
+            send "&aNid créé près de toi." to player
+        else if arg-1 is "convoi":
+            za_convoi()
+        else if arg-1 is "alpha":
+            za_spawn_near(player, "ZA_Alpha", 10, 16)
+        else if arg-1 is "zone":
+            za_zone_info(player)
+        else if arg-1 is "evoluer":
+            za_lieu_evoluer()
+            send "&aLieux mis à jour." to player
+        else if arg-1 is "extraction":
+            za_extraction(player)
+        else:
+            send "&cUsage : /mondevivant <nid|convoi|alpha|zone|evoluer|extraction>" to player

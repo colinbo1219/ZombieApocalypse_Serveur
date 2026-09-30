@@ -1,0 +1,83 @@
+# =====================================================================
+#  ZombieApocalypse - PHASE 9 : SOCIAL / LATE GAME
+#  Reputation (meurtres), sacrifice, choix de camp, radio pirate, disparition des noms.
+#  (Contrats et dettes : Phase 7 - Economie | Nuit des traitres : Phase 3)
+# =====================================================================
+
+# ---------- reputation : tuer un joueur a bonne reputation te coute cher ----------
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        if attacker is not victim:
+            set {_a} to "%attacker's uuid%"
+            set {_v} to "%victim's uuid%"
+            if {za::rep::%{_a}%} is not set:
+                set {za::rep::%{_a}%} to 0
+            if {za::rep::%{_v}%} is not set:
+                set {za::rep::%{_v}%} to 0
+            if {za::rep::%{_v}%} >= 0:
+                remove 10 from {za::rep::%{_a}%}
+                send "&cTu as tue un survivant : reputation -10." to attacker
+                za_diffuser("&8&o%attacker% a tue %victim%...")
+            else:
+                add 3 to {za::rep::%{_a}%}
+
+# ---------- sacrifice : calme les morts pendant 10 minutes (spawns scriptes suspendus) ----------
+command /sacrifice:
+    trigger:
+        if za_jetons(player) < 10:
+            send "&cUn sacrifice coute 10 jetons." to player
+        else:
+            za_jetons_ajouter(player, 0 - 10)
+            set {za::calme::fin} to now
+            add 10 minutes to {za::calme::fin}
+            za_diffuser("&5&l%player% a fait un sacrifice. &7Les morts s'apaisent pour 10 minutes.")
+
+# ---------- choix de camp (late game : score 80 minimum) ----------
+command /camp <text>:
+    trigger:
+        if za_score(player) < 80:
+            send "&cIl faut un score de 80 (rang Veteran) pour choisir un camp." to player
+        else if arg-1 is "humain":
+            set {za::camp::%player's uuid%} to "humain"
+            send "&aTu restes du cote des vivants." to player
+        else if arg-1 is "infecte":
+            set {za::camp::%player's uuid%} to "infecte"
+            za_diffuser("&4&l%player% a rejoint le camp des infectes...")
+            send "&8Les morts ne t'attaquent plus. Mais tu n'es plus tout a fait humain." to player
+        else:
+            send "&cUsage: /camp <humain|infecte>" to player
+
+every 60 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            if {za::camp::%loop-player's uuid%} is "infecte":
+                za_effet(loop-player, "weakness", 40, 0)
+
+# ---------- radio pirate : broadcast a tout le serveur, mais ca attire les morts ----------
+command /radio <text>:
+    trigger:
+        if za_emp_actif() is true:
+            send "&bLa radio ne donne que du souffle : impulsion EMP en cours." to player
+        else if za_jetons(player) < 5:
+            send "&cUne transmission coute 5 jetons." to player
+        else:
+            za_jetons_ajouter(player, 0 - 5)
+            za_diffuser("&8[Radio pirate] &7%arg-1%")
+            loop 6 times:
+                za_spawn_near(player, "ZA_Shambler", 12, 25)
+            send "&7Ta transmission a attire des morts..." to player
+
+# ---------- disparition collective des noms ----------
+function za_noms_disparus():
+    set {za::evt::noms} to true
+    za_diffuser("&8&l... &7Vos noms s'effacent. Plus personne ne sait qui parle.")
+    wait 90 seconds
+    set {za::evt::noms} to false
+    za_diffuser("&7Les noms reviennent.")
+
+on chat:
+    if {za::evt::noms} is true:
+        cancel the event
+        za_diffuser("&8??? : &7%message%")

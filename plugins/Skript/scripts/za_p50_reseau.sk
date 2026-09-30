@@ -1,0 +1,604 @@
+# =====================================================================
+#  ZombieApocalypse - RÉSEAU ÉLECTRIQUE : la centrale alimente des QUARTIERS, pas le monde entier
+#  La centrale (za_p39 : 3 Composants électroniques au lutrin) donne du courant pour un cycle (3 jours réels).
+#  Mais elle ne peut alimenter que 2 quartiers à la fois. Chaque ressource de saison versée à la centrale ajoute une place (max 4).
+#  * Celui qui relance la centrale choisit les quartiers (menu). Ensuite, tout le monde vote : /reseau voter <quartier>.
+#    Chaque jour de serveur, les quartiers les plus votés gardent (ou prennent) le courant.
+#  * Quartiers : hopital, police, commerce, residentiel. Publié : {za::reseau::hopital|police|commerce|residentiel} (booléens,
+#    faux quand il n'y a plus de courant). Effets : voir /reseau.
+#      - hopital      : "Poste de soins" des hôpitaux (za_p51), Antibiotique moins cher dans les ateliers médicaux (za_p52)
+#      - police       : armoires des postes de police regarnies chaque jour (za_p51) + alarmes de quartier qui préviennent les
+#                       propriétaires de base quand des morts approchent (message + son)
+#      - commerce     : marchands -15 %% (facteur séparé appliqué à {za::saison::prix}, restauré exactement) + frais du marché
+#                       supprimés ({za::reseau::commerce} lu par le module marché)
+#      - residentiel  : camps et survivants de base plus sereins ({za::reseau::residentiel} lu par les autres modules) + sanité +
+#                       dans la base du joueur
+#    Les quartiers alimentés attirent les morts : activité ajoutée autour de leurs bâtiments (za_activite_ajouter).
+#  Admin/console : /zareseau <etat|demarrer [jours]|couper|capacite <n>|jour|vote <quartier> [n]|choisir <quartier>>
+# =====================================================================
+
+options:
+    capacite_base: 2
+    capacite_max: 4
+    facteur_commerce: 0.85
+
+# ---------------------------------------------------------------- données des quartiers
+
+function za_reseau_quartiers() :: texts:
+    return "hopital", "police", "commerce" and "residentiel"
+
+function za_reseau_nom(q: text) :: text:
+    if {_q} is "hopital":
+        return "Quartier hospitalier"
+    if {_q} is "police":
+        return "Quartier de la police"
+    if {_q} is "commerce":
+        return "Quartier commerçant"
+    if {_q} is "residentiel":
+        return "Quartier résidentiel"
+    return {_q}
+
+function za_reseau_court(q: text) :: text:
+    if {_q} is "hopital":
+        return "Hôpital"
+    if {_q} is "police":
+        return "Police"
+    if {_q} is "commerce":
+        return "Commerce"
+    if {_q} is "residentiel":
+        return "Résidentiel"
+    return {_q}
+
+function za_reseau_effet(q: text) :: text:
+    if {_q} is "hopital":
+        return "Postes de soins des hôpitaux, antibiotiques moins chers en atelier médical"
+    if {_q} is "police":
+        return "Armoires des postes de police regarnies, alarmes de périmètre pour les bases"
+    if {_q} is "commerce":
+        return "Marchands -15 %%, plus de frais au marché"
+    if {_q} is "residentiel":
+        return "Camps et survivants de base plus sereins, sanité qui remonte à la base"
+    return ""
+
+# types de bâtiments (za_p35) desservis par chaque quartier
+function za_reseau_quartier_de(t: text) :: text:
+    if {_t} is "hopital":
+        return "hopital"
+    if {_t} is "labo2":
+        return "hopital"
+    if {_t} is "police":
+        return "police"
+    if {_t} is "caserne":
+        return "police"
+    if {_t} is "super":
+        return "commerce"
+    if {_t} is "station":
+        return "commerce"
+    if {_t} is "ecole":
+        return "residentiel"
+    return ""
+
+function za_reseau_actif(q: text) :: boolean:
+    if {za::reseau::%{_q}%} is true:
+        return true
+    return false
+
+# reconnaît "hôpital", "hop", "res", "résidentiel"...
+function za_reseau_norm(t: text) :: text:
+    set {_s} to {_t} in lowercase
+    if {_s} contains "hop":
+        return "hopital"
+    if {_s} contains "hôp":
+        return "hopital"
+    if {_s} contains "pol":
+        return "police"
+    if {_s} contains "com":
+        return "commerce"
+    if {_s} contains "res":
+        return "residentiel"
+    if {_s} contains "rés":
+        return "residentiel"
+    return ""
+
+# durée lisible : "2 j 5 h" / "3 h 12 min" / "45 min"
+function za_duree(ts: timespan) :: text:
+    set {_s} to floor({_ts} / 1 second)
+    if {_s} < 60:
+        return "moins d'une minute"
+    set {_j} to floor({_s} / 86400)
+    set {_h} to floor(({_s} - ({_j} * 86400)) / 3600)
+    set {_m} to floor(({_s} - ({_j} * 86400) - ({_h} * 3600)) / 60)
+    if {_j} > 0:
+        return "%{_j}% j %{_h}% h"
+    if {_h} > 0:
+        return "%{_h}% h %{_m}% min"
+    return "%{_m}% min"
+
+# ressource de saison demandée à la centrale (publiée par le module ressources, sinon le composant historique)
+function za_reseau_ressource() :: text:
+    if {za::ressource::nom} is set:
+        return "%{za::ressource::nom}%"
+    return "Composant electronique"
+
+function za_reseau_capacite() :: number:
+    set {_e} to {za::reseau::extra}
+    if {_e} is not set:
+        set {_e} to 0
+    return min({@capacite_max}, {@capacite_base} + {_e})
+
+# distance à la centrale la plus proche (9999 si aucune dans le monde du lieu)
+function za_centrale_dist(l: location) :: number:
+    set {_best} to 9999
+    loop {za::bat::centrale::pos::*}:
+        if world of loop-value is world of {_l}:
+            set {_d} to distance between loop-value and {_l}
+            if {_d} < {_best}:
+                set {_best} to {_d}
+    return {_best}
+
+function za_reseau_votes(q: text) :: number:
+    set {_n} to 0
+    loop {za::reseau::vote::*}:
+        if loop-value is {_q}:
+            add 1 to {_n}
+    return {_n}
+
+# ---------------------------------------------------------------- application de l'état (booléens publiés + annonces radio)
+
+function za_reseau_appliquer(silence: boolean):
+    set {_on} to za_courant()
+    if {_on} is false:
+        if size of {za::reseau::actifs::*} > 0:
+            delete {za::reseau::actifs::*}
+        delete {za::reseau::choix::*}
+        delete {za::reseau::proprio}
+        delete {za::reseau::choix_fin}
+    set {_q::*} to za_reseau_quartiers()
+    loop {_q::*}:
+        set {_veut} to false
+        if {_on} is true:
+            if {za::reseau::actifs::*} contains loop-value:
+                set {_veut} to true
+        set {_avant} to za_reseau_actif(loop-value)
+        if {_veut} is not {_avant}:
+            set {za::reseau::%loop-value%} to {_veut}
+            if {_veut} is true:
+                add loop-value to {_allume::*}
+            else:
+                add loop-value to {_eteint::*}
+        else if {za::reseau::%loop-value%} is not set:
+            set {za::reseau::%loop-value%} to false
+    if {_silence} is false:
+        loop {_allume::*}:
+            za_radio("&6CKZA", "%za_reseau_nom(loop-value)% est rebranché. %za_reseau_effet(loop-value)%.")
+            za_journal("%za_reseau_nom(loop-value)% rebranché sur le réseau.")
+        if {_on} is true:
+            loop {_eteint::*}:
+                za_radio("&6CKZA", "%za_reseau_nom(loop-value)% est coupé. Le courant est parti ailleurs.")
+                za_journal("%za_reseau_nom(loop-value)% coupé du réseau.")
+        else:
+            if size of {_eteint::*} > 0:
+                za_radio("&6CKZA", "Coupure générale. Plus de courant dans aucun quartier. La centrale s'est arrêtée.")
+                za_journal("Coupure générale du réseau électrique.")
+    za_reseau_prix()
+
+# facteur de prix du commerce : appliqué à {za::saison::prix} (jamais à {za::eco::mult}, déjà manipulé par plusieurs modules)
+# valeur = base de la règle de saison x facteur ; recalculé depuis zéro, donc restauré exactement
+function za_reseau_prix():
+    set {_b} to 1
+    if {za::saison::regle} is "penurie":
+        set {_b} to 1.3
+    set {_f} to 1
+    if za_reseau_actif("commerce") is true:
+        set {_f} to {@facteur_commerce}
+    set {za::reseau::facteur_prix} to {_f}
+    set {_v} to {_b} * {_f}
+    if {za::saison::prix} is not {_v}:
+        set {za::saison::prix} to {_v}
+
+# ---------------------------------------------------------------- cycles
+
+# appelé quand {za::elec::fin} a changé (centrale relancée) : u = uuid de celui qui a relancé ("" si inconnu)
+function za_reseau_nouveau_cycle(u: text):
+    set {za::reseau::cycle_fin} to {za::elec::fin}
+    add 1 to {za::reseau::cycle}
+    set {za::reseau::extra} to 0
+    delete {za::reseau::vote::*}
+    delete {za::reseau::actifs::*}
+    delete {za::reseau::choix::*}
+    delete {za::reseau::avert::*}
+    set {za::reseau::jour_vu} to {za::serveur::jours}
+    delete {za::reseau::proprio}
+    delete {za::reseau::choix_fin}
+    set {_ok} to false
+    if {_u} is not "":
+        loop za_monde_joueurs():
+            if loop-player's uuid is {_u}:
+                set {_ok} to true
+                set {_pj} to loop-player
+    if {_ok} is true:
+        set {za::reseau::proprio} to {_u}
+        set {za::reseau::choix_fin} to now
+        add 3 minutes to {za::reseau::choix_fin}
+        za_radio("&6CKZA", "La centrale est relancée. %{_pj}% répartit le courant entre les quartiers...")
+        za_reseau_menu({_pj})
+    else:
+        za_reseau_remplir()
+        za_radio("&6CKZA", "La centrale est relancée. Le courant est réparti automatiquement entre les quartiers.")
+    za_journal("Nouveau cycle du réseau électrique (capacité %za_reseau_capacite()% quartiers).")
+
+# ordre de priorité quand personne ne choisit
+function za_reseau_remplir():
+    set {_cap} to za_reseau_capacite()
+    set {_ordre::*} to "hopital", "residentiel", "commerce" and "police"
+    loop {_ordre::*}:
+        if size of {za::reseau::choix::*} < {_cap}:
+            if {za::reseau::choix::*} does not contain loop-value:
+                add loop-value to {za::reseau::choix::*}
+    za_reseau_finaliser()
+
+function za_reseau_finaliser():
+    delete {za::reseau::actifs::*}
+    loop {za::reseau::choix::*}:
+        add loop-value to {za::reseau::actifs::*}
+    delete {za::reseau::choix::*}
+    delete {za::reseau::proprio}
+    delete {za::reseau::choix_fin}
+    za_reseau_appliquer(false)
+
+# menu du "propriétaire du cycle" : choisit les quartiers, un par un
+function za_reseau_menu(p: player):
+    set {_cap} to za_reseau_capacite()
+    set {_n} to size of {za::reseau::choix::*}
+    set {_q::*} to za_reseau_quartiers()
+    loop {_q::*}:
+        if {za::reseau::choix::*} contains loop-value:
+            add "!%za_reseau_court(loop-value)% (choisi)|x" to {_o::*}
+        else:
+            add "%za_reseau_court(loop-value)%|d_%loop-value%" to {_o::*}
+    if {_n} > 0:
+        add "Valider avec %{_n}% quartier(s)|fin" to {_o::*}
+    set {_t} to "La centrale peut alimenter %{_cap}% quartiers pour ce cycle (%{_n}% choisi(s)). Hôpital : postes de soins. Police : armoires et alarmes. Commerce : prix -15 %% et marché sans frais. Résidentiel : camps plus sereins. Les autres survivants pourront voter ensuite (/reseau voter)."
+    za_menu({_p}, "zareseauclic", "Réseau électrique", {_t}, {_o::*})
+
+command /zareseauclic <player> <text>:
+    executable by: console
+    trigger:
+        set {_p} to arg-1
+        if {_p}'s uuid is not {za::reseau::proprio}:
+            send "&7Le choix du réseau n'est plus en cours." to {_p}
+            stop
+        if za_courant() is false:
+            stop
+        if arg-2 is "fin":
+            za_reseau_finaliser()
+            stop
+        set {_q} to arg-2
+        replace all "d_" with "" in {_q}
+        set {_cap} to za_reseau_capacite()
+        if {za::reseau::choix::*} does not contain {_q}:
+            if size of {za::reseau::choix::*} < {_cap}:
+                add {_q} to {za::reseau::choix::*}
+        if size of {za::reseau::choix::*} >= {_cap}:
+            za_reseau_finaliser()
+            send "&6[Réseau] &7Courant réparti. Les autres survivants peuvent maintenant voter : &e/reseau voter <quartier>" to {_p}
+        else:
+            wait 2 ticks
+            za_reseau_menu({_p})
+
+# ---------------------------------------------------------------- vote quotidien
+
+function za_reseau_jour():
+    if za_courant() is false:
+        stop
+    set {_cap} to za_reseau_capacite()
+    set {_q::*} to za_reseau_quartiers()
+    loop {_q::*}:
+        set {_s} to za_reseau_votes(loop-value) * 10
+        if za_reseau_actif(loop-value) is true:
+            add 1 to {_s}
+        set {_score::%loop-value%} to {_s}
+    set {_rest::*} to za_reseau_quartiers()
+    set {_i} to 0
+    while {_i} < {_cap}:
+        set {_best} to ""
+        set {_bs} to 0
+        loop {_rest::*}:
+            if {_score::%loop-value%} > {_bs}:
+                set {_bs} to {_score::%loop-value%}
+                set {_best} to loop-value
+        if {_best} is not "":
+            add {_best} to {_nouv::*}
+            remove {_best} from {_rest::*}
+        add 1 to {_i}
+    # rien à changer si aucun vote et rien d'alimenté (cycle sans choix)
+    delete {za::reseau::actifs::*}
+    loop {_nouv::*}:
+        add loop-value to {za::reseau::actifs::*}
+    za_reseau_appliquer(false)
+
+# ---------------------------------------------------------------- boucle principale (toutes les 10 s)
+
+function za_reseau_tick():
+    # nouveau cycle : za_p39 a relancé la centrale
+    if za_courant() is true:
+        if {za::reseau::cycle_fin} is not {za::elec::fin}:
+            set {_u} to ""
+            set {_best} to 50
+            loop za_monde_joueurs():
+                set {_d} to za_centrale_dist(location of loop-player)
+                if {_d} < {_best}:
+                    set {_best} to {_d}
+                    set {_u} to loop-player's uuid
+            za_reseau_nouveau_cycle({_u})
+        else:
+            # choix du propriétaire expiré : on complète automatiquement
+            if {za::reseau::choix_fin} is set:
+                if now > {za::reseau::choix_fin}:
+                    za_reseau_remplir()
+                    za_radio("&6CKZA", "Personne n'a fini de choisir : le courant est réparti automatiquement.")
+            # un jour de serveur est passé : les votes reprennent la main
+            if {za::reseau::jour_vu} is not {za::serveur::jours}:
+                set {za::reseau::jour_vu} to {za::serveur::jours}
+                if {za::reseau::choix_fin} is not set:
+                    za_reseau_jour()
+            # avertissements de fin de cycle
+            set {_reste} to difference between now and {za::elec::fin}
+            if {_reste} < 6 hours:
+                if {za::reseau::avert::6h} is not set:
+                    set {za::reseau::avert::6h} to true
+                    za_radio("&6CKZA", "La centrale faiblit : il reste moins de 6 heures de courant. Prévoyez 3 Composants électroniques.")
+            if {_reste} < 1 hour:
+                if {za::reseau::avert::1h} is not set:
+                    set {za::reseau::avert::1h} to true
+                    za_radio("&6CKZA", "Dernière heure de courant sur le réseau. Rechargez ce que vous pouvez.")
+    za_reseau_appliquer(false)
+
+every 10 seconds:
+    za_reseau_tick()
+
+on load:
+    if {za::reseau::cycle} is not set:
+        set {za::reseau::cycle} to 0
+    if {za::reseau::extra} is not set:
+        set {za::reseau::extra} to 0
+    # les booléens publiés reprennent l'état sauvegardé, sans annonce radio
+    za_reseau_appliquer(true)
+
+# ---------------------------------------------------------------- relance de la centrale : détecte celui qui a cliqué
+# (za_p39 gère lui-même le lutrin ; on lit le résultat une seconde plus tard, sans modifier son fichier)
+
+on right click on lectern with priority lowest:
+    if za_pro(player) is true:
+        stop
+    if za_centrale_dist(location of player) >= 16:
+        stop
+    set {_p} to player
+    wait 10 ticks
+    if za_courant() is true:
+        if {za::reseau::cycle_fin} is not {za::elec::fin}:
+            za_reseau_nouveau_cycle({_p}'s uuid)
+        else if {za::reseau::proprio} is {_p}'s uuid:
+            za_reseau_menu({_p})
+        else:
+            send "&6[Réseau] &7La centrale est en marche. &e/reseau &7pour voir les quartiers alimentés, &e/reseau contribuer &7pour ajouter une place." to {_p}
+
+# ---------------------------------------------------------------- alarmes de quartier (police) : préviennent les propriétaires de base
+
+function za_dir_cardinale(de: location, vers: location) :: text:
+    set {_dx} to x-coordinate of {_vers} - x-coordinate of {_de}
+    set {_dz} to z-coordinate of {_vers} - z-coordinate of {_de}
+    set {_a} to atan2({_dx}, {_dz})
+    if {_a} < 0:
+        add 360 to {_a}
+    # 0 = est, 90 = sud, 180 = ouest, 270 = nord
+    if {_a} >= 337.5:
+        return "l'est"
+    if {_a} >= 292.5:
+        return "le nord-est"
+    if {_a} >= 247.5:
+        return "le nord"
+    if {_a} >= 202.5:
+        return "le nord-ouest"
+    if {_a} >= 157.5:
+        return "l'ouest"
+    if {_a} >= 112.5:
+        return "le sud-ouest"
+    if {_a} >= 67.5:
+        return "le sud"
+    if {_a} >= 22.5:
+        return "le sud-est"
+    return "l'est"
+
+function za_reseau_alarme(p: player):
+    set {_u} to {_p}'s uuid
+    if {za::base::%{_u}%} is not set:
+        stop
+    if {za::reseau::alarme_cd::%{_u}%} is set:
+        if now < {za::reseau::alarme_cd::%{_u}%}:
+            stop
+    set {_bl} to {za::base::%{_u}%}
+    set {_n} to 0
+    set {_proche} to 999
+    set {_pz} to {_bl}
+    loop all zombies in radius 55 around {_bl}:
+        add 1 to {_n}
+        set {_d} to distance between loop-entity and {_bl}
+        if {_d} < {_proche}:
+            set {_proche} to {_d}
+            set {_pz} to location of loop-entity
+    if {_n} < 3:
+        stop
+    set {za::reseau::alarme_cd::%{_u}%} to now
+    add 75 seconds to {za::reseau::alarme_cd::%{_u}%}
+    set {_dir} to za_dir_cardinale({_bl}, {_pz})
+    if {_n} >= 8:
+        send "&4&l[ALARME DE QUARTIER] &cUne HORDE (%{_n}% morts) converge vers ta base par %{_dir}%, à %floor({_proche})% blocs !" to {_p}
+        za_zm("son %{_p}% za_modeles:sfx.horde_grondement 0.8 1")
+    else:
+        send "&c&l[ALARME DE QUARTIER] &7%{_n}% morts rôdent vers %{_dir}% de ta base (à %floor({_proche})% blocs)." to {_p}
+    za_zm("son %{_p}% za_modeles:sfx.alarme_auto 0.7 1")
+    send action bar "&c⚠ Alarme du quartier : morts à l'approche de ta base" to {_p}
+
+every 10 seconds:
+    if za_reseau_actif("police") is true:
+        loop za_monde_joueurs():
+            za_reseau_alarme(loop-player)
+
+# ---------------------------------------------------------------- effets de fond
+
+# les quartiers alimentés attirent les morts (bruit, lumière) autour de leurs bâtiments
+every 2 minutes:
+    if za_courant() is true:
+        set {_types::*} to za_bat_types()
+        loop {_types::*}:
+            set {_t} to loop-value-1
+            set {_q} to za_reseau_quartier_de({_t})
+            if {_q} is not "":
+                if za_reseau_actif({_q}) is true:
+                    loop {za::bat::%{_t}%::liste::*}:
+                        set {_c} to za_bat_centre_s(loop-value-2)
+                        if {_c} is set:
+                            za_activite_ajouter({_c}, 3)
+
+# résidentiel : les lumières du quartier rassurent (sanité +) pour ceux qui sont chez eux
+every 30 seconds:
+    if za_reseau_actif("residentiel") is true:
+        loop za_monde_joueurs():
+            set {_u} to loop-player's uuid
+            if {za::base::%{_u}%} is set:
+                if world of {za::base::%{_u}%} is world of loop-player:
+                    if distance between {za::base::%{_u}%} and loop-player < 40:
+                        if {za::sanite::%{_u}%} is set:
+                            add 2 to {za::sanite::%{_u}%}
+                            if {za::sanite::%{_u}%} > 100:
+                                set {za::sanite::%{_u}%} to 100
+
+# ---------------------------------------------------------------- commandes joueur
+
+command /reseau [<text>] [<text>]:
+    trigger:
+        if arg-1 is not set:
+            za_reseau_afficher(player)
+            stop
+        set {_a} to arg-1 in lowercase
+        if {_a} is "voter":
+            if arg-2 is not set:
+                send "&cUsage : /reseau voter <hopital|police|commerce|residentiel>" to player
+                stop
+            if za_courant() is false:
+                send "&7La centrale est éteinte : il n'y a rien à voter. Relance-la au lutrin de la centrale." to player
+                stop
+            set {_q} to za_reseau_norm(arg-2)
+            if {_q} is "":
+                send "&cQuartier inconnu. Choix : hopital, police, commerce, residentiel." to player
+                stop
+            set {_u} to player's uuid
+            if {za::reseau::vote::%{_u}%} is set:
+                send "&7Tu as déjà voté pour le &f%za_reseau_nom({za::reseau::vote::%{_u}%})%&7 ce cycle. Un vote par cycle." to player
+                stop
+            set {za::reseau::vote::%{_u}%} to {_q}
+            send "&6[Réseau] &7Vote enregistré : &f%za_reseau_nom({_q})% &8(%za_reseau_votes({_q})% vote(s)). &7Chaque jour de serveur, les quartiers les plus votés gardent le courant." to player
+        else if {_a} is "choisir":
+            if {za::reseau::proprio} is player's uuid:
+                za_reseau_menu(player)
+            else:
+                send "&7Personne ne t'a confié la répartition du courant. Relance la centrale pour la choisir." to player
+        else if {_a} is "contribuer":
+            if za_courant() is false:
+                send "&7La centrale est éteinte. Il faut d'abord la relancer (3 Composants électroniques au lutrin)." to player
+                stop
+            if za_centrale_dist(location of player) >= 16:
+                send "&7Il faut être à la centrale (moins de 16 blocs de son tableau de commande)." to player
+                stop
+            if za_reseau_capacite() >= {@capacite_max}:
+                send "&7La centrale est déjà à pleine capacité ({@capacite_max} quartiers)." to player
+                stop
+            set {_r} to za_reseau_ressource()
+            if za_take_named(player, {_r}, 1) is false:
+                send "&7Il faut &b1 %{_r}% &7(la ressource de la saison) pour ouvrir une place de plus." to player
+                stop
+            add 1 to {za::reseau::extra}
+            za_faction_ajouter(player, "scientifiques", 2)
+            za_jetons_ajouter(player, 5)
+            za_zm("son %player% za_modeles:sfx.bourdon_electrique 0.6 1.2")
+            send "&a+1 place sur le réseau. &7(+5 jetons, la centrale peut alimenter %za_reseau_capacite()% quartiers)" to player
+            za_radio("&6CKZA", "%player% a versé une %{_r}% à la centrale : un quartier de plus peut être alimenté (%za_reseau_capacite()%).")
+            if {za::reseau::choix_fin} is not set:
+                za_reseau_jour()
+        else:
+            send "&6Réseau : &e/reseau &7(état) &8| &e/reseau voter <quartier> &8| &e/reseau contribuer &7(à la centrale) &8| &e/reseau choisir" to player
+
+function za_reseau_afficher(p: player):
+    send "&8&m                                        " to {_p}
+    send "&6&l⚡ RÉSEAU ÉLECTRIQUE" to {_p}
+    if za_courant() is true:
+        send "&7Centrale : &aEN MARCHE &8(reste %za_duree(difference between now and {za::elec::fin})%)" to {_p}
+    else:
+        send "&7Centrale : &cÉTEINTE &8- &73 Composants électroniques au lutrin de la centrale la relancent pour 3 jours." to {_p}
+    set {_r} to za_reseau_ressource()
+    send "&7Capacité : &e%za_reseau_capacite()%&7/&e{@capacite_max} &7quartiers &8(1 %{_r}% versé à la centrale = +1 place : /reseau contribuer)" to {_p}
+    set {_q::*} to za_reseau_quartiers()
+    loop {_q::*}:
+        set {_v} to za_reseau_votes(loop-value)
+        if za_reseau_actif(loop-value) is true:
+            send "  &a● &f%za_reseau_nom(loop-value)% &8(%{_v}% vote(s)) &7- %za_reseau_effet(loop-value)%" to {_p}
+        else:
+            send "  &8○ &7%za_reseau_nom(loop-value)% &8(%{_v}% vote(s)) &8- éteint" to {_p}
+    if {za::reseau::vote::%{_p}'s uuid%} is set:
+        send "&7Ton vote ce cycle : &f%za_reseau_nom({za::reseau::vote::%{_p}'s uuid%})%" to {_p}
+    else if za_courant() is true:
+        send "&7Tu n'as pas encore voté : &e/reseau voter <hopital|police|commerce|residentiel>" to {_p}
+    if {za::reseau::proprio} is set:
+        send "&8Répartition initiale en cours (choix du propriétaire du cycle)..." to {_p}
+    send "&8Quartiers alimentés = morts attirés autour de leurs bâtiments. Le courant ne dure pas." to {_p}
+    send "&8&m                                        " to {_p}
+
+# ---------------------------------------------------------------- admin / console
+
+command /zareseau <text> [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        set {_a} to arg-1 in lowercase
+        if {_a} is "etat":
+            send "cycle=%{za::reseau::cycle}% cycle_fin=%{za::reseau::cycle_fin}% elec_fin=%{za::elec::fin}% courant=%za_courant()% capacite=%za_reseau_capacite()% extra=%{za::reseau::extra}%" to sender
+            send "actifs=%{za::reseau::actifs::*}% choix=%{za::reseau::choix::*}% proprio=%{za::reseau::proprio}%" to sender
+            send "hopital=%{za::reseau::hopital}% police=%{za::reseau::police}% commerce=%{za::reseau::commerce}% residentiel=%{za::reseau::residentiel}%" to sender
+            send "votes=%{za::reseau::vote::*}% saison::prix=%{za::saison::prix}% facteur_prix=%{za::reseau::facteur_prix}%" to sender
+        else if {_a} is "demarrer":
+            set {_j} to 3
+            if arg-2 is set:
+                set {_j} to arg-2 parsed as number
+            set {za::elec::fin} to now
+            add ({_j} * 1 day) to {za::elec::fin}
+            za_reseau_nouveau_cycle("")
+            send "&aCentrale relancée pour %{_j}% jour(s), cycle %{za::reseau::cycle}%." to sender
+        else if {_a} is "couper":
+            set {za::elec::fin} to now
+            subtract 1 second from {za::elec::fin}
+            za_reseau_appliquer(false)
+            send "&aCourant coupé." to sender
+        else if {_a} is "capacite":
+            set {_n} to arg-2 parsed as number
+            set {za::reseau::extra} to max(0, min(2, {_n} - {@capacite_base}))
+            send "&aCapacité : %za_reseau_capacite()%" to sender
+        else if {_a} is "jour":
+            za_reseau_jour()
+            send "&aTick quotidien exécuté : actifs = %{za::reseau::actifs::*}%" to sender
+        else if {_a} is "vote":
+            set {_q} to za_reseau_norm(arg-2)
+            set {_n} to 1
+            if arg-3 is set:
+                set {_n} to arg-3 parsed as number
+            loop {_n} times:
+                add {_q} to {za::reseau::vote::*}
+            send "&a%{_n}% vote(s) ajouté(s) pour %{_q}%." to sender
+        else if {_a} is "choisir":
+            set {_q} to za_reseau_norm(arg-2)
+            if {za::reseau::choix::*} does not contain {_q}:
+                add {_q} to {za::reseau::choix::*}
+            if size of {za::reseau::choix::*} >= za_reseau_capacite():
+                za_reseau_finaliser()
+            send "&achoix = %{za::reseau::choix::*}%" to sender
+        else:
+            send "&cUsage : /zareseau <etat|demarrer [jours]|couper|capacite <n>|jour|vote <quartier> [n]|choisir <quartier>>" to sender

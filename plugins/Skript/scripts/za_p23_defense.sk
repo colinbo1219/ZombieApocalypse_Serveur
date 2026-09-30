@@ -1,0 +1,175 @@
+# =====================================================================
+#  ZombieApocalypse - DEFENSE ET SURVIE : portes renforcees, alarmes, zombie-joueur, usure des armes
+#  * Porte renforcee : clic droit sur une porte en bois avec un lingot de fer (+3 points, max 15).
+#    Chaque fois qu'un zombie en vient a bout, elle perd 1 point au lieu de casser.
+#  * Alarme : pose une cloche ; elle sonne (et te previent) quand des zombies approchent a moins de 24 blocs.
+#  * Zombie-joueur : mourir infecte te ramene 10 minutes en zombie (les morts t'ignorent, tes coups infectent).
+#  * Usure : frapper des zombies use les armes plus vite ; /reparer pres du Mecano (cout en jetons selon le materiau).
+#  * Inventaire qui saigne : a 1 coeur ou moins, tu peux lacher ce que tu tiens.
+# =====================================================================
+
+# ===================== PORTES RENFORCEES =====================
+function za_porte_cle(b: block) :: text:
+    set {_x} to {_b}
+    if block below {_b} is wooden door:
+        set {_x} to block below {_b}
+    return za_lkey(location of {_x})
+
+on right click on wooden door:
+    if za_pro(player) is true:
+        stop
+    if player's tool is iron ingot:
+        set {_k} to za_porte_cle(event-block)
+        if {za::porte::%{_k}%} is not set:
+            set {za::porte::%{_k}%} to 0
+        cancel the event
+        if {za::porte::%{_k}%} >= 15:
+            send "&7Cette porte est deja renforcee au maximum (15/15)." to player
+        else:
+            remove 1 of player's tool from player's inventory
+            add 3 to {za::porte::%{_k}%}
+            if {za::porte::%{_k}%} > 15:
+                set {za::porte::%{_k}%} to 15
+            set {_v} to {za::porte::%{_k}%}
+            send "&7Porte renforcee : &f%{_v}%/15" to player
+
+on zombie breaking a wood door:
+    set {_k} to za_porte_cle(event-block)
+    if {za::porte::%{_k}%} > 0:
+        cancel the event
+        remove 1 from {za::porte::%{_k}%}
+
+# ===================== ALARMES (cloche) =====================
+on place:
+    if za_pro(player) is true:
+        stop
+    if event-block is bell:
+        set {_k} to za_lkey(location of event-block)
+        set {za::alarme::%{_k}%::loc} to location of event-block
+        set {za::alarme::%{_k}%::proprio} to "%player's uuid%"
+        add {_k} to {za::alarme::liste::*}
+        send "&eAlarme installee : la cloche sonnera si des zombies approchent (24 blocs)." to player
+
+on break:
+    if za_pro(player) is true:
+        stop
+    if event-block is bell:
+        set {_k} to za_lkey(location of event-block)
+        if {za::alarme::%{_k}%::proprio} is set:
+            remove {_k} from {za::alarme::liste::*}
+            delete {za::alarme::%{_k}%::*}
+
+every 6 seconds:
+    if za_emp_actif() is true:
+        stop
+    loop {za::alarme::liste::*}:
+        set {_k} to loop-value
+        set {_l} to {za::alarme::%{_k}%::loc}
+        if block at {_l} is not bell:
+            remove {_k} from {za::alarme::liste::*}
+            delete {za::alarme::%{_k}%::*}
+        else if any:
+            {za::alarme::%{_k}%::cd} is not set
+            {za::alarme::%{_k}%::cd} is less than now
+        then:
+            set {_z::*} to all zombies in radius 24 around {_l}
+            if size of {_z::*} > 0:
+                set {za::alarme::%{_k}%::cd} to now
+                add 40 seconds to {za::alarme::%{_k}%::cd}
+                execute console command "playsound minecraft:block.bell.use block @a %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% 3 1"
+                set {_n} to size of {_z::*}
+                loop all players:
+                    if za_pro(loop-player) is false:
+                        if "%loop-player's uuid%" is {za::alarme::%{_k}%::proprio}:
+                            send "&c&lALARME ! &7%{_n}% zombie(s) approchent de ta cloche." to loop-player
+
+# ===================== ZOMBIE-JOUEUR TEMPORAIRE =====================
+on respawn:
+    if za_pro(player) is true:
+        stop
+    if {za::mort_infecte::%player's uuid%} is true:
+        set {_u} to "%player's uuid%"
+        delete {za::mort_infecte::%{_u}%}
+        set {za::zombie::avant::%{_u}%} to {za::camp::%{_u}%}
+        set {za::camp::%{_u}%} to "infecte"
+        set {za::zombie::fin::%{_u}%} to now
+        add 10 minutes to {za::zombie::fin::%{_u}%}
+        wait 1 second
+        send "&4&lTu t'es releve... &7Pendant 10 minutes tu es l'un d'eux : les morts t'ignorent, et tes coups infectent." to player
+        execute console command "item replace entity %player% armor.head with minecraft:zombie_head"
+        za_effet(player, "strength", 600, 0)
+
+on damage of player:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        if {za::zombie::fin::%attacker's uuid%} is set:
+            if chance of 60%:
+                za_infecter(victim)
+
+every 15 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_u} to "%loop-player's uuid%"
+            if {za::zombie::fin::%{_u}%} is set:
+                if now is greater than {za::zombie::fin::%{_u}%}:
+                    set {za::camp::%{_u}%} to {za::zombie::avant::%{_u}%}
+                    delete {za::zombie::fin::%{_u}%}
+                    delete {za::zombie::avant::%{_u}%}
+                    execute console command "item replace entity %loop-player% armor.head with minecraft:air"
+                    send "&7Tu retrouves tes esprits. Le cauchemar est fini." to loop-player
+
+# ===================== USURE DES ARMES =====================
+on damage of zombie:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        if attacker's tool is not air:
+            if chance of 22%:
+                damage attacker's tool by 2
+
+command /reparer:
+    trigger:
+        set {_t} to player's tool
+        set {_near} to false
+        loop all entities in radius 10 around player:
+            if loop-entity is a villager:
+                if uncolored name of loop-entity contains "Mecano":
+                    set {_near} to true
+        if {_near} is false:
+            send "&cIl faut etre pres du Mecano (10 blocs) pour reparer." to player
+        else if {_t} is air:
+            send "&cTiens en main l'outil a reparer." to player
+        else if damage value of {_t} is 0:
+            send "&7Cet objet n'est pas abime." to player
+        else:
+            set {_prix} to 3
+            if "%{_t}%" contains "wooden":
+                set {_prix} to 1
+            else if "%{_t}%" contains "stone":
+                set {_prix} to 2
+            else if "%{_t}%" contains "diamond":
+                set {_prix} to 6
+            else if "%{_t}%" contains "netherite":
+                set {_prix} to 10
+            set {_prix} to za_prix(player, {_prix})
+            if za_role(player) is "ingenieur":
+                set {_prix} to ceil({_prix} * 0.7)
+            if za_jetons(player) < {_prix}:
+                send "&cReparation : %{_prix}% jetons requis." to player
+            else:
+                za_jetons_ajouter(player, 0 - {_prix})
+                set damage value of player's tool to 0
+                send "&aLe Mecano repare ton objet (-%{_prix}% jetons)." to player
+
+# ===================== INVENTAIRE QUI SAIGNE =====================
+every 10 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            if health of loop-player <= 1:
+                if {za::sang::%loop-player's uuid%} is set:
+                    if loop-player's tool is not air:
+                        if chance of 15%:
+                            drop loop-player's tool at location of loop-player
+                            set loop-player's tool to air
+                            send "&4Tes mains tremblent... tu laches ce que tu tenais." to loop-player

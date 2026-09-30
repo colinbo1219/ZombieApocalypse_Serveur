@@ -1,0 +1,95 @@
+# =====================================================================
+#  ZombieApocalypse - MUTATION DU VIRUS (saisons)
+#  Toutes les 14 a 28 jours (temps reel) le virus mute : nouvelle souche, nouveau malus.
+#  Souches : incubation acceleree, resistante, hyperactive, contagion aerienne, agressive, vorace.
+#  Commandes: /virus (joueurs) | /virus muter (admin)
+# =====================================================================
+
+options:
+    jours_min: 14
+    jours_max: 28
+
+function za_prochaine_mutation():
+    set {_d} to random integer between {@jours_min} and {@jours_max}
+    set {za::virus::prochaine} to now
+    add ("%{_d}% days" parsed as timespan) to {za::virus::prochaine}
+
+on load:
+    if {za::virus::niveau} is not set:
+        set {za::virus::niveau} to 0
+        set {za::virus::nom} to "Souche originelle"
+        set {za::virus::description} to "Le virus n'a pas encore evolue."
+    if {za::virus::prochaine} is not set:
+        za_prochaine_mutation()
+
+function za_muter():
+    set {_ids::*} to "incubation", "resistance", "hyperactive", "aerienne", "agressive", "vorace"
+    set {_m} to random element out of {_ids::*}
+    if {_m} is {za::virus::id}:
+        set {_m} to random element out of {_ids::*}
+    # remise a zero de la souche precedente
+    set {za::virus::vitesse} to 1
+    set {za::virus::fenetre} to 10
+    set {za::virus::bonus} to 0
+    set {za::virus::rayon} to 4
+    set {za::virus::hyper} to false
+    set {za::virus::agressif} to false
+    set {za::virus::id} to {_m}
+    add 1 to {za::virus::niveau}
+    set {_n} to {za::virus::niveau}
+    if {_m} is "incubation":
+        set {za::virus::vitesse} to 0.6
+        set {za::virus::nom} to "Souche Z-%{_n}% : incubation acceleree"
+        set {za::virus::description} to "L'infection progresse 40 pourcent plus vite."
+    else if {_m} is "resistance":
+        set {za::virus::fenetre} to 4
+        set {za::virus::nom} to "Souche Z-%{_n}% : resistante"
+        set {za::virus::description} to "L'antidote n'agit plus que pendant 4 minutes apres la morsure."
+    else if {_m} is "hyperactive":
+        set {za::virus::hyper} to true
+        set {za::virus::nom} to "Souche Z-%{_n}% : hyperactive"
+        set {za::virus::description} to "Les morts courent plus vite."
+    else if {_m} is "aerienne":
+        set {za::virus::rayon} to 8
+        set {za::virus::nom} to "Souche Z-%{_n}% : contagion aerienne"
+        set {za::virus::description} to "Les porteurs sains contaminent de plus loin."
+    else if {_m} is "agressive":
+        set {za::virus::agressif} to true
+        set {za::virus::nom} to "Souche Z-%{_n}% : agressive"
+        set {za::virus::description} to "Les morts frappent plus fort."
+    else:
+        set {za::virus::bonus} to 15
+        set {za::virus::nom} to "Souche Z-%{_n}% : vorace"
+        set {za::virus::description} to "Chaque morsure infecte plus souvent (+15 pourcent)."
+    za_prochaine_mutation()
+    za_regions_muter()
+    za_journal("Le virus a evolue : %{za::virus::nom}%.")
+    za_diffuser("&5&lLE VIRUS A EVOLUE... &7%{za::virus::nom}%")
+    za_diffuser("&8&o%{za::virus::description}%")
+
+# verification toutes les heures
+every 1 hour:
+    if {za::virus::prochaine} is set:
+        if now is greater than {za::virus::prochaine}:
+            za_muter()
+
+# (les effets des souches hyperactive / agressive sont appliques par region dans za_p26_virus2.sk)
+
+command /virus [<text>]:
+    trigger:
+        if arg-1 is "muter":
+            if player has permission "za.admin":
+                za_muter()
+            else:
+                send "&cReserve aux admins." to player
+        else:
+            send "&5&lLE VIRUS" to player
+            send "&7Souche mondiale : &d%{za::virus::nom}%" to player
+            set {_loc} to za_souche_id(player)
+            send "&7Souche dans ta region : &d%za_souche_nom({_loc})%" to player
+            set {_rs} to {za::resist::%player's uuid%}
+            if {_rs} is not set:
+                set {_rs} to 0
+            send "&7Ta resistance : &a%{_rs}%/8" to player
+            send "&8%{za::virus::description}%" to player
+            send "&7Prochaine mutation : &f%{za::virus::prochaine}%" to player

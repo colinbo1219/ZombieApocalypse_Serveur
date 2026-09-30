@@ -1,0 +1,197 @@
+# =====================================================================
+#  ZombieApocalypse - SURVIE DURE : soif + eau potable, nourriture qui pourrit, sommeil
+#  Chaque systeme s'eteint avec son interrupteur (options ci-dessous : true / false).
+#  Commande joueur: /survie
+#  Soif : l'eau des bouteilles est SALE (risque d'infection). Fais-la bouillir : clic droit sur un
+#         feu de camp avec la bouteille = "Eau purifiee" (aussi vendue par les marchands).
+#  Nourriture : la viande cuite, le pain, etc. DANS TON SAC peuvent pourrir (les coffres gardent la nourriture).
+#  Sommeil : chaque jour sans dormir (20 min) ajoute de la fatigue ; dormir dans un lit la remet a zero.
+# =====================================================================
+
+options:
+    soif_active: true
+    nourriture_active: true
+    sommeil_active: true
+
+on join:
+    if za_pro(player) is true:
+        stop
+    set {_u} to "%player's uuid%"
+    if {za::soif::%{_u}%} is not set:
+        set {za::soif::%{_u}%} to 100
+    if {za::fatigue::%{_u}%} is not set:
+        set {za::fatigue::%{_u}%} to 0
+
+# ===================== SOIF =====================
+every 10 seconds:
+    if all:
+        {@soif_active} is true
+        {za::tan} is not true
+    then:
+        loop all players:
+            if za_pro(loop-player) is false:
+                set {_u} to "%loop-player's uuid%"
+                if {za::soif::%{_u}%} is not set:
+                    set {za::soif::%{_u}%} to 100
+                remove 0.6 from {za::soif::%{_u}%}
+                if {za::infection::%{_u}%} is set:
+                    remove 0.4 from {za::soif::%{_u}%}
+                if {za::soif::%{_u}%} < 0:
+                    set {za::soif::%{_u}%} to 0
+                set {_s} to {za::soif::%{_u}%}
+                if {_s} < 10:
+                    za_effet(loop-player, "slowness", 12, 0)
+                    za_effet(loop-player, "weakness", 12, 0)
+                    if {za::soif::alerte::%{_u}%} is not "critique":
+                        set {za::soif::alerte::%{_u}%} to "critique"
+                        send "&4Tu meurs de soif ! Il te faut de l'eau, vite." to loop-player
+                    if {_s} <= 0:
+                        if health of loop-player > 4:
+                            damage loop-player by 0.5
+                else if {_s} < 30:
+                    za_effet(loop-player, "weakness", 12, 0)
+                    if {za::soif::alerte::%{_u}%} is not "soif":
+                        set {za::soif::alerte::%{_u}%} to "soif"
+                        send "&bTu as soif. Cherche de l'eau purifiee." to loop-player
+                else:
+                    delete {za::soif::alerte::%{_u}%}
+
+# ---------- boire ----------
+on consume:
+    if za_pro(player) is true:
+        stop
+    if all:
+        {@soif_active} is true
+        {za::tan} is not true
+    then:
+        set {_u} to "%player's uuid%"
+        if {za::soif::%{_u}%} is not set:
+            set {za::soif::%{_u}%} to 100
+        if uncolored name of event-item is "Eau purifiee":
+            add 45 to {za::soif::%{_u}%}
+            send "&bL'eau purifiee te desaltere." to player
+        else if event-item is potion of water:
+            add 25 to {za::soif::%{_u}%}
+            send "&7Cette eau a un gout douteux..." to player
+            za_effet(player, "nausea", 8, 0)
+            if chance of 35%:
+                za_infecter(player)
+        else if event-item is melon slice or apple:
+            add 8 to {za::soif::%{_u}%}
+        if {za::soif::%{_u}%} > 100:
+            set {za::soif::%{_u}%} to 100
+
+# ---------- faire bouillir l'eau : clic droit sur un feu de camp avec une bouteille d'eau ----------
+on right click on campfire:
+    if za_pro(player) is true:
+        stop
+    if all:
+        {@soif_active} is true
+        {za::tan} is not true
+    then:
+        if player's tool is potion of water:
+            if uncolored name of player's tool is not "Eau purifiee":
+                send "&7L'eau se met a bouillir..." to player
+                execute console command "execute at %player% run particle minecraft:campfire_cosy_smoke ~ ~1 ~ 0.2 0.3 0.2 0.01 15 force"
+                wait 4 seconds
+                if player's tool is potion of water:
+                    if uncolored name of player's tool is not "Eau purifiee":
+                        set {_n} to item amount of player's tool
+                        set player's tool to za_item("potion of water", "Eau purifiee", "&b", {_n})
+                        send "&bEau purifiee !" to player
+
+# ===================== NOURRITURE QUI POURRIT (dans le sac) =====================
+every 20 minutes:
+    if {@nourriture_active} is true:
+        loop all players:
+            if za_pro(loop-player) is false:
+                set {_pourri} to 0
+                loop all items in inventory of loop-player:
+                    if loop-item is steak or cooked chicken or cooked porkchop or cooked mutton or cooked rabbit or cooked cod or cooked salmon or bread or baked potato or pumpkin pie or cookie:
+                        if chance of 25%:
+                            set {_n} to item amount of loop-item
+                            remove {_n} of loop-item from inventory of loop-player
+                            give {_n} of rotten flesh to loop-player
+                            add 1 to {_pourri}
+                if {_pourri} > 0:
+                    send "&2%{_pourri}% pile(s) de nourriture ont pourri dans ton sac..." to loop-player
+
+# ===================== SOMMEIL =====================
+on bed enter:
+    if za_pro(player) is true:
+        stop
+    if {@sommeil_active} is true:
+        set {za::fatigue::%player's uuid%} to 0
+        send "&7Tu t'endors... la fatigue disparait." to player
+
+every 20 minutes:
+    if {@sommeil_active} is true:
+        loop all players:
+            if za_pro(loop-player) is false:
+                set {_u} to "%loop-player's uuid%"
+                if {za::fatigue::%{_u}%} is not set:
+                    set {za::fatigue::%{_u}%} to 0
+                add 1 to {za::fatigue::%{_u}%}
+
+every 15 seconds:
+    if {@sommeil_active} is true:
+        loop all players:
+            if za_pro(loop-player) is false:
+                set {_f} to {za::fatigue::%loop-player's uuid%}
+                if {_f} is not set:
+                    set {_f} to 0
+                if {_f} >= 3:
+                    za_effet(loop-player, "mining_fatigue", 20, 0)
+                if {_f} >= 5:
+                    za_effet(loop-player, "weakness", 20, 0)
+                    za_effet(loop-player, "slowness", 20, 0)
+                if {_f} >= 7:
+                    if chance of 15%:
+                        send "&8Tes yeux se ferment un instant..." to loop-player
+                        za_effet(loop-player, "blindness", 4, 0)
+                        za_effet(loop-player, "nausea", 6, 0)
+
+# ===================== COMMANDE =====================
+command /survie:
+    trigger:
+        set {_u} to "%player's uuid%"
+        set {_s} to {za::soif::%{_u}%}
+        if {_s} is not set:
+            set {_s} to 100
+        set {_f} to {za::fatigue::%{_u}%}
+        if {_f} is not set:
+            set {_f} to 0
+        set {_m} to {za::sanite::%{_u}%}
+        if {_m} is not set:
+            set {_m} to 100
+        set {_tp} to {za::temp::%{_u}%}
+        send "&6&lETAT DE SURVIE" to player
+        if all:
+            {_tp} is set
+            {za::tan} is not true
+        then:
+            send "&cTemperature: &f%floor({_tp})%/100 &7(50 = confortable, sous 30 = froid, au-dessus de 80 = chaud)" to player
+        if {za::tan} is true:
+            send "&eFatigue: &f%{_f}% jour(s) sans lit &7| &8Sante mentale: &f%floor({_m})%/100 &7| Soif et temperature : voir l'interface de Tough As Nails." to player
+        else:
+            send "&bSoif: &f%floor({_s})%/100 &7| &eFatigue: &f%{_f}% jour(s) sans lit &7| &8Sante mentale: &f%floor({_m})%/100" to player
+            send "&7Bois de l'eau purifiee (feu de camp + bouteille), dors dans un lit, mange avant que ca pourrisse." to player
+        set {_hy} to {za::hygiene::%{_u}%}
+        if {_hy} is not set:
+            set {_hy} to 100
+        set {_ep} to {za::epuis::%{_u}%}
+        if {_ep} is not set:
+            set {_ep} to 0
+        set {_br} to {za::bruit::%{_u}%}
+        if {_br} is not set:
+            set {_br} to 0
+        send "&7Hygiene : &f%floor({_hy})%/100 &7| Epuisement : &f%floor({_ep})%/100 &7| Bruit : &f%floor({_br})%/100" to player
+        set {_mal} to ""
+        if {za::mal::plaie::%{_u}%} is set:
+            set {_mal} to "%{_mal}%plaie infectee "
+        if {za::mal::grippe::%{_u}%} is set:
+            set {_mal} to "%{_mal}%grippe "
+        if {za::mal::fievre::%{_u}%} is set:
+            set {_mal} to "%{_mal}%fievre "
+        if {_mal} is not "":
+            send "&cMaladies : %{_mal}%" to player

@@ -1,0 +1,170 @@
+# =====================================================================
+#  ZombieApocalypse - NOYAU v2 : outils partagés par les systèmes 42 à 59
+#  * Choix du prologue : za_choix(uuid, clé) -> "aide"/"fui", "sauvee"/"perdue", "appele"/"provisions", "obei"/"clandestin" (ou "")
+#  * Statistiques par joueur : za_stat_ajouter(uuid, clé, n) / za_stat(uuid, clé)
+#  * Menu à choix (coffre) : za_menu(joueur, commande, titre, texte, options) ; options = "Libellé|noeud"
+#    Au clic : la console exécute « <commande> <joueur> <noeud> » (noeud "quit" = fermer).
+#  * Bâtiments spéciaux (za_p35) : za_bat_liste(type) / za_bat_centre(clé) / za_bat_proche(lieu, rayon)
+#  * Radio : za_radio(qui, texte) à tous les joueurs du monde de survie
+# =====================================================================
+
+# ---------------------------------------------------------------- choix du prologue
+
+function za_choix(u: text, k: text) :: text:
+    set {_v} to {za::choix::%{_u}%::%{_k}%}
+    if {_v} is not set:
+        return ""
+    return "%{_v}%"
+
+function za_choix_p(p: player, k: text) :: text:
+    return za_choix("%{_p}'s uuid%", {_k})
+
+# ---------------------------------------------------------------- statistiques par joueur
+
+function za_stat_ajouter(u: text, k: text, n: number):
+    if {za::stat::%{_k}%::%{_u}%} is not set:
+        set {za::stat::%{_k}%::%{_u}%} to 0
+    add {_n} to {za::stat::%{_k}%::%{_u}%}
+
+function za_stat(u: text, k: text) :: number:
+    if {za::stat::%{_k}%::%{_u}%} is not set:
+        return 0
+    return {za::stat::%{_k}%::%{_u}%}
+
+# ---------------------------------------------------------------- menu à choix (coffre de 3 rangées)
+#  texte : ce que dit le PNJ / la situation (découpé en infobulle)
+#  opts  : jusqu'à 7 éléments "Libellé|noeud" ; un libellé peut commencer par "!" pour une option grisée (non cliquable)
+
+function za_menu(p: player, mod: text, titre: text, texte: text, opts: texts):
+    set {_u} to "%{_p}'s uuid%"
+    delete {za::menu::opt::%{_u}%::*}
+    set {za::menu::mod::%{_u}%} to {_mod}
+    open chest inventory with 3 rows named "&8» %{_titre}%" to {_p}
+    set {_it} to za_item("paper", {_titre}, "&e", 1)
+    set lore of {_it} to za_wrap({_texte})
+    set slot 4 of (current inventory of {_p}) to {_it}
+    set {_n} to size of {_opts::*}
+    set {_s} to 13 - floor({_n} / 2)
+    if {_s} < 10:
+        set {_s} to 10
+    set {_i} to 0
+    loop {_opts::*}:
+        if {_i} < 7:
+            set {_e::*} to split loop-value at "|"
+            set {_lib} to {_e::1}
+            if {_lib} starts with "!":
+                set {_lib} to subtext of {_lib} from characters 2 to length of {_lib}
+                set {_o} to za_item("gray dye", {_lib}, "&8", 1)
+                set lore of {_o} to "&8(pas possible pour l'instant)"
+            else:
+                set {_o} to za_item("book", {_lib}, "&a", 1)
+                set lore of {_o} to "&8Clique pour choisir"
+                add "%uncolored {_lib}%|%{_e::2}%" to {za::menu::opt::%{_u}%::*}
+            set slot ({_s} + {_i}) of (current inventory of {_p}) to {_o}
+            add 1 to {_i}
+
+on inventory click:
+    if uncolored name of (player's current inventory) starts with "» ":
+        cancel the event
+        if event-item is not air:
+            set {_u} to "%player's uuid%"
+            set {_nom} to uncolored name of event-item
+            loop {za::menu::opt::%{_u}%::*}:
+                set {_e::*} to split loop-value at "|"
+                if {_e::1} is {_nom}:
+                    set {_node} to {_e::2}
+                    exit loop
+            if {_node} is set:
+                set {_mod} to {za::menu::mod::%{_u}%}
+                close player's inventory
+                delete {za::menu::opt::%{_u}%::*}
+                if {_node} is not "quit":
+                    execute console command "%{_mod}% %player% %{_node}%"
+
+# ---------------------------------------------------------------- bâtiments spéciaux (générés par za_p35)
+#  types : hopital, police, super, station, labo2, caserne, ecole, centrale
+#  clé d'un bâtiment : "type;index" (index dans {za::bat::<type>::liste::*})
+
+function za_bat_types() :: texts:
+    return "hopital", "police", "super", "station", "labo2", "caserne", "ecole", "centrale"
+
+function za_bat_nom(t: text) :: text:
+    if {_t} is "hopital":
+        return "Hôpital"
+    if {_t} is "police":
+        return "Poste de police"
+    if {_t} is "super":
+        return "Supermarché"
+    if {_t} is "station":
+        return "Station-service"
+    if {_t} is "labo2":
+        return "Laboratoire"
+    if {_t} is "caserne":
+        return "Caserne"
+    if {_t} is "ecole":
+        return "École"
+    if {_t} is "centrale":
+        return "Centrale électrique"
+    return {_t}
+
+# centre approximatif du bâtiment (au niveau du plancher) à partir de "bx_gy_bz_monde"
+function za_bat_centre_s(s: text) :: location:
+    set {_a::*} to split {_s} at "_"
+    set {_wn} to {_a::4}
+    set {_i} to 5
+    while {_a::%{_i}%} is set:
+        set {_wn} to "%{_wn}%_%{_a::%{_i}%}%"
+        add 1 to {_i}
+    set {_w} to world({_wn})
+    if {_w} is not set:
+        stop
+    return location(({_a::1} parsed as number) + 6.5, ({_a::2} parsed as number) + 1, ({_a::3} parsed as number) + 4.5, {_w})
+
+function za_bat_centre(cle: text) :: location:
+    set {_k::*} to split {_cle} at ";"
+    set {_s} to {za::bat::%{_k::1}%::liste::%{_k::2}%}
+    if {_s} is not set:
+        stop
+    return za_bat_centre_s({_s})
+
+# liste des clés "type;index" d'un type
+function za_bat_liste(t: text) :: texts:
+    loop {za::bat::%{_t}%::liste::*}:
+        add "%{_t}%;%loop-index%" to {_r::*}
+    return {_r::*}
+
+# bâtiment le plus proche d'un lieu (dans le rayon), "" sinon
+function za_bat_proche(l: location, r: number) :: text:
+    set {_best} to {_r}
+    set {_res} to ""
+    set {_ts::*} to za_bat_types()
+    loop {_ts::*}:
+        set {_t} to loop-value
+        set {_ks::*} to indices of {za::bat::%{_t}%::liste::*}
+        set {_i} to 1
+        while {_ks::%{_i}%} is set:
+            set {_k} to {_ks::%{_i}%}
+            set {_c} to za_bat_centre_s({za::bat::%{_t}%::liste::%{_k}%})
+            if {_c} is set:
+                if world of {_c} is world of {_l}:
+                    set {_d} to distance between {_c} and {_l}
+                    if {_d} < {_best}:
+                        set {_best} to {_d}
+                        set {_res} to "%{_t}%;%{_k}%"
+            add 1 to {_i}
+    return {_res}
+
+# ---------------------------------------------------------------- radio
+
+function za_radio(qui: text, texte: text):
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_zm("son %loop-player% za_modeles:sfx.radio_statique 0.5 1")
+            send "&8[Radio] %{_qui}% &8» &7%{_texte}%" to loop-player
+    za_journal("Radio (%uncolored {_qui}%) : %uncolored {_texte}%")
+
+# ---------------------------------------------------------------- lieu sûr au sol autour d'un point
+
+function za_sol(l: location) :: location:
+    set {_b} to highest block at {_l}
+    return location(x-coordinate of {_l}, (y-coordinate of (location of {_b})) + 1, z-coordinate of {_l}, world of {_l})

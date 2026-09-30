@@ -1,0 +1,66 @@
+# =====================================================================
+#  ZombieApocalypse - EVENEMENT : HORDE  (Skript 2.9.5)
+#  /horde start | stop | etat        (permission za.admin)
+#  Objectif: tuer {@objectif} zombies ZA. Le compteur est alimente par les mobs MythicMobs
+#  (chaque mob execute "zakill <nom>" a sa mort).
+# =====================================================================
+
+options:
+    objectif: 40
+
+function za_horde_fin(gagnee: boolean):
+    set {za::horde::actif} to false
+    if {_gagnee} is true:
+        za_diffuser("&a&lVICTOIRE ! &7La horde est repoussee.")
+        loop all players:
+            if za_pro(loop-player) is false:
+                give 3 amethyst shard named "&5Essence de zombie" to loop-player
+                play sound "ui.toast.challenge_complete" to loop-player
+    else:
+        za_diffuser("&cLa horde a ete arretee.")
+
+command /horde <text>:
+    usage: /horde <start|stop|etat>
+    permission: za.admin
+    trigger:
+        if arg-1 is "start":
+            if {za::horde::actif} is true:
+                send "&cUne horde est deja en cours." to sender
+            else:
+                set {za::horde::actif} to true
+                set {za::horde::kills} to 0
+                za_diffuser("&4&lLA HORDE APPROCHE ! &7Tuez {@objectif} zombies pour survivre.")
+        else if arg-1 is "stop":
+            if {za::horde::actif} is true:
+                za_horde_fin(false)
+            else:
+                send "&7Aucune horde en cours." to sender
+        else if arg-1 is "etat":
+            send "&7Horde active: %{za::horde::actif}% - kills: %{za::horde::kills}%/{@objectif}" to sender
+        else:
+            send "&cUsage: /horde <start|stop|etat>" to sender
+
+# appelee par MythicMobs (console) a la mort de chaque mob ZA
+command /zakill <text>:
+    executable by: console
+    trigger:
+        if {za::horde::actif} is true:
+            add 1 to {za::horde::kills}
+            if {za::horde::kills} >= {@objectif}:
+                za_horde_fin(true)
+
+# vagues : 3 zombies autour de chaque joueur toutes les 8 secondes
+every 8 seconds:
+    if {za::horde::actif} is true:
+        set {_types::*} to "ZA_Shambler", "ZA_Shambler", "ZA_Runner", "ZA_Crawler", "ZA_Leaper", "ZA_Spitter"
+        loop all players:
+            if za_pro(loop-player) is false:
+                set {_p} to loop-player
+                loop 3 times:
+                    set {_l} to location of {_p}
+                    add random integer between -18 and 18 to x-coordinate of {_l}
+                    add random integer between -18 and 18 to z-coordinate of {_l}
+                    set {_b} to highest block at {_l}
+                    set {_y} to (y-coordinate of (location of {_b})) + 1
+                    set {_type} to random element out of {_types::*}
+                    execute console command "mm mobs spawn %{_type}% 1 %world of {_l}%,%floor(x-coordinate of {_l})%,%{_y}%,%floor(z-coordinate of {_l})%"

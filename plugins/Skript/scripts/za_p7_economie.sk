@@ -1,0 +1,569 @@
+# =====================================================================
+#  ZombieApocalypse - PHASE 7 : ECONOMIE
+#  1) Jetons de Survie (monnaie rare)   2) Troc entre joueurs   3) Contrats et dettes
+#  4) Marchands nomades (5 types + demandes speciales)   5) Evenements economiques
+#  Commandes: /jetons  /payer  /troc  /contrat  /dette  /reputation  /valeur
+# =====================================================================
+
+on load:
+    delete {za::troc::*}
+    delete {za::offre::*}
+    delete {za::rachat::*}
+    if {za::eco::mult} is not set:
+        set {za::eco::mult} to 1
+    # format offre : materiau|nom|couleur|description|prix|quantite|score_minimum
+    add "arrow|Fleches|&7|Pour arcs, arbaletes et tourelles|2|8|0" to {za::offre::charognard::*}
+    add "bread|Pain rassis|&f|Mieux que rien|1|2|0" to {za::offre::charognard::*}
+    add "rotten flesh|Viande pourrie|&2|Deconseille|1|4|0" to {za::offre::charognard::*}
+    add "paper|Bandage|&f|Soigne 3 coeurs|3|1|0" to {za::offre::charognard::*}
+    add "iron sword|Epee abimee|&7|Ebrechee mais tranchante|6|1|0" to {za::offre::charognard::*}
+    add "stone axe|Hache de fortune|&7|Ca coupe... a peu pres|4|1|0" to {za::offre::charognard::*}
+    add "shield|Bouclier de fortune|&7|Une porte clouee : 16 utilisations, pas plus|4|1|0|minecraft:shield{Damage:320,display:{Name:'{""text"":""Bouclier de fortune"",""color"":""gray"",""italic"":false}'}}" to {za::offre::charognard::*}
+    add "honey bottle|Antidote|&a|Stoppe l'infection avant 10 min|12|1|0" to {za::offre::medecin::*}
+    add "paper|Bandage|&f|Soigne 3 coeurs|3|2|0" to {za::offre::medecin::*}
+    add "honey bottle|Serum|&d|Guerit l'infection a tout stade|30|1|25" to {za::offre::medecin::*}
+    add "golden apple|Pomme doree|&6|Regeneration puissante|10|1|0" to {za::offre::medecin::*}
+    add "honey bottle|Antibiotique|&b|Soigne plaie, grippe et fievre|8|1|0" to {za::offre::medecin::*}
+    add "leather cap|Masque a gaz|&2|Filtre la pluie acide et l'air contamine (porte-le en casque)|15|1|25" to {za::offre::medecin::*}
+    add "arrow|Fleches|&7|Pour arcs, arbaletes et tourelles|2|16|0" to {za::offre::trafiquant::*}
+    add "bow|Arc renforce|&e|Solide|8|1|0" to {za::offre::trafiquant::*}
+    add "crossbow|Arbalete|&e|Puissante|12|1|25" to {za::offre::trafiquant::*}
+    add "stone pressure plate|Piege|&c|Pose-le : il explose au passage des morts|5|1|0" to {za::offre::trafiquant::*}
+    add "dispenser|Tourelle|&c|Tire sur les morts proches : charge-la de fleches|30|1|80" to {za::offre::trafiquant::*}
+    # --- armes a feu (mod TaCZ) : armes vides, a charger avec les munitions correspondantes ---
+    add "iron hoe|Glock 17|&e|Pistolet 9 mm, 17 coups|20|1|0|tacz:modern_kinetic_gun{GunId:""tacz:glock_17"",GunFireMode:""SEMI""}" to {za::offre::trafiquant::*}
+    add "iron hoe|Desert Eagle|&e|Pistolet 50 AE, 7 coups|40|1|25|tacz:modern_kinetic_gun{GunId:""tacz:deagle"",GunFireMode:""SEMI""}" to {za::offre::trafiquant::*}
+    add "iron hoe|Uzi|&e|Pistolet-mitrailleur 9 mm, 20 coups, tir auto|40|1|25|tacz:modern_kinetic_gun{GunId:""tacz:uzi"",GunFireMode:""AUTO""}" to {za::offre::trafiquant::*}
+    add "iron hoe|Fusil a pompe M870|&e|Calibre 12, 5 coups|50|1|25|tacz:modern_kinetic_gun{GunId:""tacz:m870"",GunFireMode:""SEMI""}" to {za::offre::trafiquant::*}
+    add "iron hoe|AK-47|&e|Fusil 7.62x39, 30 coups, tir auto|80|1|80|tacz:modern_kinetic_gun{GunId:""tacz:ak47"",GunFireMode:""AUTO""}" to {za::offre::trafiquant::*}
+    add "iron hoe|Fusil de precision M700|&e|Calibre 30-06, 5 coups|120|1|200|tacz:modern_kinetic_gun{GunId:""tacz:m700"",GunFireMode:""SEMI""}" to {za::offre::trafiquant::*}
+    add "iron nugget|Munitions 9 mm|&7|Glock 17 et Uzi (30 coups)|3|30|0|tacz:ammo{AmmoId:""tacz:9mm""}" to {za::offre::trafiquant::*}
+    add "iron nugget|Munitions 50 AE|&7|Desert Eagle (14 coups)|5|14|25|tacz:ammo{AmmoId:""tacz:50ae""}" to {za::offre::trafiquant::*}
+    add "iron nugget|Cartouches calibre 12|&7|Fusil a pompe (12 coups)|4|12|25|tacz:ammo{AmmoId:""tacz:12g""}" to {za::offre::trafiquant::*}
+    add "iron nugget|Munitions 7.62x39|&7|AK-47 (30 coups)|6|30|80|tacz:ammo{AmmoId:""tacz:762x39""}" to {za::offre::trafiquant::*}
+    add "iron nugget|Munitions 30-06|&7|Fusil de precision (10 coups)|6|10|200|tacz:ammo{AmmoId:""tacz:30_06""}" to {za::offre::trafiquant::*}
+    add "iron bars|Silencieux Ursus|&8|Reduit fortement le bruit des tirs (donc les zombies attires)|15|1|25|tacz:attachment{AttachmentId:""tacz:muzzle_silencer_ursus""}" to {za::offre::trafiquant::*}
+    add "compass|Lunette ELCAN 4x|&b|Viseur grossissant|20|1|80|tacz:attachment{AttachmentId:""tacz:scope_elcan_4x""}" to {za::offre::trafiquant::*}
+    add "hopper|Chargeur etendu|&b|Plus de coups dans le chargeur|12|1|25|tacz:attachment{AttachmentId:""tacz:extended_mag_1""}" to {za::offre::trafiquant::*}
+    add "tnt|Explosif artisanal|&c|Fait du bruit... beaucoup|9|1|80" to {za::offre::trafiquant::*}
+    add "iron ingot|Plaque de blindage|&7|Pour l'equipement|3|4|0" to {za::offre::trafiquant::*}
+    add "compass|Boussole de survivant|&b|Indique le point de depart|10|1|0" to {za::offre::collectionneur::*}
+    add "paper|Carte d'acces|&b|Ouvre un laboratoire scelle pendant une Blood Moon|40|1|80" to {za::offre::collectionneur::*}
+    add "iron ingot|Pieces de generateur|&7|Composants mecaniques|4|4|0" to {za::offre::mecano::*}
+    add "blaze powder|Essence (carburant)|&e|Rare et precieuse|8|1|0" to {za::offre::mecano::*}
+    add "comparator|Composant electronique|&b|Circuits recuperes|6|1|0" to {za::offre::mecano::*}
+    add "flint and steel|Briquet|&7|Toujours utile|3|1|0" to {za::offre::mecano::*}
+    add "blast furnace|Generateur|&e|Lumiere et confort... mais le bruit attire les morts|20|1|25" to {za::offre::mecano::*}
+    add "oak pressure plate|Piege a lames|&c|Plaque en bois : degats et lenteur|6|1|0" to {za::offre::mecano::*}
+    add "gold pressure plate|Piege incendiaire|&6|Plaque doree : enflamme les morts|8|1|0" to {za::offre::mecano::*}
+    add "stone pressure plate|Mine retardee|&4|Explose 3 secondes apres le passage|10|1|25" to {za::offre::mecano::*}
+    # 8e champ optionnel = identifiant d'objet donne par /give (objets de mods, ids verifies dans le jar de Tough As Nails)
+    if {za::tan} is true:
+        add "potion of water|Eau purifiee (TAN)|&b|Bouteille purifiee, sans danger|3|2|0|toughasnails:purified_water_bottle" to {za::offre::medecin::*}
+        add "glass bottle|Gourde purifiee|&b|Gourde en cuir pleine d'eau purifiee|8|1|0|toughasnails:leather_purified_water_canteen" to {za::offre::medecin::*}
+        add "clock|Thermometre|&6|Affiche la temperature|6|1|0|toughasnails:thermometer" to {za::offre::mecano::*}
+        add "furnace|Purificateur d'eau|&b|A poser : purifie l'eau sale|12|1|0|toughasnails:water_purifier" to {za::offre::mecano::*}
+    else:
+        # sans Tough As Nails : eau purifiee du systeme de soif de Skript
+        add "potion of water|Eau purifiee|&b|Bouillie : sans danger|3|2|0" to {za::offre::charognard::*}
+        add "potion of water|Eau purifiee|&b|Bouillie : sans danger|3|2|0" to {za::offre::medecin::*}
+    # rachat du Collectionneur : nom|prix
+    add "Essence de zombie|2" to {za::rachat::*}
+    add "Glande acide|3" to {za::rachat::*}
+    add "Poche de gaz|3" to {za::rachat::*}
+    add "Griffe de Leaper|3" to {za::rachat::*}
+    add "Cuir de Brute|4" to {za::rachat::*}
+    add "Sang infecte|4" to {za::rachat::*}
+    add "Composant electronique|5" to {za::rachat::*}
+    add "Note de survivant|5" to {za::rachat::*}
+    add "Banniere de l'Overlord|30" to {za::rachat::*}
+    add "Coeur de l'Overlord|50" to {za::rachat::*}
+
+# =====================================================================
+#  1) JETONS DE SURVIE
+# =====================================================================
+command /jetons [<text>] [<number>]:
+    aliases: /jeton, /caps
+    trigger:
+        if arg-1 is not set:
+            send "&6Jetons de Survie: &e%za_jetons(player)% &7| Rang: &e%za_rang(player)% &7(score %za_score(player)%, remise %floor(za_remise(player) * 100)% pourcent)" to player
+        else if arg-1 is "deposer":
+            set {_n} to za_count_named(player, "Jeton de Survie")
+            if {_n} is 0:
+                send "&7Tu n'as aucun jeton en main/sur toi." to player
+            else:
+                if za_take_named(player, "Jeton de Survie", {_n}) is true:
+                    za_jetons_ajouter(player, {_n})
+                    send "&6+%{_n}% jeton(s). Solde: &e%za_jetons(player)%" to player
+        else if arg-1 is "retirer":
+            if arg-2 is not set:
+                send "&cUsage: /jetons retirer <nombre>" to player
+            else if arg-2 <= 0:
+                send "&cNombre invalide." to player
+            else if za_jetons(player) < arg-2:
+                send "&cSolde insuffisant." to player
+            else:
+                za_jetons_ajouter(player, 0 - arg-2)
+                give za_item("gold nugget", "Jeton de Survie", "&6", arg-2) to player
+                za_audit("RETRAIT %player% : %arg-2%", arg-2)
+                send "&6Tu retires %arg-2% jeton(s)." to player
+        else:
+            send "&cUsage: /jetons [deposer|retirer <n>]" to player
+
+# clic droit sur une pile de jetons = depot dans le solde
+on right click with gold nugget:
+    if za_pro(player) is true:
+        stop
+    if uncolored name of player's tool is "Jeton de Survie":
+        cancel the event
+        set {_n} to item amount of player's tool
+        set player's tool to air
+        za_jetons_ajouter(player, {_n})
+        send "&6+%{_n}% jeton(s). Solde: &e%za_jetons(player)%" to player
+
+# les jetons se perdent a la mort : 50 pourcent detruits ou tombes sur le cadavre (max 64)
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    set {_b} to za_jetons(victim)
+    set {_perdu} to floor({_b} / 2)
+    if {_perdu} > 0:
+        za_jetons_ajouter(victim, 0 - {_perdu})
+        set {_drop} to min({_perdu}, 64)
+        drop za_item("gold nugget", "Jeton de Survie", "&6", {_drop}) at location of victim
+        send "&cTu perds %{_perdu}% jetons a ta mort (%{_drop}% sont tombes sur ton cadavre)." to victim
+
+command /payer <player> <number>:
+    trigger:
+        if arg-1 is player:
+            send "&cTu ne peux pas te payer toi-meme." to player
+        else if arg-2 <= 0:
+            send "&cMontant invalide." to player
+        else if za_jetons(player) < arg-2:
+            send "&cSolde insuffisant." to player
+        else:
+            za_jetons_ajouter(player, 0 - arg-2)
+            za_jetons_ajouter(arg-1, arg-2)
+            za_audit("PAYER %player% -> %arg-1% : %arg-2%", arg-2)
+            send "&6Tu as envoye %arg-2% jetons a %arg-1%." to player
+            send "&6%player% t'a envoye %arg-2% jetons." to arg-1
+
+command /valeur:
+    trigger:
+        send "&6&lRARETE ET VALEUR" to player
+        send "&7Commun (nourriture, planches, fer): &fFaible" to player
+        send "&7Peu commun (munitions, medocs basiques): &aMoyen" to player
+        send "&7Rare (antidotes, armes en bon etat): &eEleve" to player
+        send "&7Epique (armes uniques, documents de lore): &6Tres eleve" to player
+        send "&7Legendaire (1 exemplaire sur le serveur): &cExtreme" to player
+
+# =====================================================================
+#  2) TROC ENTRE JOUEURS (echange d'objet contre objet, ou vente contre jetons)
+#  /troc echanger <joueur>          (tu tiens en main ce que tu offres)
+#  /troc vendre <joueur> <prix>     (vend l'objet en main contre des jetons)
+#  /troc accepter                   (le destinataire tient en main ce qu'il donne, pour un echange)
+#  /troc annuler
+# =====================================================================
+command /troc <text> [<player>] [<number>]:
+    aliases: /trade
+    trigger:
+        if arg-1 is "echanger":
+            if arg-2 is not set:
+                send "&cUsage: /troc echanger <joueur>" to player
+            else if player's tool is air:
+                send "&cTiens en main ce que tu offres." to player
+            else if arg-2 is player:
+                send "&cTu ne peux pas troquer avec toi-meme." to player
+            else:
+                delete {za::troc::%arg-2's uuid%::*}
+                set {za::troc::%arg-2's uuid%::de} to "%player%"
+                set {za::troc::%arg-2's uuid%::type} to "echange"
+                set {za::troc::%arg-2's uuid%::item} to player's tool
+                send "&eOffre de troc envoyee a %arg-2%." to player
+                send "&e%player% t'offre &f%item amount of player's tool% x %uncolored name of player's tool% &econtre un objet de ton choix. Tiens-le en main et tape /troc accepter (ou /troc annuler)." to arg-2
+        else if arg-1 is "vendre":
+            if arg-2 is not set:
+                send "&cUsage: /troc vendre <joueur> <prix>" to player
+            else if arg-3 is not set:
+                send "&cUsage: /troc vendre <joueur> <prix>" to player
+            else if arg-3 <= 0:
+                send "&cPrix invalide." to player
+            else if player's tool is air:
+                send "&cTiens en main l'objet a vendre." to player
+            else:
+                delete {za::troc::%arg-2's uuid%::*}
+                set {za::troc::%arg-2's uuid%::de} to "%player%"
+                set {za::troc::%arg-2's uuid%::type} to "vente"
+                set {za::troc::%arg-2's uuid%::item} to player's tool
+                set {za::troc::%arg-2's uuid%::prix} to arg-3
+                send "&eOffre de vente envoyee a %arg-2%." to player
+                send "&e%player% te vend &f%item amount of player's tool% x %uncolored name of player's tool% &epour &6%arg-3% jetons&e. /troc accepter ou /troc annuler." to arg-2
+        else if arg-1 is "annuler":
+            delete {za::troc::%player's uuid%::*}
+            send "&7Offre annulee." to player
+        else if arg-1 is "accepter":
+            if {za::troc::%player's uuid%::de} is not set:
+                send "&cAucune offre en attente." to player
+            else:
+                set {_nom} to {za::troc::%player's uuid%::de}
+                set {_o} to player
+                loop all players:
+                    if za_pro(loop-player) is false:
+                        if "%loop-player%" is {_nom}:
+                            set {_o} to loop-player
+                if "%{_o}%" is not {_nom}:
+                    send "&cLe joueur n'est plus en ligne." to player
+                    delete {za::troc::%player's uuid%::*}
+                else if {_o}'s tool is not {za::troc::%player's uuid%::item}:
+                    send "&cL'offre n'est plus valide (l'objet n'est plus en main)." to player
+                    delete {za::troc::%player's uuid%::*}
+                else if {za::troc::%player's uuid%::type} is "echange":
+                    if player's tool is air:
+                        send "&cTiens en main l'objet que tu donnes en echange." to player
+                    else:
+                        set {_a} to {_o}'s tool
+                        set {_b} to player's tool
+                        set {_o}'s tool to {_b}
+                        set player's tool to {_a}
+                        send "&aTroc effectue avec %{_o}% !" to player
+                        send "&aTroc effectue avec %player% !" to {_o}
+                        delete {za::troc::%player's uuid%::*}
+                else:
+                    set {_prix} to {za::troc::%player's uuid%::prix}
+                    if za_jetons(player) < {_prix}:
+                        send "&cJetons insuffisants (%{_prix}% requis)." to player
+                    else:
+                        set {_it} to {_o}'s tool
+                        set {_o}'s tool to air
+                        give {_it} to player
+                        za_jetons_ajouter(player, 0 - {_prix})
+                        za_jetons_ajouter({_o}, {_prix})
+                        za_audit("VENTE %{_o}% -> %player% : %{_prix}% jetons", {_prix})
+                        send "&aAchat effectue (-%{_prix}% jetons)." to player
+                        send "&aVente effectuee (+%{_prix}% jetons)." to {_o}
+                        delete {za::troc::%player's uuid%::*}
+        else:
+            send "&cUsage: /troc <echanger|vendre|accepter|annuler>" to player
+
+# =====================================================================
+#  3) CONTRATS (textuels) ET DETTES
+# =====================================================================
+command /contrat <text> [<player>] [<text>]:
+    trigger:
+        if arg-1 is "proposer":
+            if arg-2 is not set:
+                send "&cUsage: /contrat proposer <joueur> <texte du contrat>" to player
+            else if arg-3 is not set:
+                send "&cUsage: /contrat proposer <joueur> <texte du contrat>" to player
+            else:
+                set {za::contrat::offre::%arg-2's uuid%} to "%player%|%arg-3%"
+                send "&eContrat propose a %arg-2%." to player
+                send "&e%player% te propose un contrat: &f%arg-3% &7(/contrat accepter ou /contrat refuser)" to arg-2
+        else if arg-1 is "accepter":
+            if {za::contrat::offre::%player's uuid%} is not set:
+                send "&cAucun contrat en attente." to player
+            else:
+                set {_p::*} to split {za::contrat::offre::%player's uuid%} at "|"
+                add "%{_p::1}% <-> %player% : %{_p::2}%" to {za::contrats::*}
+                za_diffuser("&6[Contrat] &e%{_p::1}% &7et &e%player% &7ont signe : &f%{_p::2}%")
+                delete {za::contrat::offre::%player's uuid%}
+        else if arg-1 is "refuser":
+            delete {za::contrat::offre::%player's uuid%}
+            send "&7Contrat refuse." to player
+        else:
+            send "&cUsage: /contrat <proposer|accepter|refuser>" to player
+
+function za_dette_payer(u: text) :: boolean:
+    # rembourse la plus ancienne dette du debiteur (uuid), retourne true si payee
+    loop {za::dette::ids::*}:
+        set {_id} to loop-value
+        if {za::dette::%{_id}%::debiteur} is {_u}:
+            set {_montant} to {za::dette::%{_id}%::montant}
+            if {za::jetons::%{_u}%} >= {_montant}:
+                remove {_montant} from {za::jetons::%{_u}%}
+                set {_pu} to {za::dette::%{_id}%::preteur}
+                if {za::jetons::%{_pu}%} is not set:
+                    set {za::jetons::%{_pu}%} to 0
+                add {_montant} to {za::jetons::%{_pu}%}
+                remove {_id} from {za::dette::ids::*}
+                delete {za::dette::%{_id}%::*}
+                return true
+            return false
+    return false
+
+command /dette <text> [<player>] [<number>]:
+    trigger:
+        if arg-1 is "preter":
+            if arg-2 is not set:
+                send "&cUsage: /dette preter <joueur> <montant>" to player
+            else if arg-3 is not set:
+                send "&cUsage: /dette preter <joueur> <montant>" to player
+            else if arg-3 <= 0:
+                send "&cMontant invalide." to player
+            else if za_jetons(player) < arg-3:
+                send "&cSolde insuffisant." to player
+            else:
+                set {za::dette::offre::%arg-2's uuid%} to "%player's uuid%|%arg-3%|%player%"
+                send "&ePret propose a %arg-2%." to player
+                send "&e%player% te propose un pret de &6%arg-3% jetons &e(a rembourser +20 pourcent sous 3 jours). /dette accepter" to arg-2
+        else if arg-1 is "accepter":
+            if {za::dette::offre::%player's uuid%} is not set:
+                send "&cAucun pret propose." to player
+            else:
+                set {_p::*} to split {za::dette::offre::%player's uuid%} at "|"
+                set {_m} to ({_p::2} parsed as number)
+                if {za::jetons::%{_p::1}%} < {_m}:
+                    send "&cLe preteur n'a plus assez de jetons." to player
+                else:
+                    remove {_m} from {za::jetons::%{_p::1}%}
+                    za_jetons_ajouter(player, {_m})
+                    za_audit("PRET %{_p::1}% -> %player% : %{_m}% jetons", {_m})
+                    if {za::dette::next} is not set:
+                        set {za::dette::next} to 0
+                    add 1 to {za::dette::next}
+                    set {_id} to {za::dette::next}
+                    set {za::dette::%{_id}%::debiteur} to "%player's uuid%"
+                    set {za::dette::%{_id}%::preteur} to {_p::1}
+                    set {za::dette::%{_id}%::montant} to ceil({_m} * 1.2)
+                    set {za::dette::%{_id}%::echeance} to now
+                    add 3 days to {za::dette::%{_id}%::echeance}
+                    add {_id} to {za::dette::ids::*}
+                    send "&aPret accepte: +%{_m}% jetons. A rembourser: &6%ceil({_m} * 1.2)% &asous 3 jours (/dette payer)." to player
+                delete {za::dette::offre::%player's uuid%}
+        else if arg-1 is "payer":
+            if za_dette_payer("%player's uuid%") is true:
+                send "&aDette remboursee." to player
+            else:
+                send "&cAucune dette a rembourser ou solde insuffisant." to player
+        else if arg-1 is "liste":
+            set {_n} to 0
+            loop {za::dette::ids::*}:
+                set {_id} to loop-value
+                if {za::dette::%{_id}%::debiteur} is "%player's uuid%":
+                    add 1 to {_n}
+                    send "&7Dette #%{_id}%: &6%{za::dette::%{_id}%::montant}% jetons &7avant %{za::dette::%{_id}%::echeance}%" to player
+            if {_n} is 0:
+                send "&7Tu n'as aucune dette." to player
+        else:
+            send "&cUsage: /dette <preter|accepter|payer|liste>" to player
+
+# dettes en retard : malus de reputation, marqueur lumineux, les morts te trouvent plus facilement
+every 3 minutes:
+    loop {za::dette::ids::*}:
+        set {_id} to loop-value
+        if now is greater than {za::dette::%{_id}%::echeance}:
+            if {za::dette::%{_id}%::penalise} is not set:
+                set {za::dette::%{_id}%::penalise} to true
+                set {_u} to {za::dette::%{_id}%::debiteur}
+                if {za::rep::%{_u}%} is not set:
+                    set {za::rep::%{_u}%} to 0
+                remove 20 from {za::rep::%{_u}%}
+            loop all players:
+                if za_pro(loop-player) is false:
+                    if "%loop-player's uuid%" is {za::dette::%{_id}%::debiteur}:
+                        za_effet(loop-player, "glowing", 200, 0)
+                        send "&cTa dette est en retard ! Les morts te trouvent plus facilement." to loop-player
+                        za_spawn_near(loop-player, "ZA_Shambler", 14, 22)
+                        za_spawn_near(loop-player, "ZA_Runner", 14, 22)
+
+command /reputation [<player>]:
+    trigger:
+        set {_t} to player
+        if arg-1 is set:
+            set {_t} to arg-1
+        if {za::rep::%{_t}'s uuid%} is not set:
+            set {za::rep::%{_t}'s uuid%} to 0
+        send "&7Reputation de %{_t}%: &e%{za::rep::%{_t}'s uuid%}%" to player
+
+# =====================================================================
+#  4) MARCHANDS NOMADES
+#  Charognard | Medecin de rue | Trafiquant d'armes | Collectionneur | Mecano
+#  Clic droit : boutique (jetons). Collectionneur : clic droit avec un objet en main = rachat.
+#  Chaque marchand a une "demande speciale" : tiens l'objet demande en main et fais clic droit.
+# =====================================================================
+# ---------- prix chez un marchand : remise Ingenieur sur les pieges du Mecano ----------
+function za_prix_marchand(p: player, m: text, nom: text, base: number) :: number:
+    set {_pr} to za_prix({_p}, {_base})
+    if {_m} is "mecano":
+        if any:
+            {_nom} contains "Piege"
+            {_nom} contains "Mine"
+        then:
+            if za_role({_p}) is "ingenieur":
+                set {_pr} to ceil({_pr} * 0.8)
+    return {_pr}
+
+function za_ouvrir_marchand(p: player, m: text):
+    open chest inventory with 5 rows named "&6Marchand: %{_m}%" to {_p}
+    set {_i} to 0
+    loop {za::offre::%{_m}%::*}:
+        add 1 to {_i}
+        set {_parts::*} to split loop-value at "|"
+        set {_prix} to za_prix_marchand({_p}, {_m}, {_parts::2}, ({_parts::5} parsed as number))
+        set {_it} to za_item({_parts::1}, {_parts::2}, {_parts::3}, ({_parts::6} parsed as number))
+        set lore of {_it} to {_parts::4} and "&ePrix: &6%{_prix}% jetons" and "&8Score requis: %{_parts::7}%"
+        set slot (9 + {_i} + (2 * floor(({_i} - 1) / 7))) of (current inventory of {_p}) to {_it}
+
+on inventory click:
+    if uncolored name of (player's current inventory) starts with "Marchand: ":
+        cancel the event
+        set {_mp::*} to split (uncolored name of (player's current inventory)) at ": "
+        set {_m} to {_mp::2}
+        if event-item is not air:
+            loop {za::offre::%{_m}%::*}:
+                set {_parts::*} to split loop-value at "|"
+                if uncolored name of event-item is {_parts::2}:
+                    set {_min} to ({_parts::7} parsed as number)
+                    if za_score(player) < {_min}:
+                        send "&cRang insuffisant (score %{_min}% requis)." to player
+                    else:
+                        set {_prix} to za_prix(player, ({_parts::5} parsed as number))
+                        if za_jetons(player) >= {_prix}:
+                            za_jetons_ajouter(player, 0 - {_prix})
+                            if {_parts::8} is set:
+                                execute console command "give %player% %{_parts::8}% %{_parts::6}%"
+                            else:
+                                give za_item({_parts::1}, {_parts::2}, {_parts::3}, ({_parts::6} parsed as number)) to player
+                            send "&aAchete: %{_parts::2}% (-%{_prix}% jetons)" to player
+                            play sound "entity.villager.trade" to player
+                        else:
+                            send "&cPas assez de jetons (%{_prix}% requis)." to player
+                    exit loop
+
+on right click on villager:
+    if za_pro(player) is true:
+        stop
+    set {_n} to uncolored name of clicked entity
+    set {_m} to "aucun"
+    if {_n} contains "Charognard":
+        set {_m} to "charognard"
+    else if {_n} contains "Medecin":
+        set {_m} to "medecin"
+    else if {_n} contains "Trafiquant":
+        set {_m} to "trafiquant"
+    else if {_n} contains "Collectionneur":
+        set {_m} to "collectionneur"
+    else if {_n} contains "Mecano":
+        set {_m} to "mecano"
+    if {_m} is not "aucun":
+        cancel the event
+        set {_handled} to false
+        # demande speciale du marchand
+        if {za::demande::%{_m}%} is set:
+            if player's tool is not air:
+                set {_d::*} to split {za::demande::%{_m}%} at "|"
+                if uncolored name of player's tool is {_d::1}:
+                    set {_q} to ({_d::2} parsed as number)
+                    if item amount of player's tool >= {_q}:
+                        if za_take_named(player, {_d::1}, {_q}) is true:
+                            set {_r} to ({_d::3} parsed as number)
+                            za_jetons_ajouter(player, {_r})
+                            send "&aLe marchand prend %{_q}% x %{_d::1}% et te donne &6%{_r}% jetons&a. Marche conclu !" to player
+                            delete {za::demande::%{_m}%}
+                            set {_handled} to true
+        if {_handled} is false:
+            if {_m} is "collectionneur":
+                if player's tool is air:
+                    send "&7Le Collectionneur: &oMontre-moi des objets rares et je te les rachete. Sinon, regarde mon etalage." to player
+                    za_ouvrir_marchand(player, {_m})
+                else:
+                    set {_nom} to uncolored name of player's tool
+                    set {_found} to false
+                    loop {za::rachat::*}:
+                        set {_pr::*} to split loop-value at "|"
+                        if {_pr::1} is {_nom}:
+                            set {_v} to ({_pr::2} parsed as number)
+                            if za_role(player) is "eclaireur":
+                                set {_v} to ceil({_v} * 1.1)
+                            set {_q} to item amount of player's tool
+                            set player's tool to air
+                            za_jetons_ajouter(player, {_v} * {_q})
+                            za_audit("RACHAT %player% : %{_v} * {_q}% jetons", {_v} * {_q})
+                            send "&aLe Collectionneur te rachete %{_q}% x %{_nom}% pour &6%{_v} * {_q}% jetons&a." to player
+                            set {_found} to true
+                            exit loop
+                    if {_found} is false:
+                        send "&7Le Collectionneur: &oJe ne collectionne pas ca." to player
+            else:
+                za_ouvrir_marchand(player, {_m})
+            if {za::demande::%{_m}%} is set:
+                set {_d::*} to split {za::demande::%{_m}%} at "|"
+                send "&8Le marchand murmure: je cherche %{_d::2}% x %{_d::1}% (recompense: %{_d::3}% jetons). Tiens-les en main et fais clic droit." to player
+
+function za_marchand_mob(t: text) :: text:
+    if {_t} is "charognard":
+        return "ZA_Marchand_Charognard"
+    if {_t} is "medecin":
+        return "ZA_Marchand_Medecin"
+    if {_t} is "trafiquant":
+        return "ZA_Marchand_Trafiquant"
+    if {_t} is "collectionneur":
+        return "ZA_Marchand_Collectionneur"
+    return "ZA_Marchand_Mecano"
+
+function za_marchand_spawn(t: text, dur: number):
+    if {za::marchand::actif::%{_t}%} is true:
+        stop
+    if size of za_monde_joueurs() is 0:
+        stop
+    set {_p} to random element out of za_monde_joueurs()
+    set {_mob} to za_marchand_mob({_t})
+    za_spawn_near({_p}, {_mob}, 50, 90)
+    set {za::marchand::actif::%{_t}%} to true
+    set {_dem::*} to "Sang infecte|2|10", "Composant electronique|1|8", "Essence (carburant)|1|12", "Glande acide|2|9", "Poche de gaz|1|6", "Griffe de Leaper|2|9"
+    set {za::demande::%{_t}%} to random element out of {_dem::*}
+    za_diffuser("&6Un marchand nomade (&e%{_t}%&6) a ete apercu pres de &e%{_p}%&6. Il repartira dans %{_dur}% minutes.")
+    wait ("%{_dur}% minutes" parsed as timespan)
+    execute console command "mm mobs kill %{_mob}%"
+    set {za::marchand::actif::%{_t}%} to false
+    delete {za::demande::%{_t}%}
+
+every 35 minutes:
+    if size of za_monde_joueurs() is greater than 0:
+        if chance of 65%:
+            set {_types::*} to "charognard", "medecin", "trafiquant", "collectionneur", "mecano"
+            za_marchand_spawn(random element out of {_types::*}, 20)
+
+command /marchand <text>:
+    permission: za.admin
+    trigger:
+        za_marchand_spawn(arg-1, 20)
+        send "&aMarchand demande: %arg-1% (cles: charognard, medecin, trafiquant, collectionneur, mecano)" to sender
+
+# =====================================================================
+#  5) EVENEMENTS ECONOMIQUES
+# =====================================================================
+# Jour de marche noir : tous les marchands au meme endroit, tres dangereux
+function za_marche_noir():
+    if size of za_monde_joueurs() is 0:
+        stop
+    set {_p} to random element out of za_monde_joueurs()
+    set {_types::*} to "charognard", "medecin", "trafiquant", "collectionneur", "mecano"
+    za_diffuser("&6&lMARCHE NOIR &7Tous les marchands nomades se sont reunis pres de &e%{_p}%&7. Zone tres dangereuse... 15 minutes.")
+    loop {_types::*}:
+        set {_mob} to za_marchand_mob(loop-value)
+        za_spawn_near({_p}, {_mob}, 15, 30)
+        set {za::marchand::actif::%loop-value%} to true
+    loop 6 times:
+        za_vague({_p}, "ZA_Shambler", 4, 20, 40)
+        za_vague({_p}, "ZA_Brute", 1, 25, 40)
+        wait 2 minutes
+    wait 3 minutes
+    loop {_types::*}:
+        execute console command "mm mobs kill %za_marchand_mob(loop-value)%"
+        set {za::marchand::actif::%loop-value%} to false
+    za_diffuser("&7Le marche noir se disperse.")
+
+# Penurie : prix majores pendant 2 heures
+function za_penurie():
+    set {za::eco::mult} to 1.6
+    set {za::eco::fin} to now
+    add 2 hours to {za::eco::fin}
+    za_diffuser("&c&lPENURIE &7Les ressources se font rares : les prix des marchands augmentent de 60 pourcent pendant 2 heures.")
+
+every 1 minute:
+    if {za::eco::fin} is set:
+        if now is greater than {za::eco::fin}:
+            set {za::eco::mult} to 1
+            delete {za::eco::fin}
+            za_diffuser("&aLa penurie est terminee : les prix reviennent a la normale.")

@@ -1,0 +1,80 @@
+# =====================================================================
+#  ZombieApocalypse - PHASE 7 : PROGRESSION
+#  Rangs de survie (jours + kills + quetes), recompense quotidienne, objectifs personnels.
+#  L'ancien arbre de competences (endurance/chasseur/fouineur) est retire : ses bonus vivent maintenant
+#  dans les 4 roles de za_p19_roles.sk (Medecin/Soldat/Eclaireur/Ingenieur), fixes, sans points a depenser.
+#  Commandes: /rang  /recompense  /objectif  (les roles : /role, dans za_p19_roles.sk)
+# =====================================================================
+
+on join:
+    if za_pro(player) is true:
+        stop
+    set {_u} to "%player's uuid%"
+    if {za::jours::%{_u}%} is not set:
+        set {za::jours::%{_u}%} to 0
+    if {za::kills::%{_u}%} is not set:
+        set {za::kills::%{_u}%} to 0
+    if {za::quetes::%{_u}%} is not set:
+        set {za::quetes::%{_u}%} to 0
+
+# un "jour de survie" toutes les 20 minutes en ligne
+every 20 minutes:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_u} to "%loop-player's uuid%"
+            if {za::jours::%{_u}%} is not set:
+                set {za::jours::%{_u}%} to 0
+            add 1 to {za::jours::%{_u}%}
+
+# kills + objectif personnel
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        set {_u} to "%attacker's uuid%"
+        if {za::kills::%{_u}%} is not set:
+            set {za::kills::%{_u}%} to 0
+        add 1 to {za::kills::%{_u}%}
+        if {za::obj::cible::%{_u}%} is set:
+            add 1 to {za::obj::prog::%{_u}%}
+            if {za::obj::prog::%{_u}%} >= {za::obj::cible::%{_u}%}:
+                if {za::quetes::%{_u}%} is not set:
+                    set {za::quetes::%{_u}%} to 0
+                add 1 to {za::quetes::%{_u}%}
+                za_jetons_ajouter(attacker, 5)
+                send "&a&lOBJECTIF ATTEINT ! &7+5 jetons." to attacker
+                delete {za::obj::cible::%{_u}%}
+                delete {za::obj::prog::%{_u}%}
+
+command /rang:
+    trigger:
+        set {_u} to "%player's uuid%"
+        send "&6Rang: &e%za_rang(player)% &7| Score: &e%za_score(player)%" to player
+        send "&7Jours: %{za::jours::%{_u}%}% | Kills: %{za::kills::%{_u}%}% | Quetes: %{za::quetes::%{_u}%}%" to player
+        send "&7Paliers de score: Survivant 25 | Veteran 80 | Legende 200 | Mythe 500 (remise chez les marchands: 5 / 10 / 15 / 20 pourcent)" to player
+
+command /recompense:
+    trigger:
+        set {_u} to "%player's uuid%"
+        set {_ok} to true
+        if {za::recompense::%{_u}%} is set:
+            if difference between {za::recompense::%{_u}%} and now is less than 24 hours:
+                set {_ok} to false
+        if {_ok} is false:
+            send "&cReviens plus tard : 1 recompense toutes les 24 heures." to player
+        else:
+            set {za::recompense::%{_u}%} to now
+            set {_n} to 2 + floor(za_score(player) / 40)
+            za_jetons_ajouter(player, {_n})
+            give za_item("paper", "Bandage", "&f", 1) to player
+            send "&aRecompense quotidienne: &6%{_n}% jetons &a+ 1 bandage." to player
+
+command /objectif:
+    trigger:
+        set {_u} to "%player's uuid%"
+        if {za::obj::cible::%{_u}%} is set:
+            send "&7Objectif en cours: tuer %{za::obj::cible::%{_u}%}% zombies (progres: %{za::obj::prog::%{_u}%}%)." to player
+        else:
+            set {za::obj::cible::%{_u}%} to random integer between 20 and 40
+            set {za::obj::prog::%{_u}%} to 0
+            send "&eNouvel objectif: tuer &6%{za::obj::cible::%{_u}%}% zombies &e(recompense: 5 jetons)." to player

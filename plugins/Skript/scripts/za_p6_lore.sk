@@ -1,0 +1,94 @@
+# =====================================================================
+#  ZombieApocalypse - PHASE 6 : HISTOIRE ET LORE
+#  Livre d'intro, notes a trouver dans les coffres, loot dynamique, messages d'ambiance,
+#  derniere volonte. (Radio fantome : voir Phase 4.) A la connexion : le livre, puis le tutoriel scenarise
+#  (za_dial_tuto, dans za_p10_finition.sk) prend le relais avec une vraie serie d'objectifs.
+#  injection_skript: false (par defaut, maintenant que Lootr + le datapack za_loot fournissent le butin) = a la 1re ouverture
+#  d'un coffre normal, le script n'ajoute plus rien lui-meme (evite le doublon). Mets true seulement si tu n'installes pas Lootr.
+#  Mets false quand tu installes Lootr + le datapack DATAPACKS/za_loot : le butin est alors dans les tables de butin de Lost Cities.
+# =====================================================================
+
+options:
+    injection_skript: false
+
+on join:
+    if za_pro(player) is true:
+        stop
+    # l'intro (journal, kit, tutoriel) est donnee a l'arrivee du Jour 8 (za_p38_prologue.sk)
+    if {za::pro::etat::%player's uuid%} is not "fini":
+        stop
+    if {za::intro::%player's uuid%} is not set:
+        set {za::intro::%player's uuid%} to true
+        wait 3 seconds
+        send "&8&m-----------------------------" to player
+        send "&4&lZOMBIE APOCALYPSE" to player
+        send "&7La ville est tombee. Les morts marchent. Les jetons sont rares, les marchands imprevisibles." to player
+        send "&7Tape &e/aide &7pour les regles. Lis le journal dans ton inventaire." to player
+        send "&8&m-----------------------------" to player
+        execute console command "give %player% written_book{title:""Le Journal du Survivant"",author:""Inconnu"",pages:['{""text"":""Jour 1. La sirene a hurle toute la nuit. Le matin, la ville etait silencieuse. Trop silencieuse.""}','{""text"":""Jour 9. Ils reviennent la nuit. Ne sortez pas sans lumiere. Ne restez jamais seuls. Et si on vous mord... cherchez un antidote.""}','{""text"":""Regles: les jetons sont rares. Les marchands nomades passent sans prevenir. Les morts sentent le sang. Bonne chance.""}']}"
+        give za_item("paper", "Bandage", "&f", 2) to player
+        give za_item("bread", "Pain rassis", "&f", 3) to player
+        za_jetons_ajouter(player, 3)
+        wait 4 seconds
+        za_dial_tuto(player, "debut")
+
+# ---------- loot dynamique : notes, jetons, medicaments dans les coffres (une fois par coffre) ----------
+on right click on chest:
+    if za_pro(player) is true:
+        stop
+    set {_loc} to location of event-block
+    set {_key} to "%floor(x-coordinate of {_loc})%_%floor(y-coordinate of {_loc})%_%floor(z-coordinate of {_loc})%_%world of {_loc}%"
+    if all:
+        {za::loot::%{_key}%} is not set
+        za_zone_morte({_loc}) is true
+    then:
+        set {za::loot::%{_key}%} to true
+        set {_n} to za_item("paper", "Note de survivant", "&f", 1)
+        set lore of {_n} to "Ici, plus rien a piller. Plus rien tout court."
+        add {_n} to inventory of event-block
+    else if all:
+        {za::loot::%{_key}%} is not set
+        {@injection_skript} is true
+    then:
+        set {za::loot::%{_key}%} to true
+        if chance of 2%:
+            add za_item("paper", "Carte d'acces", "&b", 1) to inventory of event-block
+        set {_bonus} to 0
+        if za_role(player) is "eclaireur":
+            set {_bonus} to 3
+        set {_r} to random integer between 1 and 100
+        if {_r} <= (25 + (5 * {_bonus})):
+            set {_notes::*} to "Journal: Jour 14. Le voisin a mordu sa femme. Je l'ai enfermee dans la cave.", "Carte griffonnee: Bunker a l'est. Ne laissez pas les morts entendre la radio.", "Ordre militaire: Evacuer la zone 4. Abandonner les infectes.", "Lettre: Si tu lis ceci, je n'ai pas tenu. Il reste des jetons dans la cave.", "Etiquette de labo: Souche Z-7. Ne pas exposer a la lumiere."
+            set {_it} to za_item("paper", "Note de survivant", "&f", 1)
+            set lore of {_it} to random element out of {_notes::*}
+            add {_it} to inventory of event-block
+        set {_r} to random integer between 1 and 100
+        if {_r} <= (30 + (5 * {_bonus})):
+            add za_item("gold nugget", "Jeton de Survie", "&6", random integer between 1 and 3) to inventory of event-block
+        set {_r} to random integer between 1 and 100
+        if {_r} <= 8:
+            add za_item("honey bottle", "Antidote", "&a", 1) to inventory of event-block
+        set {_r} to random integer between 1 and 100
+        if {_r} <= 15:
+            add za_item("paper", "Bandage", "&f", 1) to inventory of event-block
+
+# ---------- messages d'ambiance ----------
+every 12 minutes:
+    if size of za_monde_joueurs() is greater than 0:
+        set {_m::*} to "&8[Ambiance] &7Au loin, une sirene s'eteint.", "&8[Ambiance] &7Une odeur de fumee et de chair brulee flotte dans l'air.", "&8[Ambiance] &7Quelque part, une porte claque.", "&8[Ambiance] &7Le vent apporte des gemissements.", "&8[Ambiance] &7La nuit sera longue."
+        za_diffuser(random element out of {_m::*})
+
+# ---------- derniere volonte : message diffuse a ta mort ----------
+command /volonte <text>:
+    trigger:
+        set {za::volonte::%player's uuid%} to arg-1
+        send "&7Ta derniere volonte est enregistree." to player
+
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    if {za::volonte::%victim's uuid%} is set:
+        za_diffuser("&8&o%victim% : %{za::volonte::%victim's uuid%}%")
+        delete {za::volonte::%victim's uuid%}
+    else:
+        za_diffuser("&8&o%victim% n'a laisse aucun message...")

@@ -1,0 +1,734 @@
+# =====================================================================
+#  ZombieApocalypse - ZOMBIES INTELLIGENTS (#17) + MUTATIONS ADAPTATIVES (#18)
+#  Les morts apprennent. Chaque type de zombie a un comportement à lui, et le monde s'adapte aux habitudes des joueurs.
+#  * Screamer  : s'il te voit à moins de 20 blocs, il appelle la horde (les morts à 48 blocs te ciblent, 3 à 5 renforts).
+#  * Stalker   : te suit à 12-20 blocs, n'avance que quand tu ne le regardes pas (angle > 60°), passe derrière toi si tu le
+#                fixes 2 secondes, frappe plus fort dans le dos.
+#  * Charognard: nouveau zombie (ZA_Charognard) : va dévorer les cadavres de joueurs (za_p13), guérit et grossit.
+#  * Alpha     : les zombies à 16 blocs gagnent vitesse/force et copient sa cible ; le tuer disperse la meute.
+#  * Bloater   : sa mort laisse une nappe toxique pendant 20 s (poison, infection sans masque, contamination).
+#  * Adaptation: sur 3 jours serveur on note armes à feu / mêlée / lumières / camping de base / explosions ; l'habitude
+#                dominante fait évoluer les apparitions (blindés, phototropes, sièges, coureurs, hurleurs).
+#  Joueur : /adaptation      Admin/console : /zaadapt etat|forcer <habitude>|effacer   /zaia <test|etat> ...
+#  MythicMobs : mm_new/ZA_IA.yml (ZA_Charognard, ZA_Phototrope, ZA_Garde_Z01, ZA_Alpha_Z01) + ZA_IA_skills.yml
+#  Variables : {za::adapt::*} persistantes ; {-ia::*} mémoire vive (non sauvegardées).
+# =====================================================================
+
+options:
+    rayon_scan: 42
+    plafond_nuit: 16
+    plafond_jour: 8
+
+# ---------------------------------------------------------------- outils
+
+# angle (0 à 180) entre le regard du joueur et la direction du joueur vers l'entité
+function za_ia_angle(p: player, e: entity) :: number:
+    set {_dx} to (x-coordinate of {_e}) - (x-coordinate of {_p})
+    set {_dz} to (z-coordinate of {_e}) - (z-coordinate of {_p})
+    set {_yt} to atan2({_dz}, 0 - {_dx})
+    set {_d} to abs((yaw of {_p}) - {_yt})
+    while {_d} >= 360:
+        remove 360 from {_d}
+    if {_d} > 180:
+        set {_d} to 360 - {_d}
+    return {_d}
+
+# joueur (monde de survie) le plus proche d'une entité, dans un rayon
+function za_ia_proche(e: entity, r: number) :: player:
+    set {_best} to {_r}
+    loop all players:
+        if za_pro(loop-player) is false:
+            if world of loop-player is world of {_e}:
+                set {_d} to distance between loop-player and {_e}
+                if {_d} < {_best}:
+                    set {_best} to {_d}
+                    set {_res} to loop-player
+    return {_res}
+
+# effet de potion sur une entité non-joueur (commande vanilla, fiable)
+function za_ia_effet(e: entity, eff: text, s: number, l: number):
+    execute console command "effect give %uuid of {_e}% minecraft:%{_eff}% %{_s}% %{_l}% true"
+
+# un indice n'est donné qu'une fois par joueur (astuce d'apprentissage)
+function za_ia_astuce(p: player, cle: text, texte: text):
+    set {_u} to uuid of {_p}
+    if {za::ia::vu::%{_cle}%::%{_u}%} is set:
+        stop
+    set {za::ia::vu::%{_cle}%::%{_u}%} to true
+    send "&8[&7Instinct&8] &7%{_texte}%" to {_p}
+
+# coefficient d'apparition global (après-saison / thème de saison, posés par d'autres modules)
+function za_ia_mult() :: number:
+    set {_m} to 1
+    if {za::apres::mult} is set:
+        set {_m} to {_m} * {za::apres::mult}
+    if {za::theme::zombies_mult} is set:
+        set {_m} to {_m} * {za::theme::zombies_mult}
+    return {_m}
+
+on load:
+    delete {-ia::*}
+    execute console command "kill @e[type=minecraft:armor_stand,tag=za_appat]"
+
+# ---------------------------------------------------------------- balayage central (toutes les 4 s, autour des joueurs seulement)
+
+every 4 seconds:
+    if size of za_monde_joueurs() is 0:
+        stop
+    delete {-ia::stk::*}
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if gamemode of {_p} is survival or adventure:
+            set {_zs::*} to all zombies in radius {@rayon_scan} around {_p}
+            loop {_zs::*}:
+                set {_z} to loop-value-2
+                set {_u} to uuid of {_z}
+                if {_vus::%{_u}%} is not set:
+                    set {_vus::%{_u}%} to true
+                    set {_n} to uncolored name of {_z}
+                    if {_n} is "Screamer":
+                        za_ia_screamer({_z}, {_p})
+                    else if {_n} is "Stalker":
+                        if distance between {_z} and {_p} < 36:
+                            set {-ia::stk::%uuid of {_p}%} to true
+                        if distance between {_z} and {_p} < 30:
+                            za_ia_astuce({_p}, "stalker", "Un Stalker rôde. Il n'avance que quand tu ne le regardes pas : garde-le dans ton champ de vision, ou abats-le en face.")
+                    else if {_n} is "Alpha":
+                        za_ia_alpha({_z}, {_p})
+                    else if {_n} is "Charognard":
+                        za_ia_charognard({_z}, {_p})
+                        if distance between {_z} and {_p} < 35:
+                            za_ia_astuce({_p}, "charognard", "Un Charognard dévore les cadavres. Brûle ou enterre tes morts, sinon il grossit.")
+                    else if {_n} is "Phototrope":
+                        if distance between {_z} and {_p} < 35:
+                            za_ia_astuce({_p}, "phototrope", "Les Phototropes sont attirés par la lumière. Éteins tes torches la nuit, ou prépare-toi.")
+
+# ---------------------------------------------------------------- SCREAMER : appel de la horde
+
+function za_ia_screamer(s: entity, p: player):
+    set {_u} to uuid of {_s}
+    if {-ia::cri::%{_u}%} is set:
+        if now is less than {-ia::cri::%{_u}%}:
+            stop
+    if distance between {_s} and {_p} > 20:
+        stop
+    if {_s} has line of sight to {_p}:
+        set {-ia::cri::%{_u}%} to 45 seconds after now
+        set {_pu} to uuid of {_p}
+        if {-ia::cri_j::%{_pu}%} is set:
+            if now is less than {-ia::cri_j::%{_pu}%}:
+                stop
+        set {-ia::cri_j::%{_pu}%} to 20 seconds after now
+        # tous les morts à 48 blocs se tournent vers le joueur
+        set {_n} to 0
+        loop all zombies in radius 48 around {_s}:
+            if loop-entity is not {_s}:
+                set target of loop-entity to {_p}
+                add 1 to {_n}
+        # renforts : 3 à 5 (sauf si la zone est déjà bondée)
+        if size of (all zombies in radius 60 around {_p}) < 26:
+            loop random integer between 3 and 5 times:
+                za_spawn_near({_p}, random element out of ("ZA_Shambler", "ZA_Shambler", "ZA_Runner"), 22, 36)
+        za_activite_ajouter(location of {_p}, 8)
+        za_bruit_ajouter({_p}, 12)
+        za_zm("son %{_p}% za_modeles:sfx.sting_danger 0.8 1")
+        za_zm("son %{_p}% minecraft:entity.ghast.scream 0.7 0.6")
+        send action bar "&c&l« AAAAAAH ! » &7Le Screamer t'a repéré : les morts convergent." to {_p}
+        za_ia_astuce({_p}, "screamer", "Abats le Screamer avant qu'il crie, ou coupe la ligne de vue : hors de sa vue, il ne peut pas appeler.")
+
+# ---------------------------------------------------------------- ALPHA : la meute
+
+function za_ia_alpha(a: entity, p: player):
+    set {_u} to uuid of {_a}
+    set {_t} to target of {_a}
+    if {_t} is not a player:
+        if distance between {_a} and {_p} > 28:
+            stop
+    loop all zombies in radius 16 around {_a}:
+        set {_z} to loop-entity
+        if {_z} is not {_a}:
+            set {_zu} to uuid of {_z}
+            set {_ok} to true
+            if {-ia::disperse::%{_zu}%} is set:
+                if now is less than {-ia::disperse::%{_zu}%}:
+                    set {_ok} to false
+            if {_ok} is true:
+                za_ia_effet({_z}, "speed", 6, 0)
+                za_ia_effet({_z}, "strength", 6, 0)
+                if {_t} is a player:
+                    set target of {_z} to {_t}
+    execute console command "execute in %za_dim(world of {_a})% run particle minecraft:angry_villager %x-coordinate of {_a}% %y-coordinate of {_a} + 2.3% %z-coordinate of {_a}% 0.3 0.2 0.3 0 3 force"
+
+function za_ia_alpha_mort(a: entity):
+    set {_l} to location of {_a}
+    set {_dx} to 0
+    set {_n} to 0
+    loop all zombies in radius 20 around {_l}:
+        set {_z} to loop-entity
+        if {_z} is not {_a}:
+            set {-ia::disperse::%uuid of {_z}%} to 10 seconds after now
+            delete target of {_z}
+            set {_v} to vector from {_l} to (location of {_z})
+            set {_v} to normalized {_v}
+            set velocity of {_z} to vector((x component of {_v}) * 0.7, 0.35, (z component of {_v}) * 0.7)
+            za_ia_effet({_z}, "slowness", 4, 1)
+            za_ia_effet({_z}, "weakness", 8, 0)
+            add 1 to {_n}
+    if {_n} > 0:
+        loop all players in radius 30 around {_l}:
+            if za_pro(loop-player) is false:
+                send action bar "&aL'Alpha est tombé : la meute se disperse, hagarde !" to loop-player
+
+# ---------------------------------------------------------------- BLOATER : nappe toxique
+
+function za_ia_zone_toxique(l: location):
+    if {-ia::zones} is not set:
+        set {-ia::zones} to 0
+    if {-ia::zones} >= 4:
+        stop
+    add 1 to {-ia::zones}
+    set {_wd} to za_dim(world of {_l})
+    set {_x} to floor(x-coordinate of {_l})
+    set {_y} to floor(y-coordinate of {_l})
+    set {_z} to floor(z-coordinate of {_l})
+    set {_k} to za_ckey({_l})
+    execute console command "execute in %{_wd}% run playsound minecraft:block.brewing_stand.brew hostile @a %{_x}% %{_y}% %{_z}% 1.5 0.6"
+    loop 20 times:
+        execute console command "execute in %{_wd}% run particle minecraft:dust 0.3 0.8 0.15 1.6 %{_x}% %{_y} + 0.6% %{_z}% 1.6 0.5 1.6 0 22 force"
+        execute console command "execute in %{_wd}% run particle minecraft:happy_villager %{_x}% %{_y} + 0.8% %{_z}% 1.4 0.4 1.4 0 4 force"
+        loop all players in radius 4.5 around {_l}:
+            if za_pro(loop-player) is false:
+                if za_masque(loop-player) is true:
+                    send action bar "&aTon masque filtre les vapeurs toxiques." to loop-player
+                else:
+                    za_effet(loop-player, "poison", 4, 0)
+                    za_effet(loop-player, "nausea", 5, 0)
+                    execute console command "zainfect %loop-player% 10"
+                    send action bar "&2&lVapeurs toxiques ! &7Sors de la nappe verte." to loop-player
+        if {za::contam::%{_k}%} is not set:
+            set {za::contam::%{_k}%} to 0
+        add 2 to {za::contam::%{_k}%}
+        wait 1 second
+    subtract 1 from {-ia::zones}
+    if {-ia::zones} < 0:
+        set {-ia::zones} to 0
+
+# ---------------------------------------------------------------- mort d'un zombie : Alpha, Bloater, fragment de carte, statistiques d'adaptation
+
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    set {_n} to uncolored name of victim
+    if {_n} is "Alpha":
+        za_ia_alpha_mort(victim)
+    else if {_n} is "Bloater":
+        za_ia_zone_toxique(location of victim)
+    # adaptation : ce qui tue les morts
+    if attacker is a player:
+        if "%type of attacker's tool%" contains "modern_kinetic_gun":
+            za_adapt_note("armes", 1)
+        else:
+            za_adapt_note("melee", 1)
+
+# ---------------------------------------------------------------- STALKER : suit, se fige quand on le regarde, passe derrière
+
+# point derrière le joueur, au sol libre (essaie 4, 3 puis 2 blocs), sinon rien
+function za_ia_derriere(p: player) :: location:
+    set {_yaw} to yaw of {_p}
+    set {_l0} to location of {_p}
+    loop 3 times:
+        set {_d} to 5 - loop-number
+        set {_l} to location((x-coordinate of {_l0}) + ({_d} * sin({_yaw})), y-coordinate of {_l0}, (z-coordinate of {_l0}) - ({_d} * cos({_yaw})), world of {_l0})
+        set {_b1} to block at {_l}
+        set {_l2} to {_l}
+        add 1 to y-coordinate of {_l2}
+        set {_b2} to block at {_l2}
+        if {_b1} is air:
+            if {_b2} is air:
+                return {_l}
+    return {_l0}
+
+function za_ia_stalker(s: entity, p: player):
+    set {_u} to uuid of {_s}
+    set {_d} to distance between {_s} and {_p}
+    set {_ang} to za_ia_angle({_p}, {_s})
+    if {_ang} < 60:
+        # regardé : il se fige
+        if {_d} > 3:
+            za_ia_effet({_s}, "slowness", 2, 6)
+            delete target of {_s}
+        if {_d} < 24:
+            if {_s} has line of sight to {_p}:
+                add 1 to {-ia::stare::%{_u}%}
+        if {-ia::stare::%{_u}%} >= 2:
+            set {_ok} to true
+            if {-ia::tp::%{_u}%} is set:
+                if now is less than {-ia::tp::%{_u}%}:
+                    set {_ok} to false
+            if {_ok} is true:
+                set {-ia::stare::%{_u}%} to 0
+                set {-ia::tp::%{_u}%} to 14 seconds after now
+                set {_l} to za_ia_derriere({_p})
+                teleport {_s} to {_l}
+                set target of {_s} to {_p}
+                za_ia_effet({_s}, "speed", 3, 1)
+                za_zm("son %{_p}% za_modeles:sfx.porte_grince 0.9 0.8")
+                send action bar "&8&oQuelque chose vient de passer derrière toi..." to {_p}
+    else:
+        # dos tourné : il s'approche
+        set {-ia::stare::%{_u}%} to 0
+        set target of {_s} to {_p}
+        if {_d} > 3:
+            za_ia_effet({_s}, "speed", 2, 1)
+
+every 1 second:
+    if {-ia::stk::*} is not set:
+        stop
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if {-ia::stk::%uuid of {_p}%} is set:
+            set {_zs::*} to all zombies in radius 36 around {_p}
+            loop {_zs::*}:
+                set {_s} to loop-value-2
+                if uncolored name of {_s} is "Stalker":
+                    if za_ia_proche({_s}, 36) is {_p}:
+                        za_ia_stalker({_s}, {_p})
+
+# coup dans le dos : bonus de dégâts
+on damage of player:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a zombie:
+        if uncolored name of attacker is "Stalker":
+            if za_ia_angle(victim, attacker) > 110:
+                set damage to damage + 3
+                send action bar "&4&lIl t'a frappé dans le dos !" to victim
+
+# ---------------------------------------------------------------- CHAROGNARD : dévore les cadavres
+
+# marqueur (appât) posé sur un corps : on le retrouve par son uuid, sans stocker l'entité
+function za_ia_appat_trouver(k: text) :: entity:
+    set {_u} to {-ia::appat::%{_k}%}
+    set {_l} to {-ia::appat_loc::%{_k}%}
+    if {_u} is not set:
+        stop
+    if {_l} is not set:
+        stop
+    loop all entities in radius 3 around {_l}:
+        if uuid of loop-entity is {_u}:
+            return loop-entity
+
+function za_ia_appat_retirer(k: text):
+    set {_e} to za_ia_appat_trouver({_k})
+    if {_e} is set:
+        kill {_e}
+    delete {-ia::appat::%{_k}%}
+    delete {-ia::appat_loc::%{_k}%}
+    remove {_k} from {-ia::appats::*}
+
+function za_ia_charognard(c: entity, p: player):
+    if distance between {_c} and {_p} < 14:
+        stop
+    set {_best} to 60
+    set {_bk} to ""
+    loop {za::cadavre::liste::*}:
+        set {_l} to {za::cadavre::%loop-value%::loc}
+        if {_l} is set:
+            if world of {_l} is world of {_c}:
+                set {_d} to distance between {_c} and {_l}
+                if {_d} < {_best}:
+                    set {_best} to {_d}
+                    set {_bk} to loop-value
+    if {_bk} is "":
+        stop
+    set {_cl} to {za::cadavre::%{_bk}%::loc}
+    if {_best} <= 3:
+        za_ia_manger({_c}, {_bk})
+        stop
+    # appât : un marqueur invisible sur le corps ; le zombie le prend pour cible et s'y rend
+    set {_ap} to za_ia_appat_trouver({_bk})
+    if {_ap} is not set:
+        set {_wd} to za_dim(world of {_cl})
+        execute console command "execute in %{_wd}% run summon minecraft:armor_stand %x-coordinate of {_cl}% %y-coordinate of {_cl}% %z-coordinate of {_cl}% {Invisible:1b,Marker:0b,Small:1b,Tags:[""za_appat""]}"
+        wait 2 ticks
+        loop all entities in radius 2 around {_cl}:
+            if "%scoreboard tags of loop-entity%" contains "za_appat":
+                if {-ia::appat_loc::%{_bk}%} is not set:
+                    set {-ia::appat::%{_bk}%} to uuid of loop-entity
+                    set {-ia::appat_loc::%{_bk}%} to {_cl}
+                    add {_bk} to {-ia::appats::*}
+                    set {_ap} to loop-entity
+    if {_ap} is set:
+        set target of {_c} to {_ap}
+
+function za_ia_manger(c: entity, k: text):
+    set {_l} to {za::cadavre::%{_k}%::loc}
+    if {_l} is not set:
+        stop
+    set {_wd} to za_dim(world of {_l})
+    za_cadavre_retirer({_k})
+    za_ia_appat_retirer({_k})
+    execute console command "execute in %{_wd}% run particle minecraft:block minecraft:red_concrete %x-coordinate of {_l}% %y-coordinate of {_l} + 0.5% %z-coordinate of {_l}% 0.4 0.3 0.4 0 40 force"
+    execute console command "execute in %{_wd}% run playsound minecraft:entity.generic.eat hostile @a %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% 1.4 0.6"
+    # repas : soins, force, un peu plus de vie
+    set {_cu} to uuid of {_c}
+    if {-ia::repas::%{_cu}%} is not set:
+        set {-ia::repas::%{_cu}%} to 0
+    add 1 to {-ia::repas::%{_cu}%}
+    if {-ia::repas::%{_cu}%} <= 4:
+        set max health of {_c} to (max health of {_c}) + 8
+        za_ia_effet({_c}, "strength", 900, ({-ia::repas::%{_cu}%} - 1))
+    set health of {_c} to min(max health of {_c}, (health of {_c}) + 14)
+    loop all players in radius 40 around {_l}:
+        if za_pro(loop-player) is false:
+            send action bar "&6Un Charognard dévore un cadavre... il en ressort plus gros." to loop-player
+
+# nettoyage des appâts dont le corps a disparu
+every 60 seconds:
+    if {-ia::appats::*} is not set:
+        stop
+    loop {-ia::appats::*}:
+        if {za::cadavre::liste::*} does not contain loop-value:
+            za_ia_appat_retirer(loop-value)
+
+# les Charognards naissent près des cadavres frais, la nuit
+every 60 seconds:
+    if size of {za::cadavre::liste::*} is 0:
+        stop
+    if {za::calme::fin} is set:
+        if {za::calme::fin} is greater than now:
+            stop
+    loop {za::cadavre::liste::*}:
+        set {_k} to loop-value
+        set {_l} to {za::cadavre::%{_k}%::loc}
+        if {_l} is set:
+            if difference between {za::cadavre::%{_k}%::depuis} and now is less than 12 minutes:
+                set {_p} to za_ia_proche({_l}, 110)
+                if {_p} is set:
+                    if za_nuit({_p}) is true:
+                        if chance of 30%:
+                            set {_nb} to 0
+                            loop all zombies in radius 70 around {_l}:
+                                if uncolored name of loop-entity is "Charognard":
+                                    add 1 to {_nb}
+                            if {_nb} is 0:
+                                za_spawn_at({_l}, "ZA_Charognard", 34, 50)
+                                za_ia_astuce({_p}, "corps", "Un cadavre frais attire les Charognards. Brûle-le (briquet) ou enterre-le (pelle) avant qu'ils le mangent.")
+
+# ---------------------------------------------------------------- ADAPTATION : ce que les morts retiennent
+
+# jours serveur : les seaux de la journée courante
+function za_adapt_note(k: text, n: number):
+    set {_j} to {za::serveur::jours}
+    if {_j} is not set:
+        set {_j} to 0
+    if {za::adapt::j::%{_j}%::%{_k}%} is not set:
+        set {za::adapt::j::%{_j}%::%{_k}%} to 0
+    add {_n} to {za::adapt::j::%{_j}%::%{_k}%}
+
+# total sur les 3 derniers jours serveur
+function za_adapt_total(k: text) :: number:
+    set {_j} to {za::serveur::jours}
+    if {_j} is not set:
+        set {_j} to 0
+    set {_t} to 0
+    set {_i} to 0
+    while {_i} < 3:
+        set {_v} to {za::adapt::j::%({_j} - {_i})%::%{_k}%}
+        if {_v} is set:
+            add {_v} to {_t}
+        add 1 to {_i}
+    return {_t}
+
+function za_adapt_habitudes() :: texts:
+    return "armes", "melee", "lumieres", "camping" and "explosions"
+
+function za_adapt_nom(k: text) :: text:
+    if {_k} is "armes":
+        return "les armes à feu"
+    if {_k} is "melee":
+        return "le corps-à-corps"
+    if {_k} is "lumieres":
+        return "les lumières"
+    if {_k} is "camping":
+        return "les bases occupées la nuit"
+    if {_k} is "explosions":
+        return "les explosions"
+    return "rien"
+
+# score d'une habitude (1 = seuil atteint)
+function za_adapt_score(k: text) :: number:
+    set {_g} to za_adapt_total("armes")
+    set {_m} to za_adapt_total("melee")
+    set {_tot} to {_g} + {_m}
+    if {_k} is "armes":
+        if {_tot} >= 30:
+            if {_g} >= (0.6 * {_tot}):
+                return {_g} / 30
+        return 0
+    if {_k} is "melee":
+        if {_tot} >= 30:
+            if {_m} >= (0.6 * {_tot}):
+                return {_m} / 30
+        return 0
+    if {_k} is "lumieres":
+        return (za_adapt_total("lumieres")) / 8
+    if {_k} is "camping":
+        return (za_adapt_total("camping")) / 20
+    if {_k} is "explosions":
+        return (za_adapt_total("explosions")) / 3
+    return 0
+
+function za_adapt_actuelle() :: text:
+    if {za::adapt::actuelle} is not set:
+        return ""
+    return "%{za::adapt::actuelle}%"
+
+function za_adapt_radio(k: text):
+    if {_k} is "armes":
+        za_radio("&bLéa", "Les morts... j'en ai vu avec des plaques de tôle sur la poitrine. On dirait qu'ils ont compris que ça claque. Ils se protègent.")
+    else if {_k} is "melee":
+        za_radio("&bLéa", "Ils courent plus vite. Ils ferment la distance avant qu'on ait le temps de respirer. Comme s'ils savaient qu'on préfère ça de près.")
+    else if {_k} is "lumieres":
+        za_radio("&bLéa", "Il y a des lueurs qui bougent, la nuit... pis des choses qui s'en approchent. Comme des papillons. Des papillons qui mordent.")
+    else if {_k} is "camping":
+        za_radio("&bLéa", "Ils reviennent sans cesse aux mêmes portes. Ils savent où vous dormez. Ils savent que vous êtes là.")
+    else if {_k} is "explosions":
+        za_radio("&bLéa", "Les cris se multiplient dans le noir. Ils s'appellent entre eux... ou ils vous appellent, vous. Après le bruit, ils crient.")
+    else:
+        za_radio("&bLéa", "Les morts sont redevenus lents, hésitants. Ils oublient... peut-être. Ne comptez pas là-dessus.")
+
+# décision quotidienne : l'habitude dominante des 3 derniers jours
+function za_adapt_evaluer(forcer: boolean):
+    set {_meilleur} to ""
+    set {_ms} to 0.99
+    loop za_adapt_habitudes():
+        set {_s} to za_adapt_score(loop-value)
+        if {_s} > {_ms}:
+            set {_ms} to {_s}
+            set {_meilleur} to loop-value
+    set {_ancien} to za_adapt_actuelle()
+    # hystérésis : l'habitude en cours reste si elle pèse encore au moins 80 % du meilleur score
+    if {_ancien} is not "":
+        if {_meilleur} is not {_ancien}:
+            if za_adapt_score({_ancien}) >= (0.8 * {_ms}):
+                if za_adapt_score({_ancien}) >= 1:
+                    set {_meilleur} to {_ancien}
+    if {_meilleur} is not {_ancien}:
+        set {za::adapt::actuelle} to {_meilleur}
+        set {za::adapt::depuis} to {za::serveur::jours}
+        if {_meilleur} is "":
+            delete {za::adapt::actuelle}
+        za_journal("Les morts changent : %za_adapt_nom({_meilleur})%.")
+        za_adapt_radio({_meilleur})
+
+every 3 minutes:
+    set {_j} to {za::serveur::jours}
+    if {_j} is not set:
+        stop
+    if {za::adapt::evalue} is not {_j}:
+        set {za::adapt::evalue} to {_j}
+        za_adapt_evaluer(false)
+        # purge des seaux de plus de 4 jours
+        set {_d} to {_j} - 5
+        loop 8 times:
+            delete {za::adapt::j::%{_d}%::*}
+            subtract 1 from {_d}
+
+# ---- collecte : lumières posées
+on place:
+    if za_pro(player) is true:
+        stop
+    if event-block is torch or wall torch or lantern or soul lantern or glowstone or sea lantern or redstone lamp:
+        za_adapt_note("lumieres", 1)
+
+# ---- collecte : explosions près des joueurs
+on explosion:
+    if "%world of event-location%" is "za_prologue":
+        stop
+    set {_ok} to false
+    loop all players in radius 60 around event-location:
+        if za_pro(loop-player) is false:
+            set {_ok} to true
+    if {_ok} is true:
+        if "%event-entity%" contains "zombie":
+            stop
+        za_adapt_note("explosions", 1)
+
+# ---- collecte : nuits passées dans la base (minutes-joueur)
+every 30 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if za_nuit({_p}) is true:
+            set {_u} to uuid of {_p}
+            if {za::base::%{_u}%} is set:
+                if world of {za::base::%{_u}%} is world of {_p}:
+                    if distance between {za::base::%{_u}%} and {_p} < 40:
+                        za_adapt_note("camping", 0.5)
+
+# ---- effets : apparitions supplémentaires selon l'habitude dominante
+function za_adapt_plafond(p: player) :: boolean:
+    set {_n} to size of (all zombies in radius 48 around {_p})
+    if za_nuit({_p}) is true:
+        if {_n} < ({@plafond_nuit} + 3):
+            return true
+        return false
+    if {_n} < ({@plafond_jour} + 2):
+        return true
+    return false
+
+every 20 seconds:
+    set {_h} to za_adapt_actuelle()
+    if {_h} is "":
+        stop
+    set {_mult} to za_ia_mult()
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if "%world of {_p}%" is "world":
+            if gamemode of {_p} is survival or adventure:
+                if za_adapt_plafond({_p}) is true:
+                    set {_u} to uuid of {_p}
+                    if {_h} is "armes":
+                        if chance of (45 * {_mult})%:
+                            za_spawn_near({_p}, random element out of ("ZA_Armored", "ZA_Armored", "ZA_Shielded"), 26, 42)
+                    else if {_h} is "melee":
+                        if chance of (50 * {_mult})%:
+                            za_spawn_near({_p}, random element out of ("ZA_Runner", "ZA_Runner", "ZA_Leaper"), 24, 40)
+                    else if {_h} is "explosions":
+                        if chance of (35 * {_mult})%:
+                            za_spawn_near({_p}, random element out of ("ZA_Screamer", "ZA_Screamer", "ZA_Brute"), 26, 42)
+                    else if {_h} is "lumieres":
+                        if za_nuit({_p}) is true:
+                            if block light level of block at location of {_p} >= 8:
+                                if chance of (60 * {_mult})%:
+                                    za_spawn_near({_p}, "ZA_Phototrope", 24, 38)
+                                    if chance of 40%:
+                                        za_spawn_near({_p}, "ZA_Phototrope", 24, 38)
+                    else if {_h} is "camping":
+                        if za_nuit({_p}) is true:
+                            if {za::base::%{_u}%} is set:
+                                if world of {za::base::%{_u}%} is world of {_p}:
+                                    if distance between {za::base::%{_u}%} and {_p} < 45:
+                                        set {_ok} to true
+                                        if {-ia::siege::%{_u}%} is set:
+                                            if now is less than {-ia::siege::%{_u}%}:
+                                                set {_ok} to false
+                                        if {_ok} is true:
+                                            if chance of (4 * {_mult})%:
+                                                set {-ia::siege::%{_u}%} to 6 minutes after now
+                                                za_siege_base({_u})
+
+# ---------------------------------------------------------------- /adaptation (joueur)
+
+command /adaptation:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_h} to za_adapt_actuelle()
+        send "&8&m                  &r &4&lCE QUE LES MORTS ONT APPRIS &8&m                  " to player
+        if {_h} is "":
+            send "&7Pour l'instant, les morts n'ont rien retenu de particulier. Ils avancent, ils mordent, ils oublient." to player
+            send "&8Ils observent pourtant : ce que tu fais souvent, ils finissent par l'apprendre." to player
+        else if {_h} is "armes":
+            send "&7Les coups de feu les ont instruits. &cLes morts se couvrent : &7plus de &fZombies blindés &7et de &fZombies à bouclier&7 sur ta route." to player
+            send "&8Ils encaissent mieux les balles. Alterne : lames, pièges, silence." to player
+        else if {_h} is "melee":
+            send "&7Ils ont appris qu'on aime les affronter de près. &cLes morts foncent : &7plus de &fRunners &7et de &fLeapers&7, qui referment la distance." to player
+            send "&8Garde tes distances, reste mobile, un mur vaut mieux qu'une épée." to player
+        else if {_h} is "lumieres":
+            send "&7Vos torches, vos lanternes, vos bases éclairées... &cIls sont attirés par la lumière : &7des &ePhototropes &7luisants rôdent près des bases allumées, la nuit." to player
+            send "&8Éteins, masque tes fenêtres, ou garde de quoi t'occuper de ces papillons de nuit." to player
+        else if {_h} is "camping":
+            send "&7Ils ont compris que vous vous terrez la nuit. &cLes sièges se multiplient : &7ils reviennent aux portes des bases occupées, encore et encore." to player
+            send "&8Ne dors pas toujours au même endroit. Une base solide, des tourelles, des gardes." to player
+        else if {_h} is "explosions":
+            send "&7Après chaque explosion, ils crient. &cLes morts s'appellent : &7plus de &fScreamers &7et de &fBrutes &7dans le sillage du bruit." to player
+            send "&8Moins de TNT, plus de discrétion." to player
+        set {_lignes::*} to ""
+        delete {_lignes::*}
+        loop za_adapt_habitudes():
+            if loop-value is not {_h}:
+                if za_adapt_score(loop-value) >= 0.5:
+                    add "&8Ils commencent à remarquer &7%za_adapt_nom(loop-value)%&8..." to {_lignes::*}
+        loop {_lignes::*}:
+            send loop-value to player
+        send "&8Stalkers, Screamers, Charognards, Alphas, Bloaters : chaque mort a sa ruse. /adaptation se met à jour chaque jour." to player
+
+# ---------------------------------------------------------------- admin : /zaadapt
+
+command /zaadapt [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        set {_a} to arg-1
+        if {_a} is not set:
+            set {_a} to "etat"
+        if {_a} is "etat":
+            send "&6[Adaptation] actuelle : &f%za_adapt_actuelle()% &7depuis le jour %{za::adapt::depuis}% (jour serveur %{za::serveur::jours}%)" to sender
+            loop za_adapt_habitudes():
+                send "&7 - %loop-value% : total 3 j = %za_adapt_total(loop-value)% | score = %za_adapt_score(loop-value)%" to sender
+        else if {_a} is "forcer":
+            set {_k} to arg-2
+            if za_adapt_habitudes() does not contain {_k}:
+                send "&cHabitude inconnue. Choix : armes, melee, lumieres, camping, explosions" to sender
+                stop
+            set {za::adapt::actuelle} to {_k}
+            set {za::adapt::depuis} to {za::serveur::jours}
+            za_adapt_radio({_k})
+            send "&aAdaptation forcée : %{_k}%." to sender
+        else if {_a} is "effacer":
+            delete {za::adapt::actuelle}
+            delete {za::adapt::j::*}
+            send "&aAdaptation effacée." to sender
+        else if {_a} is "note":
+            za_adapt_note(arg-2, 10)
+            send "&a+10 sur %arg-2%" to sender
+        else if {_a} is "evaluer":
+            za_adapt_evaluer(false)
+            send "&aÉvaluation faite : %za_adapt_actuelle()%" to sender
+        else:
+            send "&cUsage : /zaadapt <etat|forcer <habitude>|effacer|note <habitude>|evaluer>" to sender
+
+# ---------------------------------------------------------------- admin : /zaia (tests des comportements)
+
+command /zaia [<text>] [<player>]:
+    permission: za.admin
+    trigger:
+        set {_t} to arg-1
+        set {_p} to arg-2
+        if {_t} is not set:
+            send "&cUsage : /zaia <screamer|stalker|charognard|alpha|bloater|phototrope|corps> <joueur> | etat" to sender
+            stop
+        if {_t} is "etat":
+            send "&6[IA] Joueurs avec un Stalker proche : %size of {-ia::stk::*}% | appâts : %size of {-ia::appats::*}% | nappes toxiques : %{-ia::zones}%" to sender
+            stop
+        if {_p} is not set:
+            send "&cPrécise un joueur." to sender
+            stop
+        if {_t} is "screamer":
+            za_spawn_near({_p}, "ZA_Screamer", 14, 18)
+        else if {_t} is "stalker":
+            za_spawn_near({_p}, "ZA_Stalker", 14, 18)
+        else if {_t} is "alpha":
+            za_spawn_near({_p}, "ZA_Alpha", 12, 16)
+            loop 4 times:
+                za_spawn_near({_p}, "ZA_Shambler", 10, 16)
+        else if {_t} is "bloater":
+            za_spawn_near({_p}, "ZA_Bloater", 8, 10)
+        else if {_t} is "phototrope":
+            za_spawn_near({_p}, "ZA_Phototrope", 14, 20)
+        else if {_t} is "charognard":
+            za_spawn_near({_p}, "ZA_Charognard", 30, 34)
+        else if {_t} is "corps":
+            set {_l} to location of {_p}
+            add 22 to x-coordinate of {_l}
+            set {_l} to za_sol({_l})
+            set {_k} to za_lkey({_l})
+            set block at {_l} to bone block
+            set {za::cadavre::%{_k}%::loc} to {_l}
+            set {za::cadavre::%{_k}%::depuis} to now
+            add {_k} to {za::cadavre::liste::*}
+            send "&aCorps factice posé en %{_l}%" to sender
+        else:
+            send "&cType inconnu." to sender
+            stop
+        send "&a[zaia] %{_t}% lancé près de %{_p}%." to sender

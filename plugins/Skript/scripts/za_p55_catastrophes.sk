@@ -1,0 +1,579 @@
+# =====================================================================
+#  ZombieApocalypse - CATASTROPHES (#16) : le ciel aussi est contre vous
+#  Six événements météo/monde, tirés au hasard tous les 2 à 4 jours serveur (40 à 80 minutes réelles), toujours annoncés
+#  une minute avant à la radio (Environnement Canada ou Léa), avec carte-titre au début et message de fin :
+#   * brouillard  : brouillard dense (10-15 min), pulsations d'obscurité, Stalkers et morts qui apparaissent tout près
+#   * toxique     : pluie toxique, poison/infection à ciel ouvert sans masque à gaz, contamination des chunks
+#   * tempete     : orage violent, bruit des joueurs divisé par deux, éclairs
+#   * canicule    : chaleur (jour) : soif et malaise à découvert, sans ombre ni eau proche (respecte Tough As Nails)
+#   * froid       : froid extrême (nuit) : il faut un feu proche ou un toit, sinon lenteur puis dégâts
+#   * nuit        : nuit anormale rouge : minuit verrouillé ~6 min, Stalkers et Alphas, danger en hausse
+#  Joueur : /meteo (catastrophe en cours + prévisions vagues)     Admin/console : /catastrophe <nom|stop|liste|prochaine>
+#  Variables : {za::cata::type} (nom de la catastrophe en cours, absent sinon), {za::cata::fin}, {za::cata::prochain}...
+#  Fonction publique : za_cata_actuelle() -> "" | "brouillard" | "toxique" | "tempete" | "canicule" | "froid" | "nuit"
+#  Compatible avec za_p3_evenements (blood moon, pluie acide...) : on ne se lance pas par-dessus les événements en cours.
+# =====================================================================
+
+options:
+    monde: world
+
+# ---------------------------------------------------------------- données des catastrophes
+
+function za_cata_liste() :: texts:
+    return "brouillard", "toxique", "tempete", "canicule", "froid" and "nuit"
+
+function za_cata_nom(k: text) :: text:
+    if {_k} is "brouillard":
+        return "Brouillard dense"
+    if {_k} is "toxique":
+        return "Pluie toxique"
+    if {_k} is "tempete":
+        return "Tempête"
+    if {_k} is "canicule":
+        return "Canicule"
+    if {_k} is "froid":
+        return "Froid extrême"
+    if {_k} is "nuit":
+        return "Nuit anormale"
+    return "Ciel ordinaire"
+
+# titre (18 caractères max, codes de couleur non comptés)
+function za_cata_titre(k: text) :: text:
+    if {_k} is "brouillard":
+        return "&8&lBROUILLARD"
+    if {_k} is "toxique":
+        return "&2&lPLUIE TOXIQUE"
+    if {_k} is "tempete":
+        return "&9&lTEMPÊTE"
+    if {_k} is "canicule":
+        return "&6&lCANICULE"
+    if {_k} is "froid":
+        return "&b&lFROID EXTRÊME"
+    return "&4&lNUIT ANORMALE"
+
+function za_cata_sous(k: text) :: text:
+    if {_k} is "brouillard":
+        return "&7Tu ne vois plus à dix pas. Quelque chose bouge là-dedans."
+    if {_k} is "toxique":
+        return "&7La pluie est acide et chargée de spores. Masque à gaz ou toit."
+    if {_k} is "tempete":
+        return "&7Le vent couvre tout : les morts t'entendent moins... et toi non plus."
+    if {_k} is "canicule":
+        return "&7Ombre et eau, ou tu tombes. Ne reste pas au soleil."
+    if {_k} is "froid":
+        return "&7Un feu, un toit, du cuir. Sinon tu gèles sur place."
+    return "&7Le ciel est rouge. Minuit ne finit pas. Ils sont là."
+
+function za_cata_duree(k: text) :: timespan:
+    if {_k} is "brouillard":
+        set {_m} to random integer between 10 and 15
+        return (1 minute) * {_m}
+    if {_k} is "toxique":
+        return 10 minutes
+    if {_k} is "tempete":
+        return 8 minutes
+    if {_k} is "canicule":
+        return 10 minutes
+    if {_k} is "froid":
+        return 10 minutes
+    return 6 minutes
+
+# annonce d'une minute avant (Environnement Canada ou Léa)
+function za_cata_alerte(k: text):
+    set {_v} to random integer between 1 and 2
+    if {_k} is "brouillard":
+        if {_v} is 1:
+            za_radio("&eEnvironnement Canada", "AVIS de brouillard dense pour la région de Saint-Aurèle d'ici une minute. Visibilité quasi nulle. Évitez tout déplacement.")
+        else:
+            za_radio("&bLéa", "Le brouillard monte de la rivière, vite. Je ne vois plus mes mains, depuis le toit. Restez près d'un feu, gardez les yeux ouverts.")
+    else if {_k} is "toxique":
+        if {_v} is 1:
+            za_radio("&eEnvironnement Canada", "ALERTE : précipitations à teneur toxique attendues d'ici une minute. Masque à gaz ou abri obligatoire. Ne buvez pas l'eau de pluie.")
+        else:
+            za_radio("&bLéa", "Les nuages virent au jaune. Ça sent l'œuf pourri jusqu'ici. Cette pluie-là, c'est du poison. Mettez-vous à couvert.")
+    else if {_k} is "tempete":
+        if {_v} is 1:
+            za_radio("&eEnvironnement Canada", "AVERTISSEMENT d'orage violent d'ici une minute : vents de 90 km/h, foudre. Le bruit portera peu. Restez à l'intérieur.")
+        else:
+            za_radio("&bLéa", "Les baromètres s'effondrent. Un gros orage arrive. Le bon côté : ce soir, vos pas ne s'entendront plus. Mais restez sous un toit.")
+    else if {_k} is "canicule":
+        if {_v} is 1:
+            za_radio("&eEnvironnement Canada", "AVIS de chaleur extrême d'ici une minute : 41 degrés ressentis. Hydratez-vous, restez à l'ombre, évitez les efforts en plein soleil.")
+        else:
+            za_radio("&bLéa", "Pas un souffle de vent, pis le soleil tape comme un marteau. Cherchez l'ombre, cherchez l'eau, pis restez-y.")
+    else if {_k} is "froid":
+        if {_v} is 1:
+            za_radio("&eEnvironnement Canada", "AVIS de froid extrême cette nuit : -35 degrés ressentis. Gelures en quelques minutes. Feu, toit, vêtements chauds, maintenant.")
+        else:
+            za_radio("&bLéa", "Le ciel est dégagé... trop dégagé. Ce soir, il va faire un froid à fendre les pierres. Un feu, un toit, du cuir. Sinon...")
+    else:
+        za_radio("&bLéa", "Les instruments deviennent fous. La lune... elle est rouge. Elle est ROUGE. Barricadez-vous. Éteignez tout. Ne regardez pas dehors.")
+
+function za_cata_fin_msg(k: text):
+    if {_k} is "brouillard":
+        za_diffuser("&7Le brouillard se dissipe lentement. Le monde reprend ses contours.")
+    else if {_k} is "toxique":
+        za_diffuser("&7La pluie toxique s'arrête. L'air pique encore les yeux, mais on peut respirer.")
+    else if {_k} is "tempete":
+        za_diffuser("&7L'orage s'éloigne. Le silence retombe... et avec lui, ce que les morts entendent.")
+    else if {_k} is "canicule":
+        za_diffuser("&7La chaleur retombe. Le sol fume encore.")
+    else if {_k} is "froid":
+        za_diffuser("&7Le froid mordant se relâche. Le jour se lève sur des vitres givrées.")
+    else:
+        za_diffuser("&7La lune redevient pâle. La nuit reprend son cours... mais quelque chose est resté.")
+
+# prévision vague (signes avant-coureurs)
+function za_cata_signe(k: text) :: text:
+    if {_k} is "brouillard":
+        return "Les fonds de vallée se chargent d'humidité. Le ciel a l'air lourd, immobile."
+    if {_k} is "toxique":
+        return "Une odeur âcre dans le vent. Les nuages ont une teinte jaunâtre."
+    if {_k} is "tempete":
+        return "L'air est chargé d'électricité. Les oiseaux se taisent."
+    if {_k} is "canicule":
+        return "Pas un souffle de vent. Le soleil tape déjà fort."
+    if {_k} is "froid":
+        return "Le ciel est dégagé, trop dégagé. La nuit sera glaciale."
+    return "Les radios grésillent sans raison. Les animaux ne bougent plus."
+
+function za_cata_conseil(k: text) :: text:
+    if {_k} is "brouillard":
+        return "Reste près d'un feu, garde tes armes chargées, surveille tes arrières : les Stalkers adorent ça."
+    if {_k} is "toxique":
+        return "Masque à gaz sur la tête, ou sous un toit. Ne traîne pas à ciel ouvert."
+    if {_k} is "tempete":
+        return "Le vent couvre ton bruit : c'est le moment de bouger ou de piller. Mais reste loin des hauteurs et des éclairs."
+    if {_k} is "canicule":
+        return "Ombre et eau. Boire souvent, éviter le soleil direct, ne pas courir."
+    if {_k} is "froid":
+        return "Feu de camp ou générateur à moins de 5 blocs, un toit, ou de l'armure de cuir."
+    return "Barricade-toi, garde de la lumière, et ne sors pas avant l'aube."
+
+# ---------------------------------------------------------------- état
+
+function za_cata_actuelle() :: text:
+    if {za::cata::type} is not set:
+        return ""
+    return "%{za::cata::type}%"
+
+# vrai si aucun autre grand événement n'est en cours (blood moon, horde, boss, EMP, cendres)
+function za_cata_libre() :: boolean:
+    if {za::evt::bloodmoon} is true:
+        return false
+    if {za::horde::actif} is true:
+        return false
+    if {za::boss::vivant} is true:
+        return false
+    if {za::emp::fin} is set:
+        if now is less than {za::emp::fin}:
+            return false
+    if {za::cendres::fin} is set:
+        if now is less than {za::cendres::fin}:
+            return false
+    return true
+
+# le moment de la journée convient-il à cette catastrophe ?
+function za_cata_moment_ok(k: text) :: boolean:
+    set {_t} to time of world("{@monde}")
+    set {_nuit} to false
+    if {_t} is greater than 19:00:
+        set {_nuit} to true
+    if {_t} is less than 5:00:
+        set {_nuit} to true
+    if {_k} is "canicule":
+        if {_nuit} is true:
+            return false
+        if {_t} is greater than 16:00:
+            return false
+    if {_k} is "froid":
+        return {_nuit}
+    if {_k} is "toxique" or "tempete":
+        # pas de pluie par-dessus une autre pluie (pluie acide de za_p3)
+        set {_wm} to world("{@monde}")
+        set {_w} to weather in {_wm}
+        if "%{_w}%" is not "clear":
+            return false
+    return true
+
+function za_cata_choisir() :: text:
+    set {_l::*} to "brouillard", "brouillard", "toxique", "tempete", "tempete", "canicule", "canicule", "froid", "froid" and "nuit"
+    return random element out of {_l::*}
+
+function za_cata_planifier():
+    set {_m} to random integer between 40 and 80
+    set {_ts} to (1 minute) * {_m}
+    set {za::cata::prochain} to {_ts} after now
+    set {za::cata::prochain_type} to za_cata_choisir()
+    set {za::cata::retards} to 0
+    delete {za::cata::avert}
+
+# ---------------------------------------------------------------- démarrage / fin
+
+function za_cata_lancer(k: text):
+    if {za::cata::type} is set:
+        stop
+    set {za::cata::type} to {_k}
+    set {za::cata::debut} to now
+    set {za::cata::fin} to za_cata_duree({_k}) after now
+    delete {za::cata::avert}
+    delete {-cata::froid::*}
+    za_journal("Catastrophe : %za_cata_nom({_k})%.")
+    if {_k} is "toxique":
+        execute console command "weather rain 14000"
+    else if {_k} is "tempete":
+        execute console command "weather thunder 14000"
+    else if {_k} is "nuit":
+        set time of world("{@monde}") to 0:00
+    loop za_monde_joueurs():
+        send title za_cata_titre({_k}) with subtitle za_cata_sous({_k}) to loop-value for 5 seconds
+        za_zm("son %loop-value% za_modeles:sfx.sting_danger 1 0.8")
+        send "&8[&6Catastrophe&8] &e%za_cata_nom({_k})% &7— &8%za_cata_conseil({_k})%" to loop-value
+
+function za_cata_terminer():
+    set {_k} to za_cata_actuelle()
+    if {_k} is "":
+        stop
+    delete {za::cata::type}
+    delete {za::cata::fin}
+    delete {-cata::froid::*}
+    if {_k} is "toxique" or "tempete":
+        execute console command "weather clear"
+    else if {_k} is "nuit":
+        set time of world("{@monde}") to 4:30
+    za_cata_fin_msg({_k})
+    za_journal("Fin de la catastrophe : %za_cata_nom({_k})%.")
+    za_cata_planifier()
+
+on load:
+    # redémarrage pendant une catastrophe : on remet le monde d'aplomb
+    if {za::cata::type} is set:
+        set {_k} to "%{za::cata::type}%"
+        delete {za::cata::type}
+        delete {za::cata::fin}
+        if {_k} is "toxique" or "tempete":
+            execute console command "weather clear"
+    if {za::cata::prochain} is not set:
+        za_cata_planifier()
+    delete {-cata::*}
+
+# ---------------------------------------------------------------- effets par catastrophe (appelés toutes les 5 s pour chaque joueur du monde de survie)
+
+function za_cata_cible(p: player) :: boolean:
+    if za_pro({_p}) is true:
+        return false
+    if "%world of {_p}%" is not "{@monde}":
+        return false
+    if gamemode of {_p} is not survival:
+        if gamemode of {_p} is not adventure:
+            return false
+    return true
+
+# ciel dégagé au-dessus du joueur ?
+function za_cata_expose(p: player) :: boolean:
+    set {_l} to location of {_p}
+    if y-coordinate of {_l} >= y-coordinate of (location of (highest block at {_l})):
+        return true
+    return false
+
+function za_cata_eau_proche(p: player) :: boolean:
+    loop blocks in radius 4 around {_p}:
+        if loop-block is water:
+            return true
+    return false
+
+function za_cata_cuir(p: player) :: number:
+    set {_n} to 0
+    if {_p}'s helmet is leather armor:
+        add 1 to {_n}
+    if {_p}'s chestplate is leather armor:
+        add 1 to {_n}
+    if {_p}'s leggings is leather armor:
+        add 1 to {_n}
+    if {_p}'s boots is leather armor:
+        add 1 to {_n}
+    return {_n}
+
+function za_cata_particules(p: player, part: text, delta: text, vitesse: number, nb: number):
+    execute console command "execute at %{_p}% run particle minecraft:%{_part}% ~ ~1 ~ %{_delta}% %{_vitesse}% %{_nb}% normal %{_p}%"
+
+function za_cata_zombies_ok(p: player, extra: number) :: boolean:
+    set {_n} to size of (all zombies in radius 48 around {_p})
+    if za_nuit({_p}) is true:
+        if {_n} < (14 + {_extra}):
+            return true
+        return false
+    if {_n} < (6 + {_extra}):
+        return true
+    return false
+
+function za_cata_effet(k: text, p: player, n: number):
+    set {_u} to uuid of {_p}
+    if {_k} is "brouillard":
+        za_effet({_p}, "darkness", 7, 0)
+        za_cata_particules({_p}, "cloud", "7 2.5 7", 0.002, 40)
+        if {_n} is 0:
+            send action bar "&8Le brouillard t'avale. Tu ne vois plus rien au-delà de quelques pas." to {_p}
+        if mod({_n}, 3) is 0:
+            if za_cata_zombies_ok({_p}, 4) is true:
+                if chance of 45%:
+                    za_spawn_near({_p}, "ZA_Stalker", 12, 20)
+                if chance of 60%:
+                    za_spawn_near({_p}, random element out of ("ZA_Shambler", "ZA_Shambler", "ZA_Runner"), 11, 20)
+        if mod({_n}, 6) is 0:
+            za_zm("son %{_p}% za_modeles:sfx.horde_grondement 0.35 0.8")
+    else if {_k} is "toxique":
+        if za_cata_expose({_p}) is true:
+            za_cata_particules({_p}, "happy_villager", "5 2 5", 0, 14)
+            set {_ck} to za_ckey(location of {_p})
+            if {za::contam::%{_ck}%} is not set:
+                set {za::contam::%{_ck}%} to 0
+            if {za::contam::%{_ck}%} < 260:
+                add 2 to {za::contam::%{_ck}%}
+            if za_masque({_p}) is true:
+                send action bar "&aTon masque à gaz filtre la pluie toxique... mets-toi à l'abri quand même." to {_p}
+            else:
+                za_effet({_p}, "poison", 5, 0)
+                execute console command "zainfect %{_p}% 7"
+                send action bar "&2&lLa pluie toxique te ronge ! &7Sous un toit, vite." to {_p}
+    else if {_k} is "tempete":
+        set {_b} to {za::bruit::%{_u}%}
+        if {_b} is set:
+            set {za::bruit::%{_u}%} to {_b} * 0.5
+        if {_n} is 0:
+            send action bar "&9Le vent couvre tes bruits. Les morts t'entendent à peine." to {_p}
+    else if {_k} is "canicule":
+        if mod({_n}, 2) is 0:
+            if za_cata_expose({_p}) is true:
+                if za_cata_eau_proche({_p}) is false:
+                    if {za::tan} is true:
+                        za_effet({_p}, "hunger", 10, 1)
+                        za_effet({_p}, "weakness", 10, 0)
+                    else:
+                        if {za::soif::%{_u}%} is set:
+                            remove 6 from {za::soif::%{_u}%}
+                        if {za::temp::%{_u}%} is set:
+                            add 8 to {za::temp::%{_u}%}
+                            if {za::temp::%{_u}%} > 100:
+                                set {za::temp::%{_u}%} to 100
+                    za_cata_particules({_p}, "dust 1 0.75 0.2 1", "2 1 2", 0, 6)
+                    if {-cata::chaud::%{_u}%} is not set:
+                        set {-cata::chaud::%{_u}%} to 0
+                    add 1 to {-cata::chaud::%{_u}%}
+                    send action bar "&6&l☀ Chaleur écrasante... &7ombre et eau, vite." to {_p}
+                    if {-cata::chaud::%{_u}%} >= 3:
+                        set {-cata::chaud::%{_u}%} to 0
+                        if health of {_p} > 4:
+                            damage {_p} by 1
+                            send "&6Un malaise te prend : coup de chaleur." to {_p}
+                else:
+                    send action bar "&bL'eau proche te rafraîchit." to {_p}
+    else if {_k} is "froid":
+        if mod({_n}, 2) is 0:
+            set {_abri} to false
+            set {_l} to location of {_p}
+            if y-coordinate of {_l} < (y-coordinate of (location of (highest block at {_l}))) - 1:
+                set {_abri} to true
+            if za_pres_du_feu({_p}) is true:
+                set {_abri} to true
+            if {_abri} is true:
+                delete {-cata::froid::%{_u}%}
+                if za_pres_du_feu({_p}) is true:
+                    send action bar "&6Le feu te réchauffe." to {_p}
+            else:
+                set {_cu} to za_cata_cuir({_p})
+                if {-cata::froid::%{_u}%} is not set:
+                    set {-cata::froid::%{_u}%} to 0
+                add 1 to {-cata::froid::%{_u}%}
+                set {_c} to {-cata::froid::%{_u}%}
+                if {_cu} < 4:
+                    za_effet({_p}, "slowness", 12, 0)
+                    set freeze time of {_p} to 6 seconds
+                    za_cata_particules({_p}, "snowflake", "1.5 1 1.5", 0.02, 10)
+                    send action bar "&b&l❄ Tu gèles. &7Trouve un feu ou un toit." to {_p}
+                    if {_c} >= 3:
+                        za_effet({_p}, "weakness", 12, 0)
+                    if {_c} >= 4:
+                        if {_cu} < 3:
+                            if health of {_p} > 4:
+                                damage {_p} by 0.5
+                else:
+                    send action bar "&bLe cuir te protège du pire... mais le froid reste mordant." to {_p}
+    else if {_k} is "nuit":
+        za_cata_particules({_p}, "dust 0.6 0 0 1.4", "8 3 8", 0, 40)
+        za_activite_ajouter(location of {_p}, 3)
+        if mod({_n}, 2) is 0:
+            za_effet({_p}, "darkness", 8, 0)
+        if {_n} is 0:
+            send action bar "&4&lLa nuit ne finit pas. &7Ils sortent." to {_p}
+        if mod({_n}, 4) is 0:
+            za_zm("son %{_p}% za_modeles:sfx.coeur 0.8 0.9")
+            if za_cata_zombies_ok({_p}, 5) is true:
+                if chance of 55%:
+                    za_spawn_near({_p}, "ZA_Stalker", 16, 26)
+                if chance of 55%:
+                    za_spawn_near({_p}, random element out of ("ZA_Shambler", "ZA_Runner"), 16, 28)
+                if chance of 12%:
+                    set {_na} to 0
+                    loop all zombies in radius 70 around {_p}:
+                        if uncolored name of loop-entity is "Alpha":
+                            add 1 to {_na}
+                    if {_na} is 0:
+                        za_spawn_near({_p}, "ZA_Alpha", 20, 30)
+
+# éclairs de la tempête (effet visuel et sonore, pas de dégâts ni d'incendie)
+function za_cata_eclair():
+    if size of za_monde_joueurs() is 0:
+        stop
+    set {_p} to random element out of za_monde_joueurs()
+    if za_cata_cible({_p}) is false:
+        stop
+    set {_l} to location of {_p}
+    set {_d} to random number between 26 and 60
+    set {_a} to random number between 0 and 360
+    add ({_d} * cos({_a})) to x-coordinate of {_l}
+    add ({_d} * sin({_a})) to z-coordinate of {_l}
+    set {_l} to location of (highest block at {_l})
+    strike lightning effect at {_l}
+    if chance of 30%:
+        za_activite_ajouter({_l}, 2)
+
+# ---------------------------------------------------------------- boucle centrale (5 s)
+
+every 5 seconds:
+    if {za::cata::type} is set:
+        set {_k} to "%{za::cata::type}%"
+        if now is greater than or equal to {za::cata::fin}:
+            za_cata_terminer()
+            stop
+        if size of za_monde_joueurs() is 0:
+            stop
+        add 1 to {-cata::n}
+        # une canicule s'éteint avec le soir
+        if {_k} is "canicule":
+            set {_t} to time of world("{@monde}")
+            if {_t} is greater than 19:00:
+                za_cata_terminer()
+                stop
+        # la nuit anormale garde minuit
+        if {_k} is "nuit":
+            set time of world("{@monde}") to 0:00
+        # la pluie ne doit pas s'arrêter avant la fin
+        if {_k} is "toxique" or "tempete":
+            if mod({-cata::n}, 12) is 0:
+                set {_wm} to world("{@monde}")
+                set {_w} to weather in {_wm}
+                if "%{_w}%" is "clear":
+                    if {_k} is "toxique":
+                        execute console command "weather rain 6000"
+                    else:
+                        execute console command "weather thunder 6000"
+        if {_k} is "tempete":
+            if chance of 55%:
+                za_cata_eclair()
+        loop za_monde_joueurs():
+            if za_cata_cible(loop-value) is true:
+                za_cata_effet({_k}, loop-value, mod({-cata::n}, 12))
+        stop
+    # pas de catastrophe en cours : planification
+    if size of za_monde_joueurs() is 0:
+        stop
+    if {za::cata::prochain} is not set:
+        za_cata_planifier()
+        stop
+    set {_k} to "%{za::cata::prochain_type}%"
+    if now is greater than or equal to {za::cata::prochain}:
+        if {za::cata::avert} is not set:
+            # en retard (serveur vide ou occupé) : on prévient quand même une minute avant
+            if za_cata_libre() is true:
+                za_cata_alerte({_k})
+                set {za::cata::avert} to true
+                set {za::cata::prochain} to 60 seconds after now
+            stop
+        if za_cata_libre() is false:
+            set {za::cata::prochain} to 2 minutes after now
+            stop
+        if za_cata_moment_ok({_k}) is false:
+            add 1 to {za::cata::retards}
+            if {za::cata::retards} > 8:
+                set {za::cata::prochain_type} to "brouillard"
+                set {za::cata::retards} to 0
+            set {za::cata::prochain} to 90 seconds after now
+            stop
+        za_cata_lancer({_k})
+        stop
+    # avertissement 60 s avant (le moment doit convenir)
+    if {za::cata::avert} is not set:
+        if now is greater than or equal to (60 seconds before {za::cata::prochain}):
+            if za_cata_libre() is true:
+                if za_cata_moment_ok({_k}) is true:
+                    za_cata_alerte({_k})
+                    set {za::cata::avert} to true
+                else:
+                    set {za::cata::prochain} to 90 seconds after now
+
+# un joueur qui se connecte pendant une catastrophe est prévenu
+on join:
+    if za_pro(player) is true:
+        stop
+    wait 6 seconds
+    if za_cata_actuelle() is not "":
+        send "&8[&6Catastrophe&8] &e%za_cata_nom(za_cata_actuelle())% &7en cours. &8%za_cata_conseil(za_cata_actuelle())%" to player
+
+# ---------------------------------------------------------------- /meteo (joueur)
+
+command /meteo:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        send "&8&m               &r &e&lMÉTÉO DE SAINT-AURÈLE &8&m               " to player
+        set {_k} to za_cata_actuelle()
+        if {_k} is not "":
+            set {_reste} to difference between now and {za::cata::fin}
+            send "&cEn cours : &f%za_cata_nom({_k})% &7(encore %za_duree({_reste})%)" to player
+            send "&7%za_cata_sous({_k})%" to player
+            send "&8Conseil : %za_cata_conseil({_k})%" to player
+        else:
+            send "&aCiel ordinaire pour l'instant." to player
+            if {za::cata::prochain} is set:
+                set {_d} to difference between now and {za::cata::prochain}
+                if now is less than {za::cata::prochain}:
+                    if {_d} < 25 minutes:
+                        send "&6Prévisions : &7%za_cata_signe({za::cata::prochain_type})%" to player
+                        send "&8Quelque chose se prépare, dans les prochaines minutes..." to player
+                    else if {_d} < 50 minutes:
+                        send "&6Prévisions : &7Le temps est incertain dans la prochaine heure. Les stations ne s'entendent pas." to player
+                    else:
+                        send "&6Prévisions : &7Rien de notable à l'horizon. Profitez-en." to player
+                else:
+                    send "&6Prévisions : &7Le ciel est instable, ça peut tourner d'un instant à l'autre." to player
+        send "&8Six menaces possibles : brouillard, pluie toxique, tempête, canicule, froid extrême, nuit anormale." to player
+
+# ---------------------------------------------------------------- admin : /catastrophe
+
+command /catastrophe [<text>]:
+    permission: za.admin
+    trigger:
+        set {_a} to arg-1
+        if {_a} is not set:
+            set {_a} to "liste"
+        if {_a} is "liste":
+            send "&6Catastrophes : &fbrouillard toxique tempete canicule froid nuit &7| /catastrophe <nom> | stop | prochaine" to sender
+            send "&7En cours : &f%za_cata_actuelle()% &7| prochaine : &f%{za::cata::prochain_type}% &7dans %za_duree(difference between now and {za::cata::prochain})%" to sender
+        else if {_a} is "stop":
+            if za_cata_actuelle() is "":
+                send "&cAucune catastrophe en cours." to sender
+            else:
+                za_cata_terminer()
+                send "&aCatastrophe arrêtée." to sender
+        else if {_a} is "prochaine":
+            set {za::cata::prochain} to 20 seconds after now
+            delete {za::cata::avert}
+            send "&aLa prochaine (%{za::cata::prochain_type}%) arrive dans 20 s (alerte radio puis lancement)." to sender
+        else if za_cata_liste() contains {_a}:
+            if za_cata_actuelle() is not "":
+                za_cata_terminer()
+            za_cata_lancer({_a})
+            send "&aCatastrophe lancée : %{_a}%" to sender
+        else:
+            send "&cInconnue. Choix : brouillard toxique tempete canicule froid nuit stop prochaine" to sender

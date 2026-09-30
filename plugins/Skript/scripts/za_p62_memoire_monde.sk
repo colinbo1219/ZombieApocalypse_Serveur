@@ -1,0 +1,484 @@
+# =====================================================================
+#  ZombieApocalypse - MÉMOIRE DU MONDE ET HISTOIRES LOCALES
+#  Chaque grand lieu (bâtiments spéciaux, camps, secteurs sauvages) a un NOM et une HISTOIRE datée :
+#    « Jour 12 : l'Hôpital de la Rivière-Blanche apparaît sur les cartes. Jour 18 : premier raid. Jour 31 : un nid. Jour 50 : la chute. »
+#  Les joueurs présents (80 blocs) sont TÉMOINS : ils pourront dire « j'étais là » (/lieu, /souvenirs).
+#  Un lieu tombé garde sa mémoire : plaque sur place et, quand on repasse, « C'était autrefois le Refuge Sainte-Anne. »
+#  Les PNJ s'en souviennent (za_souvenir_ligne), les factions aussi (abandon d'un camp où l'on était connu).
+#  Commandes : /lieu (histoire du lieu le plus proche) | /souvenirs (ce que tu as vécu) | admin : /zalieux sync|liste|evt <texte>
+#  API : za_monde_evt(texte, lieu, poids) · za_lieu_evt(clé, texte, poids, catégorie) · za_lieu_tomber(clé, texte)
+#        za_lieu_camp(id, quoi) · za_lieu_terr(clé, ancienne, nouvelle) · za_souvenir_ligne(joueur, pnj) :: text
+#        za_lieu_pres(lieu, rayon) :: text · za_lieux_saison_resume(debut) :: texts
+# =====================================================================
+
+options:
+    rayon_temoin: 80
+    hist_max: 40
+    souv_max: 60
+
+# ---------------------------------------------------------------- noms
+
+function za_lieu_noms(t: text) :: texts:
+    if {_t} is "hopital":
+        return "Hôpital de la Rivière-Blanche", "Centre de santé des Pins", "Clinique des Érables" and "Hôpital du Sacré-Cœur-de-l'Est"
+    if {_t} is "police":
+        return "Poste de police du Vieux-Moulin", "Poste de police n°12", "Poste de quartier des Tanneries" and "Poste de police de la Butte"
+    if {_t} is "super":
+        return "Épicerie Beausoleil", "Marché Lamarre", "Épicerie-dépanneur Chez Réal", "Supermarché des Cantons" and "Marché du Carré Saint-Louis"
+    if {_t} is "station":
+        return "Station-service du Rang 4", "Garage Tremblay et Fils", "Relais du Lac-Noir", "Station Petro du Chemin Vieux" and "Garage de la Côte"
+    if {_t} is "labo2":
+        return "Laboratoire NORDA — annexe B", "Laboratoire NORDA — annexe C", "Unité de recherche Z-02" and "Centre d'analyses Vasseur"
+    if {_t} is "caserne":
+        return "Caserne des Hautes-Terres", "Poste militaire Bravo" and "Caserne du Lac-Noir"
+    if {_t} is "ecole":
+        return "École primaire Sainte-Marie", "École secondaire des Trois-Pignons", "Polyvalente du Plateau" and "École des Petits-Érables"
+    if {_t} is "centrale":
+        return "Centrale de la Rivière-aux-Loups", "Barrage des Cèdres" and "Poste électrique Hydro-Nord"
+    return "la Coulée des Pins", "le Rang des Morts", "la Butte-aux-Corbeaux", "le Chemin du Moulin", "la Pointe-Grise", "le Boisé Lamarche", "la Montée Saint-Rémi", "le Trécarré", "la Savane-Noire", "le Lac-aux-Cendres", "le Coteau des Veuves" and "la Croisée des Trois-Rangs"
+
+function za_lieu_nom_libre(t: text, idx: number) :: text:
+    set {_n::*} to za_lieu_noms({_t})
+    set {_k} to mod({_idx} - 1, size of {_n::*}) + 1
+    set {_nom} to {_n::%{_k}%}
+    set {_tour} to floor(({_idx} - 1) / size of {_n::*})
+    if {_tour} > 0:
+        set {_nom} to "%{_nom}% %{_tour} + 1%"
+    return {_nom}
+
+# ---------------------------------------------------------------- lieux
+
+function za_lieu_existe(k: text) :: boolean:
+    if {za::lieu::%{_k}%::nom} is set:
+        return true
+    return false
+
+function za_lieu_nom(k: text) :: text:
+    if {za::lieu::%{_k}%::nom} is set:
+        return {za::lieu::%{_k}%::nom}
+    return "un lieu sans nom"
+
+function za_lieu_creer(k: text, type: text, nom: text, l: location, annoncer: boolean):
+    if za_lieu_existe({_k}) is true:
+        stop
+    set {za::lieu::%{_k}%::nom} to {_nom}
+    set {za::lieu::%{_k}%::type} to {_type}
+    set {za::lieu::%{_k}%::loc} to {_l}
+    set {za::lieu::%{_k}%::cree} to {za::serveur::jours}
+    set {za::lieu::%{_k}%::etat} to "debout"
+    add {_k} to {za::lieux::liste::*}
+    if {_annoncer} is true:
+        za_lieu_evt({_k}, "%{_nom}% apparaît sur les cartes des survivants.", 0, "naissance")
+
+# un secteur sauvage autour d'un point (pour les événements loin de tout bâtiment)
+function za_lieu_zone(l: location) :: text:
+    set {_k} to za_lieu_pres({_l}, 150)
+    if {_k} is not "":
+        return {_k}
+    add 1 to {za::lieux::zones}
+    set {_z} to {za::lieux::zones}
+    set {_k} to "zone:%{_z}%"
+    za_lieu_creer({_k}, "zone", za_lieu_nom_libre("zone", {_z}), {_l}, false)
+    return {_k}
+
+function za_lieu_pres(l: location, r: number) :: text:
+    set {_best} to {_r}
+    set {_res} to ""
+    loop {za::lieux::liste::*}:
+        set {_c} to {za::lieu::%loop-value%::loc}
+        if {za::lieu::%loop-value%::type} is "monde":
+            delete {_c}
+        if {_c} is set:
+            if world of {_c} is world of {_l}:
+                set {_d} to distance between {_c} and {_l}
+                if {_d} < {_best}:
+                    set {_best} to {_d}
+                    set {_res} to loop-value
+    return {_res}
+
+# ---------------------------------------------------------------- événements
+
+# poids : 0 = discret, 1 = normal, 2 = important (les témoins sont prévenus), 3 = légendaire
+# catégorie : naissance, raid, chute, abandon, defense, nid, labo, contamination, faction, legende, mort...
+function za_lieu_evt(k: text, texte: text, poids: number, cat: text):
+    if {_k} is "":
+        stop
+    if za_lieu_existe({_k}) is false:
+        stop
+    set {_j} to {za::serveur::jours}
+    add "%{_j}%|%{_cat}%|%{_texte}%" to {za::lieu::%{_k}%::hist::*}
+    set {_n} to size of {za::lieu::%{_k}%::hist::*}
+    while {_n} > {@hist_max}:
+        set {_ks::*} to indices of {za::lieu::%{_k}%::hist::*}
+        delete {za::lieu::%{_k}%::hist::%{_ks::1}%}
+        set {_n} to size of {za::lieu::%{_k}%::hist::*}
+    set {_idx::*} to indices of {za::lieu::%{_k}%::hist::*}
+    set {_ei} to last element of {_idx::*}
+    # témoins
+    set {_c} to {za::lieu::%{_k}%::loc}
+    if {_c} is set:
+        if {_poids} > 0:
+            loop all players:
+                if za_pro(loop-player) is false:
+                    if world of loop-player is world of {_c}:
+                        if distance between loop-player and {_c} < {@rayon_temoin}:
+                            set {_u} to "%loop-player's uuid%"
+                            add {_ei} to {za::lieu::%{_k}%::vu::%{_u}%::*}
+                            za_souvenir_ajouter({_u}, {_k}, {_cat}, {_texte})
+                            if {_poids} >= 2:
+                                send "&8&o✎ Tu étais là. %{_texte}%" to loop-player
+    za_journal("[%za_lieu_nom({_k})%] %uncolored {_texte}%")
+
+# événement quelque part : rattaché au lieu nommé le plus proche (ou à un secteur sauvage)
+function za_monde_evt(texte: text, l: location, poids: number, cat: text):
+    if "%world of {_l}%" is "za_prologue":
+        stop
+    set {_k} to za_lieu_zone({_l})
+    za_lieu_evt({_k}, {_texte}, {_poids}, {_cat})
+
+# souvenirs personnels : "jour|clé|catégorie|texte"
+function za_souvenir_ajouter(u: text, k: text, cat: text, texte: text):
+    add "%{za::serveur::jours}%|%{_k}%|%{_cat}%|%{_texte}%" to {za::souv::%{_u}%::*}
+    # compteur par catégorie (jamais effacé : sert à la progression, za_p60)
+    if {za::souv::n::%{_cat}%::%{_u}%} is not set:
+        set {za::souv::n::%{_cat}%::%{_u}%} to 0
+    add 1 to {za::souv::n::%{_cat}%::%{_u}%}
+    set {_n} to size of {za::souv::%{_u}%::*}
+    while {_n} > {@souv_max}:
+        set {_ks::*} to indices of {za::souv::%{_u}%::*}
+        delete {za::souv::%{_u}%::%{_ks::1}%}
+        set {_n} to size of {za::souv::%{_u}%::*}
+
+# nombre de souvenirs d'une catégorie (legende, labo, defense, chute...)
+function za_souvenir_n(u: text, cat: text) :: number:
+    if {za::souv::n::%{_cat}%::%{_u}%} is not set:
+        return 0
+    return {za::souv::n::%{_cat}%::%{_u}%}
+
+# ---------------------------------------------------------------- légendes du monde entier (tous les joueurs en ligne sont témoins)
+#  le « lieu » spécial "monde" = Saint-Aurèle, la région entière
+function za_monde_lieu():
+    if za_lieu_existe("monde") is false:
+        set {_w} to world("world")
+        if {_w} is set:
+            za_lieu_creer("monde", "monde", "Saint-Aurèle", spawn of {_w}, false)
+
+function za_monde_legende(texte: text):
+    za_monde_lieu()
+    set {_j} to {za::serveur::jours}
+    add "%{_j}%|legende|%{_texte}%" to {za::lieu::monde::hist::*}
+    set {_idx::*} to indices of {za::lieu::monde::hist::*}
+    set {_ei} to last element of {_idx::*}
+    loop za_monde_joueurs():
+        set {_u} to "%loop-value's uuid%"
+        add {_ei} to {za::lieu::monde::vu::%{_u}%::*}
+        za_souvenir_ajouter({_u}, "monde", "legende", {_texte})
+        send "&6&o✎ Tu étais là. &7&o%{_texte}%" to loop-value
+    za_journal("[Légende] %uncolored {_texte}%")
+
+# ---------------------------------------------------------------- chute d'un lieu : plaque et mémoire fantôme
+
+function za_lieu_tomber(k: text, texte: text):
+    if za_lieu_existe({_k}) is false:
+        stop
+    if {za::lieu::%{_k}%::etat} is "tombe":
+        stop
+    set {za::lieu::%{_k}%::etat} to "tombe"
+    set {za::lieu::%{_k}%::tombe} to {za::serveur::jours}
+    add {_k} to {za::lieux::tombes::*}
+    delete {za::lieu::%{_k}%::vu_fantome::*}
+    za_lieu_evt({_k}, {_texte}, 2, "chute")
+    # plaque commémorative (panneau sur un poteau, au sol le plus proche du centre)
+    set {_c} to {za::lieu::%{_k}%::loc}
+    if {_c} is set:
+        set {_g} to za_sol({_c})
+        set {_x} to floor(x-coordinate of {_g}) + 2
+        set {_z} to floor(z-coordinate of {_g}) + 2
+        set {_g2} to za_sol(location({_x}, 64, {_z}, world of {_c}))
+        set {_y} to floor(y-coordinate of {_g2})
+        set {_wd} to za_dim(world of {_c})
+        execute console command "execute in %{_wd}% run setblock %{_x}% %{_y}% %{_z}% minecraft:dark_oak_fence"
+        execute console command "execute in %{_wd}% run setblock %{_x}% %{_y} + 1% %{_z}% minecraft:dark_oak_sign[rotation=8]"
+        set {_s} to block at location({_x}, {_y} + 1, {_z}, world of {_c})
+        set {_l::*} to za_cmp_lignes(za_lieu_nom({_k}))
+        set line 1 of {_s} to "&8Ici se tenait"
+        set line 2 of {_s} to "&0%{_l::1}%"
+        set line 3 of {_s} to "&0%{_l::2}%"
+        set line 4 of {_s} to "&4tombé jour %{za::serveur::jours}%"
+
+# on repasse devant un lieu tombé : « C'était autrefois... »
+every 6 seconds:
+    if size of {za::lieux::tombes::*} is 0:
+        stop
+    loop za_monde_joueurs():
+        set {_p} to loop-value-1
+        set {_u} to "%{_p}'s uuid%"
+        loop {za::lieux::tombes::*}:
+            set {_k} to loop-value-2
+            if {za::lieu::%{_k}%::vu_fantome::%{_u}%} is not set:
+                set {_c} to {za::lieu::%{_k}%::loc}
+                if {_c} is set:
+                    if world of {_c} is world of {_p}:
+                        if distance between {_c} and {_p} < 30:
+                            if {za::serveur::jours} - {za::lieu::%{_k}%::tombe} >= 2:
+                                set {za::lieu::%{_k}%::vu_fantome::%{_u}%} to true
+                                send title "" with subtitle "&7C'était autrefois &f%za_lieu_nom({_k})%&7." to {_p} for 4 seconds
+                                za_zm("son %{_p}% za_modeles:sfx.silence_ville 0.6 1")
+                                send "&8&o%za_lieu_nom({_k})%. Tombé au jour %{za::lieu::%{_k}%::tombe}%. %za_lieu_dernier({_k})%" to {_p}
+                                if {za::lieu::%{_k}%::vu::%{_u}%::*} is set:
+                                    send "&8&oTu étais là, ce jour-là." to {_p}
+
+function za_lieu_dernier(k: text) :: text:
+    set {_i::*} to indices of {za::lieu::%{_k}%::hist::*}
+    set {_e::*} to split {za::lieu::%{_k}%::hist::%last element of {_i::*}%} at "|"
+    return {_e::3}
+
+# ---------------------------------------------------------------- crochets appelés par les autres systèmes
+
+function za_lieu_camp(id: number, quoi: text):
+    set {_k} to "camp:%{_id}%"
+    set {_nom} to {za::camp::%{_id}%::nom}
+    if {_nom} is not set:
+        stop
+    if za_lieu_existe({_k}) is false:
+        za_lieu_creer({_k}, "camp", {_nom}, {za::camp::%{_id}%::loc}, false)
+    if {_quoi} is "cree":
+        za_lieu_evt({_k}, "Des survivants fondent le %{_nom}%.", 1, "naissance")
+    else if {_quoi} is "attaque":
+        za_lieu_evt({_k}, "Le %{_nom}% est attaqué.", 1, "raid")
+    else if {_quoi} is "tenu":
+        za_lieu_evt({_k}, "Le %{_nom}% a tenu bon.", 2, "defense")
+    else if {_quoi} is "touche":
+        za_lieu_evt({_k}, "Le %{_nom}% a tenu, mais à quel prix.", 1, "raid")
+    else if {_quoi} is "abandon":
+        za_lieu_memoire_faction({_id}, "abandon")
+        za_lieu_tomber({_k}, "Le %{_nom}% est abandonné. Ses derniers habitants s'enfuient dans la nuit.")
+    else if {_quoi} is "chute":
+        za_lieu_memoire_faction({_id}, "chute")
+        za_lieu_tomber({_k}, "Le %{_nom}% tombe aux mains des morts.")
+
+# la faction des Survivants se souvient de ceux qui étaient connus au camp... et qui n'étaient pas là
+function za_lieu_memoire_faction(id: number, quoi: text):
+    set {_c} to {za::camp::%{_id}%::loc}
+    set {_nom} to {za::camp::%{_id}%::nom}
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_u} to "%loop-player's uuid%"
+            set {_conf} to za_cmp_conf({_u}, {_id})
+            if {_conf} >= 25:
+                set {_la} to false
+                if {_c} is set:
+                    if world of loop-player is world of {_c}:
+                        if distance between loop-player and {_c} < 120:
+                            set {_la} to true
+                if {_la} is false:
+                    za_faction_ajouter(loop-player, "survivants", -5)
+                    za_souvenir_ajouter({_u}, "camp:%{_id}%", "abandon", "Tu n'étais pas là quand le %{_nom}% est tombé.")
+                    send "&8&oOn raconte que le %{_nom}% t'attendait. Tu n'es pas venu." to loop-player
+
+function za_lieu_terr(cle: text, ancienne: text, nouvelle: text):
+    set {_k} to "bat:%{_cle}%"
+    if za_lieu_existe({_k}) is false:
+        stop
+    if {_ancienne} is {_nouvelle}:
+        stop
+    set {_nom} to za_lieu_nom({_k})
+    if {_nouvelle} is "morts":
+        za_lieu_tomber({_k}, "%{_nom}% tombe aux mains des morts.")
+    else:
+        if {za::lieu::%{_k}%::etat} is "tombe":
+            set {za::lieu::%{_k}%::etat} to "debout"
+            remove {_k} from {za::lieux::tombes::*}
+            za_lieu_evt({_k}, "%{_nom}% est repris par %uncolored za_terr_fnom({_nouvelle})%.", 2, "faction")
+        else:
+            za_lieu_evt({_k}, "%{_nom}% passe aux mains de %uncolored za_terr_fnom({_nouvelle})%.", 1, "faction")
+
+# ---------------------------------------------------------------- recensement des lieux (bâtiments spéciaux et camps)
+
+function za_lieux_sync():
+    set {_ts::*} to za_bat_types()
+    loop {_ts::*}:
+        set {_t} to loop-value-1
+        loop {za::bat::%{_t}%::liste::*}:
+            set {_k} to "bat:%{_t}%;%loop-index-2%"
+            if za_lieu_existe({_k}) is false:
+                set {_c} to za_bat_centre_s(loop-value-2)
+                if {_c} is set:
+                    za_lieu_creer({_k}, {_t}, za_lieu_nom_libre({_t}, loop-index-2 parsed as number), {_c}, true)
+    loop {za::camp::liste::*}:
+        set {_k} to "camp:%loop-value%"
+        if za_lieu_existe({_k}) is false:
+            if {za::camp::%loop-value%::nom} is set:
+                if {za::camp::%loop-value%::loc} is set:
+                    za_lieu_creer({_k}, "camp", {za::camp::%loop-value%::nom}, {za::camp::%loop-value%::loc}, false)
+
+on load:
+    za_monde_lieu()
+    za_lieux_sync()
+
+every 2 minutes:
+    za_lieux_sync()
+
+# évolution lente : contamination, nids, zone morte (une seule fois par palier)
+every 5 minutes:
+    loop {za::lieux::liste::*}:
+        set {_k} to loop-value
+        set {_c} to {za::lieu::%{_k}%::loc}
+        if {za::lieu::%{_k}%::type} is "monde":
+            delete {_c}
+        if {_c} is set:
+            if {za::lieu::%{_k}%::etat} is "debout":
+                set {_ct} to {za::contam::%za_ckey({_c})%}
+                if {_ct} is set:
+                    if {_ct} >= 100:
+                        if {za::lieu::%{_k}%::palier::contam2} is not set:
+                            set {za::lieu::%{_k}%::palier::contam2} to true
+                            za_lieu_evt({_k}, "%za_lieu_nom({_k})% est gravement contaminé. L'air y brûle la gorge.", 1, "contamination")
+                    else if {_ct} >= 50:
+                        if {za::lieu::%{_k}%::palier::contam1} is not set:
+                            set {za::lieu::%{_k}%::palier::contam1} to true
+                            za_lieu_evt({_k}, "La contamination gagne %za_lieu_nom({_k})%.", 1, "contamination")
+                if za_zone_morte({_c}) is true:
+                    if {za::lieu::%{_k}%::palier::morte} is not set:
+                        set {za::lieu::%{_k}%::palier::morte} to true
+                        za_lieu_tomber({_k}, "%za_lieu_nom({_k})% devient une zone morte. Plus rien n'y respire.")
+
+# ---------------------------------------------------------------- ce que les PNJ ont retenu
+
+# une phrase sur le souvenir marquant le plus récent du joueur (jamais deux fois le même par PNJ), sinon ""
+function za_souvenir_ligne(p: player, npc: text) :: text:
+    set {_u} to "%{_p}'s uuid%"
+    # la mort de Vega (za_p64) : Lefort et Léa en parlent une fois
+    if {za::pnj::mort::vega} is set:
+        if {_npc} is not "vega":
+            if {za::souv::dit::%{_npc}%::%{_u}%::vega_mort} is not set:
+                set {za::souv::dit::%{_npc}%::%{_u}%::vega_mort} to true
+                if {_npc} is "lefort":
+                    return "Vega est mort. Je lui avais promis de le recoudre s'il revenait blessé. Il n'est pas revenu."
+                return "La fréquence de Vega grésille encore, la nuit. Je n'arrive pas à la couper."
+    set {_i::*} to indices of {za::souv::%{_u}%::*}
+    set {_n} to size of {_i::*}
+    while {_n} > 0:
+        set {_e::*} to split {za::souv::%{_u}%::%{_i::%{_n}%}%} at "|"
+        set {_jour} to {_e::1} parsed as number
+        if {za::serveur::jours} - {_jour} > 30:
+            return ""
+        set {_k} to {_e::2}
+        set {_cat} to {_e::3}
+        if {_cat} is "chute", "abandon", "defense" or "legende":
+            if {za::souv::dit::%{_npc}%::%{_u}%::%{_i::%{_n}%}%} is not set:
+                set {za::souv::dit::%{_npc}%::%{_u}%::%{_i::%{_n}%}%} to true
+                set {_nom} to za_lieu_nom({_k})
+                if {_cat} is "defense":
+                    if {_npc} is "vega":
+                        return "Paraît que t'as tenu %{_nom}% quand les morts sont venus. Bon travail."
+                    if {_npc} is "lefort":
+                        return "On m'a dit que tu étais à %{_nom}% pendant l'attaque. Tu n'es pas blessé ?"
+                    return "J'ai entendu les coups de feu à %{_nom}%, sur la fréquence. C'était toi, hein ?"
+                if {_cat} is "legende":
+                    if {_k} is "monde" or "":
+                        set {_tx} to {_e::4}
+                        if {_npc} is "vega":
+                            return "« %{_tx}% » Tu y étais, soldat. Ça se voit."
+                        if {_npc} is "lefort":
+                            return "« %{_tx}% » On ne parle que de ça. Tu y étais, n'est-ce pas ?"
+                        return "Je l'ai passé en ondes : « %{_tx}% » Les gens doivent savoir."
+                    if {_npc} is "vega":
+                        return "Tout le monde parle de toi, depuis %{_nom}%. Fais attention : les légendes meurent jeunes."
+                    if {_npc} is "lefort":
+                        return "%{_nom}%... Tu étais là. Un jour il faudra que tu me racontes."
+                    return "Je l'ai passé en ondes, tu sais. Ce qui s'est passé à %{_nom}%. Les gens doivent savoir."
+                # chute ou abandon
+                if {_npc} is "vega":
+                    return "%{_nom}%... On ne pouvait pas tous les sauver. Je me répète ça tous les soirs."
+                if {_npc} is "lefort":
+                    return "J'ai appris pour %{_nom}%. J'y avais soigné des gens, tu sais. Des bons."
+                return "J'ai encore leur fréquence, pour %{_nom}%. Plus personne ne répond."
+        remove 1 from {_n}
+    return ""
+
+# ---------------------------------------------------------------- résumé pour la chronique de saison (za_p59)
+
+function za_lieux_saison_resume(debut: number) :: texts:
+    loop {za::lieux::liste::*}:
+        set {_k} to loop-value
+        loop {za::lieu::%{_k}%::hist::*}:
+            set {_e::*} to split loop-value-2 at "|"
+            if ({_e::1} parsed as number) >= {_debut}:
+                if {_e::2} is "chute", "legende" or "defense":
+                    add "Jour %{_e::1}% — %{_e::3}%" to {_r::*}
+    return {_r::*}
+
+# ---------------------------------------------------------------- commandes
+
+command /lieu:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_k} to za_lieu_pres(location of player, 80)
+        if {_k} is "":
+            send "&7Aucun lieu connu ici. Les endroits qui comptent (hôpitaux, camps, postes...) ont une histoire : approche-toi." to player
+            stop
+        set {_u} to "%player's uuid%"
+        set {_etat} to "&aDebout"
+        if {za::lieu::%{_k}%::etat} is "tombe":
+            set {_etat} to "&4Tombé au jour %{za::lieu::%{_k}%::tombe}%"
+        send "&8&m                                        " to player
+        send "&6&l%za_lieu_nom({_k})% &8— %{_etat}%" to player
+        set {_i::*} to indices of {za::lieu::%{_k}%::hist::*}
+        set {_n} to size of {_i::*}
+        set {_d} to max(1, {_n} - 9)
+        set {_j} to {_d}
+        while {_j} <= {_n}:
+            set {_ix} to {_i::%{_j}%}
+            set {_e::*} to split {za::lieu::%{_k}%::hist::%{_ix}%} at "|"
+            set {_m} to "&8  "
+            if {za::lieu::%{_k}%::vu::%{_u}%::*} contains {_ix}:
+                set {_m} to "&e★ "
+            send "%{_m}%&7Jour %{_e::1}% &8· &f%{_e::3}%" to player
+            add 1 to {_j}
+        if {za::lieu::%{_k}%::vu::%{_u}%::*} is set:
+            send "&e★ &7= tu étais là." to player
+        send "&8&m                                        " to player
+
+command /souvenirs [<number>]:
+    trigger:
+        set {_u} to "%player's uuid%"
+        set {_i::*} to indices of {za::souv::%{_u}%::*}
+        set {_n} to size of {_i::*}
+        if {_n} is 0:
+            send "&7Tu n'as encore rien vécu que le monde retienne. Ça viendra." to player
+            stop
+        send "&6&lCE QUE TU AS VÉCU &8(les plus récents)" to player
+        set {_c} to 0
+        while {_n} > 0:
+            if {_c} < 12:
+                set {_e::*} to split {za::souv::%{_u}%::%{_i::%{_n}%}%} at "|"
+                send "&8· &7Jour %{_e::1}% &8— &f%{_e::4}%" to player
+                add 1 to {_c}
+            remove 1 from {_n}
+
+command /zalieux [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "sync":
+            za_lieux_sync()
+            send "Lieux : %size of {za::lieux::liste::*}% (tombés : %size of {za::lieux::tombes::*}%)" to sender
+        else if arg-1 is "liste":
+            loop {za::lieux::liste::*}:
+                send "%loop-value% = %za_lieu_nom(loop-value)% (%{za::lieu::%loop-value%::etat}%, %size of {za::lieu::%loop-value%::hist::*}% évén.)" to sender
+        else if arg-1 is "legende":
+            set {_t} to "Une légende de test."
+            if arg-2 is set:
+                set {_t} to arg-2
+            za_monde_legende({_t})
+            send "Légende notée." to sender
+        else if arg-1 is "evt":
+            if sender is a player:
+                set {_t} to "Un test."
+                if arg-2 is set:
+                    set {_t} to arg-2
+                za_monde_evt({_t}, location of player, 2, "legende")
+                send "Événement noté." to sender
+        else:
+            send "Usage : /zalieux sync|liste|evt <texte>|legende <texte>" to sender

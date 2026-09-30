@@ -1,0 +1,158 @@
+# =====================================================================
+#  ZombieApocalypse - PHASE 10 : FINITION / PERFORMANCE / UX
+#  Plafond de zombies par joueur, nettoyage des objets inutiles, /aide, tutoriel.
+#  (Backups : utilise les sauvegardes automatiques du panneau Apex.)
+# =====================================================================
+
+options:
+    plafond_zombies: 70
+
+# ---------- plafond de zombies autour de chaque joueur ----------
+every 15 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_zs::*} to all zombies in radius 64 around loop-player
+            set {_n} to size of {_zs::*}
+            if {_n} > {@plafond_zombies}:
+                set {_excess} to {_n} - {@plafond_zombies}
+                loop all zombies in radius 64 around loop-player:
+                    if {_excess} > 0:
+                        delete loop-zombie
+                        remove 1 from {_excess}
+
+# ---------- nettoyage des objets inutiles (ne touche PAS aux jetons ni aux objets utiles) ----------
+every 10 minutes:
+    za_diffuser("&8[Nettoyage] Les dechets au sol seront supprimes dans 30 secondes.")
+    wait 30 seconds
+    execute console command "kill @e[type=item,nbt={Item:{id:""minecraft:rotten_flesh""}}]"
+    execute console command "kill @e[type=item,nbt={Item:{id:""minecraft:dirt""}}]"
+    execute console command "kill @e[type=item,nbt={Item:{id:""minecraft:cobblestone""}}]"
+
+# ---------- aide, en categories (menu) plutot qu'un mur de ~50 commandes ----------
+function za_aide_categorie(p: player, cat: text):
+    send "&4&l== %{_cat}% ==" to {_p}
+    if {_cat} is "Personnage":
+        send "&e/rang &7progression | &e/recompense &7| &e/objectif &7| &e/competences &7et &e/role &7(medecin, soldat, eclaireur, ingenieur) | &e/traiter <joueur>" to {_p}
+    else if {_cat} is "Monde":
+        send "&e/zone &7danger ici (🟢🟡🟠🔴☠) | &e/virus &7souche et resistance | &e/contamination &7| &e/journal &7| &e/saison &7objectifs | &e/histoire &7chapitres | &e/treve &7zone neutre | &e/hall &7Hall des survivants" to {_p}
+    else if {_cat} is "Infection":
+        send "&7Une morsure infecte. Bois un &aAntidote &7avant 10 minutes, sinon il faut un &dSerum &7(80 pourcent de reussite, sinon ca s'aggrave)." to {_p}
+        send "&7Au stade 2, &e/infection exploiter &7force ton corps : plus rapide 2 minutes, mais tu n'y vois plus rien, et risque d'accelerer l'infection." to {_p}
+    else if {_cat} is "Progression":
+        send "&e/guide &7quoi faire maintenant | &e/parcours &7ton niveau (Citoyen -> Héros de saison) | &e/campagne &7ton histoire | &e/souvenirs" to {_p}
+        send "&e/jetons &7solde | &e/payer &7| &e/troc &7| &e/valeur &7raretes | &e/contrat &7| &e/dette &7| &e/reputation" to {_p}
+    else if {_cat} is "Base":
+        send "&e/base &7(definir, info, entretien) | &e/avantposte &7| &e/reparer &7pres du Mecano" to {_p}
+        send "&7Cadavres : clic droit = fouiller, briquet = bruler, pelle = enterrer. Generateur (Mecano) et grande base : bruyants." to {_p}
+    else if {_cat} is "Squad et social":
+        send "&e/squad &7equipe | &e/bruit &7discretion | &e/faction &7groupes de survivants | &e/sos &7appel a l'aide | &e/extraction &7(Fusee de detresse) | &e/prime &e/primes | &e/negociation &e/trahir | &e/testament &e/maudire &e/heritier | &e/sacrifice &e/camp &e/radio" to {_p}
+    else if {_cat} is "Quetes":
+        send "&e/quetes &7Dr Lefort (7 parties), Sergent Vega (escouade Bravo-3), Lea (frequences) | &e/plaques | &e/legende &7reliques | &e/tombes | &e/volonte <message> | &e/prologue &7les 8 jours avant" to {_p}
+        send "&7Les marchands nomades apparaissent au hasard : cherche-les (clic droit)." to {_p}
+    else if {_cat} is "Tutoriel":
+        za_dial_tuto({_p}, "debut")
+    else if {_cat} is "Survivants et camps":
+        send "&e/survivants &7ceux qui vivent à ta base (rôles : réparer, produire, soigner, garder, commercer) | &e/survivants reserve &7coffre de réserve" to {_p}
+        send "&7Des survivants se cachent dans les ruines : clic droit, gagne leur confiance, ramène-les. &e/camps &7état des camps (nourriture, sécurité, moral) : aide-les, défends-les... ou laisse-les tomber." to {_p}
+    else if {_cat} is "Factions et territoires":
+        send "&e/faction &7réputation | &e/territoires &7qui tient quel bâtiment (Milice, Scientifiques, Pilleurs...) | &e/relations &7ce que Lefort, Vega et Léa pensent de toi" to {_p}
+        send "&7Les factions demandent de l'aide pour défendre ou reprendre leurs lieux. Un territoire allié = ravitaillement quotidien." to {_p}
+    else if {_cat} is "Marché et armes":
+        send "&e/marche &7marché entre joueurs (Marché de la Trêve ou un camp) | &e/marche vendre <prix> | &e/marche prix &7| &e/ressource &7ressource stratégique de la saison" to {_p}
+        send "&e/arme &7niveau, état, histoire de l'arme en main | &e/arme reparer &7(Mécano ou Atelier mécanique) | &e/arme demonter" to {_p}
+    else if {_cat} is "Exploration":
+        send "&e/lieux &7ce qu'on trouve dans chaque bâtiment | &e/enigme &7coffres scellés NORDA | &e/code <####> | &e/carte &7fragments A-B-C et bunker | &e/enquete &7ton carnet d'indices" to {_p}
+    else if {_cat} is "Soins et ateliers":
+        send "&e/blessures &7bras, jambe, torse, tête (Bandage, Attelle, Médecin) | &e/atelier &7créer un atelier à ta base (médical, militaire, mécanique, labo, électronique) | &e/reseau &7quartiers alimentés par la centrale" to {_p}
+    else if {_cat} is "Mémoire et saisons":
+        send "&e/succes &7succès secrets et titres | &e/disparus &7stèles et Rue des disparus | &e/chroniques &7l'histoire des saisons | &e/meteo &7catastrophes | &e/adaptation &7ce que les morts ont appris | &e/hall" to {_p}
+        send "&e/lieu &7l'histoire datée du lieu où tu es | &e/souvenirs &7ce que tu as vécu | &e/legendes &7les grands moments du serveur | &e/relique &7le Carnet de Samuel Arel (un seul exemplaire)" to {_p}
+
+command /aide:
+    trigger:
+        open chest inventory with 3 rows named "&4&lAide" to player
+        set slot 3 of (current inventory of player) to za_item("compass", "Que faire maintenant ?", "&6", 1)
+        set slot 4 of (current inventory of player) to za_item("book", "Tutoriel", "&e", 1)
+        set slot 5 of (current inventory of player) to za_item("nether star", "Mon parcours", "&6", 1)
+        za_aide_slot(player, 10, "iron sword", "Personnage")
+        za_aide_slot(player, 11, "map", "Monde")
+        za_aide_slot(player, 12, "rotten flesh", "Infection")
+        za_aide_slot(player, 13, "experience bottle", "Progression")
+        za_aide_slot(player, 14, "chest", "Base")
+        za_aide_slot(player, 15, "compass", "Squad et social")
+        za_aide_slot(player, 16, "paper", "Quetes")
+        za_aide_slot(player, 19, "villager spawn egg", "Survivants et camps")
+        za_aide_slot(player, 20, "white banner", "Factions et territoires")
+        za_aide_slot(player, 21, "emerald", "Marché et armes")
+        za_aide_slot(player, 22, "spyglass", "Exploration")
+        za_aide_slot(player, 23, "brewing stand", "Soins et ateliers")
+        za_aide_slot(player, 24, "candle", "Mémoire et saisons")
+
+# une catégorie pas encore « de ton niveau » (za_p60) est grisée, mais reste lisible
+function za_aide_slot(p: player, s: number, mat: text, nom: text):
+    set {_nv} to za_niv_aide({_nom})
+    if za_niv({_p}) >= {_nv}:
+        set {_it} to za_item({_mat}, {_nom}, "&a", 1)
+    else:
+        set {_it} to za_item("gray dye", {_nom}, "&8", 1)
+        set lore of {_it} to "&8Tu le découvriras au niveau %{_nv}% (%za_niv_nom({_nv})%)." and "&8Clique quand même pour lire."
+    set slot {_s} of (current inventory of {_p}) to {_it}
+
+on inventory click:
+    if uncolored name of (player's current inventory) is "Aide":
+        cancel the event
+        if event-item is not air:
+            set {_n} to uncolored name of event-item
+            close player's inventory
+            if {_n} is "Que faire maintenant ?":
+                za_guide(player)
+            else if {_n} is "Mon parcours":
+                za_parcours(player)
+            else:
+                za_aide_categorie(player, {_n})
+
+# ---------- tutoriel scenarise (reutilise le moteur de dialogue de za_p18_pnj.sk) ----------
+function za_dial_tuto(p: player, node: text):
+    if {_node} is "debut":
+        za_dial_ui({_p}, "tutoriel", "debut", "Bienvenue dans l'apocalypse. Avant tout : de l'eau. Trouve un point d'eau ou une bouteille.", "Compris, je cherche de l'eau", "eau", "", "", "", "")
+    else if {_node} is "eau":
+        za_dial_ui({_p}, "tutoriel", "eau", "Bien. Maintenant la nourriture : fouille les maisons, chasse, ou trouve un marchand.", "Je cherche a manger", "nourriture", "", "", "", "")
+    else if {_node} is "nourriture":
+        za_dial_ui({_p}, "tutoriel", "nourriture", "La nuit tombera vite. Trouve un abri : un batiment fermable, ou construis quatre murs.", "Je cherche un abri", "abri", "", "", "", "")
+    else if {_node} is "abri":
+        za_dial_ui({_p}, "tutoriel", "abri", "Un abri sans defense ne vaut rien. Trouve ou fabrique une arme, meme rudimentaire.", "Je cherche une arme", "arme", "", "", "", "")
+    else if {_node} is "arme":
+        za_dial_ui({_p}, "tutoriel", "arme", "Le plus dur commence : survis a ta premiere nuit. Reste pres de la lumiere, ne t'isole pas.", "Je vais tenir", "nuit", "", "", "", "")
+    else if {_node} is "nuit":
+        za_dial_ui({_p}, "tutoriel", "nuit", "Bien joue. Une fois le jour revenu, cherche un camp abandonne ou un marchand : ca donne des jetons et du recit.", "Je vais explorer", "camp", "", "", "", "")
+    else if {_node} is "camp":
+        za_dial_ui({_p}, "tutoriel", "camp", "A partir d'ici, tu es seul. Le reste, tu l'apprends en jouant. Tape /aide quand tu es perdu. Bonne chance.", "Compris", "quit", "", "", "", "")
+
+command /tutoriel:
+    trigger:
+        za_dial_tuto(player, "debut")
+
+
+# ---------- accueil (5 lignes) et regles ----------
+on join:
+    if za_pro(player) is true:
+        stop
+    if {za::pro::etat::%player's uuid%} is not "fini":
+        stop
+    wait 2 seconds
+    if player is not online:
+        stop
+    send "&8&m                                                " to player
+    send "&4&lZOMBIE APOCALYPSE &8· &7Jour &f%{za::serveur::jours}% &8· &7Saison &f%{za::saison::num}%" to player
+    send "&7&o« Avant de survivre a l'apocalypse, vous l'avez vecue. »" to player
+    send "&7Le jour sert a preparer. &cLa nuit sert a survivre. &8| &e/guide &7(quoi faire) &8| &e/aide &8| &e/regles" to player
+    send "&8&m                                                " to player
+
+command /regles:
+    trigger:
+        send "&4&lLES 5 REGLES" to player
+        send "&f1. &7Le PvP existe, la trahison aussi. Mais tuer un survivant de bonne reputation te coutera cher." to player
+        send "&f2. &7Pas de triche, pas de mods interdits, pas d'exploit de bug. Signale-les." to player
+        send "&f3. &7Le Marche de la Treve est sacre : pas d'armes, pas de vol." to player
+        send "&f4. &7Respecte les autres dans le chat. Le roleplay est bienvenu, le harcelement non." to player
+        send "&f5. &7Le monde se souvient de tout. Ce que tu fais change le monde." to player

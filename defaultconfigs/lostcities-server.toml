@@ -1,0 +1,10 @@
+# Lost Cities 1.20.1 (7.5.5) - reglages SERVEUR appliques a la creation d'un NOUVEAU monde.
+# Cles verifiees dans le jar de lostcities-1.20-7.5.5 (classe setup.Config).
+# Si le monde existe deja, ce fichier n'a pas d'effet : supprime le dossier "world" pour regenerer.
+[profiles]
+	# Profil des villes dans l'Overworld. "default" = villes classiques avec ruines et degats d'explosion.
+	# Autres profils du mod : nodamage, ancient, wasteland, rarecities, onlycities, tallbuildings, safe...
+	selectedProfile = "default"
+	selectedCustomJson = ""
+	# Plus leger pour l'hebergement (les arbres poussent moins pendant la generation)
+	forceSaplingGrowth = false

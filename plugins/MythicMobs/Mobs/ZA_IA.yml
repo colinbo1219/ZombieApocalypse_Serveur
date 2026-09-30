@@ -1,0 +1,103 @@
+# ZombieApocalypse - zombies intelligents (agent E) : Charognard, Phototrope, gardiens du bunker Z-01
+ZA_Charognard:
+  Type: ZOMBIE
+  Display: '&6Charognard'
+  Health: 42
+  Damage: 5
+  Armor: 2
+  Options:
+    MovementSpeed: 0.21
+    FollowRange: 48
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+    KnockbackResistance: 0.2
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=0.5} @self ~onTimer:180 0.6
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.55} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.45} @self ~onDeath
+  - skill{s=ZA_Charognard_Bave} @self ~onTimer:100
+  - command{c="zakill ZA_Charognard";sync=true} @self ~onDeath
+  Drops:
+  - rotten_flesh 2to3 0.9
+  - bone 1to2 0.7
+  - ZA_Essence 1 0.3
+  - ZA_Jeton 1to2 0.3
+  - exp 12 1
+ZA_Phototrope:
+  Type: ZOMBIE
+  Display: '&e&lPhototrope'
+  Health: 16
+  Damage: 3.5
+  Options:
+    MovementSpeed: 0.3
+    FollowRange: 48
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+  Skills:
+  - potion{type=GLOWING;duration=99999;level=0} @self ~onSpawn
+  - skill{s=ZA_Phototrope_Lueur} @self ~onTimer:12
+  - effect:sound{s=entity.zombie.ambient;v=1;p=1.3} @self ~onTimer:150 0.5
+  - effect:sound{s=entity.zombie.hurt;v=1;p=1.3} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=1.2} @self ~onDeath
+  - command{c="zakill ZA_Phototrope";sync=true} @self ~onDeath
+  Drops:
+  - rotten_flesh 1 0.5
+  - ZA_Essence 1 0.2
+  - glowstone_dust 1to2 0.5
+  - exp 6 1
+# gardiens du bunker Z-01 : ne disparaissent pas (Despawn false)
+ZA_Garde_Z01:
+  Type: ZOMBIE
+  Display: '&7Soldat infecte'
+  Health: 40
+  Damage: 5.5
+  Armor: 6
+  Options:
+    MovementSpeed: 0.22
+    FollowRange: 40
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+    KnockbackResistance: 0.3
+    Despawn: false
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=0.55} @self ~onTimer:140 0.6
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
+  - command{c="zakill ZA_Garde_Z01";sync=true} @self ~onDeath
+  Drops:
+  - ZA_Essence 1 0.4
+  - iron_nugget 1to3 0.7
+  - exp 14 1
+  - ZA_Jeton 1to3 0.5
+ZA_Alpha_Z01:
+  Type: ZOMBIE
+  Display: '&c&lAlpha'
+  Health: 120
+  Damage: 7
+  Armor: 6
+  Options:
+    MovementSpeed: 0.25
+    FollowRange: 40
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+    KnockbackResistance: 0.5
+    Despawn: false
+  Skills:
+  - effect:sound{s=entity.zombie.ambient;v=1;p=0.5} @self ~onTimer:200 0.6
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
+  - skill{s=ZA_AlphaBuff} @self ~onTimer:120
+  - command{c="zakill ZA_Alpha_Z01";sync=true} @self ~onDeath
+  Drops:
+  - ZA_Essence 2to4 1
+  - ZA_Jeton 3to6 1
+  - ZA_SangInfecte 1 0.6
+  - exp 40 1

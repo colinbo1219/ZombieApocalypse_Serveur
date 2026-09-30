@@ -1,0 +1,309 @@
+# =====================================================================
+#  ZombieApocalypse - PNJ SURVIVANTS : dialogues et quetes
+#  Dr Lefort   : rapporte 3 "Sang infecte"          -> 1 Serum + 6 jetons
+#  Sergent Vega: tue 40 zombies apres avoir accepte  -> 10 jetons + 16 munitions + 1 explosif
+#  Lea (radio) : rapporte 3 "Note de survivant"       -> 12 jetons + une cargaison est reperee
+#  Chaque quete peut etre refaite au bout de 3 jours. Ils passent au hasard (25 min) ou /pnj <lefort|vega|lea>.
+#  Clic droit sur le PNJ = parler. /quetes = etat de tes quetes.
+# =====================================================================
+
+# ---------- decoupe un texte en lignes courtes pour l'infobulle ----------
+function za_wrap(t: text) :: texts:
+    set {_words::*} to split {_t} at " "
+    set {_line} to ""
+    loop {_words::*}:
+        if length of "%{_line}% %loop-value%" > 34:
+            add "&7%{_line}%" to {_out::*}
+            set {_line} to loop-value
+        else if {_line} is "":
+            set {_line} to loop-value
+        else:
+            set {_line} to "%{_line}% %loop-value%"
+    add "&7%{_line}%" to {_out::*}
+    return {_out::*}
+
+# ---------- fenetre de dialogue : texte du PNJ + jusqu'a 3 reponses (une reponse vide est ignoree) ----------
+function za_dial_ui(p: player, npc: text, node: text, texte: text, l1: text, n1: text, l2: text, n2: text, l3: text, n3: text, l4: text = "", n4: text = ""):
+    set {_titre} to "Survivant"
+    if {_npc} is "lefort":
+        set {_titre} to "Dr Lefort"
+    else if {_npc} is "vega":
+        set {_titre} to "Sergent Vega"
+    else if {_npc} is "lea":
+        set {_titre} to "Lea"
+    else if {_npc} is "blesse":
+        set {_titre} to "Survivant blesse"
+    else if {_npc} is "tutoriel":
+        set {_titre} to "Guide de survie"
+    open chest inventory with 3 rows named "&8Dialogue &7- &0%{_titre}%" to {_p}
+    set {_it} to za_item("paper", "Survivant", "&e", 1)
+    set lore of {_it} to za_wrap({_texte})
+    set slot 4 of (current inventory of {_p}) to {_it}
+    set {_u} to "%{_p}'s uuid%"
+    set {za::dial::npc::%{_u}%} to {_npc}
+    delete {za::dial::etat::%{_u}%::*}
+    if {_l1} is not "":
+        set {_o} to za_item("book", {_l1}, "&a", 1)
+        set lore of {_o} to "&8Clique pour repondre"
+        set slot 10 of (current inventory of {_p}) to {_o}
+        set {za::dial::etat::%{_u}%::1} to "%{_l1}%|%{_n1}%"
+    if {_l2} is not "":
+        set {_o} to za_item("book", {_l2}, "&a", 1)
+        set lore of {_o} to "&8Clique pour repondre"
+        set slot 12 of (current inventory of {_p}) to {_o}
+        set {za::dial::etat::%{_u}%::2} to "%{_l2}%|%{_n2}%"
+    if {_l3} is not "":
+        set {_o} to za_item("book", {_l3}, "&a", 1)
+        set lore of {_o} to "&8Clique pour repondre"
+        set slot 14 of (current inventory of {_p}) to {_o}
+        set {za::dial::etat::%{_u}%::3} to "%{_l3}%|%{_n3}%"
+    if {_l4} is not "":
+        set {_o} to za_item("book", {_l4}, "&a", 1)
+        set lore of {_o} to "&8Clique pour repondre"
+        set slot 16 of (current inventory of {_p}) to {_o}
+        set {za::dial::etat::%{_u}%::4} to "%{_l4}%|%{_n4}%"
+
+# ---------- une quete est-elle disponible ? (jamais faite, ou terminee il y a plus de 3 jours) ----------
+function za_quete_libre(npc: text, u: text) :: boolean:
+    set {_st} to {za::quete::%{_npc}%::%{_u}%}
+    if {_st} is "acceptee":
+        return false
+    if {_st} is "terminee":
+        if difference between {za::quete::%{_npc}%::date::%{_u}%} and now is less than 3 days:
+            return false
+    return true
+
+function za_quete_finie(p: player, npc: text):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::quete::%{_npc}%::%{_u}%} to "terminee"
+    set {za::quete::%{_npc}%::date::%{_u}%} to now
+    if {za::quetes::%{_u}%} is not set:
+        set {za::quetes::%{_u}%} to 0
+    add 1 to {za::quetes::%{_u}%}
+
+# ---------- Dr Lefort ----------
+function za_dial_lefort(p: player, node: text):
+    set {_u} to "%{_p}'s uuid%"
+    # relations (za_p46) : accueil selon la confiance et les choix du prologue, arc du dossier Bravo-3
+    if {_node} is "debut":
+        za_rel_debut({_p}, "lefort")
+        stop
+    if {_node} starts with "rel_":
+        za_rel_noeud({_p}, "lefort", {_node})
+        stop
+    if {_node} is "debut":
+        za_dial_ui({_p}, "lefort", "debut", "Enfin quelqu'un de vivant... Je soigne ceux que je peux, mais il me manque du materiel. Que veux-tu ?", "Tu as besoin d'aide ?", "chaine", "Comment eviter l'infection ?", "conseil", "Au revoir", "quit")
+    else if {_node} is "chaine":
+        za_lefort_chaine({_p})
+    else if {_node} is "conseil":
+        za_dial_ui({_p}, "lefort", "conseil", "Bois un Antidote dans les 10 minutes apres une morsure. Au-dela, seul un Serum te sauvera. Et mefie-toi des porteurs sains : ils ne montrent aucun symptome, mais ils contaminent.", "Merci", "debut", "", "quit", "", "quit")
+    else if {_node} is "quete":
+        if {za::quete::lefort::%{_u}%} is "acceptee":
+            za_dial_ui({_p}, "lefort", "quete", "Alors, tu as mes 3 echantillons de Sang infecte ?", "Les voila", "do_rendre", "Pas encore", "quit", "", "quit")
+        else if za_quete_libre("lefort", {_u}) is true:
+            za_dial_ui({_p}, "lefort", "quete", "Il me faut 3 echantillons de Sang infecte pour fabriquer un Serum. Les Bloaters et les Alphas en portent. Je te le donnerai.", "J'accepte", "do_accepter", "Plus tard", "quit", "", "quit")
+        else:
+            za_dial_ui({_p}, "lefort", "quete", "Tu m'as deja beaucoup aide. Reviens dans quelques jours, j'aurai peut-etre besoin de nouveaux echantillons.", "D'accord", "debut", "", "quit", "", "quit")
+    else if {_node} is "do_accepter":
+        set {za::quete::lefort::%{_u}%} to "acceptee"
+        send "&aQuete acceptee : rapporte 3 Sang infecte au Dr Lefort." to {_p}
+    else if {_node} is "do_rendre":
+        if za_take_named({_p}, "Sang infecte", 3) is true:
+            za_quete_finie({_p}, "lefort")
+            give za_item("honey bottle", "Serum", "&d", 1) to {_p}
+            za_jetons_ajouter({_p}, 6)
+            send "&aDr Lefort : Parfait. Voici ton Serum et 6 jetons. Prends soin de toi." to {_p}
+        else:
+            send "&cIl te manque du Sang infecte (3 requis)." to {_p}
+
+# ---------- Sergent Vega ----------
+function za_dial_vega(p: player, node: text):
+    set {_u} to "%{_p}'s uuid%"
+    # relations (za_p46) : accueil selon la confiance et les choix du prologue, arc du dossier Bravo-3
+    if {_node} is "debut":
+        za_rel_debut({_p}, "vega")
+        stop
+    if {_node} starts with "rel_":
+        za_rel_noeud({_p}, "vega", {_node})
+        stop
+    if {_node} is "debut":
+        za_dial_ui({_p}, "vega", "debut", "Sergent Vega. J'ai perdu mon escouade au premier soir. Maintenant je compte les morts, un par un. Tu veux nettoyer le secteur ?", "Quelle mission ?", "quete", "Ton escouade ?", "escouade", "Au revoir", "quit")
+    else if {_node} is "escouade":
+        za_vega_chaine({_p})
+    else if {_node} is "conseil":
+        za_dial_ui({_p}, "vega", "conseil", "Ne reste jamais seul dans le noir. Un bloc de lumiere attire les morts de loin, et le bruit aussi. Et brule tes cadavres : ils reviennent.", "Compris", "debut", "", "quit", "", "quit")
+    else if {_node} is "quete":
+        if {za::quete::vega::%{_u}%} is "acceptee":
+            set {_k} to {za::q::vega::%{_u}%}
+            if {_k} is not set:
+                set {_k} to 0
+            if {_k} >= 40:
+                za_dial_ui({_p}, "vega", "quete", "40 morts. Bon travail, soldat. Ton paiement.", "Merci", "do_rendre", "", "quit", "", "quit")
+            else:
+                za_dial_ui({_p}, "vega", "quete", "Tu en es a %{_k}% sur 40. Continue.", "Je m'y remets", "quit", "", "quit", "", "quit")
+        else if za_quete_libre("vega", {_u}) is true:
+            za_dial_ui({_p}, "vega", "quete", "Elimine 40 zombies et reviens me voir. Je te paierai en jetons, en munitions et en explosif.", "J'accepte", "do_accepter", "Plus tard", "quit", "", "quit")
+        else:
+            za_dial_ui({_p}, "vega", "quete", "Le secteur est calme pour l'instant. Reviens dans quelques jours.", "D'accord", "debut", "", "quit", "", "quit")
+    else if {_node} is "do_accepter":
+        set {za::quete::vega::%{_u}%} to "acceptee"
+        set {za::q::vega::%{_u}%} to 0
+        send "&aQuete acceptee : elimine 40 zombies, puis reviens voir le Sergent Vega." to {_p}
+    else if {_node} is "do_rendre":
+        za_quete_finie({_p}, "vega")
+        za_jetons_ajouter({_p}, 10)
+        give za_item("arrow", "Fleches", "&7", 16) to {_p}
+        give za_item("tnt", "Explosif artisanal", "&c", 1) to {_p}
+        execute console command "give %{_p}% tacz:ammo{AmmoId:""tacz:9mm""} 30"
+        send "&aSergent Vega : Bien joue. 10 jetons, des munitions et de quoi faire du bruit." to {_p}
+
+# ---------- Lea (radio) ----------
+function za_dial_lea(p: player, node: text):
+    set {_u} to "%{_p}'s uuid%"
+    # relations (za_p46) : accueil selon la confiance et les choix du prologue, arc du dossier Bravo-3
+    if {_node} is "debut":
+        za_rel_debut({_p}, "lea")
+        stop
+    if {_node} starts with "rel_":
+        za_rel_noeud({_p}, "lea", {_node})
+        stop
+    if {_node} is "debut":
+        za_dial_ui({_p}, "lea", "debut", "Chut... j'ecoute les frequences. Il y a des voix la-dedans qui ne devraient pas parler. Tu cherches des nouvelles ?", "As-tu un travail pour moi ?", "quete", "Que dit la radio ?", "mystere", "Au revoir", "quit")
+    else if {_node} is "radio":
+        za_dial_ui({_p}, "lea", "radio", "Des appels a l'aide, des ordres militaires, et parfois ton propre prenom murmure. Certains messages viennent de survivants morts depuis longtemps. Leurs notes sont dans les coffres.", "Etrange...", "debut", "", "quit", "", "quit")
+    else if {_node} is "mystere":
+        za_lea_chaine({_p})
+    else if {_node} is "quete":
+        if {za::quete::lea::%{_u}%} is "acceptee":
+            za_dial_ui({_p}, "lea", "quete", "Tu as trouve 3 Notes de survivant ? Avec elles je peux decoder une transmission.", "Les voila", "do_rendre", "Pas encore", "quit", "", "quit")
+        else if za_quete_libre("lea", {_u}) is true:
+            za_dial_ui({_p}, "lea", "quete", "Rapporte-moi 3 Notes de survivant, trouvees dans les coffres. Je decoderai la position d'une cargaison tombee du ciel.", "J'accepte", "do_accepter", "Plus tard", "quit", "", "quit")
+        else:
+            za_dial_ui({_p}, "lea", "quete", "Je n'ai plus rien a decoder pour l'instant. Reviens dans quelques jours.", "D'accord", "debut", "", "quit", "", "quit")
+    else if {_node} is "do_accepter":
+        set {za::quete::lea::%{_u}%} to "acceptee"
+        send "&aQuete acceptee : rapporte 3 Notes de survivant a Lea." to {_p}
+    else if {_node} is "do_rendre":
+        if za_take_named({_p}, "Note de survivant", 3) is true:
+            za_quete_finie({_p}, "lea")
+            za_jetons_ajouter({_p}, 12)
+            send "&aLea : Voila ! J'ai decode une transmission... quelque chose vient de s'ecraser. Garde 12 jetons pour ta peine." to {_p}
+            if chance of 50%:
+                give za_item("paper", "Carte d'acces", "&b", 1) to {_p}
+                send "&bLea te glisse aussi une Carte d'acces : un laboratoire scelle s'ouvrira pour toi pendant une Blood Moon." to {_p}
+            za_cargaison()
+        else:
+            send "&cIl te manque des Notes de survivant (3 requises)." to {_p}
+
+function za_dial_go(p: player, npc: text, node: text):
+    if {_npc} is "lefort":
+        za_dial_lefort({_p}, {_node})
+    else if {_npc} is "vega":
+        za_dial_vega({_p}, {_node})
+    else if {_npc} is "lea":
+        za_dial_lea({_p}, {_node})
+    else if {_npc} is "blesse":
+        za_dial_blesse({_p}, {_node})
+    else if {_npc} is "tutoriel":
+        za_dial_tuto({_p}, {_node})
+
+# ---------- clic sur une reponse ----------
+on inventory click:
+    if uncolored name of (player's current inventory) starts with "Dialogue - ":
+        cancel the event
+        if event-item is not air:
+            set {_u} to "%player's uuid%"
+            loop 4 times:
+                set {_e::*} to split {za::dial::etat::%{_u}%::%loop-number%} at "|"
+                if uncolored name of event-item is {_e::1}:
+                    set {_npc} to {za::dial::npc::%{_u}%}
+                    set {_next} to {_e::2}
+                    close player's inventory
+                    if {_next} is not "quit":
+                        za_dial_go(player, {_npc}, {_next})
+                    exit loop
+
+# ---------- clic droit sur un PNJ ----------
+on right click on villager:
+    if za_pro(player) is true:
+        stop
+    set {_n} to uncolored name of clicked entity
+    if {_n} contains "Lefort":
+        cancel the event
+        za_dial_lefort(player, "debut")
+    else if {_n} contains "Vega":
+        cancel the event
+        za_dial_vega(player, "debut")
+    else if {_n} contains "(radio)":
+        cancel the event
+        za_dial_lea(player, "debut")
+    else if {_n} contains "Survivant blesse":
+        cancel the event
+        za_dial_blesse(player, "debut")
+
+# ---------- progression de la quete de Vega ----------
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        set {_u} to "%attacker's uuid%"
+        if {za::quete::vega::%{_u}%} is "acceptee":
+            if {za::q::vega::%{_u}%} is not set:
+                set {za::q::vega::%{_u}%} to 0
+            add 1 to {za::q::vega::%{_u}%}
+
+command /quetes:
+    trigger:
+        set {_u} to "%player's uuid%"
+        send "&6&lTES QUETES" to player
+        set {_a} to {za::quete::lefort::%{_u}%}
+        set {_b} to {za::quete::vega::%{_u}%}
+        set {_c} to {za::q::vega::%{_u}%}
+        set {_d} to {za::quete::lea::%{_u}%}
+        if {_a} is not set:
+            set {_a} to "jamais vue"
+        if {_b} is not set:
+            set {_b} to "jamais vue"
+        if {_c} is not set:
+            set {_c} to 0
+        if {_d} is not set:
+            set {_d} to "jamais vue"
+        send "&aDr Lefort &7(quete en 7 parties) : &fpartie %za_lefort_etape({_u})%/7 &8- %za_lefort_texte(za_lefort_etape({_u}))%" to player
+        send "&6Sergent Vega &7(escouade Bravo-3) : &fplaques %za_plaques(player)%/3 &8- /plaques" to player
+        send "&6Sergent Vega (40 zombies): &f%{_b}% &7(%{_c}%/40)" to player
+        send "&bLea (Notes de survivant x3): &f%{_d}%" to player
+        send "&7Ils passent au hasard : cherche les villageois nommes." to player
+
+# ---------- visites de survivants ----------
+function za_pnj_mob(k: text) :: text:
+    if {_k} is "lefort":
+        return "ZA_Survivant_Lefort"
+    if {_k} is "vega":
+        return "ZA_Survivant_Vega"
+    return "ZA_Survivant_Lea"
+
+function za_pnj_visite(k: text, dur: number):
+    if {za::pnj::actif::%{_k}%} is true:
+        stop
+    if size of za_monde_joueurs() is 0:
+        stop
+    set {_p} to random element out of za_monde_joueurs()
+    set {_mob} to za_pnj_mob({_k})
+    za_spawn_near({_p}, {_mob}, 40, 80)
+    set {za::pnj::actif::%{_k}%} to true
+    za_diffuser("&aUn survivant a ete apercu pres de &e%{_p}%&a. Il ne restera pas longtemps.")
+    wait ("%{_dur}% minutes" parsed as timespan)
+    execute console command "mm mobs kill %{_mob}%"
+    set {za::pnj::actif::%{_k}%} to false
+
+every 50 minutes:
+    if size of za_monde_joueurs() is greater than 0:
+        if chance of 40%:
+            set {_ks::*} to "lefort", "vega", "lea"
+            za_pnj_visite(random element out of {_ks::*}, 25)
+
+command /pnj <text>:
+    permission: za.admin
+    trigger:
+        za_pnj_visite(arg-1, 25)
+        send "&aSurvivant demande: %arg-1% (lefort, vega, lea)" to sender

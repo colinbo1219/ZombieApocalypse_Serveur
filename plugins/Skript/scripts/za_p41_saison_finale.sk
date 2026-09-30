@@ -1,0 +1,244 @@
+# =====================================================================
+#  ZombieApocalypse - FIN DE SAISON : le grand mystère, la révélation, la finale, le Hall des survivants
+#  * Rumeurs de l'Overlord selon la progression de la saison (20/40/60/80 %) — jamais nommé avant la fin.
+#  * Révélation mondiale : « LES DONNÉES ONT ÉTÉ RECROISÉES. LA SOURCE DU FLÉAU A ÉTÉ LOCALISÉE. UNDEAD OVERLORD DÉTECTÉ. »
+#  * Combat final (4 phases, musique), silence, statistiques de la saison, titres, Hall des survivants.
+#  Commandes : /saison (progression) | Admin : /hall poser | /finale test | /finale revelation
+# =====================================================================
+
+function za_saison_pct() :: number:
+    set {_a} to min(1, za_saison_jours() / 30)
+    set {_k} to {za::saison::kills}
+    if {_k} is not set:
+        set {_k} to 0
+    set {_b} to min(1, {_k} / 3000)
+    set {_o} to {za::saison::overlords}
+    if {_o} is not set:
+        set {_o} to 0
+    set {_c} to min(1, {_o} / 3)
+    set {_d} to {za::saison::cargaisons}
+    if {_d} is not set:
+        set {_d} to 0
+    set {_d2} to min(1, {_d} / 5)
+    set {_e} to {za::saison::labos}
+    if {_e} is not set:
+        set {_e} to 0
+    set {_e2} to min(1, {_e} / 3)
+    set {_base} to floor((({_a} + {_b} + {_c} + {_d2} + {_e2}) / 5) * 100)
+    # dépôt de la ressource stratégique de saison (za_p48) : jusqu'à +10, sans jamais remplacer les objectifs
+    set {_bo} to {za::ressource::bonus_pct}
+    if {_bo} is not set:
+        set {_bo} to 0
+    if {_base} >= 100:
+        return 100
+    return min(99, {_base} + {_bo})
+
+function za_saison_phase(pct: number) :: text:
+    if {_pct} >= 80:
+        return "Le serveur prépare la fin."
+    if {_pct} >= 60:
+        return "Les survivants cherchent la vérité."
+    if {_pct} >= 40:
+        return "Les survivants résistent."
+    if {_pct} >= 20:
+        return "Les survivants comprennent."
+    return "Les survivants découvrent."
+
+# rumeurs (une seule fois par palier et par saison)
+every 2 minutes:
+    set {_n} to {za::saison::num}
+    set {_pct} to za_saison_pct()
+    loop 20, 40, 60 and 80:
+        if {_pct} >= loop-value:
+            if {za::rumeur::%{_n}%::%loop-value%} is not set:
+                set {za::rumeur::%{_n}%::%loop-value%} to true
+                set {_r} to "une mutation inhabituelle a été observée près des labos. Plus grosse. Plus lente. Elle ne mange pas."
+                if loop-value is 40:
+                    set {_r} to "trois survivants décrivent une créature extrêmement grande. Les morts s'écartent devant elle."
+                else if loop-value is 60:
+                    set {_r} to "il y a une zone où les zombies semblent converger. Tous. Comme s'ils étaient appelés."
+                else if loop-value is 80:
+                    set {_r} to "plusieurs survivants ont vu la même chose. Je ne dirai pas quoi à la radio. Préparez-vous."
+                loop all players:
+                    if za_pro(loop-player) is false:
+                        za_zm("son %loop-player% za_modeles:sfx.radio_statique 0.5 0.9")
+                        send "&8[Radio] &bLéa &8» &7...%{_r}%" to loop-player
+                za_journal("Rumeur : %{_r}%")
+
+# ---------------------------------------------------------------- révélation (appelée par za_p22_saison à 100 %)
+
+function za_finale_revelation():
+    loop all players:
+        if za_pro(loop-player) is false:
+            execute console command "execute as %loop-player% at @s run stopsound @s music"
+            za_zm("son %loop-player% za_modeles:sfx.sting_revelation 1 1")
+            za_zm("noir %loop-player% 10 60 20")
+    wait 2 seconds
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_zm("son %loop-player% za_modeles:voix.annonce_recroise 1 1")
+            za_zm("noir-texte %loop-player% 0 80 10 DONNÉES_RECROISÉES. Les_rapports_de_tous_les_survivants_concordent.")
+    wait 4 seconds
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_zm("noir-texte %loop-player% 0 80 10 SOURCE_LOCALISÉE. La_source_du_fléau_a_été_localisée.")
+    wait 4 seconds
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_zm("son %loop-player% za_modeles:sfx.overlord_signature 1 1")
+            za_zm("titre %loop-player% 10 80 30 &4&lUNDEAD_OVERLORD &c&lDÉTECTÉ_&8—_&7Tout_le_serveur_sait.")
+    za_journal("Les donnees ont ete recroisees : l'Undead Overlord a ete localise.")
+    set {za::saison::revelee::%{za::saison::num}%} to true
+    za_monde_legende("Les données sont recroisées. La source du fléau est localisée : l'Undead Overlord.")
+    wait 3 seconds
+    za_overlord_spawn(true)
+
+# musique de combat près de l'Overlord final
+every 55 seconds:
+    if {za::saison::finale::actif} is true:
+        loop all zombies:
+            if uncolored name of loop-zombie is "Undead Overlord":
+                loop all players in radius 80 around loop-zombie:
+                    za_zm("son %loop-player% za_modeles:musique.overlord_combat 0.8 1")
+
+# phase 4 : dernière transformation (appelée par MythicMobs à 10 % de vie)
+command /zafinale <text> [<text>] [<number>] [<number>] [<number>]:
+    executable by: console
+    trigger:
+        if arg-1 is "phase4":
+            if {za::finale::p4} is set:
+                if difference between {za::finale::p4} and now is less than 2 minutes:
+                    stop
+            set {za::finale::p4} to now
+            set {_w} to world(arg-2)
+            if {_w} is not set:
+                stop
+            set {_l} to location(arg-3, arg-4, arg-5, {_w})
+            loop all players in radius 90 around {_l}:
+                za_zm("son %loop-player% za_modeles:sfx.overlord_signature 1 0.8")
+                send title "&4&lTRANSFORMATION" with subtitle "&cDernière phase. &7Il ne tombera pas seul." to loop-player for 3 seconds
+            loop 6 times:
+                za_spawn_at({_l}, "ZA_Runner", 4, 10)
+            loop 2 times:
+                za_spawn_at({_l}, "ZA_Brute", 4, 10)
+
+# ---------------------------------------------------------------- fin de saison (appelée par za_p22_saison à la mort de l'Overlord final)
+
+function za_saison_ceremonie(heros: text):
+    set {_n} to {za::saison::num}
+    # chronique de la saison, heros, debut de l'apres-saison (za_p59)
+    za_monde_legende("L'Undead Overlord de la saison %{_n}% tombe. Héros : %{_heros}%.")
+    za_saison_bilan({_n}, {_heros})
+    loop all players:
+        if za_pro(loop-player) is false:
+            execute console command "execute as %loop-player% at @s run stopsound @s"
+            za_zm("noir %loop-player% 20 100 20")
+    wait 5 seconds
+    set {_j} to za_saison_jours()
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_zm("son %loop-player% za_modeles:musique.fin_saison 0.8 1")
+            za_zm("noir-texte %loop-player% 0 100 20 SAISON_TERMINÉE. Pendant_%{_j}%_jours,_vous_avez_survécu.")
+    wait 6 seconds
+    set {_k} to {za::saison::kills}
+    set {_o} to {za::saison::overlords}
+    set {_lb} to {za::saison::labos}
+    set {_c} to {za::saison::cargaisons}
+    set {_s} to {za::saison::sauves}
+    set {_m} to {za::saison::morts}
+    set {_ni} to {za::saison::nids}
+    za_diffuser("&6&l═══════ SAISON %{_n}% ═══════")
+    za_diffuser("&7Zombies abattus : &f%{_k} ? 0%")
+    za_diffuser("&7Undead Overlords vaincus : &f%({_o} ? 0) + 1%")
+    za_diffuser("&7Laboratoires ouverts : &f%{_lb} ? 0% &8| &7Cargaisons : &f%{_c} ? 0% &8| &7Nids détruits : &f%{_ni} ? 0%")
+    za_diffuser("&7Survivants sauvés : &f%{_s} ? 0% &8| &7Joueurs tombés : &f%{_m} ? 0%")
+    za_diffuser("&6Héros de la saison : &e&l%{_heros}%")
+    za_diffuser("&6&l═══════════════════════════")
+    # titres et hall
+    loop {za::saison::joueurs::%{_n}%::*}:
+        set {za::titres::%loop-index%::saison%{_n}%} to "Survivant de la Saison %{_n}%"
+    za_hall_graver({_n}, {_heros}, {_j})
+    # les noms des disparus au Hall (za_p58) et le succes de fin de saison (za_p57)
+    za_memoire_hall({_n})
+    za_succes_finale_saison({_n})
+    za_diffuser("&7La chronique de la saison est consignee : &e/chroniques")
+    za_journal("Saison %{_n}% terminee. Heros : %{_heros}%.")
+
+# qui a joué cette saison (pour le Hall)
+on join:
+    if za_pro(player) is true:
+        stop
+    set {za::saison::joueurs::%{za::saison::num}%::%player's uuid%} to "%player%"
+
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    if {za::saison::morts} is not set:
+        set {za::saison::morts} to 0
+    add 1 to {za::saison::morts}
+
+# ---------------------------------------------------------------- HALL DES SURVIVANTS
+
+command /hall [<text>] [<number>] [<number>] [<number>]:
+    trigger:
+        if arg-1 is "poser":
+            if sender has permission "za.admin":
+                if arg-4 is set:
+                    set {_l} to location(arg-2, arg-3, arg-4, world("world"))
+                else if sender is a player:
+                    set {_l} to location of player
+                else:
+                    send "Usage console : hall poser <x> <y> <z>" to sender
+                    stop
+                set {za::hall::base} to {_l}
+                za_zm("placer hall %world of {_l}% %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% degager")
+                send "&aHall des survivants posé. Chaque fin de saison y gravera ses noms." to sender
+            stop
+        if {za::hall::base} is not set:
+            send "&7Le Hall des survivants n'a pas encore été bâti." to player
+            stop
+        set {_l} to {za::hall::base}
+        send "&6Hall des survivants &7vers X=%floor(x-coordinate of {_l})% Z=%floor(z-coordinate of {_l})%. Les noms de ceux qui ont tenu." to player
+
+function za_hall_graver(n: number, heros: text, j: number):
+    if {za::hall::base} is not set:
+        stop
+    set {_b} to {za::hall::base}
+    # socle de la saison (8 socles, cycliques)
+    set {_i} to mod({_n} - 1, 8) + 1
+    set {_s::*} to split {za::hall::socle::%{_i}%} at ";"
+    set {_x} to floor(x-coordinate of {_b}) + ({_s::1} parsed as number)
+    set {_y} to floor(y-coordinate of {_b}) + ({_s::2} parsed as number)
+    set {_z} to floor(z-coordinate of {_b}) + ({_s::3} parsed as number)
+    set {_wd} to za_dim(world of {_b})
+    execute console command "execute in %{_wd}% run setblock %{_x}% %{_y}% %{_z}% minecraft:player_head[rotation=8]{SkullOwner:""%{_heros}%""}"
+    execute console command "execute in %{_wd}% run setblock %{_x}% %{_y} - 1% %{_z} + 1% minecraft:oak_wall_sign[facing=south]"
+    set {_sg} to block at location({_x}, {_y} - 1, {_z} + 1, world of {_b})
+    set line 1 of {_sg} to "&6SAISON %{_n}%"
+    set line 2 of {_sg} to "&0Heros :"
+    set line 3 of {_sg} to "&0%{_heros}%"
+    set line 4 of {_sg} to "&8%{_j}% jours"
+    # plaques : les noms des survivants de la saison
+    loop {za::saison::joueurs::%{_n}%::*}:
+        if {za::hall::plaque::next} is not set:
+            set {za::hall::plaque::next} to 1
+        set {_pi} to {za::hall::plaque::next}
+        if {za::hall::plaque::%{_pi}%} is set:
+            set {_q::*} to split {za::hall::plaque::%{_pi}%} at ";"
+            set {_pl} to location(floor(x-coordinate of {_b}) + ({_q::1} parsed as number), floor(y-coordinate of {_b}) + ({_q::2} parsed as number), floor(z-coordinate of {_b}) + ({_q::3} parsed as number), world of {_b})
+            set {_bl} to block at {_pl}
+            if "%type of {_bl}%" contains "sign":
+                set line 1 of {_bl} to "&8Saison %{_n}%"
+                set line 2 of {_bl} to "&0%loop-value%"
+                set line 3 of {_bl} to "&8a survecu"
+            add 1 to {za::hall::plaque::next}
+
+command /finale <text>:
+    permission: za.admin
+    trigger:
+        if arg-1 is "revelation":
+            za_finale_revelation()
+        else if arg-1 is "ceremonie":
+            za_saison_ceremonie("%sender%")
+        else if arg-1 is "pct":
+            send "&7Progression de la saison : &f%za_saison_pct()% %% &8— %za_saison_phase(za_saison_pct())%" to player

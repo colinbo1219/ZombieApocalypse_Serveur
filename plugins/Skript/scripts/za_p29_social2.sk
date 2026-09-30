@@ -1,0 +1,358 @@
+# =====================================================================
+#  ZombieApocalypse - SOCIAL, SUITE : primes, negociation, trahison, testament, heritage, signaux de detresse
+#  /prime poser <joueur> <montant> | /primes        : contrat anonyme paye en jetons (10 minimum, 7 jours, rembourse 80 pourcent si expire)
+#  /negociation [creer]                              : zone neutre 10 minutes (5 jetons) : pas de PvP dedans
+#  /trahir                                           : rompt la treve (rep -15, titre Traitre 30 min, premier coup renforce)
+#  /testament <joueur> <jetons>                      : a ta mort, jusqu'a ce montant va a cette personne
+#  /maudire <joueur>                                 : a ta mort, cette personne est maudite 30 minutes
+#  /heritier <joueur>                                : retire de suite l'objet en main, le garde en lieu sur ; a ta mort, il va a cette personne
+#                                                        (l'objet ne passe jamais par les drops de la mort : aucun risque de conflit avec Gravestone)
+#  /heritier annuler                                  : reprend ce que tu avais mis de cote
+#  Signal de detresse (evenement) : un survivant blesse ... ou un piege. Test de loyaute : le soigner, le laisser, ou l'utiliser comme appat.
+# =====================================================================
+
+# ===================== PRIMES =====================
+command /prime <text> [<player>] [<number>]:
+    trigger:
+        if arg-1 is "poser":
+            if arg-2 is not set:
+                send "&cUsage : /prime poser <joueur> <montant>" to player
+            else if arg-3 is not set:
+                send "&cUsage : /prime poser <joueur> <montant>" to player
+            else if arg-2 is player:
+                send "&cPas de prime sur toi-meme." to player
+            else if arg-3 < 10:
+                send "&cUne prime vaut 10 jetons au minimum." to player
+            else if za_jetons(player) < arg-3:
+                send "&cSolde insuffisant." to player
+            else:
+                za_jetons_ajouter(player, 0 - arg-3)
+                if {za::prime::next} is not set:
+                    set {za::prime::next} to 0
+                add 1 to {za::prime::next}
+                set {_id} to {za::prime::next}
+                set {za::prime::%{_id}%::cible} to "%arg-2's uuid%"
+                set {za::prime::%{_id}%::nom} to "%arg-2%"
+                set {za::prime::%{_id}%::montant} to arg-3
+                set {za::prime::%{_id}%::poseur} to "%player's uuid%"
+                set {za::prime::%{_id}%::date} to now
+                add {_id} to {za::prime::liste::*}
+                za_audit("PRIME %player% sur %arg-2% : %arg-3%", arg-3)
+                za_diffuser("&6&lPRIME &7Un contrat anonyme de &e%arg-3% jetons &7vient d'etre place sur la tete de &c%arg-2%&7.")
+                send "&cUne prime de %arg-3% jetons pese sur ta tete !" to arg-2
+        else:
+            send "&cUsage : /prime poser <joueur> <montant>  |  /primes pour la liste" to player
+
+command /primes:
+    trigger:
+        if size of {za::prime::liste::*} is 0:
+            send "&7Aucune prime en cours." to player
+        else:
+            send "&6&lPRIMES EN COURS" to player
+            loop {za::prime::liste::*}:
+                set {_n} to {za::prime::%loop-value%::nom}
+                set {_m} to {za::prime::%loop-value%::montant}
+                send "&7- &c%{_n}% &7: &e%{_m}% jetons" to player
+
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        loop {za::prime::liste::*}:
+            set {_id} to loop-value
+            if {za::prime::%{_id}%::cible} is "%victim's uuid%":
+                if {za::prime::%{_id}%::poseur} is not "%attacker's uuid%":
+                    set {_m} to floor({za::prime::%{_id}%::montant} * 0.9)
+                    za_jetons_ajouter(attacker, {_m})
+                    za_audit("PRIME encaissee %attacker% sur %victim% : %{_m}%", {_m})
+                    za_diffuser("&6La prime sur &c%victim% &6a ete encaissee (%{_m}% jetons).")
+                    send "&6Prime encaissee : %{_m}% jetons." to attacker
+                    remove {_id} from {za::prime::liste::*}
+                    delete {za::prime::%{_id}%::*}
+
+# les primes expirent au bout de 7 jours : 80 pourcent sont rendus au poseur
+every 30 minutes:
+    loop {za::prime::liste::*}:
+        set {_id} to loop-value
+        if difference between {za::prime::%{_id}%::date} and now is greater than 7 days:
+            set {_pu} to {za::prime::%{_id}%::poseur}
+            if {za::jetons::%{_pu}%} is not set:
+                set {za::jetons::%{_pu}%} to 0
+            add floor({za::prime::%{_id}%::montant} * 0.8) to {za::jetons::%{_pu}%}
+            remove {_id} from {za::prime::liste::*}
+            delete {za::prime::%{_id}%::*}
+
+on join:
+    if za_pro(player) is true:
+        stop
+    loop {za::prime::liste::*}:
+        if {za::prime::%loop-value%::cible} is "%player's uuid%":
+            send "&c&lUne prime pese sur ta tete." to player
+            exit loop
+
+# ===================== ZONE DE NEGOCIATION NEUTRE =====================
+function za_zone_neg(p: player) :: number:
+    loop {za::neg::liste::*}:
+        set {_id} to loop-value
+        set {_c} to {za::neg::%{_id}%::loc}
+        if world of {_c} is world of {_p}:
+            if distance between {_c} and {_p} < 10:
+                return {_id}
+    return 0
+
+command /negociation [<text>]:
+    trigger:
+        if za_jetons(player) < 5:
+            send "&cUne zone de negociation coute 5 jetons." to player
+        else:
+            za_jetons_ajouter(player, 0 - 5)
+            if {za::neg::next} is not set:
+                set {za::neg::next} to 0
+            add 1 to {za::neg::next}
+            set {_id} to {za::neg::next}
+            set {za::neg::%{_id}%::loc} to location of player
+            set {za::neg::%{_id}%::fin} to now
+            add 10 minutes to {za::neg::%{_id}%::fin}
+            add {_id} to {za::neg::liste::*}
+            send "&aZone de negociation ouverte (rayon 10, 10 minutes) : personne ne peut y etre attaque par un joueur. Attention aux traitres." to player
+            loop all players:
+                if za_pro(loop-player) is false:
+                    if world of loop-player is world of player:
+                        if distance between loop-player and player < 40:
+                            if loop-player is not player:
+                                send "&7%player% a ouvert une zone de negociation pres de toi." to loop-player
+
+on damage of player:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        if za_zone_neg(victim) > 0:
+            if za_zone_neg(attacker) > 0:
+                cancel the event
+                send "&7Zone de negociation : pas de violence ici." to attacker
+
+command /trahir:
+    trigger:
+        set {_id} to za_zone_neg(player)
+        if {_id} is 0:
+            send "&cTu n'es dans aucune zone de negociation." to player
+        else:
+            remove {_id} from {za::neg::liste::*}
+            delete {za::neg::%{_id}%::*}
+            if {za::rep::%player's uuid%} is not set:
+                set {za::rep::%player's uuid%} to 0
+            remove 15 from {za::rep::%player's uuid%}
+            set {za::traitre::fin::%player's uuid%} to now
+            add 30 minutes to {za::traitre::fin::%player's uuid%}
+            za_effet(player, "strength", 30, 1)
+            za_journal("%player% a trahi une zone de negociation.")
+            za_diffuser("&4&lTRAHISON ! &c%player% &7a rompu la treve.")
+
+every 30 seconds:
+    loop {za::neg::liste::*}:
+        if now is greater than {za::neg::%loop-value%::fin}:
+            delete {za::neg::%loop-value%::*}
+            remove loop-value from {za::neg::liste::*}
+
+# ===================== TESTAMENT, MALEDICTION, HERITAGE =====================
+command /testament <player> <number>:
+    trigger:
+        if arg-2 <= 0:
+            send "&cMontant invalide." to player
+        else if arg-1 is player:
+            send "&cChoisis quelqu'un d'autre." to player
+        else:
+            set {za::testament::heir::%player's uuid%} to "%arg-1's uuid%"
+            set {za::testament::nom::%player's uuid%} to "%arg-1%"
+            set {za::testament::montant::%player's uuid%} to arg-2
+            send "&7Testament enregistre : jusqu'a %arg-2% jetons iront a %arg-1% a ta mort." to player
+
+command /maudire <player>:
+    trigger:
+        if arg-1 is player:
+            send "&cChoisis quelqu'un d'autre." to player
+        else:
+            set {za::maudire::cible::%player's uuid%} to "%arg-1's uuid%"
+            send "&8Ta derniere malediction est prete pour %arg-1%. Elle s'abattra a ta mort." to player
+
+command /heritier <text> [<player>]:
+    trigger:
+        if arg-1 is "annuler":
+            set {_u} to "%player's uuid%"
+            if {za::heritier::objets::%{_u}%::*} is not set:
+                send "&7Tu n'as rien mis de cote." to player
+            else:
+                loop {za::heritier::objets::%{_u}%::*}:
+                    give loop-value to player
+                delete {za::heritier::objets::%{_u}%::*}
+                delete {za::heritier::cible::%{_u}%}
+                send "&7Tu reprends ce que tu avais mis de cote." to player
+        else if arg-2 is not set:
+            send "&cUsage : /heritier <joueur>  (leguer l'objet en main)  |  /heritier annuler" to player
+        else if arg-2 is player:
+            send "&cChoisis quelqu'un d'autre." to player
+        else if player's tool is air:
+            send "&cTiens l'objet a leguer dans ta main avant de taper la commande." to player
+        else:
+            set {_u} to "%player's uuid%"
+            set {_it} to player's tool
+            set player's tool to air
+            add {_it} to {za::heritier::objets::%{_u}%::*}
+            set {za::heritier::cible::%{_u}%} to "%arg-2's uuid%"
+            send "&7%{_it}% est mis de cote, en lieu sur. A ta mort, il ira a %arg-2%. (&e/heritier annuler &7pour le reprendre)" to player
+
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    set {_u} to "%victim's uuid%"
+    if {za::testament::heir::%{_u}%} is set:
+        set {_hu} to {za::testament::heir::%{_u}%}
+        set {_m} to min({za::testament::montant::%{_u}%}, za_jetons(victim))
+        if {_m} > 0:
+            za_jetons_ajouter(victim, 0 - {_m})
+            if {za::jetons::%{_hu}%} is not set:
+                set {za::jetons::%{_hu}%} to 0
+            add {_m} to {za::jetons::%{_hu}%}
+        delete {za::testament::heir::%{_u}%}
+        delete {za::testament::montant::%{_u}%}
+    if {za::maudire::cible::%{_u}%} is set:
+        set {_ct} to {za::maudire::cible::%{_u}%}
+        set {za::maudit::fin::%{_ct}%} to now
+        add 30 minutes to {za::maudit::fin::%{_ct}%}
+        delete {za::maudire::cible::%{_u}%}
+        za_journal("%victim% a maudit quelqu un avant de mourir.")
+    if {za::heritier::cible::%{_u}%} is set:
+        set {_hu} to {za::heritier::cible::%{_u}%}
+        loop {za::heritier::objets::%{_u}%::*}:
+            add loop-value to {za::heritage::attente::%{_hu}%::*}
+        delete {za::heritier::objets::%{_u}%::*}
+        delete {za::heritier::cible::%{_u}%}
+
+on join:
+    if za_pro(player) is true:
+        stop
+    set {_u} to "%player's uuid%"
+    if {za::heritage::attente::%{_u}%::*} is set:
+        loop {za::heritage::attente::%{_u}%::*}:
+            give loop-value to player
+        delete {za::heritage::attente::%{_u}%::*}
+        send "&7Quelqu'un t'a legue un objet avant de mourir." to player
+    if {za::maudit::fin::%{_u}%} is set:
+        if now is less than {za::maudit::fin::%{_u}%}:
+            send "&8Une malediction pese sur toi : on t'a maudit avant de mourir." to player
+
+every 60 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_u} to "%loop-player's uuid%"
+            if {za::maudit::fin::%{_u}%} is set:
+                if now is less than {za::maudit::fin::%{_u}%}:
+                    za_effet(loop-player, "weakness", 65, 0)
+                    if chance of 25%:
+                        za_spawn_near(loop-player, "ZA_Shambler", 12, 20)
+                else:
+                    delete {za::maudit::fin::%{_u}%}
+
+# ===================== SIGNAL DE DETRESSE =====================
+function za_dial_blesse(p: player, node: text):
+    set {_u} to "%{_p}'s uuid%"
+    if {_node} is "debut":
+        za_dial_ui({_p}, "blesse", "debut", "Aide... les morts m'ont eu... j'ai perdu beaucoup de sang. Je t'en supplie... ne me laisse pas ici.", "Le soigner (1 Bandage)", "do_soigner", "Le laisser", "do_laisser", "L'utiliser comme appat", "do_appat")
+    else if {_node} is "do_soigner":
+        if za_take_named({_p}, "Bandage", 1) is true:
+            za_jetons_ajouter({_p}, 8)
+            if {za::rep::%{_u}%} is not set:
+                set {za::rep::%{_u}%} to 0
+            add 5 to {za::rep::%{_u}%}
+            send "&aTu le soignes. Il te glisse 8 jetons : Merci... tu es quelqu'un de bien. (reputation +5)" to {_p}
+            za_journal("%{_p}% a sauve un survivant.")
+            execute console command "mm mobs kill ZA_Blesse"
+            set {za::signal::actif} to false
+        else:
+            send "&cIl te faut un Bandage." to {_p}
+    else if {_node} is "do_laisser":
+        if {za::rep::%{_u}%} is not set:
+            set {za::rep::%{_u}%} to 0
+        remove 3 from {za::rep::%{_u}%}
+        if {za::sanite::%{_u}%} is set:
+            remove 8 from {za::sanite::%{_u}%}
+        send "&8Tu t'eloignes. Ses appels te suivent longtemps... (reputation -3)" to {_p}
+        za_journal("%{_p}% a laisse un survivant mourir.")
+    else if {_node} is "do_appat":
+        if {za::rep::%{_u}%} is not set:
+            set {za::rep::%{_u}%} to 0
+        remove 15 from {za::rep::%{_u}%}
+        if {za::sanite::%{_u}%} is set:
+            remove 20 from {za::sanite::%{_u}%}
+        set {za::calme::fin} to now
+        add 3 minutes to {za::calme::fin}
+        za_jetons_ajouter({_p}, 5)
+        send "&4Tu l'utilises comme appat : les morts se ruent sur lui, tu peux fuir. 5 jetons trouves sur lui. (reputation -15)" to {_p}
+        za_journal("%{_p}% a sacrifie un survivant.")
+        za_diffuser("&8[Radio] &7On dit que quelqu'un a sacrifie un survivant blesse pour s'echapper...")
+        execute console command "mm mobs kill ZA_Blesse"
+        set {za::signal::actif} to false
+
+function za_signal():
+    if {za::signal::actif} is true:
+        stop
+    if size of za_monde_joueurs() is 0:
+        stop
+    set {za::signal::actif} to true
+    set {_p} to random element out of za_monde_joueurs()
+    set {_g} to za_point_loin({_p}, 70, 110)
+    set {_bx} to floor(x-coordinate of {_g})
+    set {_gy} to floor(y-coordinate of {_g})
+    set {_bz} to floor(z-coordinate of {_g})
+    set {_w} to world of {_g}
+    set {_ax} to floor({_bx} / 50) * 50
+    set {_az} to floor({_bz} / 50) * 50
+    za_diffuser("&8[Radio] &7...signal de detresse... quelqu'un demande de l'aide vers X=%{_ax}% Z=%{_az}% (+/- 60)...")
+    if chance of 50%:
+        # vrai survivant blesse, entoure de morts
+        execute console command "mm mobs spawn ZA_Blesse 1 %{_w}%,%{_bx}%,%{_gy} + 1%,%{_bz}%"
+        loop 6 times:
+            set {_ox} to random integer between -5 and 5
+            set {_oz} to random integer between -5 and 5
+            execute console command "mm mobs spawn ZA_Shambler 1 %{_w}%,%{_bx} + {_ox}%,%{_gy} + 1%,%{_bz} + {_oz}%"
+        wait 8 minutes
+        execute console command "mm mobs kill ZA_Blesse"
+        set {za::signal::actif} to false
+    else:
+        # piege : un coffre appat, une embuscade des que quelqu'un s'approche
+        set {_wd} to za_dim({_w})
+        execute console command "execute in %{_wd}% run setblock %{_bx}% %{_gy} + 1% %{_bz}% minecraft:chest"
+        set {_c} to block at location({_bx}, {_gy} + 1, {_bz}, {_w})
+        add za_item("gold nugget", "Jeton de Survie", "&6", 2) to inventory of {_c}
+        set {_n} to za_item("paper", "Note de survivant", "&f", 1)
+        set lore of {_n} to "Aide-moi... je suis coince dans la cave... viens vite..."
+        add {_n} to inventory of {_c}
+        set {_fin} to now
+        add 8 minutes to {_fin}
+        set {_pris} to false
+        loop 96 times:
+            if {_pris} is false:
+                if now is less than {_fin}:
+                    loop all players:
+                        if za_pro(loop-player) is false:
+                            if world of loop-player is {_w}:
+                                if distance between loop-player and {_c} < 18:
+                                    set {_pris} to true
+                                    set {_v} to loop-player
+                    wait 5 seconds
+        if {_pris} is true:
+            send "&4&lC'ETAIT UN PIEGE !" to {_v}
+            loop 10 times:
+                set {_ox} to random integer between -7 and 7
+                set {_oz} to random integer between -7 and 7
+                execute console command "mm mobs spawn ZA_Shambler 1 %{_w}%,%{_bx} + {_ox}%,%{_gy} + 1%,%{_bz} + {_oz}%"
+            loop 2 times:
+                execute console command "mm mobs spawn ZA_Brute 1 %{_w}%,%{_bx}%,%{_gy} + 1%,%{_bz} + 4%"
+            execute console command "mm mobs spawn ZA_Alpha 1 %{_w}%,%{_bx} - 4%,%{_gy} + 1%,%{_bz}%"
+            za_journal("Un faux signal de detresse a piege un survivant.")
+        set {za::signal::actif} to false
+
+every 2 hours:
+    if size of za_monde_joueurs() is greater than 0:
+        if chance of 45%:
+            za_signal()

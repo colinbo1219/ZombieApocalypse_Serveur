@@ -1,0 +1,97 @@
+# =====================================================================
+#  ZombieApocalypse - SQUADS ET MORAL DE GROUPE
+#  /squad inviter <joueur> | accepter | quitter | liste     (4 joueurs maximum)
+#  Un squad proche (30 blocs) : petit bonus (sante mentale +1.5 toutes les 10 s, regeneration legere).
+#  Blood Moon : SEUL (aucun equipier a moins de 40 blocs) = faiblesse et morts en plus ; en squad = resistance.
+# =====================================================================
+
+command /squad [<text>] [<player>]:
+    trigger:
+        set {_u} to "%player's uuid%"
+        if arg-1 is "inviter":
+            if arg-2 is not set:
+                send "&cUsage : /squad inviter <joueur>" to player
+            else if arg-2 is player:
+                send "&cTu ne peux pas t'inviter toi-meme." to player
+            else:
+                if {za::squad::id::%{_u}%} is not set:
+                    if {za::squad::next} is not set:
+                        set {za::squad::next} to 0
+                    add 1 to {za::squad::next}
+                    set {za::squad::id::%{_u}%} to {za::squad::next}
+                    add {_u} to {za::squad::membres::%{za::squad::next}%::*}
+                set {_id} to {za::squad::id::%{_u}%}
+                if size of {za::squad::membres::%{_id}%::*} >= 4:
+                    send "&cTon squad est plein (4 maximum)." to player
+                else:
+                    set {za::squad::inv::%arg-2's uuid%} to {_id}
+                    send "&aInvitation envoyee a %arg-2%." to player
+                    send "&e%player% t'invite dans son squad. /squad accepter" to arg-2
+        else if arg-1 is "accepter":
+            set {_id} to {za::squad::inv::%{_u}%}
+            if {_id} is not set:
+                send "&cAucune invitation." to player
+            else:
+                delete {za::squad::inv::%{_u}%}
+                if size of {za::squad::membres::%{_id}%::*} >= 4:
+                    send "&cCe squad est plein." to player
+                else:
+                    set {za::squad::id::%{_u}%} to {_id}
+                    add {_u} to {za::squad::membres::%{_id}%::*}
+                    send "&aTu rejoins le squad !" to player
+        else if arg-1 is "quitter":
+            set {_id} to {za::squad::id::%{_u}%}
+            if {_id} is not set:
+                send "&cTu n'es dans aucun squad." to player
+            else:
+                remove {_u} from {za::squad::membres::%{_id}%::*}
+                delete {za::squad::id::%{_u}%}
+                send "&7Tu quittes ton squad." to player
+        else if arg-1 is "liste":
+            set {_id} to {za::squad::id::%{_u}%}
+            if {_id} is not set:
+                send "&7Tu n'es dans aucun squad." to player
+            else:
+                send "&6Squad %{_id}% : %size of {za::squad::membres::%{_id}%::*}% membre(s)" to player
+                loop {za::squad::membres::%{_id}%::*}:
+                    set {_uu} to loop-value
+                    loop all players:
+                        if za_pro(loop-player) is false:
+                            if "%loop-player's uuid%" is {_uu}:
+                                send "&7- %loop-player%" to player
+        else:
+            send "&cUsage : /squad <inviter <joueur>|accepter|quitter|liste>" to player
+
+# nombre d'equipiers dans un rayon
+function za_squad_proches(p: player, r: number) :: number:
+    set {_id} to {za::squad::id::%{_p}'s uuid%}
+    if {_id} is not set:
+        return 0
+    set {_n} to 0
+    set {_near::*} to all players in radius {_r} around {_p}
+    loop {_near::*}:
+        if loop-value is not {_p}:
+            if {za::squad::id::%loop-value's uuid%} is {_id}:
+                add 1 to {_n}
+    return {_n}
+
+every 10 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_p} to loop-player
+            set {_u} to "%{_p}'s uuid%"
+            set {_n30} to za_squad_proches({_p}, 30)
+            if {_n30} > 0:
+                if {za::sanite::%{_u}%} is set:
+                    add 1.5 to {za::sanite::%{_u}%}
+                    if {za::sanite::%{_u}%} > 100:
+                        set {za::sanite::%{_u}%} to 100
+                za_effet({_p}, "regeneration", 3, 0)
+            if {za::evt::bloodmoon} is true:
+                if {_n30} > 0:
+                    za_effet({_p}, "resistance", 12, 0)
+                else if za_squad_proches({_p}, 40) is 0:
+                    za_effet({_p}, "weakness", 12, 0)
+                    if chance of 25%:
+                        za_spawn_near({_p}, "ZA_Shambler", 14, 24)
+                        send action bar "&8Seul pendant la Blood Moon... les morts le sentent." to {_p}

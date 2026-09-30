@@ -1,0 +1,80 @@
+# ZombieApocalypse - items
+ZA_Essence:
+  Id: AMETHYST_SHARD
+  Display: '&5Essence de zombie'
+  Lore:
+  - '&7Une substance qui palpite faiblement.'
+  - '&8Ingrédient rare.'
+ZA_AcidGland:
+  Id: SLIME_BALL
+  Display: '&aGlande acide'
+  Lore:
+  - '&7Arrachée à un Spitter.'
+  - '&8Corrosive.'
+ZA_GasSac:
+  Id: SPIDER_EYE
+  Display: '&2Poche de gaz'
+  Lore:
+  - '&7Gonflée de gaz toxiques.'
+  - '&8À manipuler avec soin.'
+ZA_LeaperClaw:
+  Id: FLINT
+  Display: '&6Griffe de Leaper'
+  Lore:
+  - '&7Longue, tranchante et encore tiède.'
+ZA_BruteHide:
+  Id: LEATHER
+  Display: '&6Cuir de Brute'
+  Lore:
+  - '&7Épais et étonnamment résistant.'
+ZA_Banner:
+  Id: BLACK_BANNER
+  Display: '&4Banniere de l''Overlord'
+  Lore:
+  - '&7Trophée de la victoire sur l''Overlord.'
+ZA_OverlordHeart:
+  Id: HEART_OF_THE_SEA
+  Display: '&4&lCoeur de l''Overlord'
+  Lore:
+  - '&7Il bat encore.'
+  - '&8Objet unique.'
+  Enchantments:
+  - DURABILITY:1
+  Hide:
+  - ENCHANTS
+ZA_Antidote:
+  Id: HONEY_BOTTLE
+  Display: '&aAntidote'
+  Lore:
+  - '&7Stoppe l''infection si elle est encore au stade 1 ou 2.'
+  - '&8Se consomme.'
+ZA_Jeton:
+  Id: GOLD_NUGGET
+  Display: '&6Jeton de Survie'
+  Lore:
+  - '&7La monnaie du nouveau monde.'
+  - '&8Clic droit = depot dans ton solde (/jetons).'
+ZA_SangInfecte:
+  Id: RED_DYE
+  Display: '&4Sang infecte'
+  Lore:
+  - '&7Un echantillon de sang infecte.'
+  - '&8Recherche par les marchands.'
+ZA_Composant:
+  Id: COMPARATOR
+  Display: '&bComposant electronique'
+  Lore:
+  - '&7Circuits recuperes sur les elites.'
+  - '&8Requis pour certains echanges.'
+ZA_Carburant:
+  Id: BLAZE_POWDER
+  Display: '&eEssence (carburant)'
+  Lore:
+  - '&7Rare et precieuse.'
+  - '&8Carburant pour generateurs.'
+ZA_Serum:
+  Id: HONEY_BOTTLE
+  Display: '&dSerum'
+  Lore:
+  - '&7Guerit l''infection a n''importe quel stade.'
+  - '&8Se consomme.'

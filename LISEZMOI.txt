@@ -1,0 +1,76 @@
+ZOMBIEAPOCALYPSE - SERVEUR PRET A INSTALLER
+Copie du serveur Apex du 27 septembre 2026 (tous les correctifs inclus), SANS le monde.
+
+=====================================================================
+CE QU'IL FAUT
+=====================================================================
+- Java 17 ou 21 (64 bits)
+- 6 a 8 Go de RAM pour le serveur
+- Internet au premier demarrage : Arclight telecharge Forge et ses
+  librairies (environ 200 Mo, 5 a 10 minutes la premiere fois)
+
+=====================================================================
+INSTALLATION SUR TON PC
+=====================================================================
+1. Dezippe le dossier ZombieApocalypse_Serveur ou tu veux.
+2. Ouvre eula.txt et mets eula=true (apres avoir lu le CLUF de Minecraft).
+3. Double-clique start.bat (Windows) ou lance ./start.sh (Linux/Mac).
+4. Attends "Done (...)! For help, type help" dans la console.
+   Le monde Lost Cities se cree tout seul au premier demarrage.
+5. Dans la console, tape :  op TonPseudo
+
+Pour changer la RAM : modifie -Xmx8G dans start.bat / start.sh.
+
+=====================================================================
+INSTALLATION CHEZ UN HEBERGEUR (Apex ou autre)
+=====================================================================
+- Televerse tout le contenu du dossier ZombieApocalypse_Serveur.
+- Type de serveur : "Custom jar" -> arclight-5dc8683.jar
+- Ports : 25565 (TCP, le jeu) et 24454 (UDP, chat vocal).
+  Si l'hebergeur impose un autre port pour le chat vocal, change "port="
+  dans config/voicechat/voicechat-server.properties.
+
+=====================================================================
+APRES LE PREMIER DEMARRAGE (conseille)
+=====================================================================
+- Pre-generer le monde (moins de lag) :  chunky radius 3000  puis  chunky start
+- Groupes LuckPerms : joueur / modo / admin (la permission za.admin = admin)
+- Sauvegardes automatiques et redemarrage chaque jour chez l'hebergeur
+
+=====================================================================
+LES JOUEURS
+=====================================================================
+Ils utilisent le pack CurseForge "ZombieApocalypse_Joueurs_CurseForge.zip"
+(il contient aussi le mod d'apparence des zombies za_modeles).
+
+=====================================================================
+CE QUI N'EST PAS DANS CE ZIP
+=====================================================================
+- Le monde (un nouveau se cree au demarrage)
+- Les donnees des joueurs : jetons, quetes, reputation (plugins/Skript/variables.csv),
+  permissions LuckPerms, historique CoreProtect, liste des ops et bans
+
+=====================================================================
+A NE PAS CHANGER (sinon ca brise des choses)
+=====================================================================
+- plugins/MythicMobs/config/config-spawning.yml : Generator doit rester NONE.
+  CLUSTER ou LEGACY peuvent GELER le serveur sur Arclight.
+  Les apparitions aleatoires sont faites par Skript (za_p36_apparitions.sk).
+- mods/zombie_extreme-0.2.6.5-za2.jar : version corrigee. Ne remets pas le
+  "Zombie Extreme" original sur le serveur : il ajoute un biome radioactif
+  qui tue les joueurs en ~10 secondes. (Les joueurs, eux, gardent la version
+  normale dans le pack CurseForge, c'est correct.)
+- plugins/MythicMobs-5.7.2.jar + plugins/ZAPaperCompat.jar vont ensemble.
+  Pas de MythicMobs 5.11 ni de ModelEngine (incompatibles avec Arclight).
+
+=====================================================================
+CONTENU
+=====================================================================
+arclight-5dc8683.jar ....... serveur Arclight (Forge 1.20.1 + plugins Spigot)
+mods/ ...................... 37 mods Forge
+plugins/ ................... MythicMobs 5.7.2, Skript 2.9.5 (41 scripts ZA),
+                             LuckPerms, CoreProtect, Chunky, spark, ZAPaperCompat
+config/, defaultconfigs/ ... reglages des mods (copies du serveur Apex)
+world/datapacks/ ........... za_loot, za_recettes, za_securitycraft_balance, za_tacz_balance
+world/serverconfig/ ........ Lost Cities (profil "default") et autres reglages de monde
+server.properties .......... difficile, PvP, distance 8, MOTD ZombieApocalypse

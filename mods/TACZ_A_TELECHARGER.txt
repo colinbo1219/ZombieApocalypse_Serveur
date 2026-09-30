@@ -1,0 +1,7 @@
+Le mod TaCZ (armes) est trop gros pour etre copie automatiquement (57 Mo).
+Telecharge-le ici et mets-le dans ce dossier mods :
+
+https://cdn.modrinth.com/data/SzzJttH8/versions/yOVIzIJR/tacz-1.20.1-1.1.8-hotfix.jar
+
+C'est exactement le meme fichier que sur le serveur (tacz-1.20.1-1.1.8-hotfix.jar, SHA-1 bddafeea4c9c1132ed720c30fbaedfe5ab25e846).
+Page officielle : https://modrinth.com/mod/tacz

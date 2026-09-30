@@ -1,0 +1,573 @@
+# =====================================================================
+#  ZombieApocalypse - SUCCÈS SECRETS (#19)
+#  30 succès cachés : rien ne les annonce, ils se méritent. Débloquer un succès = son (toast), titre à l'écran, jetons,
+#  ligne au journal du serveur, et le nom du succès devient un TITRE que le joueur peut porter (/succes titre).
+#  * /succes [page]          : succès débloqués (nom + description) et « ??? — n succès encore cachés »
+#  * /succes titre [id]      : menu des titres (ou /succes titre <id> | retirer)
+#  * Admin / console : /zasucces liste | donner <joueur> <id> | retirer <joueur> <id> | verifier <joueur> | reset <joueur> | etat <joueur>
+#  Données : {za::succes::<id>::<uuid>} = jour serveur du déblocage ; {za::succes::ordre::<uuid>::*} = ordre de déblocage ;
+#            {za::succes::titre::<uuid>} = id du succès porté en titre ({za::titre::special::<uuid>} est posé pour za_titre)
+#            {za::succes::mem::*} = compteurs internes (vie, nuit, lune, corps brûlés, morts-vivants)
+#  Fonctions publiques : za_succes_debloquer(uuid, id) · za_succes_a(uuid, id) :: boolean · za_succes_nb(uuid) :: number
+#                        za_succes_verifier(joueur) · za_succes_finale_saison(n)  (appelée par za_p58 à la cérémonie)
+#  Statistiques incrémentées ici : nids_seul, alpha_melee, nuits_dehors, pillards_tues (lues : voir za_s_verifier)
+# =====================================================================
+
+options:
+    seuil_legende: 15
+    minutes_sept_jours: 140
+
+# ---------------------------------------------------------------- définitions (id, nom, description, jetons, couleur du titre)
+
+function za_s_def(id: text, nom: text, desc: text, j: number, c: text):
+    set {-zs::nom::%{_id}%} to {_nom}
+    set {-zs::desc::%{_id}%} to {_desc}
+    set {-zs::j::%{_id}%} to {_j}
+    set {-zs::c::%{_id}%} to {_c}
+    add {_id} to {-zs::ids::*}
+
+on load:
+    delete {-zs::*}
+    za_s_def("sept_jours", "Toujours debout", "Survivre 7 jours de suite sans mourir.", 30, "&a")
+    za_s_def("nid_seul", "Cœur solitaire", "Détruire le cœur d'un nid, tout seul.", 50, "&4")
+    za_s_def("prologue", "Sans détour", "Vivre le prologue jusqu'au bout, sans l'abandonner.", 20, "&e")
+    za_s_def("sauveur", "Main tendue", "Sauver 10 survivants.", 40, "&b")
+    za_s_def("alpha_melee", "Face à face", "Terrasser un Alpha au corps à corps, sans arme à feu.", 50, "&c")
+    za_s_def("nuit_dehors", "Nuit à la belle étoile", "Passer une nuit entière dehors, à ciel ouvert, loin de ta base.", 40, "&9")
+    za_s_def("enquete", "Premier indice", "Résoudre ta première enquête.", 15, "&6")
+    za_s_def("enigmes", "Esprit tordu", "Résoudre 3 énigmes.", 25, "&d")
+    za_s_def("tresor", "Le bunker", "Mettre la main sur un trésor de bunker.", 30, "&6")
+    za_s_def("marche10", "Marchand du dimanche", "Réaliser 10 ventes au marché.", 25, "&e")
+    za_s_def("client10", "Bon client", "Faire 10 achats au marché.", 20, "&e")
+    za_s_def("terr3", "Ligne de front", "Défendre 3 territoires.", 40, "&9")
+    za_s_def("camps5", "Bon voisin", "Aider 5 camps de survivants.", 40, "&a")
+    za_s_def("soins10", "Main de velours", "Soigner 10 blessures.", 35, "&2")
+    za_s_def("poids_plume", "Poids plume", "Abattre un Alpha ou une Brute avec un seul cœur de vie.", 50, "&f")
+    za_s_def("silence", "Silence radio", "Traverser une nuit entière en marchant, sans jamais faire de bruit.", 40, "&8")
+    za_s_def("confident", "Le Confident", "Écouter toute l'histoire du Dr Lefort.", 40, "&d")
+    za_s_def("frere", "Frère d'armes", "Gagner la confiance du Sergent Vega.", 30, "&6")
+    za_s_def("saison", "Survivant de la saison", "Tenir jusqu'à la fin d'une saison.", 60, "&6")
+    za_s_def("mort_vivant", "Mort-vivant", "Revenir d'entre les morts.", 25, "&2")
+    za_s_def("pyromane", "Pyromane", "Brûler 10 corps avant qu'ils ne se relèvent.", 25, "&c")
+    za_s_def("architecte", "Architecte", "Bâtir une base immense.", 35, "&b")
+    za_s_def("recruteur", "Chef de meute", "Recruter 3 survivants.", 30, "&a")
+    za_s_def("atelier", "Mains d'or", "Passer 5 fois par les ateliers.", 25, "&e")
+    za_s_def("lune", "Sous la lune rouge", "Survivre à une Blood Moon sans mourir.", 45, "&4")
+    za_s_def("pillards", "Justicier", "Abattre 10 Pillards.", 35, "&c")
+    za_s_def("overlord", "Le dernier coup", "Donner le coup fatal à un Undead Overlord.", 80, "&5")
+    za_s_def("coeur_or", "Cœur d'or", "Au prologue : avoir tendu la main à chaque fois.", 20, "&d")
+    za_s_def("chacun", "Chacun pour soi", "Au prologue : avoir pensé à toi d'abord.", 20, "&7")
+    za_s_def("legende", "Légende vivante", "Débloquer {@seuil_legende} succès secrets.", 100, "&6")
+
+# ---------------------------------------------------------------- outils
+
+function za_s_joueur(u: text) :: player:
+    loop all players:
+        if loop-player's uuid is {_u}:
+            return loop-player
+
+# texte sans apostrophe droite (le journal finit dans un livre JSON)
+function za_s_propre(t: text) :: text:
+    set {_r} to {_t}
+    replace all "'" with "’" in {_r}
+    return {_r}
+
+function za_succes_a(u: text, id: text) :: boolean:
+    if {za::succes::%{_id}%::%{_u}%} is set:
+        return true
+    return false
+
+function za_succes_nb(u: text) :: number:
+    return size of {za::succes::ordre::%{_u}%::*}
+
+function za_s_total() :: number:
+    return size of {-zs::ids::*}
+
+# ---------------------------------------------------------------- déblocage
+
+function za_s_annoncer(p: player, id: text):
+    set {_nom} to {-zs::nom::%{_id}%}
+    set {_c} to {-zs::c::%{_id}%}
+    set {_j} to {-zs::j::%{_id}%}
+    za_zm("son %{_p}% minecraft:ui.toast.challenge_complete 1 1")
+    za_zm("son %{_p}% minecraft:entity.player.levelup 0.5 0.7")
+    send title "&6&lSUCCÈS SECRET" with subtitle "%{_c}%%{_nom}%" to {_p} for 4 seconds
+    send "" to {_p}
+    send "&6&l✦ SUCCÈS SECRET &e%{_c}%%{_nom}%" to {_p}
+    send "&7%{-zs::desc::%{_id}%}%" to {_p}
+    send "&6+%{_j}% jetons &8— &7/succes titre &8pour porter ce nom comme titre." to {_p}
+    execute console command "execute at %{_p}% run particle minecraft:totem_of_undying ~ ~1 ~ 0.4 0.6 0.4 0.3 25 force"
+
+function za_succes_debloquer(u: text, id: text):
+    if {-zs::nom::%{_id}%} is not set:
+        stop
+    if {za::succes::%{_id}%::%{_u}%} is set:
+        stop
+    set {_jour} to {za::serveur::jours}
+    if {_jour} is not set:
+        set {_jour} to 0
+    set {za::succes::%{_id}%::%{_u}%} to {_jour}
+    add {_id} to {za::succes::ordre::%{_u}%::*}
+    add {-zs::j::%{_id}%} to {za::jetons::%{_u}%}
+    set {_pseudo} to {za::succes::pseudo::%{_u}%}
+    if {_pseudo} is not set:
+        set {_pseudo} to "un survivant"
+    set {_p} to za_s_joueur({_u})
+    if {_p} is set:
+        set {_pseudo} to "%{_p}%"
+        set {za::succes::pseudo::%{_u}%} to {_pseudo}
+        za_s_annoncer({_p}, {_id})
+    else:
+        add {_id} to {za::succes::attente::%{_u}%::*}
+    za_journal("%{_pseudo}% a debloque un succes secret : %za_s_propre({-zs::nom::%{_id}%})%.")
+    # succès des succès
+    if {_id} is not "legende":
+        if za_succes_nb({_u}) >= {@seuil_legende}:
+            za_succes_debloquer({_u}, "legende")
+
+# seuil sur une statistique (module noyau)
+function za_s_seuil(u: text, id: text, cle: text, n: number):
+    if {za::succes::%{_id}%::%{_u}%} is set:
+        stop
+    if za_stat({_u}, {_cle}) >= {_n}:
+        za_succes_debloquer({_u}, {_id})
+
+# toutes les vérifications « d'état » (statistiques, histoires, prologue, base) : appelée toutes les 30 s et à la connexion
+function za_succes_verifier(p: player):
+    set {_u} to {_p}'s uuid
+    za_s_seuil({_u}, "sauveur", "survivants_sauves", 10)
+    za_s_seuil({_u}, "enquete", "enquetes", 1)
+    za_s_seuil({_u}, "enigmes", "enigmes", 3)
+    za_s_seuil({_u}, "tresor", "tresors", 1)
+    za_s_seuil({_u}, "marche10", "ventes_marche", 10)
+    za_s_seuil({_u}, "client10", "achats_marche", 10)
+    za_s_seuil({_u}, "terr3", "territoires_defendus", 3)
+    za_s_seuil({_u}, "camps5", "camps_aides", 5)
+    za_s_seuil({_u}, "soins10", "blessures_soignees", 10)
+    za_s_seuil({_u}, "recruteur", "survivants_recrutes", 3)
+    za_s_seuil({_u}, "atelier", "ateliers", 5)
+    za_s_seuil({_u}, "nid_seul", "nids_seul", 1)
+    za_s_seuil({_u}, "alpha_melee", "alpha_melee", 1)
+    za_s_seuil({_u}, "pillards", "pillards_tues", 10)
+    # histoires : Lefort (étape 8 = terminée), Vega (étape 2)
+    if {za::succes::confident::%{_u}%} is not set:
+        if {za::lefort::etape::%{_u}%} >= 8:
+            za_succes_debloquer({_u}, "confident")
+    if {za::succes::frere::%{_u}%} is not set:
+        if {za::vega::etape::%{_u}%} >= 2:
+            za_succes_debloquer({_u}, "frere")
+    # prologue vécu jusqu'au bout (et pas sauté avec /prologue passer)
+    if {za::succes::prologue::%{_u}%} is not set:
+        if {za::pro::etat::%{_u}%} is "fini":
+            if {za::pro::passe::%{_u}%} is not set:
+                if {za::choix::%{_u}%::hopital} is set:
+                    za_succes_debloquer({_u}, "prologue")
+    # choix du prologue
+    if {za::succes::coeur_or::%{_u}%} is not set:
+        if za_choix({_u}, "hopital") is "aide":
+            if za_choix({_u}, "leblanc") is "sauvee":
+                if za_choix({_u}, "theo") is "appele":
+                    za_succes_debloquer({_u}, "coeur_or")
+    if {za::succes::chacun::%{_u}%} is not set:
+        if za_choix({_u}, "hopital") is "fui":
+            if za_choix({_u}, "theo") is "provisions":
+                za_succes_debloquer({_u}, "chacun")
+    # base immense (1 point par bloc posé, 3 par torche)
+    if {za::succes::architecte::%{_u}%} is not set:
+        if {za::base::taille::%{_u}%} >= 1200:
+            za_succes_debloquer({_u}, "architecte")
+    # revenir d'entre les morts (état zombie-joueur de za_p23 : {za::zombie::fin::<uuid>})
+    if {za::succes::mort_vivant::%{_u}%} is not set:
+        if {za::zombie::fin::%{_u}%} is set:
+            set {za::succes::mem::zombie::%{_u}%} to true
+        else if {za::succes::mem::zombie::%{_u}%} is true:
+            delete {za::succes::mem::zombie::%{_u}%}
+            za_succes_debloquer({_u}, "mort_vivant")
+
+# ---------------------------------------------------------------- nuits : dehors, en silence
+
+function za_s_nuit(p: player) :: boolean:
+    set {_t} to time in world of {_p}
+    if {_t} > 19:00:
+        return true
+    if {_t} < 5:00:
+        return true
+    return false
+
+# à ciel ouvert, hors de sa base, en jeu normal
+function za_s_exterieur(p: player) :: boolean:
+    if gamemode of {_p} is creative:
+        return false
+    if gamemode of {_p} is spectator:
+        return false
+    set {_l} to location of {_p}
+    if floor(y-coordinate of {_l}) < y-coordinate of (location of (highest block at {_l})):
+        return false
+    set {_b} to {za::base::%{_p}'s uuid%}
+    if {_b} is set:
+        if world of {_b} is world of {_l}:
+            if distance between {_b} and {_l} < 45:
+                return false
+    return true
+
+function za_s_nuit_effacer(u: text):
+    delete {za::succes::mem::nstart::%{_u}%}
+    delete {za::succes::mem::nout::%{_u}%}
+    delete {za::succes::mem::nsil::%{_u}%}
+    delete {za::succes::mem::nc::%{_u}%}
+    delete {za::succes::mem::nq::%{_u}%}
+    delete {za::succes::mem::nt::%{_u}%}
+    delete {za::succes::mem::dist::%{_u}%}
+    delete {za::succes::mem::pos::%{_u}%}
+
+function za_s_nuit_tick(p: player):
+    set {_u} to {_p}'s uuid
+    if za_s_nuit({_p}) is true:
+        if {za::succes::mem::nstart::%{_u}%} is not set:
+            # on ne suit que les nuits vues dès le début (19:00 à 20:30) : arriver en cours de nuit ne compte pas
+            set {_t} to time in world of {_p}
+            set {za::succes::mem::nstart::%{_u}%} to true
+            set {za::succes::mem::nout::%{_u}%} to "ko"
+            set {za::succes::mem::nsil::%{_u}%} to "ko"
+            if {_t} > 19:00:
+                if {_t} < 20:30:
+                    set {za::succes::mem::nout::%{_u}%} to "ok"
+                    set {za::succes::mem::nsil::%{_u}%} to "ok"
+            set {za::succes::mem::nc::%{_u}%} to 0
+            set {za::succes::mem::nq::%{_u}%} to 0
+            set {za::succes::mem::nt::%{_u}%} to 0
+            set {za::succes::mem::dist::%{_u}%} to 0
+            delete {za::succes::mem::pos::%{_u}%}
+        add 1 to {za::succes::mem::nt::%{_u}%}
+        if {za::succes::mem::nt::%{_u}%} > 26:
+            # nuit qui s'éternise (événement) : on abandonne le suivi
+            set {za::succes::mem::nout::%{_u}%} to "ko"
+            set {za::succes::mem::nsil::%{_u}%} to "ko"
+        if {za::succes::mem::nout::%{_u}%} is "ok":
+            if za_s_exterieur({_p}) is true:
+                add 1 to {za::succes::mem::nc::%{_u}%}
+            else:
+                set {za::succes::mem::nout::%{_u}%} to "ko"
+        if {za::succes::mem::nsil::%{_u}%} is "ok":
+            if {za::bruit::%{_u}%} > 20:
+                set {za::succes::mem::nsil::%{_u}%} to "ko"
+            else:
+                add 1 to {za::succes::mem::nq::%{_u}%}
+                set {_pos} to {za::succes::mem::pos::%{_u}%}
+                if {_pos} is set:
+                    if world of {_pos} is world of {_p}:
+                        add distance between {_pos} and (location of {_p}) to {za::succes::mem::dist::%{_u}%}
+                set {za::succes::mem::pos::%{_u}%} to location of {_p}
+    else if {za::succes::mem::nstart::%{_u}%} is set:
+        # l'aube : bilan de la nuit
+        if {za::succes::mem::nout::%{_u}%} is "ok":
+            if {za::succes::mem::nc::%{_u}%} >= 14:
+                za_stat_ajouter({_u}, "nuits_dehors", 1)
+                za_succes_debloquer({_u}, "nuit_dehors")
+        if {za::succes::mem::nsil::%{_u}%} is "ok":
+            if {za::succes::mem::nq::%{_u}%} >= 14:
+                if {za::succes::mem::dist::%{_u}%} >= 300:
+                    za_succes_debloquer({_u}, "silence")
+        za_s_nuit_effacer({_u})
+
+# ---------------------------------------------------------------- boucle principale (toutes les 30 s, coûte peu)
+
+every 30 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_u} to loop-player's uuid
+            set {za::succes::pseudo::%{_u}%} to "%loop-player%"
+            # temps de survie cumulé (en minutes de jeu) depuis la dernière mort
+            if {za::succes::sept_jours::%{_u}%} is not set:
+                add 0.5 to {za::succes::mem::vie::%{_u}%}
+                if {za::succes::mem::vie::%{_u}%} >= {@minutes_sept_jours}:
+                    za_succes_debloquer({_u}, "sept_jours")
+            za_s_nuit_tick(loop-player)
+            # Blood Moon : présent et vivant tout du long
+            if {za::evt::bloodmoon} is true:
+                add 1 to {za::succes::mem::lune::%{_u}%}
+            za_succes_verifier(loop-player)
+    if {za::evt::bloodmoon} is true:
+        set {za::succes::lune::actif} to true
+    else if {za::succes::lune::actif} is true:
+        delete {za::succes::lune::actif}
+        loop {za::succes::mem::lune::*}:
+            if loop-value >= 16:
+                za_succes_debloquer(loop-index, "lune")
+        delete {za::succes::mem::lune::*}
+
+# ---------------------------------------------------------------- connexion : pseudo, succès gagnés hors ligne
+
+on join:
+    if za_pro(player) is true:
+        stop
+    set {_u} to player's uuid
+    set {za::succes::pseudo::%{_u}%} to "%player%"
+    wait 8 seconds
+    if player is not online:
+        stop
+    if za_pro(player) is true:
+        stop
+    loop {za::succes::attente::%{_u}%::*}:
+        za_s_annoncer(player, loop-value)
+    delete {za::succes::attente::%{_u}%::*}
+    za_succes_verifier(player)
+
+# ---------------------------------------------------------------- mort : la série de survie repart de zéro
+
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    set {_u} to victim's uuid
+    delete {za::succes::mem::vie::%{_u}%}
+    delete {za::succes::mem::lune::%{_u}%}
+    if {za::succes::mem::nstart::%{_u}%} is set:
+        set {za::succes::mem::nout::%{_u}%} to "ko"
+        set {za::succes::mem::nsil::%{_u}%} to "ko"
+
+# ---------------------------------------------------------------- combats : Alpha, Brute, Overlord, Pillards, nids
+
+function za_s_corps_a_corps(p: player) :: boolean:
+    set {_t} to "%type of {_p}'s tool%"
+    if {_t} contains "modern_kinetic_gun":
+        return false
+    if {_t} contains "bow":
+        return false
+    return true
+
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    if attacker is not a player:
+        stop
+    set {_u} to attacker's uuid
+    set {_nom} to uncolored name of victim
+    if {_nom} is "Alpha":
+        if za_s_corps_a_corps(attacker) is true:
+            za_stat_ajouter({_u}, "alpha_melee", 1)
+            za_succes_debloquer({_u}, "alpha_melee")
+    if {_nom} is "Alpha" or "Brute":
+        if health of attacker <= 1:
+            za_succes_debloquer({_u}, "poids_plume")
+    if {_nom} contains "Overlord":
+        za_succes_debloquer({_u}, "overlord")
+
+# le cœur d'un nid : un magma cube nommé « Coeur du nid » ; seul = aucun autre joueur à moins de 40 blocs
+on death of magma cube:
+    if za_pro(victim) is true:
+        stop
+    if uncolored name of victim contains "Coeur du nid":
+        if attacker is a player:
+            set {_seul} to true
+            loop all players in radius 40 around victim:
+                if loop-player is not attacker:
+                    if za_pro(loop-player) is false:
+                        set {_seul} to false
+            if {_seul} is true:
+                set {_u} to attacker's uuid
+                za_stat_ajouter({_u}, "nids_seul", 1)
+                za_succes_debloquer({_u}, "nid_seul")
+
+function za_s_pillard_tue(v: entity, a: entity):
+    if uncolored name of {_v} starts with "Pillard":
+        if {_a} is a player:
+            set {_u} to {_a}'s uuid
+            za_stat_ajouter({_u}, "pillards_tues", 1)
+            za_s_seuil({_u}, "pillards", "pillards_tues", 10)
+
+on death of vindicator:
+    if za_pro(victim) is true:
+        stop
+    za_s_pillard_tue(victim, attacker)
+
+on death of pillager:
+    if za_pro(victim) is true:
+        stop
+    za_s_pillard_tue(victim, attacker)
+
+# brûler un corps (za_p13) : on passe AVANT lui (priorité basse), tant que le corps existe encore
+on right click with flint and steel with priority lowest:
+    if za_pro(player) is true:
+        stop
+    if event-block is bone block:
+        set {_k} to za_lkey(location of event-block)
+        if {za::cadavre::%{_k}%::depuis} is set:
+            set {_u} to player's uuid
+            add 1 to {za::succes::mem::brules::%{_u}%}
+            if {za::succes::mem::brules::%{_u}%} >= 10:
+                za_succes_debloquer({_u}, "pyromane")
+
+# ---------------------------------------------------------------- fin de saison
+
+function za_succes_finale_saison(n: number):
+    loop {za::saison::joueurs::%{_n}%::*}:
+        za_succes_debloquer(loop-index, "saison")
+
+# ---------------------------------------------------------------- /succes
+
+function za_s_ligne_titre(u: text) :: text:
+    set {_t} to {za::succes::titre::%{_u}%}
+    if {_t} is not set:
+        return "aucun"
+    return "%{-zs::c::%{_t}%}%%{-zs::nom::%{_t}%}%"
+
+command /succes [<text>] [<text>]:
+    executable by: players
+    trigger:
+        set {_u} to player's uuid
+        if arg-1 is "titre":
+            if arg-2 is not set:
+                za_succes_menu(player)
+                stop
+            if arg-2 is "retirer":
+                za_s_titre_retirer(player)
+                stop
+            set {_id} to arg-2
+            if {za::succes::%{_id}%::%{_u}%} is not set:
+                send "&cTu n'as pas ce succès. &7(/succes titre : ouvre la liste de tes titres)" to player
+                stop
+            za_s_titre_poser(player, {_id})
+            stop
+        set {_n} to za_succes_nb({_u})
+        set {_t} to za_s_total()
+        set {_pg} to 1
+        if arg-1 is set:
+            set {_pg} to arg-1 parsed as number
+            if {_pg} is not set:
+                set {_pg} to 1
+        set {_pages} to max(1, ceil({_n} / 6))
+        if {_pg} > {_pages}:
+            set {_pg} to {_pages}
+        if {_pg} < 1:
+            set {_pg} to 1
+        send "&8&m                    &r &6&l✦ SUCCÈS SECRETS &8(&e%{_n}%&8/&e%{_t}%&8) &8&m                    " to player
+        if {_n} is 0:
+            send "&7Tu n'as encore rien débloqué. &8Personne ne t'a dit ce qu'il fallait faire." to player
+        else:
+            set {_i} to 0
+            loop {za::succes::ordre::%{_u}%::*}:
+                add 1 to {_i}
+                if {_i} > ({_pg} - 1) * 6:
+                    if {_i} <= {_pg} * 6:
+                        set {_id} to loop-value
+                        send "&a✔ %{-zs::c::%{_id}%}%&l%{-zs::nom::%{_id}%}% &8· jour %{za::succes::%{_id}%::%{_u}%}%" to player
+                        send "&8   %{-zs::desc::%{_id}%}%" to player
+        set {_h} to {_t} - {_n}
+        if {_h} > 0:
+            send "&8??? &7— %{_h}% succès encore cachés. &8Ils ne s'annoncent pas : ils se méritent." to player
+        else:
+            send "&6Tu les as tous trouvés. &7Il ne reste que la légende." to player
+        if {_pages} > 1:
+            send "&8Page %{_pg}%/%{_pages}% — &7/succes <page>" to player
+        if {_n} > 0:
+            send "&7Titre porté : &f%za_s_ligne_titre({_u})% &8— &7/succes titre &8pour en changer" to player
+
+function za_s_titre_poser(p: player, id: text):
+    set {_u} to {_p}'s uuid
+    set {za::titre::special::%{_u}%} to "%{-zs::c::%{_id}%}%%{-zs::nom::%{_id}%}%"
+    set {za::succes::titre::%{_u}%} to {_id}
+    send "&6Titre porté : %{-zs::c::%{_id}%}%%{-zs::nom::%{_id}%}% &8(visible dans le chat et la liste des joueurs d'ici une trentaine de secondes)" to {_p}
+    za_zm("son %{_p}% minecraft:block.note_block.bell 0.6 1.4")
+
+function za_s_titre_retirer(p: player):
+    set {_u} to {_p}'s uuid
+    if {za::succes::titre::%{_u}%} is not set:
+        send "&7Tu ne portes aucun titre de succès." to {_p}
+        stop
+    delete {za::succes::titre::%{_u}%}
+    delete {za::titre::special::%{_u}%}
+    send "&7Titre retiré." to {_p}
+
+# menu (coffre de 4 rangées) branché sur le clic générique de za_p42 : les noeuds sont « t_<id> » et « retirer »
+function za_succes_menu(p: player):
+    set {_u} to {_p}'s uuid
+    delete {za::menu::opt::%{_u}%::*}
+    set {za::menu::mod::%{_u}%} to "zasuccesclic"
+    open chest inventory with 4 rows named "&8» Titres des succès" to {_p}
+    set {_i} to 0
+    loop {-zs::ids::*}:
+        set {_id} to loop-value
+        if {za::succes::%{_id}%::%{_u}%} is set:
+            set {_it} to za_item("name tag", {-zs::nom::%{_id}%}, {-zs::c::%{_id}%}, 1)
+            set {_lo::1} to "&7%{-zs::desc::%{_id}%}%"
+            set {_lo::2} to "&8Débloqué au jour %{za::succes::%{_id}%::%{_u}%}%"
+            if {za::succes::titre::%{_u}%} is {_id}:
+                set {_lo::3} to "&2✔ Titre porté actuellement"
+            else:
+                set {_lo::3} to "&aClique pour porter ce titre"
+            set lore of {_it} to {_lo::*}
+            add "%{-zs::nom::%{_id}%}%|t_%{_id}%" to {za::menu::opt::%{_u}%::*}
+        else:
+            set {_it} to za_item("gray dye", "???", "&8", 1)
+            set lore of {_it} to "&8Un succès secret." and "&8Ils se méritent."
+        set slot {_i} of (current inventory of {_p}) to {_it}
+        add 1 to {_i}
+    set {_r} to za_item("barrier", "Retirer mon titre", "&c", 1)
+    set lore of {_r} to "&7Ne plus porter de titre de succès."
+    set slot 31 of (current inventory of {_p}) to {_r}
+    add "Retirer mon titre|retirer" to {za::menu::opt::%{_u}%::*}
+
+command /zasuccesclic <player> <text>:
+    executable by: console
+    trigger:
+        wait 2 ticks
+        set {_p} to arg-1
+        set {_u} to {_p}'s uuid
+        if arg-2 is "retirer":
+            za_s_titre_retirer({_p})
+        else if arg-2 starts with "t_":
+            set {_id} to subtext of arg-2 from characters 3 to length of arg-2
+            if {za::succes::%{_id}%::%{_u}%} is set:
+                za_s_titre_poser({_p}, {_id})
+
+# ---------------------------------------------------------------- admin / console
+
+command /zasucces [<text>] [<player>] [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "liste":
+            send "&6Succès (%za_s_total()%) :" to sender
+            loop {-zs::ids::*}:
+                send "&7%loop-value% &e%{-zs::nom::%loop-value%}% &8— &7%{-zs::desc::%loop-value%}% &6(%{-zs::j::%loop-value%}% j)" to sender
+            stop
+        if arg-2 is not set:
+            send "&cUsage : zasucces <liste|donner|retirer|verifier|reset|etat> [joueur] [id]" to sender
+            stop
+        set {_p} to arg-2
+        set {_u} to {_p}'s uuid
+        if arg-1 is "donner":
+            if {-zs::nom::%arg-3%} is not set:
+                send "&cId inconnu. (zasucces liste)" to sender
+                stop
+            za_succes_debloquer({_u}, arg-3)
+            send "&aSuccès %arg-3% donné à %{_p}%." to sender
+        else if arg-1 is "retirer":
+            if {za::succes::%arg-3%::%{_u}%} is not set:
+                send "&7%{_p}% n'a pas ce succès." to sender
+                stop
+            delete {za::succes::%arg-3%::%{_u}%}
+            remove arg-3 from {za::succes::ordre::%{_u}%::*}
+            if {za::succes::titre::%{_u}%} is arg-3:
+                delete {za::succes::titre::%{_u}%}
+                delete {za::titre::special::%{_u}%}
+            send "&aSuccès %arg-3% retiré à %{_p}%." to sender
+        else if arg-1 is "verifier":
+            za_succes_verifier({_p})
+            send "&aVérification faite pour %{_p}% (%za_succes_nb({_u})% succès)." to sender
+        else if arg-1 is "reset":
+            loop {-zs::ids::*}:
+                delete {za::succes::%loop-value%::%{_u}%}
+            delete {za::succes::ordre::%{_u}%::*}
+            delete {za::succes::titre::%{_u}%}
+            delete {za::succes::attente::%{_u}%::*}
+            delete {za::succes::mem::vie::%{_u}%}
+            delete {za::succes::mem::lune::%{_u}%}
+            delete {za::succes::mem::brules::%{_u}%}
+            delete {za::succes::mem::zombie::%{_u}%}
+            za_s_nuit_effacer({_u})
+            send "&aSuccès de %{_p}% effacés." to sender
+        else if arg-1 is "etat":
+            send "&7Succès : %za_succes_nb({_u})%/%za_s_total()% | vie=%{za::succes::mem::vie::%{_u}%}% min | nuit(start=%{za::succes::mem::nstart::%{_u}%}% out=%{za::succes::mem::nout::%{_u}%}% sil=%{za::succes::mem::nsil::%{_u}%}% nc=%{za::succes::mem::nc::%{_u}%}% nq=%{za::succes::mem::nq::%{_u}%}% dist=%{za::succes::mem::dist::%{_u}%}%) | corps brûlés=%{za::succes::mem::brules::%{_u}%}% | lune=%{za::succes::mem::lune::%{_u}%}%" to sender
+            send "&7Ordre : %{za::succes::ordre::%{_u}%::*}%" to sender
+        else:
+            send "&cUsage : zasucces <liste|donner|retirer|verifier|reset|etat> [joueur] [id]" to sender

@@ -1,0 +1,219 @@
+# =====================================================================
+#  ZombieApocalypse - PHASE 8 : BASES
+#  /base definir | info | entretien | supprimer      /avantposte      Piege (plaque de pression "Piege")
+#  Plus la base est grande (blocs poses, torches = plus), plus les sieges sont gros.
+#  Entretien tous les 3 jours (jetons) : sans entretien, sieges +50 pourcent.
+#  Traces persistantes (za_traces_horde, reutilisee par za_p3_evenements.sk pour marche/mur) : apres un siege, contamination
+#  temporaire du chunk (se resorbe avec le decompte normal) puis quelques tas d'ossements pendant 20 minutes.
+# =====================================================================
+
+options:
+    intervalle_siege: 30 minutes
+
+function za_base_cout(u: text) :: number:
+    set {_t} to {za::base::taille::%{_u}%}
+    if {_t} is not set:
+        set {_t} to 0
+    return 5 + floor({_t} / 300)
+
+command /base <text>:
+    trigger:
+        set {_u} to "%player's uuid%"
+        if arg-1 is "definir":
+            if {za::base::%{_u}%} is set:
+                send "&cTu as deja une base. /base supprimer d'abord." to player
+            else:
+                set {za::base::%{_u}%} to location of player
+                set {za::base::taille::%{_u}%} to 0
+                set {za::base::entretien::%{_u}%} to now
+                add 3 days to {za::base::entretien::%{_u}%}
+                add {_u} to {za::base::liste::*}
+                send "&aBase definie ici. Entretien a payer tous les 3 jours (/base entretien). Plus elle grandit, plus les morts l'attaquent." to player
+        else if arg-1 is "supprimer":
+            remove {_u} from {za::base::liste::*}
+            delete {za::base::%{_u}%}
+            delete {za::base::taille::%{_u}%}
+            delete {za::base::entretien::%{_u}%}
+            send "&7Base supprimee." to player
+        else if arg-1 is "info":
+            if {za::base::%{_u}%} is not set:
+                send "&cAucune base. /base definir" to player
+            else:
+                send "&6Base: &7taille &e%{za::base::taille::%{_u}%}% &7| entretien avant &e%{za::base::entretien::%{_u}%}% &7| cout &6%za_base_cout({_u})% jetons" to player
+        else if arg-1 is "entretien":
+            if {za::base::%{_u}%} is not set:
+                send "&cAucune base." to player
+            else:
+                set {_c} to za_base_cout({_u})
+                if za_jetons(player) < {_c}:
+                    send "&cIl faut %{_c}% jetons pour l'entretien." to player
+                else:
+                    za_jetons_ajouter(player, 0 - {_c})
+                    set {za::base::entretien::%{_u}%} to now
+                    add 3 days to {za::base::entretien::%{_u}%}
+                    send "&aBase entretenue (-%{_c}% jetons). Prochain entretien dans 3 jours." to player
+        else:
+            send "&cUsage: /base <definir|supprimer|info|entretien>" to player
+
+# taille de la base = blocs poses pres du centre (torches et lanternes comptent triple : la lumiere attire)
+on place:
+    if za_pro(player) is true:
+        stop
+    set {_u} to "%player's uuid%"
+    if {za::base::%{_u}%} is set:
+        if world of event-block is world of {za::base::%{_u}%}:
+            if distance between event-block and {za::base::%{_u}%} < 40:
+                if event-block is torch or lantern:
+                    add 3 to {za::base::taille::%{_u}%}
+                else:
+                    add 1 to {za::base::taille::%{_u}%}
+
+# ---------- siege ----------
+function za_siege_base(u: text):
+    if {za::base::%{_u}%} is not set:
+        stop
+    set {_l} to {za::base::%{_u}%}
+    set {_near} to false
+    loop all players:
+        if za_pro(loop-player) is false:
+            if world of loop-player is world of {_l}:
+                if distance between loop-player and {_l} < 80:
+                    set {_near} to true
+    if {_near} is true:
+        set {_s} to {za::base::taille::%{_u}%}
+        if {_s} is not set:
+            set {_s} to 0
+        set {_n} to min(20, 3 + floor({_s} / 150))
+        if now is greater than {za::base::entretien::%{_u}%}:
+            set {_n} to ceil({_n} * 1.5)
+        set {_sent} to 0
+        loop all players:
+            if za_pro(loop-player) is false:
+                if world of loop-player is world of {_l}:
+                    if distance between loop-player and {_l} < 60:
+                        if za_role(loop-player) is "soldat":
+                            add 1 to {_sent}
+        set {_sent} to min(3, {_sent})
+        set {_n} to ceil({_n} * (1 - (0.15 * {_sent})))
+        za_journal("Un siege s abat sur une base.")
+        set {_types::*} to "ZA_Shambler", "ZA_Shambler", "ZA_Runner", "ZA_Crawler", "ZA_Leaper", "ZA_Armored"
+        loop {_n} times:
+            za_spawn_at({_l}, random element out of {_types::*}, 20, 35)
+        loop all players:
+            if za_pro(loop-player) is false:
+                if world of loop-player is world of {_l}:
+                    if distance between loop-player and {_l} < 80:
+                        send "&c&lSIEGE ! &7Les morts attaquent la base." to loop-player
+        za_traces_horde({_l}, {_n})
+
+# ---------- traces persistantes apres une horde ou un siege : le monde se souvient ----------
+function za_traces_horde(l: location, ampleur: number):
+    set {_wd} to za_dim(world of {_l})
+    set {_bx} to floor(x-coordinate of {_l})
+    set {_by} to floor(y-coordinate of {_l})
+    set {_bz} to floor(z-coordinate of {_l})
+    set {_ck} to za_ckey({_l})
+    if {za::contam::%{_ck}%} is not set:
+        set {za::contam::%{_ck}%} to 0
+    add min(60, {_ampleur} * 3) to {za::contam::%{_ck}%}
+    wait 15 minutes
+    loop min(4, floor({_ampleur} / 5)) times:
+        set {_ox} to random integer between -6 and 6
+        set {_oz} to random integer between -6 and 6
+        execute console command "execute in %{_wd}% run setblock %{_bx} + {_ox}% %{_by}% %{_bz} + {_oz}% minecraft:bone_block"
+    execute console command "execute in %{_wd}% run particle minecraft:ash %{_bx}% %{_by} + 1% %{_bz}% 4 1 4 0 40 force"
+    wait 20 minutes
+    loop min(4, floor({_ampleur} / 5)) times:
+        set {_ox} to random integer between -6 and 6
+        set {_oz} to random integer between -6 and 6
+        execute console command "execute in %{_wd}% run setblock %{_bx} + {_ox}% %{_by}% %{_bz} + {_oz}% air destroy"
+
+function za_siege_tous():
+    loop {za::base::liste::*}:
+        za_siege_base(loop-value)
+
+every {@intervalle_siege}:
+    if size of za_monde_joueurs() is greater than 0:
+        if chance of 70%:
+            za_siege_tous()
+
+# ---------- avant-poste temporaire : un feu de camp qui attire les hordes pendant 5 minutes ----------
+command /avantposte:
+    trigger:
+        if za_jetons(player) < 3:
+            send "&cUn avant-poste coute 3 jetons." to player
+        else:
+            za_jetons_ajouter(player, 0 - 3)
+            set {_l} to location of player
+            set block at {_l} to campfire
+            za_diffuser("&6Un avant-poste a ete allume par &e%player%&6. Les morts s'y precipitent !")
+            loop 15 times:
+                loop 5 times:
+                    za_spawn_at({_l}, "ZA_Shambler", 15, 30)
+                wait 20 seconds
+            set block at {_l} to air
+
+# ---------- pieges artisanaux : plaques de pression nommees (vendues par le Trafiquant et le Mecano) ----------
+#   "Piege" (plaque de pierre) : explosion       | "Piege a lames" (plaque en bois) : degats + lenteur
+#   "Piege incendiaire" (plaque doree) : flammes  | "Mine retardee" (plaque de pierre) : explose 3 secondes apres le passage
+on place:
+    if za_pro(player) is true:
+        stop
+    if "%event-block%" contains "pressure plate":
+        set {_n} to uncolored name of player's tool
+        set {_t} to ""
+        if {_n} is "Piege":
+            set {_t} to "explosif"
+        else if {_n} is "Piege a lames":
+            set {_t} to "lames"
+        else if {_n} is "Piege incendiaire":
+            set {_t} to "feu"
+        else if {_n} is "Mine retardee":
+            set {_t} to "mine"
+        if {_t} is not "":
+            add location of event-block to {za::pieges::*}
+            set {za::piege::type::%za_lkey(location of event-block)%} to {_t}
+            send "&7Piege arme (%{_t}%)." to player
+
+function za_mine_explose(loc: location):
+    wait 3 seconds
+    set {_wd} to za_dim(world of {_loc})
+    execute console command "execute in %{_wd}% run particle minecraft:explosion %floor(x-coordinate of {_loc})% %floor(y-coordinate of {_loc})% %floor(z-coordinate of {_loc})% 1.5 1 1.5 0 30 force"
+    execute console command "execute in %{_wd}% run playsound minecraft:entity.generic.explode block @a %floor(x-coordinate of {_loc})% %floor(y-coordinate of {_loc})% %floor(z-coordinate of {_loc})% 3 1"
+    loop all entities in radius 4 around {_loc}:
+        if loop-entity is a zombie:
+            damage loop-entity by 20
+
+every 2 seconds:
+    loop {za::pieges::*}:
+        set {_loc} to loop-value
+        set {_k} to za_lkey({_loc})
+        set {_type} to {za::piege::type::%{_k}%}
+        if {_type} is not set:
+            set {_type} to "explosif"
+        set {_hit} to false
+        loop all entities in radius 1.5 around {_loc}:
+            if loop-entity is a zombie:
+                set {_hit} to true
+        if {_hit} is true:
+            set {_wd} to za_dim(world of {_loc})
+            if {_type} is "explosif":
+                execute console command "execute in %{_wd}% run particle minecraft:explosion %floor(x-coordinate of {_loc})% %floor(y-coordinate of {_loc})% %floor(z-coordinate of {_loc})% 1 1 1 0 20 force"
+                loop all entities in radius 3 around {_loc}:
+                    if loop-entity is a zombie:
+                        damage loop-entity by 15
+            else if {_type} is "lames":
+                execute console command "execute in %{_wd}% run particle minecraft:crit %floor(x-coordinate of {_loc})% %floor(y-coordinate of {_loc})% %floor(z-coordinate of {_loc})% 1 0.5 1 0.2 30 force"
+                loop all entities in radius 2 around {_loc}:
+                    if loop-entity is a zombie:
+                        damage loop-entity by 8
+                        execute console command "effect give %uuid of loop-entity% minecraft:slowness 10 1 true"
+            else if {_type} is "feu":
+                loop all entities in radius 3 around {_loc}:
+                    if loop-entity is a zombie:
+                        ignite loop-entity for 10 seconds
+            else if {_type} is "mine":
+                za_mine_explose({_loc})
+            set block at {_loc} to air
+            remove {_loc} from {za::pieges::*}
+            delete {za::piege::type::%{_k}%}

@@ -1,0 +1,174 @@
+# =====================================================================
+#  ZombieApocalypse - LIEUX DU PROLOGUE (genere automatiquement depuis pois.json, ne pas editer a la main)
+#  {za::pro::p::<nom>} = "x;y;z;yaw;pitch"  |  {za::pro::b::<nom>} = "x1;y1;z1;x2;y2;z2"
+# =====================================================================
+
+on load:
+    set {za::pro::p::parc_kiosque} to "46.5;65;12.5;0.0;0.0"
+    set {za::pro::p::parc_jeux} to "57.5;64;31.5;0.0;0.0"
+    set {za::pro::p::parc_banc} to "22.5;64;21.5;180.0;0.0"
+    set {za::pro::p::radio_2A} to "17.5;70;61.5;-90.0;0.0"
+    set {za::pro::p::coffre_2A} to "27.5;69;51.5;90.0;0.0"
+    set {za::pro::p::baton_2A} to "26.5;69;53.5;0.0;0.0"
+    set {za::pro::p::reveil} to "19.5;69;58.5;0.0;0.0"
+    set {za::pro::p::porte_2A} to "29.5;69;52.5;90.0;0.0"
+    set {za::pro::p::lit_2B} to "44.5;69;57.5;0.0;0.0"
+    set {za::pro::p::gagnon_debout} to "43.5;69;58.5;-90.0;0.0"
+    set {za::pro::p::porte_2B} to "33.5;69;52.5;-90.0;0.0"
+    set {za::pro::b::appart_2B} to "35;69;43;45;72;63"
+    set {za::pro::p::entree_immeuble} to "31.5;64;66.5;180.0;0.0"
+    set {za::pro::p::cafe_comptoir} to "55.5;64;46.5;0.0;0.0"
+    set {za::pro::p::hopital_lit1} to "95.5;64;11.5;0.0;0.0"
+    set {za::pro::p::hopital_lit2} to "99.5;64;11.5;0.0;0.0"
+    set {za::pro::p::hopital_chambre1} to "97.5;64;15.5;180.0;0.0"
+    set {za::pro::p::hopital_lit3} to "105.5;64;11.5;0.0;0.0"
+    set {za::pro::p::hopital_lit4} to "109.5;64;11.5;0.0;0.0"
+    set {za::pro::p::hopital_chambre2} to "107.5;64;15.5;180.0;0.0"
+    set {za::pro::p::hopital_lit5} to "123.5;64;11.5;0.0;0.0"
+    set {za::pro::p::hopital_lit6} to "127.5;64;11.5;0.0;0.0"
+    set {za::pro::p::hopital_chambre3} to "125.5;64;15.5;180.0;0.0"
+    set {za::pro::p::hopital_lit7} to "133.5;64;11.5;0.0;0.0"
+    set {za::pro::p::hopital_lit8} to "137.5;64;11.5;0.0;0.0"
+    set {za::pro::p::hopital_chambre4} to "135.5;64;15.5;180.0;0.0"
+    set {za::pro::p::hopital_infirmiere} to "116.5;64;29.5;180.0;0.0"
+    set {za::pro::p::hopital_accueil} to "110.5;64;34.5;0.0;0.0"
+    set {za::pro::p::hopital_pharmacie} to "125.5;64;41.5;-90.0;0.0"
+    set {za::pro::p::hopital_pharmacien} to "127.5;64;41.5;90.0;0.0"
+    set {za::pro::p::hopital_heliport} to "131.5;79;20.5;0.0;0.0"
+    set {za::pro::p::hopital_entree} to "116.5;64;56.5;180.0;0.0"
+    set {za::pro::p::hopital_cour_incident} to "118.5;64;60.5;90.0;0.0"
+    set {za::pro::p::ambulance_baie} to "87.5;64;44.5;90.0;0.0"
+    set {za::pro::p::depanneur_comptoir} to "62.5;64;90.5;90.0;0.0"
+    set {za::pro::p::depanneur_client} to "60.5;64;90.5;-90.0;0.0"
+    set {za::pro::p::depanneur_porte} to "60.5;64;85.5;0.0;0.0"
+    set {za::pro::p::rita_comptoir} to "37.5;64;93.5;180.0;0.0"
+    set {za::pro::p::maison1} to "55.5;64;114.5;90.0;0.0"
+    set {za::pro::p::maison2} to "55.5;64;133.5;90.0;0.0"
+    set {za::pro::p::maison3} to "55.5;64;152.5;90.0;0.0"
+    set {za::pro::p::terrain_balle} to "23.5;64;145.5;135.0;0.0"
+    set {za::pro::p::police_entree} to "99.5;64;86.5;0.0;0.0"
+    set {za::pro::p::police_comptoir} to "99.5;64;95.5;180.0;0.0"
+    set {za::pro::p::police_cellule} to "105.5;64;101.5;180.0;0.0"
+    set {za::pro::p::station_service} to "146.5;64;99.5;0.0;0.0"
+    set {za::pro::p::bus_porte} to "131.5;64;113.5;0.0;0.0"
+    set {za::pro::b::bus_interieur} to "131;65;115;138;66;117"
+    set {za::pro::p::bus_siege} to "134.5;65;116.5;90.0;0.0"
+    set {za::pro::p::ecole_entree} to "86.5;64;140.5;90.0;0.0"
+    set {za::pro::p::abribus} to "126.5;64;70.5;0.0;0.0"
+    set {za::pro::p::hopital_barriere} to "116.5;64;69.5;0.0;0.0"
+    set {za::pro::p::checkpoint_vega} to "67.5;64;77.5;90.0;0.0"
+    set {za::pro::p::checkpoint_passage} to "66.5;64;77.5;-90.0;0.0"
+    set {za::pro::p::couloir_2e} to "31.5;69;55.5;0.0;0.0"
+    set {za::pro::p::intersection} to "76.5;64;76.5;0.0;0.0"
+    set {za::pro::p::hopital_infirmiere_ext} to "116.5;64;55.5;0.0;0.0"
+    set {za::pro::p::spawn} to "76.5;64;60.5;180.0;0.0"
+    set {za::pro::p::passant1} to "10.5;64;70.5;-90.0;0.0"
+    set {za::pro::p::passant2} to "36.5;64;70.5;90.0;0.0"
+    set {za::pro::p::passant3} to "58.5;64;82.5;-90.0;0.0"
+    set {za::pro::p::passant4} to "96.5;64;70.5;90.0;0.0"
+    set {za::pro::p::passant5} to "126.5;64;82.5;-90.0;0.0"
+    set {za::pro::p::passant6} to "150.5;64;70.5;90.0;0.0"
+    set {za::pro::p::passant7} to "70.5;64;20.5;0.0;0.0"
+    set {za::pro::p::passant8} to "82.5;64;50.5;180.0;0.0"
+    set {za::pro::p::passant9} to "70.5;64;108.5;0.0;0.0"
+    set {za::pro::p::passant10} to "82.5;64;140.5;180.0;0.0"
+    set {za::pro::p::passant11} to "36.5;64;24.5;90.0;0.0"
+    set {za::pro::p::passant12} to "20.5;64;20.5;180.0;0.0"
+    set {za::pro::b::zone_citoyens} to "0;64;69;159;67;83"
+    set {za::pro::b::zone_citoyens_erables} to "69;64;0;83;67;159"
+    set {za::pro::p::chaos1} to "12.5;64;76.5;0;0"
+    set {za::pro::p::chaos2} to "30.5;64;73.5;0;0"
+    set {za::pro::p::chaos3} to "48.5;64;79.5;0;0"
+    set {za::pro::p::chaos4} to "60.5;64;70.5;0;0"
+    set {za::pro::p::chaos5} to "92.5;64;75.5;0;0"
+    set {za::pro::p::chaos6} to "110.5;64;79.5;0;0"
+    set {za::pro::p::chaos7} to "140.5;64;74.5;0;0"
+    set {za::pro::p::chaos8} to "76.5;64;12.5;0;0"
+    set {za::pro::p::chaos9} to "77.5;64;40.5;0;0"
+    set {za::pro::p::chaos10} to "74.5;64;100.5;0;0"
+    set {za::pro::p::chaos11} to "78.5;64;130.5;0;0"
+    set {za::pro::p::chaos12} to "70.5;64;150.5;0;0"
+    set {za::hall::socle::1} to "-5;2;-7"
+    set {za::hall::socle::2} to "5;2;-7"
+    set {za::hall::socle::3} to "-5;2;-3"
+    set {za::hall::socle::4} to "5;2;-3"
+    set {za::hall::socle::5} to "-5;2;1"
+    set {za::hall::socle::6} to "5;2;1"
+    set {za::hall::socle::7} to "-5;2;5"
+    set {za::hall::socle::8} to "5;2;5"
+    set {za::hall::plaque::1} to "-5;6;-9"
+    set {za::hall::plaque::2} to "-4;6;-9"
+    set {za::hall::plaque::3} to "-3;6;-9"
+    set {za::hall::plaque::4} to "-2;6;-9"
+    set {za::hall::plaque::5} to "-1;6;-9"
+    set {za::hall::plaque::6} to "0;6;-9"
+    set {za::hall::plaque::7} to "1;6;-9"
+    set {za::hall::plaque::8} to "2;6;-9"
+    set {za::hall::plaque::9} to "3;6;-9"
+    set {za::hall::plaque::10} to "4;6;-9"
+    set {za::hall::plaque::11} to "5;6;-9"
+    set {za::hall::plaque::12} to "-5;5;-9"
+    set {za::hall::plaque::13} to "-4;5;-9"
+    set {za::hall::plaque::14} to "-3;5;-9"
+    set {za::hall::plaque::15} to "-2;5;-9"
+    set {za::hall::plaque::16} to "-1;5;-9"
+    set {za::hall::plaque::17} to "0;5;-9"
+    set {za::hall::plaque::18} to "1;5;-9"
+    set {za::hall::plaque::19} to "2;5;-9"
+    set {za::hall::plaque::20} to "3;5;-9"
+    set {za::hall::plaque::21} to "4;5;-9"
+    set {za::hall::plaque::22} to "5;5;-9"
+    set {za::hall::plaque::23} to "-5;4;-9"
+    set {za::hall::plaque::24} to "-4;4;-9"
+    set {za::hall::plaque::25} to "-3;4;-9"
+    set {za::hall::plaque::26} to "-2;4;-9"
+    set {za::hall::plaque::27} to "-1;4;-9"
+    set {za::hall::plaque::28} to "0;4;-9"
+    set {za::hall::plaque::29} to "1;4;-9"
+    set {za::hall::plaque::30} to "2;4;-9"
+    set {za::hall::plaque::31} to "3;4;-9"
+    set {za::hall::plaque::32} to "4;4;-9"
+    set {za::hall::plaque::33} to "5;4;-9"
+    set {za::hall::plaque::34} to "-5;3;-9"
+    set {za::hall::plaque::35} to "-4;3;-9"
+    set {za::hall::plaque::36} to "-3;3;-9"
+    set {za::hall::plaque::37} to "-2;3;-9"
+    set {za::hall::plaque::38} to "-1;3;-9"
+    set {za::hall::plaque::39} to "0;3;-9"
+    set {za::hall::plaque::40} to "1;3;-9"
+    set {za::hall::plaque::41} to "2;3;-9"
+    set {za::hall::plaque::42} to "3;3;-9"
+    set {za::hall::plaque::43} to "4;3;-9"
+    set {za::hall::plaque::44} to "5;3;-9"
+
+function za_lieu(n: text) :: location:
+    set {_s::*} to split {za::pro::p::%{_n}%} at ";"
+    return location(({_s::1} parsed as number), ({_s::2} parsed as number), ({_s::3} parsed as number), world("za_prologue"), ({_s::4} parsed as number), ({_s::5} parsed as number))
+
+# le joueur est-il dans la boite nommee ?
+function za_dans(p: player, n: text) :: boolean:
+    if za_pro({_p}) is false:
+        return false
+    set {_s::*} to split {za::pro::b::%{_n}%} at ";"
+    set {_x} to x-coordinate of {_p}
+    set {_y} to y-coordinate of {_p}
+    set {_z} to z-coordinate of {_p}
+    if {_x} < ({_s::1} parsed as number):
+        return false
+    if {_x} > (({_s::4} parsed as number) + 1):
+        return false
+    if {_z} < ({_s::3} parsed as number):
+        return false
+    if {_z} > (({_s::6} parsed as number) + 1):
+        return false
+    if {_y} < (({_s::2} parsed as number) - 1):
+        return false
+    if {_y} > (({_s::5} parsed as number) + 2):
+        return false
+    return true
+
+# distance du joueur a un lieu (999 si autre monde)
+function za_dist(p: player, n: text) :: number:
+    if za_pro({_p}) is false:
+        return 999
+    return distance between {_p} and za_lieu({_n})

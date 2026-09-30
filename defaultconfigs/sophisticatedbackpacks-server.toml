@@ -1,0 +1,28 @@
+# Sophisticated Backpacks - config SERVEUR. Forge la copie dans world/serverconfig/ quand le monde est cree.
+# Si ton monde existe deja : copie ce fichier dans world/serverconfig/ (remplace celui qui s'y trouve) et redemarre.
+# NB : toutes les cles sont sous la table racine [server] (verifie par un vrai demarrage sous Arclight 1.0.6).
+# Seules les cles modifiees sont ici ; les autres gardent leur valeur par defaut.
+
+# Cases d'inventaire : reduites par rapport au mod (defaut cuir 27 / cuivre 45 / fer 54 / or 81 / diamant 108 / netherite 120).
+# Proposition d'equilibre pour une survie ou tout est rare ; change les chiffres librement (multiples de 9, max 120).
+[server.leatherBackpack]
+	inventorySlotCount = 27
+[server.copperBackpack]
+	inventorySlotCount = 36
+[server.ironBackpack]
+	inventorySlotCount = 45
+[server.goldBackpack]
+	inventorySlotCount = 54
+[server.diamondBackpack]
+	inventorySlotCount = 72
+[server.netheriteBackpack]
+	inventorySlotCount = 81
+
+# Par defaut 1 % des mobs naissent avec un sac (renforces en vie et en armure, avec du butin dedans, 50 % de le lacher).
+# Ca s'appliquerait a tes zombies MythicMobs et fausserait leurs stats et ton economie : coupe.
+[server.entityBackpackAdditions]
+	chance = 0.0
+
+# L'amelioration "Mob Catcher" peut capturer des entites dans un sac (comme Carry On). Protege tes marchands et PNJ (villageois MythicMobs).
+[server.mobCatcherUpgrade]
+	entityBlockList = ["minecraft:wither", "minecraft:ender_dragon", "minecraft:warden", "minecraft:villager", "minecraft:wandering_trader", "minecraft:iron_golem"]

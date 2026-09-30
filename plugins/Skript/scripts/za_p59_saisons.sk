@@ -1,0 +1,1533 @@
+# =====================================================================
+#  ZombieApocalypse - APRÈS-SAISON (#21) + ÉVOLUTION DES SAISONS (#22)
+#  * Chronique : à la fin de chaque saison, tout est consigné dans {za::histoire::saison::<n>::*} (héros, jours, nids, camps debout
+#    et tombés, territoires par faction, faction dominante, meilleur pourvoyeur, disparus...). /chroniques : le récit, saison par saison.
+#  * Après-saison : depuis la cérémonie (za_p41), une chronologie en jours serveur depuis la finale :
+#      J+0 le silence retombe ({za::apres::mult} 0.5) - J+1 Léa : « C'est... calme. Trop calme. » - J+3 transmissions (radio militaire
+#      + Léa : le héros, le bilan) - J+5 les rôdeurs reviennent (0.75) - J+7 Lefort, Vega et Léa ont quelque chose à dire
+#      (za_apres_ligne) - J+8 la nouvelle saison démarre toute seule (option : /zasaison auto off).
+#  * Thèmes (cycle de 4, escalade à chaque tour) : S1 « Les morts » - S2 « Les vivants » (moins de morts, bandes de Pillards qui
+#    frappent bases et camps, guets-apens, traîtres) - S3 « La mutation » (Spitters/Bloaters/Leapers, infection x1.3) - S4 « Le silence »
+#    (EMP fréquentes, nuits plus noires, Stalkers). Nouvelle saison : carte-titre « SAISON n » + monologue de Léa qui rappelle la
+#    saison précédente (à la prochaine connexion pour ceux qui étaient absents).
+#  Commandes : /chroniques [saison] [page] | /chroniques livre [saison] (livre à emporter) | admin (console ok) : /zasaison etat | theme <1-4> [niveau] |
+#    apres <jour|fin> [héros] | chronique [n] | enregistrer [n] [héros] | carte <joueur> [n] | monologue [n] | raid <camp|base|piege|trahison|auto|test x z|stop> |
+#    livre <n> [x y] | numero <n> [début] | finir | ceremonie [héros] | auto on/off | test
+#  Variables publiées : {za::apres::actif|debut|saison|mult|auto|fait::*}, {za::theme} (nom) + {za::theme::num|niveau|desc|zombies_mult|
+#    infection_mult|infection_bonus|mutants|pillards|pillards_min|pillards_max|raid_jours_max|emp_mult|nuits_sombres|stalkers},
+#    {za::saison::heros::<n>}, {za::histoire::saison::<n>::*}, {za::saison::vu::<uuid>}, {za::saison::raids::*}, {za::raid::prochain|dernier::<uuid>}
+#    {za::saison::bonus} (lu par za_infection) = règle « morsures » + {za::theme::infection_bonus}
+#  Fonctions publiques : za_apres_actif() :: boolean - za_apres_jour() :: number - za_apres_ligne(npc) :: text
+#    za_theme_nom(t) - za_theme_index(saison) - za_saison_bilan(n, heros) - za_saison_archiver(n) - za_saison_nouvelle(n)
+#  Statistique incrémentée : raids_repousses (défenseurs d'une base, guet-apens survivants, tueur du traître)
+#  Crochets attendus : za_saison_bilan + za_memoire_hall + za_succes_finale_saison dans za_saison_ceremonie (za_p41),
+#    za_saison_archiver au début et za_saison_nouvelle à la fin de za_saison_finir (za_p22).
+# =====================================================================
+
+options:
+    apres_fin: 8
+    raid_attente: 60
+    raid_duree: 300
+
+on load:
+    delete {-raid::*}
+    delete {-piege::*}
+    delete {-traitre::*}
+    if {za::saison::num} is not set:
+        set {za::saison::num} to 1
+    if {za::apres::auto} is not set:
+        set {za::apres::auto} to true
+    if {za::theme::num} is not set:
+        za_theme_appliquer({za::saison::num})
+
+# ---------------------------------------------------------------- outils
+
+function za_f2_joueur(u: text) :: player:
+    loop all players:
+        if loop-player's uuid is {_u}:
+            return loop-player
+
+function za_f2_joueur_proche(l: location, r: number) :: boolean:
+    loop all players:
+        if za_pro(loop-player) is false:
+            if world of loop-player is world of {_l}:
+                if distance between loop-player and {_l} < {_r}:
+                    return true
+    return false
+
+# coordonnées arrondies à 50 (on ne donne jamais l'endroit exact)
+function za_f2_approx(l: location) :: text:
+    return "X≈%round(x-coordinate of {_l} / 50) * 50% Z≈%round(z-coordinate of {_l} / 50) * 50%"
+
+# nombre d'entités dont le nom (sans couleur) est a, b ou c autour de l
+function za_f2_compte_noms(l: location, r: number, a: text, b: text, c: text) :: number:
+    set {_n} to 0
+    loop all entities in radius {_r} around {_l}:
+        set {_nm} to uncolored name of loop-entity
+        if {_nm} is {_a}:
+            add 1 to {_n}
+        else if {_nm} is {_b}:
+            add 1 to {_n}
+        else if {_nm} is {_c}:
+            add 1 to {_n}
+    return {_n}
+
+function za_f2_pl(n: number, s: text, p: text) :: text:
+    if {_n} is 1:
+        return "%{_n}% %{_s}%"
+    return "%{_n}% %{_p}%"
+
+# faction avec article, sans couleur (pour les phrases)
+function za_f2_fac_art(f: text) :: text:
+    if {_f} is "milice":
+        return "la Milice"
+    if {_f} is "scientifiques":
+        return "les Scientifiques"
+    if {_f} is "marchands":
+        return "les Marchands"
+    if {_f} is "pilleurs":
+        return "les Pilleurs"
+    if {_f} is "survivants":
+        return "les Survivants"
+    if {_f} is "culte":
+        return "le Culte de la Fin"
+    if {_f} is "morts":
+        return "les morts"
+    return "personne"
+
+function za_f2_fac_nom(f: text) :: text:
+    if {_f} is "milice":
+        return "Milice"
+    if {_f} is "scientifiques":
+        return "Scientifiques"
+    if {_f} is "marchands":
+        return "Marchands"
+    if {_f} is "pilleurs":
+        return "Pilleurs"
+    if {_f} is "survivants":
+        return "Survivants"
+    if {_f} is "culte":
+        return "Culte de la Fin"
+    if {_f} is "morts":
+        return "Les morts"
+    return "Personne"
+
+# ---------------------------------------------------------------- thèmes de saison
+
+function za_theme_index(n: number) :: number:
+    return mod({_n} - 1, 4) + 1
+
+# 0 au premier tour du cycle, 1 au deuxième...
+function za_theme_niveau(n: number) :: number:
+    return floor(({_n} - 1) / 4)
+
+function za_theme_nom(t: number) :: text:
+    if {_t} is 1:
+        return "Les morts"
+    if {_t} is 2:
+        return "Les vivants"
+    if {_t} is 3:
+        return "La mutation"
+    return "Le silence"
+
+function za_theme_couleur(t: number) :: text:
+    if {_t} is 1:
+        return "&c"
+    if {_t} is 2:
+        return "&6"
+    if {_t} is 3:
+        return "&2"
+    return "&3"
+
+function za_theme_desc(t: number) :: text:
+    if {_t} is 1:
+        return "Les morts marchent en masse : hordes, nids, Overlords. La peur est dans le nombre."
+    if {_t} is 2:
+        return "Moins de morts, plus de mains armées : des bandes de Pillards frappent les camps et les bases. Méfiez-vous des faux SOS et des traîtres."
+    if {_t} is 3:
+        return "Le virus mute : plus de Spitters, de Bloaters et de Leapers, et les morsures infectent plus vite."
+    return "Les ondes se brouillent : impulsions EMP fréquentes, nuits plus noires, Stalkers dans l'ombre."
+
+# nom complet pour l'affichage : « Les vivants » + cycle
+function za_theme_titre(n: number) :: text:
+    set {_t} to za_theme_index({_n})
+    set {_e} to za_theme_niveau({_n})
+    set {_r} to "%za_theme_couleur({_t})%%za_theme_nom({_t})%"
+    if {_e} > 0:
+        set {_r} to "%{_r}% &8· &7cycle %{_e} + 1%"
+    return {_r}
+
+# l'infection lit {za::saison::bonus} (points de pourcentage) : règle de saison « morsures » + bonus du thème
+function za_theme_sync_infection():
+    set {_b} to 0
+    if {za::saison::regle} is "morsures":
+        set {_b} to 10
+    add ({za::theme::infection_bonus} ? 0) to {_b}
+    set {za::saison::bonus} to {_b}
+
+# pose le thème t (1-4) à l'escalade e : toutes les valeurs publiées d'un coup
+function za_theme_regler(t: number, e: number):
+    set {_calme} to za_apres_actif()
+    delete {za::theme::*}
+    set {za::theme} to za_theme_nom({_t})
+    set {za::theme::num} to {_t}
+    set {za::theme::niveau} to {_e}
+    set {za::theme::desc} to za_theme_desc({_t})
+    set {_zm} to 1
+    set {_im} to 1
+    set {za::theme::mutants} to 0
+    set {za::theme::pillards} to false
+    set {za::theme::pillards_min} to 0
+    set {za::theme::pillards_max} to 0
+    set {za::theme::raid_jours_max} to 2
+    set {za::theme::emp_mult} to 1
+    set {za::theme::nuits_sombres} to false
+    set {za::theme::stalkers} to 0
+    if {_t} is 1:
+        set {_zm} to min(1.5, 1 + (0.1 * {_e}))
+    else if {_t} is 2:
+        set {_zm} to min(0.9, 0.7 + (0.05 * {_e}))
+        set {za::theme::pillards} to true
+        set {za::theme::pillards_min} to min(8, 3 + {_e})
+        set {za::theme::pillards_max} to min(10, 6 + {_e})
+        set {za::theme::raid_jours_max} to max(1, 2 - {_e})
+    else if {_t} is 3:
+        set {_im} to min(1.7, 1.3 + (0.1 * {_e}))
+        set {za::theme::mutants} to min(45, 22 + (5 * {_e}))
+    else:
+        set {za::theme::emp_mult} to min(4, 2 + {_e})
+        set {za::theme::nuits_sombres} to true
+        set {za::theme::stalkers} to min(40, 18 + (4 * {_e}))
+    set {za::theme::infection_mult} to {_im}
+    set {za::theme::infection_bonus} to round(30 * ({_im} - 1))
+    set {za::theme::zombies_mult} to {_zm}
+    # après-saison : le monde retient son souffle, les effets du thème sont suspendus
+    if {_calme} is true:
+        set {za::theme::zombies_mult} to 1
+        set {za::theme::infection_bonus} to 0
+    za_theme_sync_infection()
+    if {za::raid::prochain} is not set:
+        set {za::raid::prochain} to ({za::serveur::jours} ? 0) + 1
+
+function za_theme_appliquer(n: number):
+    za_theme_regler(za_theme_index({_n}), za_theme_niveau({_n}))
+
+# le thème t est-il en vigueur ET la saison en cours (pas l'après-saison) ?
+function za_theme_actif(t: number) :: boolean:
+    if {za::theme::num} is not {_t}:
+        return false
+    if za_apres_actif() is true:
+        return false
+    return true
+
+# ---------------------------------------------------------------- chronique : enregistrement d'une saison
+
+function za_f2_heros_txt(n: number) :: text:
+    set {_h} to {za::histoire::saison::%{_n}%::heros}
+    if {_h} is not set:
+        return "personne"
+    if {_h} is "":
+        return "personne"
+    return "%{_h}%"
+
+# résumé des territoires : « la Milice ×2, les Pilleurs ×1 »
+function za_hist_terr_txt(n: number) :: text:
+    set {_r} to ""
+    loop "milice", "scientifiques", "marchands", "pilleurs", "survivants", "culte", "morts" and "personne":
+        set {_c} to {za::histoire::saison::%{_n}%::terr::%loop-value%}
+        if {_c} > 0:
+            if {_r} is not "":
+                set {_r} to "%{_r}%, "
+            if loop-value is "personne":
+                set {_r} to "%{_r}%%{_c}% contesté(s)"
+            else:
+                set {_r} to "%{_r}%%za_f2_fac_art(loop-value)% ×%{_c}%"
+    return {_r}
+
+function za_hist_enregistrer(n: number, heros: text, issue: text):
+    set {_h} to {_heros}
+    if {_h} contains "anonyme":
+        set {_h} to "un héros anonyme"
+    set {za::histoire::saison::%{_n}%::issue} to {_issue}
+    set {za::histoire::saison::%{_n}%::heros} to {_h}
+    set {za::histoire::saison::%{_n}%::debut} to {za::saison::debut}
+    set {za::histoire::saison::%{_n}%::fin} to {za::serveur::jours}
+    set {za::histoire::saison::%{_n}%::jours} to za_saison_jours()
+    set {za::histoire::saison::%{_n}%::kills} to {za::saison::kills} ? 0
+    set {_o} to {za::saison::overlords} ? 0
+    if {_issue} is "accomplie":
+        add 1 to {_o}
+    set {za::histoire::saison::%{_n}%::overlords} to {_o}
+    set {za::histoire::saison::%{_n}%::nids} to {za::saison::nids} ? 0
+    set {za::histoire::saison::%{_n}%::labos} to {za::saison::labos} ? 0
+    set {za::histoire::saison::%{_n}%::cargaisons} to {za::saison::cargaisons} ? 0
+    set {za::histoire::saison::%{_n}%::sauves} to {za::saison::sauves} ? 0
+    set {za::histoire::saison::%{_n}%::morts} to {za::saison::morts} ? 0
+    set {za::histoire::saison::%{_n}%::joueurs} to size of {za::saison::joueurs::%{_n}%::*}
+    set {za::histoire::saison::%{_n}%::theme} to za_theme_nom(za_theme_index({_n}))
+    set {za::histoire::saison::%{_n}%::theme_niveau} to za_theme_niveau({_n})
+    set {za::histoire::saison::%{_n}%::regle} to {za::saison::regle} ? "aucune"
+    set {za::histoire::saison::%{_n}%::raids_repousses} to {za::saison::raids::repousses} ? 0
+    set {za::histoire::saison::%{_n}%::raids_subis} to {za::saison::raids::subis} ? 0
+    set {za::histoire::saison::%{_n}%::trahisons} to {za::saison::raids::trahisons} ? 0
+    # camps : debout / tombés cette saison (les ruines des saisons précédentes restent dans leurs chroniques)
+    delete {za::histoire::saison::%{_n}%::camps_vivants::*}
+    delete {za::histoire::saison::%{_n}%::camps_tombes::*}
+    loop {za::camp::liste::*}:
+        set {_id} to loop-value
+        set {_e} to {za::camp::%{_id}%::etat}
+        if {_e} is "vivant":
+            add "%{za::camp::%{_id}%::nom}%" to {za::histoire::saison::%{_n}%::camps_vivants::*}
+        else if {_e} is "mort" or "abandonne":
+            if {za::camp::%{_id}%::tombe} is set:
+                if {za::camp::%{_id}%::tombe} >= {za::saison::debut}:
+                    add "%{za::camp::%{_id}%::nom}%" to {za::histoire::saison::%{_n}%::camps_tombes::*}
+    # territoires par faction, faction dominante
+    set {_best} to ""
+    set {_bn} to 0
+    loop "milice", "scientifiques", "marchands", "pilleurs", "survivants", "culte", "morts" and "personne":
+        set {_c} to za_terr_compte(loop-value)
+        set {za::histoire::saison::%{_n}%::terr::%loop-value%} to {_c}
+        if loop-value is not "morts" and "personne":
+            if {_c} > {_bn}:
+                set {_bn} to {_c}
+                set {_best} to loop-value
+    if {_best} is "":
+        # aucun territoire tenu : on prend la faction la plus populaire auprès des joueurs
+        set {_bs} to 0
+        loop "milice", "scientifiques", "marchands", "pilleurs", "survivants" and "culte":
+            set {_s} to 0
+            loop {za::fac::%loop-value-1%::*}:
+                add loop-value-2 to {_s}
+            if {_s} > {_bs}:
+                set {_bs} to {_s}
+                set {_best} to loop-value
+    if {_best} is "":
+        set {_best} to "aucune"
+    set {za::histoire::saison::%{_n}%::top_faction} to {_best}
+    set {za::histoire::saison::%{_n}%::top_faction_n} to {_bn}
+    # ressource de la saison : meilleur pourvoyeur (le module ressources fige son propre palmarès au changement de saison)
+    set {za::histoire::saison::%{_n}%::ressource} to {za::ressource::nom} ? ""
+    set {_topn} to 0
+    delete {_tu}
+    loop {za::ressource::contrib::*}:
+        if loop-value > {_topn}:
+            set {_topn} to loop-value
+            set {_tu} to loop-index
+    if {_tu} is set:
+        set {za::histoire::saison::%{_n}%::ressource_top} to {za::ressource::pseudo::%{_tu}%} ? "un survivant"
+        set {za::histoire::saison::%{_n}%::ressource_top_n} to {_topn}
+    # disparus gravés cette saison
+    set {za::histoire::saison::%{_n}%::disparus} to size of za_mem_saison_liste({_n})
+    # grands moments des histoires locales (za_p62) : chutes, défenses, légendes
+    delete {za::histoire::saison::%{_n}%::moments::*}
+    set {_mo::*} to za_lieux_saison_resume({za::saison::debut} ? 0)
+    set {_nm} to size of {_mo::*}
+    set {_k} to max(1, {_nm} - 9)
+    while {_k} <= {_nm}:
+        add {_mo::%{_k}%} to {za::histoire::saison::%{_n}%::moments::*}
+        add 1 to {_k}
+    za_journal("La chronique de la saison %{_n}% a été écrite.")
+
+# palmarès des pourvoyeurs : on préfère celui que le module ressources a figé
+function za_hist_top_ressource(n: number) :: text:
+    if {za::ressource::top::%{_n}%} is set:
+        return "%{za::ressource::top::%{_n}%}%"
+    if {za::histoire::saison::%{_n}%::ressource_top} is set:
+        return "%{za::histoire::saison::%{_n}%::ressource_top}%"
+    return ""
+
+# phrase sur les camps
+function za_hist_camps_txt(n: number) :: text:
+    set {_v} to size of {za::histoire::saison::%{_n}%::camps_vivants::*}
+    set {_t} to size of {za::histoire::saison::%{_n}%::camps_tombes::*}
+    if {_v} + {_t} is 0:
+        return "aucun camp de survivants n'avait encore levé sa palissade"
+    set {_r} to ""
+    if {_v} > 0:
+        set {_q} to za_f2_pl({_v}, "camp est resté debout", "camps sont restés debout")
+        set {_nm} to join {za::histoire::saison::%{_n}%::camps_vivants::*} with ", "
+        set {_r} to "%{_q}% (%{_nm}%)"
+    if {_t} > 0:
+        if {_r} is not "":
+            set {_r} to "%{_r}%, mais "
+        set {_q} to za_f2_pl({_t}, "camp est tombé", "camps sont tombés")
+        set {_nm} to join {za::histoire::saison::%{_n}%::camps_tombes::*} with ", "
+        set {_r} to "%{_r}%%{_q}% (%{_nm}%)"
+    return {_r}
+
+# le récit d'une saison, en quelques phrases
+function za_hist_recit(n: number) :: text:
+    set {_i} to {za::histoire::saison::%{_n}%::issue}
+    set {_j} to {za::histoire::saison::%{_n}%::jours}
+    set {_k} to {za::histoire::saison::%{_n}%::kills}
+    set {_o} to {za::histoire::saison::%{_n}%::overlords}
+    set {_ni} to {za::histoire::saison::%{_n}%::nids}
+    set {_nid} to za_f2_pl({_ni}, "nid éventré", "nids éventrés")
+    set {_r} to "Pendant %{_j}% jours, les survivants de Saint-Aurèle ont tenu tête aux morts : %{_k}% abattus, %{_nid}%. "
+    if {_i} is "accomplie":
+        set {_r} to "%{_r}%Au bout du compte, %za_f2_heros_txt({_n})% a terrassé l'Undead Overlord, la source du fléau. "
+    else:
+        set {_r} to "%{_r}%La saison s'est éteinte sans finale, sans héros : le monde a simplement continué à pourrir. "
+    set {_r} to "%{_r}%Côté camps, %za_hist_camps_txt({_n})%."
+    set {_tt} to za_hist_terr_txt({_n})
+    if {_tt} is not "":
+        set {_r} to "%{_r}% Sur la carte : %{_tt}%."
+    return {_r}
+
+# ---------------------------------------------------------------- chronique : affichage (/chroniques)
+
+function za_chron_entete(titre: text) :: text:
+    return "&8&m                  &r &6&l❖ %{_titre}% &8&m                  "
+
+function za_chron_page(n: number, page: number) :: texts:
+    set {_i} to {za::histoire::saison::%{_n}%::issue}
+    set {_t} to za_theme_index({_n})
+    add za_chron_entete("CHRONIQUES DE SAINT-AURÈLE") to {_l::*}
+    set {_cy} to ""
+    if za_theme_niveau({_n}) > 0:
+        set {_cy} to "&8 · cycle %za_theme_niveau({_n}) + 1%"
+    add "&e&lSaison %{_n}% &8— &7« %za_theme_couleur({_t})%%za_theme_nom({_t})%&7 »%{_cy}%" to {_l::*}
+    if {_i} is not set:
+        # saison en cours : on lit les compteurs en direct
+        add "&7Jour &f%za_saison_jours()% &7de la saison - progression &f%za_saison_pct()% %%&7." to {_l::*}
+        add "&7Zombies abattus : &f%{za::saison::kills} ? 0% &8| &7Overlords : &f%{za::saison::overlords} ? 0% &8| &7Labos : &f%{za::saison::labos} ? 0% &8| &7Cargaisons : &f%{za::saison::cargaisons} ? 0%" to {_l::*}
+        add "&8Cette page s'écrira à la fin de la saison. &7Thème : &f%{za::theme::desc}%" to {_l::*}
+        return {_l::*}
+    if {_page} is 1:
+        add "&8Du jour &7%{za::histoire::saison::%{_n}%::debut}% &8au jour &7%{za::histoire::saison::%{_n}%::fin}% &8(%{za::histoire::saison::%{_n}%::jours}% jours)" to {_l::*}
+        if {_i} is "accomplie":
+            add "&6Héros de la saison : &e&l%za_f2_heros_txt({_n})%" to {_l::*}
+        else:
+            add "&6Héros de la saison : &7aucun (saison close sans finale)" to {_l::*}
+        add "&7Zombies abattus : &f%{za::histoire::saison::%{_n}%::kills}% &8| &7Undead Overlords : &f%{za::histoire::saison::%{_n}%::overlords}%" to {_l::*}
+        add "&7Laboratoires : &f%{za::histoire::saison::%{_n}%::labos}% &8| &7Cargaisons : &f%{za::histoire::saison::%{_n}%::cargaisons}% &8| &7Nids détruits : &f%{za::histoire::saison::%{_n}%::nids}%" to {_l::*}
+        add "&7Survivants sauvés : &f%{za::histoire::saison::%{_n}%::sauves}% &8| &7Joueurs tombés : &f%{za::histoire::saison::%{_n}%::morts}% &8| &7Survivants de la saison : &f%{za::histoire::saison::%{_n}%::joueurs}%" to {_l::*}
+        add "&8&o%za_hist_recit({_n})%" to {_l::*}
+        add "<command:/chroniques %{_n}% 2>&e[Page 2 ▶]<reset> &8- <command:/chroniques>&7[Sommaire]<reset>" to {_l::*}
+    else:
+        set {_v} to size of {za::histoire::saison::%{_n}%::camps_vivants::*}
+        set {_ts} to size of {za::histoire::saison::%{_n}%::camps_tombes::*}
+        if {_v} > 0:
+            set {_nm} to join {za::histoire::saison::%{_n}%::camps_vivants::*} with ", "
+            add "&aCamps debout : &f%{_nm}%" to {_l::*}
+        if {_ts} > 0:
+            set {_nm} to join {za::histoire::saison::%{_n}%::camps_tombes::*} with ", "
+            add "&cCamps tombés : &f%{_nm}%  &8(leurs ruines sont toujours là)" to {_l::*}
+        if {_v} + {_ts} is 0:
+            add "&7Camps : &8aucun ne s'était encore installé." to {_l::*}
+        set {_tt} to za_hist_terr_txt({_n})
+        if {_tt} is not "":
+            add "&9Territoires : &f%{_tt}%" to {_l::*}
+        set {_tf} to {za::histoire::saison::%{_n}%::top_faction}
+        if {_tf} is set:
+            if {_tf} is not "aucune":
+                add "&9Faction dominante : &f%za_f2_fac_nom({_tf})%" to {_l::*}
+        set {_tp} to za_hist_top_ressource({_n})
+        if {_tp} is not "":
+            add "&bRessource « %{za::histoire::saison::%{_n}%::ressource}% » &7- meilleur pourvoyeur : &f%{_tp}%" to {_l::*}
+        add "&4Disparus gravés : &f%{za::histoire::saison::%{_n}%::disparus} ? 0% &8(Hall des survivants, stèles - /disparus)" to {_l::*}
+        if {za::histoire::saison::%{_n}%::moments::*} is set:
+            add "&6Ce dont on se souviendra :" to {_l::*}
+            loop {za::histoire::saison::%{_n}%::moments::*}:
+                add "&8 · &7%loop-value%" to {_l::*}
+        set {_rr} to ({za::histoire::saison::%{_n}%::raids_repousses} ? 0) + ({za::histoire::saison::%{_n}%::raids_subis} ? 0)
+        if {_rr} > 0:
+            add "&6Raids de Pillards : &f%{za::histoire::saison::%{_n}%::raids_repousses}% repoussés &8| &f%{za::histoire::saison::%{_n}%::raids_subis}% subis &8| &f%{za::histoire::saison::%{_n}%::trahisons} ? 0% trahisons" to {_l::*}
+        if {za::histoire::saison::%{_n} + 1%::theme} is set:
+            add "&8Saison suivante : &7« %{za::histoire::saison::%{_n} + 1%::theme}% »" to {_l::*}
+        else:
+            add "&8Saison suivante : &7« %za_theme_nom(za_theme_index({_n} + 1))% »" to {_l::*}
+        add "<command:/chroniques %{_n}% 1>&e[◀ Page 1]<reset> &8- <command:/chroniques livre %{_n}%>&6[Emporter le livre]<reset> &8- <command:/chroniques>&7[Sommaire]<reset>" to {_l::*}
+    return {_l::*}
+
+function za_chron_sommaire() :: texts:
+    add za_chron_entete("CHRONIQUES DE SAINT-AURÈLE") to {_l::*}
+    set {_nb} to 0
+    set {_m} to {za::saison::num} ? 1
+    set {_s} to 1
+    while {_s} <= {_m}:
+        if {za::histoire::saison::%{_s}%::issue} is set:
+            add 1 to {_nb}
+            set {_h} to "aucun héros"
+            if {za::histoire::saison::%{_s}%::issue} is "accomplie":
+                set {_h} to "héros : %za_f2_heros_txt({_s})%"
+            add "<command:/chroniques %{_s}%>&eSaison %{_s}%<reset> &8- &7« %{za::histoire::saison::%{_s}%::theme}% » &8- &7%{_h}% &8(%{za::histoire::saison::%{_s}%::jours}% j)" to {_l::*}
+        add 1 to {_s}
+    if {_nb} is 0:
+        add "&7Aucune saison n'est encore achevée. &8La première chronique s'écrira à la fin de la saison 1." to {_l::*}
+    add "<command:/chroniques %{_m}%>&aSaison %{_m}% - en cours<reset> &8- &7« %{za::theme}% »" to {_l::*}
+    add "&8Lire une saison : &7/chroniques [n] [page] &8- en livre : &7/chroniques livre [n]" to {_l::*}
+    return {_l::*}
+
+# le livre à emporter : NBT d'un written_book (2 pages de faits, le récit, le monde) - apostrophes typographiques (JSON dans du SNBT)
+function za_chron_livre_nbt(n: number) :: text:
+    set {_t} to za_theme_index({_n})
+    set {_hd} to za_f2_heros_txt({_n})
+    set {_p1} to "§6§lSAISON %{_n}%§r\\n§8« %za_theme_nom({_t})% »§r\\n\\n§0Du jour %{za::histoire::saison::%{_n}%::debut}% au jour %{za::histoire::saison::%{_n}%::fin}%, soit %{za::histoire::saison::%{_n}%::jours}% jours.\\n\\n§0Héros :\\n§l%{_hd}%§r\\n\\n§0Zombies : %{za::histoire::saison::%{_n}%::kills}%\\nOverlords : %{za::histoire::saison::%{_n}%::overlords}%\\nNids : %{za::histoire::saison::%{_n}%::nids}%\\nSauvés : %{za::histoire::saison::%{_n}%::sauves}%\\nTombés : %{za::histoire::saison::%{_n}%::morts}%"
+    add {_p1} to {_pages::*}
+    set {_rt} to za_hist_recit({_n})
+    replace all "'" with "’" in {_rt}
+    if {_rt} ends with ".":
+        set {_rt} to subtext of {_rt} from 1 to (length of {_rt} - 1)
+    set {_sent::*} to split {_rt} at ". "
+    set {_pg} to ""
+    loop {_sent::*}:
+        set {_cand} to "%{_pg}%%loop-value%. "
+        if length of {_cand} > 230:
+            if {_pg} is not "":
+                add {_pg} to {_pages::*}
+                set {_pg} to "%loop-value%. "
+            else:
+                set {_pg} to {_cand}
+        else:
+            set {_pg} to {_cand}
+    if {_pg} is not "":
+        add {_pg} to {_pages::*}
+    set {_v} to size of {za::histoire::saison::%{_n}%::camps_vivants::*}
+    set {_ts} to size of {za::histoire::saison::%{_n}%::camps_tombes::*}
+    set {_w} to "§0Les camps :"
+    if {_v} > 0:
+        set {_nm} to join {za::histoire::saison::%{_n}%::camps_vivants::*} with ", "
+        set {_w} to "%{_w}%\\n§2Debout : %{_nm}%"
+    if {_ts} > 0:
+        set {_nm} to join {za::histoire::saison::%{_n}%::camps_tombes::*} with ", "
+        set {_w} to "%{_w}%\\n§4Tombés : %{_nm}%"
+    if {_v} + {_ts} is 0:
+        set {_w} to "%{_w}%\\n§8aucun"
+    set {_tt} to za_hist_terr_txt({_n})
+    if {_tt} is not "":
+        set {_w} to "%{_w}%\\n\\n§0Territoires :\\n%{_tt}%"
+    set {_tf} to {za::histoire::saison::%{_n}%::top_faction}
+    if {_tf} is set:
+        if {_tf} is not "aucune":
+            set {_w} to "%{_w}%\\n\\n§0Faction dominante :\\n§l%za_f2_fac_nom({_tf})%§r"
+    set {_tp} to za_hist_top_ressource({_n})
+    if {_tp} is not "":
+        set {_w} to "%{_w}%\\n\\n§0Pourvoyeur :\\n%{_tp}%"
+    replace all "'" with "’" in {_w}
+    add {_w} to {_pages::*}
+    set {_all} to ""
+    loop {_pages::*}:
+        if {_all} is not "":
+            set {_all} to "%{_all}%,"
+        set {_all} to "%{_all}%'{""text"":""%loop-value%""}'"
+    return "{title:""Chroniques - Saison %{_n}%"",author:""CKZA 98,5"",pages:[%{_all}%]}"
+
+command /chroniques [<text>] [<text>]:
+    trigger:
+        if arg-1 is not set:
+            loop za_chron_sommaire():
+                send loop-value to sender
+            stop
+        if arg-1 is "livre":
+            if sender is not a player:
+                send "&cCommande réservée aux joueurs." to sender
+                stop
+            set {_n} to arg-2 parsed as number
+            if {_n} is not set:
+                send "&cUsage : /chroniques livre [saison]" to sender
+                stop
+            if {za::histoire::saison::%{_n}%::issue} is not set:
+                send "&8La chronique de cette saison n'est pas encore écrite." to sender
+                stop
+            set {_nbt} to za_chron_livre_nbt({_n})
+            execute console command "give %player% written_book%{_nbt}%"
+            send "&6Tu reçois le livre des chroniques de la saison %{_n}%." to sender
+            stop
+        set {_n} to arg-1 parsed as number
+        if {_n} is not set:
+            send "&cUsage : /chroniques [saison] [page] | /chroniques livre [saison]" to sender
+            stop
+        if {_n} < 1:
+            send "&cCette saison n'existe pas." to sender
+            stop
+        if {_n} > ({za::saison::num} ? 1):
+            send "&8Cette saison n'est pas encore écrite." to sender
+            stop
+        set {_pg} to arg-2 parsed as number
+        if {_pg} is not set:
+            set {_pg} to 1
+        if {_pg} is not 2:
+            set {_pg} to 1
+        loop za_chron_page({_n}, {_pg}):
+            send loop-value to sender
+
+# ---------------------------------------------------------------- après-saison : chronologie
+
+function za_apres_actif() :: boolean:
+    if {za::apres::actif} is true:
+        return true
+    return false
+
+function za_apres_jour() :: number:
+    if {za::apres::debut} is not set:
+        return -1
+    return {za::serveur::jours} - {za::apres::debut}
+
+# appelée par za_saison_ceremonie (za_p41) : la finale vient d'avoir lieu
+function za_saison_bilan(n: number, heros: text):
+    set {_h} to {_heros}
+    if {_h} contains "anonyme":
+        set {_h} to "un héros anonyme"
+    set {za::saison::heros::%{_n}%} to {_h}
+    za_hist_enregistrer({_n}, {_h}, "accomplie")
+    set {za::apres::debut} to {za::serveur::jours}
+    set {za::apres::saison} to {_n}
+    set {za::apres::actif} to true
+    delete {za::apres::fait::*}
+    set {za::apres::mult} to 0.5
+    za_theme_appliquer({za::saison::num})
+
+# appelée au début de za_saison_finir : si personne n'a écrit la chronique (finale sautée), on la clôt telle quelle
+function za_saison_archiver(n: number):
+    if {za::histoire::saison::%{_n}%::issue} is not set:
+        za_hist_enregistrer({_n}, "", "arretee")
+
+function za_apres_hero(n: number) :: text:
+    set {_h} to {za::saison::heros::%{_n}%}
+    if {_h} is not set:
+        return "quelqu'un dont on n'a jamais su le nom"
+    if {_h} contains "anonyme":
+        return "quelqu'un dont on n'a jamais su le nom"
+    return "%{_h}%"
+
+# ce que les PNJ disent pendant l'après-saison ("" hors fenêtre) : npc = lefort | vega | lea
+function za_apres_ligne(npc: text) :: text:
+    if za_apres_actif() is false:
+        return ""
+    set {_n} to {za::apres::saison}
+    if {_n} is not set:
+        set {_n} to {za::saison::num}
+    set {_j} to za_apres_jour()
+    set {_h} to za_apres_hero({_n})
+    set {_anon} to false
+    if {_h} contains "jamais su":
+        set {_anon} to true
+    set {_nx} to za_theme_index({_n} + 1)
+    set {_phase} to 1
+    if {_j} >= 3:
+        set {_phase} to 2
+    if {_j} >= 7:
+        set {_phase} to 3
+    set {_tombes} to size of {za::histoire::saison::%{_n}%::camps_tombes::*}
+    set {_debout} to size of {za::histoire::saison::%{_n}%::camps_vivants::*}
+    if {_npc} is "lefort":
+        if {_phase} is 1:
+            if {_anon} is true:
+                return "Personne ne sait qui a abattu l'Overlord, et je crois que je préfère. Je n'aurais pas parié un jeton sur vous. Mais ne vous méprenez pas : l'Overlord est tombé, pas le virus. Il dort. Je garde mes échantillons au froid."
+            return "%{_h}%... C'est le nom qui circule à la radio, non ? Je n'aurais pas parié un jeton sur vous. Mais ne vous méprenez pas : l'Overlord est tombé, pas le virus. Il dort. Je garde mes échantillons au froid."
+        if {_phase} is 2:
+            return "J'ai analysé ce qu'il restait de l'Overlord. La source est coupée, mais le virus a appris de nous, de nos armes, de nos habitudes. Une saison, pour lui, c'est un cycle. Il va recommencer autrement."
+        if {_nx} is 2:
+            return "Il y a moins de morts, ces derniers jours. Ne vous en réjouissez pas. Quand la peur des morts recule, c'est la peur des vivants qui prend la place. Fermez vos portes."
+        if {_nx} is 3:
+            return "Mes échantillons changent. Des souches plus agressives, des glandes plus actives. Ça va muter, et vite. Gardez vos antibiotiques, et ne vous faites pas mordre."
+        if {_nx} is 4:
+            return "Les instruments deviennent fous : le virus émet quelque chose, une sorte de bruit électromagnétique. Un silence radio approche. Apprenez à vivre sans les machines."
+        return "Le cycle se referme sur lui-même. Le virus revient au début, mais plus fort. Rien de neuf sous le soleil... sauf que nous, nous avons appris."
+    if {_npc} is "vega":
+        if {_phase} is 1:
+            if {_anon} is true:
+                return "On a compté nos morts. Ça fait moins de bruit qu'une horde, mais ça fait plus mal. Quelqu'un a fait ce que mes hommes n'ont pas pu faire, et il n'a laissé aucun nom. Je m'en souviendrai quand même."
+            return "On a compté nos morts. Ça fait moins de bruit qu'une horde, mais ça fait plus mal. %{_h}% a fait ce que mes hommes n'ont pas pu faire. Je m'en souviendrai."
+        if {_phase} is 2:
+            set {_c} to "Les camps, on n'a pas de chiffres précis."
+            if {_debout} + {_tombes} > 0:
+                set {_c} to "Rapport des camps : %{_debout}% debout, %{_tombes}% tombés."
+            return "%{_c}% Ce qui est tombé reste tombé : les ruines ne se relèvent pas toutes seules. Il faudra du monde pour reprendre du terrain."
+        if {_nx} is 2:
+            return "Mes éclaireurs voient des colonnes de Pillards se former à l'est. Ils attendent que les morts s'épuisent pour frapper les camps et les bases. Renforcez vos murs, et méfiez-vous d'un SOS trop pratique."
+        if {_nx} is 3:
+            return "Le labo signale du mouvement bizarre chez les morts : crachats d'acide, gros ballons, sauteurs. Ça mute. Ça mord plus fort. Gardez vos distances, soldat."
+        if {_nx} is 4:
+            return "On perd des transmissions. Les impulsions EMP se rapprochent. Ne comptez pas sur l'électricité, ni sur les tourelles, ni sur la radio. Une bonne vieille lame, ça ne tombe jamais en panne."
+        return "On repart de zéro. Même ennemi, mêmes règles... sauf qu'on sait ce qui nous attend. Reposez-vous, et gardez vos armes graissées."
+    if {_npc} is "lea":
+        if {_phase} is 1:
+            if {_anon} is true:
+                return "C'est... calme. Trop calme. Je capte du vent sur la fréquence, rien d'autre. Je répète à l'antenne que quelqu'un l'a fait, sans laisser de nom, au cas où quelqu'un ait besoin d'y croire."
+            return "C'est... calme. Trop calme. Je capte du vent sur la fréquence, rien d'autre. Je répète le nom de %{_h}% à l'antenne, au cas où quelqu'un ait besoin d'y croire."
+        if {_phase} is 2:
+            return "Tout le monde parle de la fin de saison. J'ai lu les noms gravés au Hall à l'antenne trois fois aujourd'hui. Ceux qui sont partis méritent qu'on dise leur nom."
+        return "Je sens que ça va changer. Restez près de la radio, je vous dirai ce que j'entends. Je crois que la prochaine saison s'appellera « %za_theme_nom({_nx})% »."
+    return ""
+
+# une étape de la chronologie (jour +j)
+function za_apres_etape(j: number):
+    set {_n} to {za::apres::saison} ? ({za::saison::num} ? 1)
+    set {_h} to za_apres_hero({_n})
+    if {_j} is 1:
+        set {za::apres::mult} to 0.5
+        za_radio("&bLéa", "C'est... calme. Trop calme.")
+        wait 6 seconds
+        za_radio("&bLéa", "Plus un râle à l'horizon. Même les hordes se sont dispersées. Profitez-en pour soigner vos blessés, réparer vos murs. Ça ne durera pas.")
+    else if {_j} is 3:
+        set {_k} to {za::histoire::saison::%{_n}%::kills} ? 0
+        set {_jr} to {za::histoire::saison::%{_n}%::jours} ? 0
+        set {_deb} to size of {za::histoire::saison::%{_n}%::camps_vivants::*}
+        set {_tom} to size of {za::histoire::saison::%{_n}%::camps_tombes::*}
+        set {_mo} to {za::histoire::saison::%{_n}%::morts} ? 0
+        set {_di} to {za::histoire::saison::%{_n}%::disparus} ? 0
+        set {_cd} to za_f2_pl({_deb}, "camp civil encore debout", "camps civils encore debout")
+        set {_ct} to za_f2_pl({_tom}, "perdu", "perdus")
+        set {_arc} to "Les archives retiendront ce nom."
+        if {_h} contains "jamais su":
+            set {_arc} to "Les archives retiendront le fait, à défaut d'un nom."
+        za_radio("&9Radio militaire", "...ici le Commandement régional. Transmission confirmée : la source du fléau de Saint-Aurèle a été neutralisée. Responsable : %{_h}%.")
+        wait 8 seconds
+        za_radio("&9Radio militaire", "Bilan provisoire : %{_jr}% jours de siège, %{_k}% infectés abattus, %{_cd}%, %{_ct}%. %{_arc}% Fin de transmission.")
+        wait 10 seconds
+        if {_di} > 0:
+            za_radio("&bLéa", "Vous l'avez entendu comme moi. Ce que la radio militaire ne dit pas, c'est le prix : %{_mo}% des nôtres sont tombés, et %{_di}% noms sont gravés dans la pierre.")
+        else:
+            za_radio("&bLéa", "Vous l'avez entendu comme moi. Ce que la radio militaire ne dit pas, c'est le prix : %{_mo}% des nôtres sont tombés cette saison. Je garde leurs noms.")
+        wait 8 seconds
+        if {_h} contains "jamais su":
+            za_radio("&bLéa", "À celui ou celle qui l'a fait, sans nom, sans médaille : merci. Pour nous tous.")
+        else:
+            za_radio("&bLéa", "%{_h}%, si tu m'entends : merci. Pour nous tous.")
+    else if {_j} is 5:
+        set {za::apres::mult} to 0.75
+        za_radio("&bLéa", "Les premiers rôdeurs reviennent, un par un. Rien de grave, mais gardez un oeil sur les lisières. Le monde reprend ses droits.")
+    else if {_j} is 7:
+        za_radio("&bLéa", "Le Dr Lefort, le Sergent Vega... et moi, on a des choses à vous dire sur ce qui vient. Passez nous voir. Ça concerne la prochaine saison.")
+    else if {_j} >= {@apres_fin}:
+        if {za::apres::auto} is true:
+            if {za::saison::finie} is true:
+                za_radio("&bLéa", "Ça y est. Je le sens dans les ondes : une nouvelle saison commence.")
+                wait 4 seconds
+                za_saison_finir()
+
+# une étape à la fois (une par minute) : si le serveur est resté vide, pas de rafale à la reconnexion
+every 1 minute:
+    if za_apres_actif() is false:
+        stop
+    if size of za_monde_joueurs() is 0:
+        stop
+    set {_j} to za_apres_jour()
+    loop 1, 3, 5, 7 and {@apres_fin}:
+        if {_j} >= loop-value:
+            if {za::apres::fait::%loop-value%} is not set:
+                set {za::apres::fait::%loop-value%} to true
+                za_apres_etape(loop-value)
+                stop
+
+# ---------------------------------------------------------------- nouvelle saison : carte-titre + monologue de Léa
+
+# appelée à la fin de za_saison_finir (za_p22) : le numéro de saison vient d'être incrémenté
+function za_saison_nouvelle(n: number):
+    set {za::apres::actif} to false
+    delete {za::apres::mult}
+    delete {za::apres::fait::*}
+    set {za::saison::nids} to 0
+    set {za::saison::sauves} to 0
+    set {za::saison::morts} to 0
+    delete {za::saison::raids::*}
+    set {za::raid::prochain} to ({za::serveur::jours} ? 0) + 1
+    za_theme_appliquer({_n})
+    set {za::histoire::saison::%{_n}%::theme} to za_theme_nom(za_theme_index({_n}))
+    za_diffuser("&6&l══ SAISON %{_n}% ══ &7Thème : %za_theme_titre({_n})%")
+    za_diffuser("&7%{za::theme::desc}%")
+    za_journal("Saison %{_n}% : « %za_theme_nom(za_theme_index({_n}))% ».")
+    loop za_monde_joueurs():
+        set {za::saison::joueurs::%{_n}%::%loop-value's uuid%} to "%loop-value%"
+        za_saison_carte(loop-value, {_n})
+
+# phrases de Léa pour l'ouverture de la saison n (référence la chronique de la précédente)
+function za_saison_monologue(n: number) :: texts:
+    set {_p} to {_n} - 1
+    set {_t} to za_theme_index({_n})
+    set {_e} to za_theme_niveau({_n})
+    add "Ici Léa, sur la 98,5. Saison %{_n}%, jour %{za::serveur::jours}%. Si vous m'entendez, c'est que vous êtes encore là. Ça, au moins, c'est une bonne nouvelle." to {_r::*}
+    set {_i} to {za::histoire::saison::%{_p}%::issue}
+    if {_i} is "accomplie":
+        add "Je repense à la dernière : %za_apres_hero({_p})% a abattu la source du fléau. %{za::histoire::saison::%{_p}%::jours}% jours, %{za::histoire::saison::%{_p}%::kills}% morts abattus. Je répète ce nom à l'antenne chaque soir, au cas où." to {_r::*}
+    else if {_i} is "arretee":
+        add "La saison d'avant s'est éteinte sans finale, sans héros. Le monde a simplement continué à pourrir. Ça aussi, ça se retient." to {_r::*}
+    else:
+        add "Chaque saison qui se termine laisse un trou dans la fréquence. Des voix qu'on n'entend plus. Je garde leur place au chaud." to {_r::*}
+    if {_i} is set:
+        set {_tb} to size of {za::histoire::saison::%{_p}%::camps_tombes::*}
+        set {_db} to size of {za::histoire::saison::%{_p}%::camps_vivants::*}
+        if {_tb} > 0:
+            add "Côté camps : %za_hist_camps_txt({_p})%. Leurs ruines sont toujours là, et personne ne les a relevées. Ne comptez pas sur elles pour vous abriter." to {_r::*}
+        else if {_db} > 0:
+            add "Côté camps : %za_hist_camps_txt({_p})%. Pas un seul n'est tombé. Vous n'avez pas idée à quel point ça me fait du bien de dire ça." to {_r::*}
+        else:
+            add "Aucun camp n'avait encore levé sa palissade. Ça viendra : les gens cherchent toujours un endroit où s'asseoir ensemble." to {_r::*}
+        set {_tt} to za_hist_terr_txt({_p})
+        set {_tf} to {za::histoire::saison::%{_p}%::top_faction}
+        if {_tt} is not "":
+            add "Qui tient quoi, sur la carte : %{_tt}%. Rien n'est acquis : un bâtiment change de mains dès que les gardes baissent la tête." to {_r::*}
+        else if {_tf} is set:
+            if {_tf} is not "aucune":
+                add "Personne ne tient de bâtiment pour de bon, mais %za_f2_fac_art({_tf})% garde la meilleure réputation. Ça ne vaut pas un mur, mais ça compte." to {_r::*}
+        if {_tt} is "":
+            if {_tf} is not set:
+                add "Les bâtiments n'appartiennent à personne. Ceux qui les prennent, ils se font reprendre." to {_r::*}
+    else:
+        add "Les camps, les territoires, les factions : tout ça reste comme vous l'avez laissé. Les ruines restent des ruines, les noms restent gravés." to {_r::*}
+    if {_t} is 1:
+        add "Cette saison, « Les morts » : ils reviennent en masse. Hordes, nids, Overlords. Rien de compliqué : tenez debout et restez groupés." to {_r::*}
+    else if {_t} is 2:
+        add "Cette saison, « Les vivants » : les morts se font rares, et c'est pas bon signe. Des bandes de Pillards frappent les camps et les bases. Méfiez-vous des SOS un peu trop parfaits, et de vos amis." to {_r::*}
+    else if {_t} is 3:
+        add "Cette saison, « La mutation » : le virus a appris. Plus de Spitters, plus de Bloaters, plus de Leapers, et les morsures infectent plus vite. Gardez vos antibiotiques près de vous." to {_r::*}
+    else:
+        add "Cette saison, « Le silence » : les ondes se brouillent, les impulsions EMP se multiplient, les nuits sont plus noires. J'ai entendu des Stalkers dans le noir. Si je deviens silencieuse, ne pleurez pas trop." to {_r::*}
+    if {_e} > 0:
+        add "Ce n'est pas la première fois que je vous le dis. C'est pire à chaque tour. Restez en vie. CKZA 98,5, on ne coupe pas." to {_r::*}
+    else:
+        add "Restez en vie. CKZA 98,5, on ne coupe pas." to {_r::*}
+    return {_r::*}
+
+# la carte-titre et les 5-6 phrases de Léa, une à la fois
+function za_saison_carte(p: player, n: number):
+    if {_p} is not online:
+        stop
+    set {_u} to {_p}'s uuid
+    set {za::saison::vu::%{_u}%} to {_n}
+    set {_t} to za_theme_index({_n})
+    set {_e} to za_theme_niveau({_n})
+    set {_sous} to "%za_theme_couleur({_t})%%za_theme_nom({_t})%"
+    if {_e} > 0:
+        set {_sous} to "%{_sous}% &8· &7cycle %{_e} + 1%"
+    za_zm("son %{_p}% za_modeles:sfx.sting_revelation 0.9 0.9")
+    za_zm("titre %{_p}% 20 100 40 &6&lSAISON_%{_n}% %za_us({_sous})%")
+    set {_l::*} to za_saison_monologue({_n})
+    wait 6 seconds
+    loop {_l::*}:
+        if {_p} is not online:
+            stop
+        za_zm("son %{_p}% za_modeles:sfx.radio_statique 0.4 1")
+        send "&8[&3♫ CKZA 98,5&8] &bLéa &8» &7%loop-value%" to {_p}
+        wait 6 seconds
+
+# ceux qui étaient absents (ou dans le prologue) à l'ouverture de la saison la voient à leur retour
+function za_saison_carte_verif(p: player):
+    if za_pro({_p}) is true:
+        stop
+    set {_u} to {_p}'s uuid
+    set {_n} to {za::saison::num} ? 1
+    if {za::saison::joueurs::%{_n}%::%{_u}%} is not set:
+        set {za::saison::joueurs::%{_n}%::%{_u}%} to "%{_p}%"
+    if {za::saison::vu::%{_u}%} is not set:
+        set {za::saison::vu::%{_u}%} to {_n}
+        stop
+    if {za::saison::vu::%{_u}%} < {_n}:
+        za_saison_carte({_p}, {_n})
+
+on join:
+    wait 20 seconds
+    if player is online:
+        za_saison_carte_verif(player)
+
+every 30 seconds:
+    loop za_monde_joueurs():
+        za_saison_carte_verif(loop-value)
+
+# ---------------------------------------------------------------- S3 « La mutation » : plus de crachats, de ballons, de sauteurs
+
+every 30 seconds:
+    if za_theme_actif(3) is false:
+        stop
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if "%world of {_p}%" is "world":
+            if gamemode of {_p} is survival or adventure:
+                if chance of ({za::theme::mutants} ? 0)%:
+                    set {_c} to za_f2_compte_noms(location of {_p}, 48, "Spitter", "Bloater", "Leaper")
+                    if {_c} < (3 + ({za::theme::niveau} ? 0)):
+                        set {_t} to random element out of "ZA_Spitter", "ZA_Spitter", "ZA_Bloater", "ZA_Leaper" and "ZA_Leaper"
+                        za_spawn_near({_p}, {_t}, 26, 44)
+
+# ---------------------------------------------------------------- S4 « Le silence » : nuits noires, Stalkers, EMP en rafale
+
+every 40 seconds:
+    if za_theme_actif(4) is false:
+        stop
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if "%world of {_p}%" is "world":
+            if gamemode of {_p} is survival or adventure:
+                if za_nuit({_p}) is true:
+                    if {za::theme::nuits_sombres} is true:
+                        za_effet({_p}, "darkness", 7, 0)
+                    if chance of ({za::theme::stalkers} ? 0)%:
+                        set {_c} to za_f2_compte_noms(location of {_p}, 64, "Stalker", "Stalker", "Stalker")
+                        if {_c} < 2:
+                            za_spawn_near({_p}, "ZA_Stalker", 30, 48)
+
+# za_p34 lance déjà une impulsion toutes les 4 h (35 %) : ici les rafales supplémentaires du thème
+every 90 minutes:
+    if za_theme_actif(4) is true:
+        if size of za_monde_joueurs() > 0:
+            if chance of (min(70, 30 * (({za::theme::emp_mult} ? 1) - 1)))%:
+                za_emp()
+
+# ---------------------------------------------------------------- S2 « Les vivants » : bandes de Pillards, guets-apens, traîtres
+
+# camps vivants qui ne sont pas déjà attaqués (préférence à ceux qu'un joueur peut atteindre)
+function za_raid_camps() :: numbers:
+    loop {za::camp::liste::*}:
+        set {_id} to loop-value
+        if {za::camp::%{_id}%::etat} is "vivant":
+            if {za::camp::%{_id}%::attaque} is not set:
+                add {_id} to {_r::*}
+    return {_r::*}
+
+# bases dont le propriétaire est en ligne (et pas visées ces 2 derniers jours)
+function za_raid_bases() :: texts:
+    loop {za::base::liste::*}:
+        set {_u} to "%loop-value%"
+        if {za::base::%{_u}%} is set:
+            set {_p} to za_f2_joueur({_u})
+            if {_p} is set:
+                if za_pro({_p}) is false:
+                    set {_d} to {za::raid::dernier::%{_u}%}
+                    if {_d} is not set:
+                        set {_d} to -10
+                    if {_d} < ({za::serveur::jours} ? 0) - 1:
+                        add {_u} to {_r::*}
+    return {_r::*}
+
+# mode : auto | camp | base | piege | trahison
+function za_raid_lancer(mode: text):
+    if {-raid::actif} is true:
+        stop
+    set {_camps::*} to za_raid_camps()
+    set {_bases::*} to za_raid_bases()
+    set {_m} to {_mode}
+    if {_m} is "auto":
+        set {_r} to random integer between 1 and 100
+        if {_r} <= 20:
+            if size of {_camps::*} > 0:
+                set {_m} to "trahison"
+        if {_m} is "auto":
+            if {_r} <= 35:
+                if size of za_monde_joueurs() > 0:
+                    set {_m} to "piege"
+        if {_m} is "auto":
+            if size of {_camps::*} > 0:
+                if size of {_bases::*} > 0:
+                    set {_m} to random element out of "camp" and "base"
+                else:
+                    set {_m} to "camp"
+            else if size of {_bases::*} > 0:
+                set {_m} to "base"
+        if {_m} is "auto":
+            stop
+    if {_m} is "camp":
+        if size of {_camps::*} < 1:
+            stop
+        za_raid_camp(random element out of {_camps::*})
+    else if {_m} is "base":
+        if size of {_bases::*} < 1:
+            stop
+        za_raid_base(random element out of {_bases::*})
+    else if {_m} is "piege":
+        za_piege_lancer()
+    else if {_m} is "trahison":
+        if size of {_camps::*} < 1:
+            stop
+        za_trahison_camp(random element out of {_camps::*})
+
+# tous les 1-2 jours serveur pendant S2
+every 60 seconds:
+    if za_theme_actif(2) is false:
+        stop
+    if {za::theme::pillards} is not true:
+        stop
+    if size of za_monde_joueurs() is 0:
+        stop
+    if {-raid::actif} is true:
+        stop
+    if {za::serveur::jours} >= ({za::raid::prochain} ? 0):
+        set {_mj} to {za::theme::raid_jours_max} ? 2
+        set {_mx} to max(1, {_mj})
+        set {za::raid::prochain} to {za::serveur::jours} + (random integer between 1 and {_mx})
+        za_raid_lancer("auto")
+
+# --- raid sur un camp : la logique de combat, les vagues et les récompenses sont celles du module camps
+function za_raid_camp(id: number):
+    if {za::camp::%{_id}%::etat} is not "vivant":
+        stop
+    set {_nom} to {za::camp::%{_id}%::nom}
+    set {_l} to {za::camp::%{_id}%::loc}
+    add 1 to {za::saison::raids::camps}
+    set {-raid::actif} to true
+    za_radio("&bLéa", "Une bande de Pillards ratisse la région. Elle marche sur le %{_nom}%, vers %za_f2_approx({_l})%. Ils ne viennent pas pour discuter. Ceux qui peuvent aider, c'est maintenant !")
+    wait 20 seconds
+    execute console command "zacamp attaque %{_id}% pillards"
+    # le drapeau tombe quand l'attaque du camp est finie (6 vagues de 30 s + délai), au plus tard après 8 minutes
+    set {_t} to 0
+    while {_t} < 48:
+        wait 10 seconds
+        add 1 to {_t}
+        if {za::camp::%{_id}%::attaque} is not set:
+            set {_t} to 999
+    delete {-raid::actif}
+
+# --- raid sur une base : avertissement, délai pour rentrer, bande de 3-6 (plus avec l'escalade)
+function za_raid_base(u: text):
+    if {-raid::actif} is true:
+        stop
+    set {_bl} to {za::base::%{_u}%}
+    if {_bl} is not set:
+        stop
+    set {_p} to za_f2_joueur({_u})
+    set {_nom} to "un survivant"
+    if {_p} is set:
+        set {_nom} to "%{_p}%"
+    set {-raid::actif} to true
+    set {za::raid::dernier::%{_u}%} to {za::serveur::jours}
+    set {_pm} to {za::theme::pillards_min} ? 3
+    set {_pn} to {za::theme::pillards_max} ? 6
+    set {_a} to max(3, {_pm})
+    set {_b} to max({_a}, {_pn})
+    set {_n} to random integer between {_a} and {_b}
+    add 1 to {za::saison::raids::bases}
+    za_radio("&bLéa", "Interception radio : une bande de %{_n}% Pillards marche sur la base de %{_nom}%, %za_f2_approx({_bl})%. Ils seront là dans une minute, armés jusqu'aux dents !")
+    if {_p} is set:
+        send title "&c&lPILLARDS" with subtitle "&7Une bande marche sur ta base : 1 minute !" to {_p} for 4 seconds
+        za_zm("son %{_p}% za_modeles:sfx.sting_danger 0.9 1")
+    wait {@raid_attente} seconds
+    za_raid_bande({_bl}, {_n}, "base", {_u})
+
+# la perte d'un propriétaire qui n'a pas su défendre : au plus 20 jetons, jamais plus de 10 % de sa bourse
+function za_raid_perte(u: text) :: number:
+    set {_p} to za_f2_joueur({_u})
+    if {_p} is not set:
+        return 0
+    set {_x} to min(20, floor(za_jetons({_p}) * 0.1))
+    if {_x} < 1:
+        return 0
+    za_jetons_ajouter({_p}, 0 - {_x})
+    send "&c[Raid] &7Les Pillards ont fouillé ta base : &c-%{_x}% jetons&7." to {_p}
+    return {_x}
+
+# personne à proximité d'une base visée : issue simulée (les gardes et les serrures font ce qu'ils peuvent)
+function za_raid_abstrait(u: text):
+    set {_p} to za_f2_joueur({_u})
+    set {_nom} to "son propriétaire"
+    if {_p} is set:
+        set {_nom} to "%{_p}%"
+    set {_g} to {za::base::gardes::%{_u}%} ? 0
+    set {_ch} to max(10, 60 - (12 * {_g}))
+    if chance of {_ch}%:
+        add 1 to {za::saison::raids::subis}
+        set {_x} to za_raid_perte({_u})
+        za_radio("&bLéa", "La base de %{_nom}% a été pillée pendant que personne n'y était. Les Pillards sont repartis avec ce qu'ils ont pu porter.")
+    else:
+        add 1 to {za::saison::raids::repousses}
+        za_radio("&bLéa", "Les Pillards ont tâté la base de %{_nom}% et sont repartis bredouilles : les défenses ont tenu.")
+    delete {-raid::actif}
+
+# une bande de Pillards prend d'assaut un lieu : mode base | piege | test
+function za_raid_bande(l: location, n: number, mode: text, u: text):
+    set {-raid::actif} to true
+    set {-raid::loc} to {_l}
+    set {-raid::kills} to 0
+    delete {-raid::k::*}
+    if {_mode} is "base":
+        if za_f2_joueur_proche({_l}, 120) is false:
+            za_raid_abstrait({_u})
+            stop
+    set {_d1} to 28
+    set {_d2} to 42
+    if {_mode} is "piege":
+        set {_d1} to 14
+        set {_d2} to 24
+    # les Pillards déjà là (gardes de territoire, attaque de camp...) ne sont pas de la bande : on ne les touche pas
+    loop all entities in radius 130 around {_l}:
+        if uncolored name of loop-entity starts with "Pillard":
+            set {_avant::%uuid of loop-entity%} to true
+    loop {_n} times:
+        set {_t} to "ZA_Pillard"
+        if chance of 40%:
+            set {_t} to "ZA_Pillard_Tireur"
+        za_spawn_at({_l}, {_t}, {_d1}, {_d2})
+    wait 2 seconds
+    delete {-raid::ids::*}
+    set {_tot} to 0
+    loop all entities in radius 130 around {_l}:
+        if uncolored name of loop-entity starts with "Pillard":
+            if {_avant::%uuid of loop-entity%} is not set:
+                set {-raid::ids::%uuid of loop-entity%} to true
+                add 1 to {_tot}
+    if {_tot} < 1:
+        delete {-raid::actif}
+        if {_mode} is "base":
+            za_radio("&bLéa", "Fausse alerte : la bande a rebroussé chemin avant d'atteindre la base. Ils reviendront.")
+        stop
+    set {-raid::total} to {_tot}
+    loop all players:
+        if za_pro(loop-player) is false:
+            if world of loop-player is world of {_l}:
+                if distance between loop-player and {_l} < 120:
+                    if {_mode} is "piege":
+                        send title "&4&lGUET-APENS" with subtitle "&7C'était un piège : %{_tot}% Pillards !" to loop-player for 4 seconds
+                    else:
+                        send title "&c&lPILLARDS !" with subtitle "&7%{_tot}% hommes armés approchent" to loop-player for 4 seconds
+                    za_zm("son %loop-player% za_modeles:sfx.horde_grondement 0.7 1.2")
+    set {_t} to 0
+    set {_max} to floor({@raid_duree} / 10)
+    while {_t} < {_max}:
+        wait 10 seconds
+        add 1 to {_t}
+        if za_raid_vivants({_l}) < 1:
+            set {_t} to 999
+    za_raid_bilan({_l}, {_mode}, {_u}, {_tot})
+
+# combien de Pillards de la bande sont encore là (on oublie ceux qui ont disparu sans mourir)
+function za_raid_vivants(l: location) :: number:
+    set {_n} to 0
+    loop all entities in radius 200 around {_l}:
+        if {-raid::ids::%uuid of loop-entity%} is set:
+            add 1 to {_n}
+            set {_pres::%uuid of loop-entity%} to true
+    loop {-raid::ids::*}:
+        if {_pres::%loop-index%} is not set:
+            delete {-raid::ids::%loop-index%}
+    return {_n}
+
+function za_raid_bilan(l: location, mode: text, u: text, tot: number):
+    set {_restes} to za_raid_vivants({_l})
+    set {_k} to {-raid::kills} ? 0
+    set {_issue} to "pillee"
+    if {_restes} < 1:
+        set {_issue} to "repoussee"
+    else if ({_k} * 2) >= {_tot}:
+        set {_issue} to "fuite"
+    # les survivants de la bande décrochent
+    if {_restes} > 0:
+        loop all entities in radius 200 around {_l}:
+            if {-raid::ids::%uuid of loop-entity%} is set:
+                execute console command "execute at %uuid of loop-entity% run particle minecraft:poof ~ ~1 ~ 0.2 0.4 0.2 0.02 8 force"
+                delete loop-entity
+        delete {-raid::ids::*}
+    # récompenses : ceux qui ont tué, ceux qui étaient là
+    if {_issue} is not "pillee":
+        loop all players:
+            if za_pro(loop-player) is false:
+                set {_pu} to loop-player's uuid
+                set {_kp} to {-raid::k::%{_pu}%} ? 0
+                set {_present} to false
+                if world of loop-player is world of {_l}:
+                    if distance between loop-player and {_l} < 90:
+                        set {_present} to true
+                if {_kp} > 0:
+                    set {_present} to true
+                if {_present} is true:
+                    set {_j} to 8 + (3 * {_kp})
+                    if {_issue} is "fuite":
+                        set {_j} to 4 + (2 * {_kp})
+                    set {_j} to min(40, {_j})
+                    za_jetons_ajouter(loop-player, {_j})
+                    za_faction_ajouter(loop-player, "survivants", 2)
+                    za_stat_ajouter({_pu}, "raids_repousses", 1)
+                    if {_issue} is "repoussee":
+                        send title "&a&lBANDE ANÉANTIE" with subtitle "&7Les Pillards ne feront plus de mal" to loop-player for 4 seconds
+                    else:
+                        send title "&a&lBANDE EN FUITE" with subtitle "&7Ils ont décroché, blessés" to loop-player for 4 seconds
+                    send "&6[Raid] &7Tu as tenu tête aux Pillards (%{_kp}% abattus). &6+%{_j}% jetons" to loop-player
+                    za_zm("son %loop-player% minecraft:ui.toast.challenge_complete 0.7 1")
+    # bilan à la radio
+    set {_nom} to "la zone"
+    if {_mode} is "base":
+        set {_p} to za_f2_joueur({_u})
+        set {_nom} to "la base"
+        if {_p} is set:
+            set {_nom} to "la base de %{_p}%"
+    if {_issue} is "repoussee":
+        add 1 to {za::saison::raids::repousses}
+        za_radio("&bLéa", "La bande est tombée : les Pillards ont été repoussés à %{_nom}%. %{_k}% abattus. Bravo à ceux qui étaient là.")
+        za_journal("Une bande de Pillards a été anéantie près de %{_nom}%.")
+    else if {_issue} is "fuite":
+        add 1 to {za::saison::raids::repousses}
+        za_radio("&bLéa", "Les Pillards ont décroché à %{_nom}%, après avoir laissé %{_k}% des leurs. Ils reviendront.")
+        za_journal("Une bande de Pillards a été mise en fuite près de %{_nom}%.")
+    else:
+        if {_mode} is "base":
+            add 1 to {za::saison::raids::subis}
+            set {_x} to za_raid_perte({_u})
+            za_radio("&bLéa", "%{_nom}% a été pillée. Les Pillards repartent chargés, ils n'ont perdu que %{_k}% hommes.")
+            za_journal("%{_nom}% a été pillée par des Pillards.")
+        else:
+            za_radio("&bLéa", "Les Pillards se replient avec leur butin. %{_k}% des leurs sont tombés, mais ils ne sont pas venus pour rien.")
+    delete {-raid::actif}
+    delete {-raid::loc}
+
+# --- guet-apens : un SOS qui n'en est pas un
+function za_piege_lancer():
+    if {-piege::loc} is set:
+        stop
+    if size of za_monde_joueurs() < 1:
+        stop
+    set {_p} to random element out of za_monde_joueurs()
+    set {_l} to za_point_loin({_p}, 110, 170)
+    set {_essais} to 0
+    while "%biome at {_l}%" contains "ocean":
+        set {_l} to za_point_loin({_p}, 110, 170)
+        add 1 to {_essais}
+        if {_essais} >= 6:
+            stop
+    set {-piege::loc} to {_l}
+    set {-piege::fin} to now
+    add 15 minutes to {-piege::fin}
+    add 1 to {za::saison::raids::pieges}
+    za_radio("&bLéa", "Une voix sur la fréquence civile... « ...ici... on est huit... des blessés, plus de munitions... quelqu'un ? » Le signal vient de %za_f2_approx({_l})%. La voix est... étrange. Mais je peux pas l'ignorer.")
+    za_journal("Un appel de détresse a été capté sur la fréquence civile.")
+
+function za_piege_declencher():
+    set {_l} to {-piege::loc}
+    delete {-piege::loc}
+    set {_n} to min(8, (random integer between 4 and 6) + ({za::theme::niveau} ? 0))
+    za_raid_bande({_l}, {_n}, "piege", "")
+
+# --- traître : un habitant ouvre la porte d'un camp et file avec les vivres
+function za_trahison_camp(id: number):
+    if {za::camp::%{_id}%::etat} is not "vivant":
+        stop
+    if {za::camp::%{_id}%::attaque} is set:
+        stop
+    if {-traitre::actif} is true:
+        stop
+    set {_nom} to {za::camp::%{_id}%::nom}
+    set {_l} to {za::camp::%{_id}%::loc}
+    set {_tr} to random element out of "Gaétan", "Rémi", "Dany", "Jocelyn", "Sylvain", "Denis" and "Yvon"
+    add 1 to {za::saison::raids::trahisons}
+    za_cmp_champ({_id}, "nourriture", -25)
+    za_cmp_champ({_id}, "moral", -12)
+    za_cmp_champ({_id}, "securite", -10)
+    za_cmp_pop_ajouter({_id}, -1)
+    za_radio("&bLéa", "Mauvaise nouvelle du %{_nom}%... %{_tr}%, un des leurs, a ouvert la palissade à une bande de Pillards en pleine nuit. Il est parti avec les vivres du camp. Ils sont attaqués !")
+    execute console command "zacamp attaque %{_id}% pillards"
+    # le traître fuit, à 55-75 blocs du camp, un Pillard à part entière (il porte les vivres)
+    set {_a} to random number between 0 and 360
+    set {_d} to random number between 55 and 75
+    set {_p} to {_l}
+    add ({_d} * cos({_a})) to x-coordinate of {_p}
+    add ({_d} * sin({_a})) to z-coordinate of {_p}
+    set {_g} to za_sol({_p})
+    execute console command "mm mobs spawn ZA_Pillard 1 %world of {_g}%,%floor(x-coordinate of {_g})%,%floor(y-coordinate of {_g})%,%floor(z-coordinate of {_g})%"
+    loop all entities in radius 4 around {_g}:
+        if uncolored name of loop-entity starts with "Pillard":
+            set {_e} to loop-entity
+    if {_e} is not set:
+        stop
+    execute console command "tag %uuid of {_e}% add za_traitre"
+    execute console command "data merge entity %uuid of {_e}% {CustomName:'{""text"":""%{_tr}%, le Traître"",""color"":""dark_red""}',CustomNameVisible:1b}"
+    set {-traitre::actif} to true
+    set {-traitre::camp} to {_id}
+    set {-traitre::nom} to {_tr}
+    set {-traitre::loc} to {_g}
+    set {-traitre::fin} to now
+    add 25 minutes to {-traitre::fin}
+    wait 8 seconds
+    za_radio("&bLéa", "Des témoins l'ont vu détaler vers %za_f2_approx({_g})%. %{_tr}% porte les provisions du %{_nom}%. Si quelqu'un le rattrape... les vivres reviendront au camp.")
+
+function za_trahison_mort(au: text):
+    if {-traitre::actif} is not true:
+        stop
+    delete {-traitre::actif}
+    set {_id} to {-traitre::camp}
+    set {_nom} to {za::camp::%{_id}%::nom}
+    if {za::camp::%{_id}%::etat} is "vivant":
+        za_cmp_champ({_id}, "nourriture", 25)
+        za_cmp_champ({_id}, "moral", 10)
+    set {_p} to za_f2_joueur({_au})
+    if {_p} is set:
+        za_jetons_ajouter({_p}, 25)
+        za_faction_ajouter({_p}, "survivants", 3)
+        za_stat_ajouter({_au}, "raids_repousses", 1)
+        if {za::camp::%{_id}%::etat} is "vivant":
+            za_cmp_conf_ajouter({_au}, {_id}, 15)
+            za_cmp_aide({_p}, {_id})
+        send title "&a&lTRAÎTRE ABATTU" with subtitle "&7Les vivres retournent au camp" to {_p} for 4 seconds
+        send "&6[Trahison] &7Tu as puni %{-traitre::nom}% et rendu les vivres au %{_nom}%. &6+25 jetons" to {_p}
+        za_zm("son %{_p}% minecraft:ui.toast.challenge_complete 0.7 1")
+    za_radio("&bLéa", "Le traître du %{_nom}% est tombé. Les vivres sont rentrés au camp. Justice... ou presque.")
+    za_journal("Le traitre du camp %{_nom}% a été abattu.")
+
+# le traître et le leurre du guet-apens ont une durée de vie
+every 10 seconds:
+    if {-piege::loc} is set:
+        if now is greater than {-piege::fin}:
+            delete {-piege::loc}
+            za_radio("&bLéa", "Le signal de détresse s'est tu. Peu importe qui c'était, il n'appelle plus.")
+        else if {-raid::actif} is not true:
+            set {_l} to {-piege::loc}
+            if za_f2_joueur_proche({_l}, 30) is true:
+                za_piege_declencher()
+            else if za_f2_joueur_proche({_l}, 250) is true:
+                # un panache de fumée : le « feu de détresse » du leurre, visible de loin
+                set {_wd} to za_dim(world of {_l})
+                execute console command "execute in %{_wd}% run particle minecraft:campfire_signal_smoke %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l}) + 10% %floor(z-coordinate of {_l})% 0.4 9 0.4 0.004 40 force"
+    if {-traitre::actif} is true:
+        if now is greater than {-traitre::fin}:
+            delete {-traitre::actif}
+            execute console command "kill @e[type=minecraft:vindicator,tag=za_traitre]"
+            za_radio("&bLéa", "Le traître s'est évanoui dans la nature avec les vivres du camp. On ne le retrouvera plus.")
+
+# ---------------------------------------------------------------- morts de Pillards : compte du raid en cours, traître
+
+function za_f2_mort_pillard(v: entity, au: text):
+    if "%scoreboard tags of {_v}%" contains "za_traitre":
+        za_trahison_mort({_au})
+        stop
+    set {_id} to uuid of {_v}
+    if {-raid::ids::%{_id}%} is set:
+        delete {-raid::ids::%{_id}%}
+        add 1 to {-raid::kills}
+        if {_au} is not "":
+            add 1 to {-raid::k::%{_au}%}
+
+on death of vindicator:
+    if za_pro(victim) is true:
+        stop
+    set {_au} to ""
+    if attacker is a player:
+        set {_au} to attacker's uuid
+    za_f2_mort_pillard(victim, {_au})
+
+on death of pillager:
+    if za_pro(victim) is true:
+        stop
+    set {_au} to ""
+    if attacker is a player:
+        set {_au} to attacker's uuid
+    za_f2_mort_pillard(victim, {_au})
+
+# ---------------------------------------------------------------- admin : /zasaison
+
+command /zasaison [<text>] [<text>] [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        set {_a} to arg-1
+        if {_a} is not set:
+            set {_a} to "etat"
+        if {_a} is "etat":
+            send "&6[zasaison] &7saison &f%{za::saison::num}% &7- jour serveur &f%{za::serveur::jours}% &7- thème &f%{za::theme}% &7(n° %{za::theme::num}%, niveau %{za::theme::niveau}%)" to sender
+            send "&7 zombies_mult=&f%{za::theme::zombies_mult}% &7infection_mult=&f%{za::theme::infection_mult}% &7(bonus %{za::theme::infection_bonus}% pts, saison::bonus=%{za::saison::bonus}%) mutants=&f%{za::theme::mutants}%%% &7emp_mult=&f%{za::theme::emp_mult}% &7stalkers=&f%{za::theme::stalkers}%%% &7nuits_sombres=&f%{za::theme::nuits_sombres}%" to sender
+            send "&7 pillards=&f%{za::theme::pillards}% &7(%{za::theme::pillards_min}%-%{za::theme::pillards_max}%, tous les 1-%{za::theme::raid_jours_max}% jours) prochain raid : jour %{za::raid::prochain}% - raid en cours=%{-raid::actif}% piège=%{-piege::loc}% traître=%{-traitre::actif}%" to sender
+            send "&7 après-saison : actif=&f%{za::apres::actif}% &7saison=%{za::apres::saison}% jour=&f%za_apres_jour()% &7mult=%{za::apres::mult}% auto=%{za::apres::auto}% étapes faites=%{za::apres::fait::*}%" to sender
+            send "&7 raids saison : camps=%{za::saison::raids::camps} ? 0% bases=%{za::saison::raids::bases} ? 0% repoussés=%{za::saison::raids::repousses} ? 0% subis=%{za::saison::raids::subis} ? 0% pièges=%{za::saison::raids::pieges} ? 0% trahisons=%{za::saison::raids::trahisons} ? 0%" to sender
+            set {_m} to {za::saison::num} ? 1
+            set {_s} to 1
+            while {_s} <= {_m}:
+                send "&7 chronique %{_s}% : issue=%{za::histoire::saison::%{_s}%::issue}% héros=%{za::histoire::saison::%{_s}%::heros}% jours=%{za::histoire::saison::%{_s}%::jours}% camps=%size of {za::histoire::saison::%{_s}%::camps_vivants::*}%+%size of {za::histoire::saison::%{_s}%::camps_tombes::*}% top=%{za::histoire::saison::%{_s}%::top_faction}%" to sender
+                add 1 to {_s}
+        else if {_a} is "theme":
+            set {_t} to arg-2 parsed as number
+            if {_t} is not set:
+                send "&cUsage : zasaison theme <1-4> [niveau]" to sender
+                stop
+            if {_t} < 1:
+                send "&cThème 1 à 4 (1 Les morts, 2 Les vivants, 3 La mutation, 4 Le silence)." to sender
+                stop
+            if {_t} > 4:
+                send "&cThème 1 à 4 (1 Les morts, 2 Les vivants, 3 La mutation, 4 Le silence)." to sender
+                stop
+            set {_e} to arg-3 parsed as number
+            if {_e} is not set:
+                set {_e} to za_theme_niveau({za::saison::num} ? 1)
+            za_theme_regler({_t}, {_e})
+            send "&aThème appliqué : &f%{za::theme}% &7(niveau %{_e}%) - %{za::theme::desc}%" to sender
+        else if {_a} is "apres":
+            if arg-2 is "fin":
+                set {za::apres::actif} to false
+                delete {za::apres::mult}
+                delete {za::apres::fait::*}
+                za_theme_appliquer({za::saison::num} ? 1)
+                send "&aFenêtre d'après-saison fermée (la saison n'a pas changé)." to sender
+                stop
+            set {_j} to arg-2 parsed as number
+            if {_j} is not set:
+                send "&cUsage : zasaison apres <jour|fin> [héros]  (simule le jour +N après la finale ; démarre la fenêtre au besoin)" to sender
+                stop
+            if za_apres_actif() is false:
+                set {_n} to {za::saison::num} ? 1
+                set {_h} to arg-3
+                if {_h} is not set:
+                    set {_h} to "Testeur"
+                set {za::saison::heros::%{_n}%} to {_h}
+                if {za::histoire::saison::%{_n}%::issue} is not set:
+                    za_hist_enregistrer({_n}, {_h}, "accomplie")
+                set {za::apres::saison} to {_n}
+                set {za::apres::actif} to true
+                set {za::saison::finie} to true
+                za_theme_appliquer({_n})
+            set {za::apres::debut} to ({za::serveur::jours} ? 0) - {_j}
+            delete {za::apres::fait::*}
+            set {za::apres::mult} to 0.5
+            if {_j} >= 5:
+                set {za::apres::mult} to 0.75
+            loop 1, 3, 5, 7 and {@apres_fin}:
+                if {_j} > loop-value:
+                    set {za::apres::fait::%loop-value%} to true
+            loop 1, 3, 5, 7 and {@apres_fin}:
+                if {_j} is loop-value:
+                    set {za::apres::fait::%loop-value%} to true
+                    send "&aÉtape J+%{_j}% lancée." to sender
+                    za_apres_etape({_j})
+            set {_ll} to za_apres_ligne("lefort")
+            set {_lv} to za_apres_ligne("vega")
+            set {_la} to za_apres_ligne("lea")
+            send "&aAprès-saison : jour +%{_j}%, mult=%{za::apres::mult}%. Lignes des PNJ :" to sender
+            send "&7 lefort=« %{_ll}% »" to sender
+            send "&7 vega=« %{_lv}% »" to sender
+            send "&7 lea=« %{_la}% »" to sender
+        else if {_a} is "chronique":
+            set {_n} to arg-2 parsed as number
+            if {_n} is not set:
+                loop za_chron_sommaire():
+                    send loop-value to sender
+                stop
+            loop 1 and 2:
+                loop za_chron_page({_n}, loop-value-1):
+                    send loop-value-2 to sender
+        else if {_a} is "livre":
+            set {_n} to arg-2 parsed as number
+            if {_n} is not set:
+                send "&cUsage : zasaison livre <saison> [x y]  (donne le livre, ou le range dans un coffre posé en x y 0 du monde 'world')" to sender
+                stop
+            if {za::histoire::saison::%{_n}%::issue} is not set:
+                send "&cPas de chronique pour la saison %{_n}%." to sender
+                stop
+            set {_nbt} to za_chron_livre_nbt({_n})
+            set {_cx} to arg-3 parsed as number
+            set {_cy} to arg-4 parsed as number
+            if {_cx} is set:
+                if {_cy} is set:
+                    execute console command "execute in minecraft:overworld run setblock %{_cx}% %{_cy}% 0 minecraft:chest{Items:[{Slot:0b,id:""minecraft:written_book"",Count:1b,tag:%{_nbt}%}]}"
+                    send "&aLivre rangé dans un coffre en %{_cx}% %{_cy}% 0." to sender
+                    stop
+            if sender is a player:
+                execute console command "give %sender% written_book%{_nbt}%"
+                send "&aLivre donné." to sender
+            else:
+                send "&7NBT : %{_nbt}%" to sender
+        else if {_a} is "enregistrer":
+            set {_n} to arg-2 parsed as number
+            if {_n} is not set:
+                set {_n} to {za::saison::num} ? 1
+            set {_h} to arg-3
+            if {_h} is not set:
+                set {_h} to "Testeur"
+            set {za::saison::heros::%{_n}%} to {_h}
+            za_hist_enregistrer({_n}, {_h}, "accomplie")
+            send "&aChronique de la saison %{_n}% enregistrée (héros : %{_h}%)." to sender
+        else if {_a} is "carte":
+            set {_p} to za_f2_joueur(arg-2 ? "")
+            loop all players:
+                if "%loop-player%" is arg-2:
+                    set {_p} to loop-player
+            if {_p} is not set:
+                if sender is a player:
+                    set {_p} to sender
+            if {_p} is not set:
+                send "&cUsage : zasaison carte <joueur> [saison]" to sender
+                stop
+            set {_n} to arg-3 parsed as number
+            if {_n} is not set:
+                set {_n} to {za::saison::num} ? 1
+            send "&aCarte de la saison %{_n}% envoyée à %{_p}%." to sender
+            za_saison_carte({_p}, {_n})
+        else if {_a} is "monologue":
+            set {_n} to arg-2 parsed as number
+            if {_n} is not set:
+                set {_n} to {za::saison::num} ? 1
+            send "&7Monologue de Léa pour la saison %{_n}% (%za_theme_nom(za_theme_index({_n}))%, niveau %za_theme_niveau({_n})%) :" to sender
+            loop za_saison_monologue({_n}):
+                send "&8[&3♫ CKZA 98,5&8] &bLéa &8» &7%loop-value%" to sender
+        else if {_a} is "raid":
+            set {_ty} to arg-2
+            if {_ty} is not set:
+                send "&cUsage : zasaison raid <camp|base|piege|trahison|auto|test [x z]>" to sender
+                stop
+            if {-raid::actif} is true:
+                send "&cUn raid est déjà en cours (/zasaison raid stop pour le couper)." to sender
+                stop
+            if {_ty} is "stop":
+                delete {-raid::actif}
+                delete {-piege::loc}
+                send "&aRaid en cours abandonné (drapeau levé)." to sender
+                stop
+            if {_ty} is "test":
+                set {_x} to arg-3 parsed as number
+                set {_z} to arg-4 parsed as number
+                if {_x} is not set:
+                    send "&cUsage : zasaison raid test <x> <z>  (bande de Pillards en monde 'world')" to sender
+                    stop
+                if {_z} is not set:
+                    send "&cUsage : zasaison raid test <x> <z>" to sender
+                    stop
+                set {_hb} to highest block at location({_x}, 64, {_z}, world("world"))
+                set {_l} to location({_x}, floor(y-coordinate of (location of {_hb})), {_z}, world("world"))
+                send "&aBande de test lancée en %{_x}% %{_z}%." to sender
+                za_raid_bande({_l}, 4, "test", "")
+                stop
+            send "&aRaid (%{_ty}%) demandé." to sender
+            za_raid_lancer({_ty})
+        else if {_a} is "finir":
+            send "&aFin de saison forcée (soft reset + nouvelle saison)." to sender
+            za_saison_finir()
+        else if {_a} is "ceremonie":
+            set {_h} to arg-2
+            if {_h} is not set:
+                set {_h} to "Testeur"
+            send "&aCérémonie de fin de saison simulée (héros : %{_h}%)." to sender
+            set {za::saison::finie} to true
+            za_saison_ceremonie({_h})
+        else if {_a} is "numero":
+            set {_n} to arg-2 parsed as number
+            if {_n} is not set:
+                send "&cUsage : zasaison numero <n> [jour de début]  (remet le compteur de saison à n, efface les chroniques >= n et la fenêtre d'après-saison : outil de test)" to sender
+                stop
+            if {_n} < 1:
+                send "&cn >= 1" to sender
+                stop
+            set {_s} to {_n}
+            while {_s} <= 60:
+                delete {za::histoire::saison::%{_s}%::*}
+                delete {za::saison::heros::%{_s}%}
+                add 1 to {_s}
+            set {za::saison::num} to {_n}
+            set {_db} to arg-3 parsed as number
+            if {_db} is set:
+                set {za::saison::debut} to {_db}
+            delete {za::saison::finie}
+            delete {za::saison::revele}
+            delete {za::saison::finale::actif}
+            set {za::apres::actif} to false
+            delete {za::apres::mult}
+            delete {za::apres::fait::*}
+            delete {za::saison::raids::*}
+            za_theme_appliquer({_n})
+            send "&aSaison remise à %{_n}% (thème %{za::theme}%). Chroniques >= %{_n}% effacées." to sender
+        else if {_a} is "auto":
+            if arg-2 is "off":
+                set {za::apres::auto} to false
+            else:
+                set {za::apres::auto} to true
+            send "&aDémarrage automatique de la saison suivante à J+{@apres_fin} : &f%{za::apres::auto}%" to sender
+        else if {_a} is "test":
+            send "&6[zasaison test] &7cycle des thèmes :" to sender
+            loop 1, 2, 3, 4, 5, 6, 7, 8 and 9:
+                send "&7 saison %loop-value% : %za_theme_titre(loop-value)% &8(index %za_theme_index(loop-value)%, niveau %za_theme_niveau(loop-value)%)" to sender
+            set {_ll} to za_apres_ligne("lefort")
+            send "&7 ligne Lefort (vide hors fenêtre) : « %{_ll}% »" to sender
+            set {_nm} to size of za_memoire_noms()
+            set {_ns} to size of za_mem_saison_liste({za::saison::num} ? 1)
+            send "&7 mémoire : noms gravés=%{_nm}% - disparus de la saison=%{_ns}%" to sender
+            set {_c1} to za_terr_compte("milice")
+            set {_c2} to za_terr_compte("pilleurs")
+            set {_c3} to za_terr_compte("morts")
+            send "&7 territoires tenus : milice=%{_c1}% pilleurs=%{_c2}% morts=%{_c3}%" to sender
+            set {_cv::*} to za_raid_camps()
+            set {_bv::*} to za_raid_bases()
+            send "&7 camps attaquables : %size of {_cv::*}% - bases éligibles : %size of {_bv::*}%" to sender
+        else:
+            send "&cUsage : zasaison etat|theme <n> [niveau]|apres <jour|fin> [héros]|chronique [n]|enregistrer [n] [héros]|carte <joueur> [n]|monologue [n]|raid <camp|base|piege|trahison|auto|test x z|stop>|livre <n> [x y]|numero <n> [début]|finir|ceremonie [héros]|auto on/off|test" to sender

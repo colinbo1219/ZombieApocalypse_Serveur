@@ -1,0 +1,73 @@
+# ZombieApocalypse - spawns aleatoires (Action ADD: necessite Generator: CLUSTER (ou LEGACY) dans config-spawning.yml)
+ZA_Spawn_Shambler_Jour:
+  Action: ADD
+  Type: ZA_Shambler
+  Chance: 0.15
+  Priority: 1
+  UseWorldScaling: false
+  Worlds: world
+  Biomes: PLAINS,FOREST,DARK_FOREST,BIRCH_FOREST,TAIGA,SWAMP,DESERT,SAVANNA,WINDSWEPT_HILLS,MEADOW,RIVER,BEACH,SNOWY_PLAINS,SNOWY_TAIGA
+  PositionType: LAND
+  Cooldown: 6
+  Conditions:
+  - day true
+ZA_Spawn_Shambler_Nuit:
+  Action: ADD
+  Type: ZA_Shambler
+  Chance: 0.55
+  Priority: 2
+  UseWorldScaling: false
+  Worlds: world
+  Biomes: PLAINS,FOREST,DARK_FOREST,BIRCH_FOREST,TAIGA,SWAMP,DESERT,SAVANNA,WINDSWEPT_HILLS,MEADOW,RIVER,BEACH,SNOWY_PLAINS,SNOWY_TAIGA
+  PositionType: LAND
+  Cooldown: 3
+  Conditions:
+  - night true
+ZA_Spawn_Runner:
+  Action: ADD
+  Type: ZA_Runner
+  Chance: 0.25
+  Priority: 3
+  UseWorldScaling: false
+  Worlds: world
+  Biomes: PLAINS,FOREST,BIRCH_FOREST,MEADOW,SAVANNA,SNOWY_PLAINS,BEACH
+  PositionType: LAND
+  Cooldown: 3
+  Conditions:
+  - night true
+ZA_Spawn_Spitter:
+  Action: ADD
+  Type: ZA_Spitter
+  Chance: 0.15
+  Priority: 3
+  UseWorldScaling: false
+  Worlds: world
+  Biomes: PLAINS,FOREST,DARK_FOREST,TAIGA,SWAMP
+  PositionType: LAND
+  Cooldown: 3
+  Conditions:
+  - night true
+ZA_Spawn_Bloater:
+  Action: ADD
+  Type: ZA_Bloater
+  Chance: 0.1
+  Priority: 4
+  UseWorldScaling: false
+  Worlds: world
+  Biomes: SWAMP,DESERT,SAVANNA,BEACH,RIVER
+  PositionType: LAND
+  Cooldown: 8
+  Conditions:
+  - night true
+ZA_Spawn_Leaper:
+  Action: ADD
+  Type: ZA_Leaper
+  Chance: 0.15
+  Priority: 3
+  UseWorldScaling: false
+  Worlds: world
+  Biomes: FOREST,DARK_FOREST,TAIGA,SNOWY_TAIGA,WINDSWEPT_HILLS
+  PositionType: LAND
+  Cooldown: 3
+  Conditions:
+  - night true

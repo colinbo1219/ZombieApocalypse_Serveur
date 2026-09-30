@@ -1,0 +1,884 @@
+# =====================================================================
+#  ZombieApocalypse - LÉGENDES : le dernier 10 %, ce dont les joueurs parleront encore
+#  1. LA GRANDE MIGRATION (1 fois par saison) : « UNE MIGRATION MASSIVE A ÉTÉ DÉTECTÉE ». Barre de boss, 6 vagues, objectif commun.
+#  2. LE GRAND SIÈGE (1 fois par saison) : tous les morts convergent vers le plus grand camp. Il tient... ou il tombe pour toujours.
+#  3. LE DERNIER CARRÉ DE VEGA (1 fois, pour toujours) : Vega appelle à l'aide. Si personne ne vient, il MEURT.
+#  4. LA TRANSMISSION IMPOSSIBLE (3 nuits) : Léa capte un message daté de trois jours AVANT le jour zéro. Il connaît un nom.
+#  5. LA CHAMBRE FROIDE Z-00 : un lieu qu'on ne découvre qu'une fois. Les noms des découvreurs y sont gravés, puis elle s'effondre.
+#  6. LE CARNET DE SAMUEL AREL : la relique unique. Un seul exemplaire. Il change de mains à la mort de son porteur.
+#  Tout est gravé : histoires locales (za_p62), souvenirs des témoins, chronique de saison, mémoriaux (za_p58).
+#  Commandes : /legendes · /relique · Admin : /zalegende migration|siege|vega|transmission <1-3>|z00|relique <joueur>|etat [échelle]
+# =====================================================================
+
+options:
+    relique: Carnet de Samuel Arel
+
+# ---------------------------------------------------------------- outils
+
+function za_leg_joueurs() :: players:
+    loop za_monde_joueurs():
+        if "%world of loop-value%" is "world":
+            add loop-value to {_r::*}
+    return {_r::*}
+
+function za_leg_attendre_ticks(s: number, ech: number) :: text:
+    return "%max(1, round({_s} * {_ech} * 20))% ticks"
+
+function za_leg_bb(id: text, nom: text, couleur: text, maxi: number):
+    execute console command "bossbar remove za:%{_id}%"
+    execute console command "bossbar add za:%{_id}% {""text"":""%{_nom}%"",""color"":""%{_couleur}%"",""bold"":true}"
+    execute console command "bossbar set za:%{_id}% color %{_couleur}%"
+    execute console command "bossbar set za:%{_id}% max %max(1, round({_maxi}))%"
+    execute console command "bossbar set za:%{_id}% value 0"
+    za_leg_bb_joueurs({_id})
+
+function za_leg_bb_joueurs(id: text):
+    loop all players:
+        execute console command "tag %loop-player% remove za_leg"
+    loop za_leg_joueurs():
+        execute console command "tag %loop-value% add za_leg"
+    execute console command "bossbar set za:%{_id}% players @a[tag=za_leg]"
+
+function za_leg_bb_val(id: text, v: number):
+    execute console command "bossbar set za:%{_id}% value %max(0, round({_v}))%"
+
+function za_leg_bb_nom(id: text, nom: text, couleur: text):
+    execute console command "bossbar set za:%{_id}% name {""text"":""%{_nom}%"",""color"":""%{_couleur}%"",""bold"":true}"
+
+function za_leg_bb_fin(id: text):
+    execute console command "bossbar remove za:%{_id}%"
+
+function za_leg_titre_tous(t: text, st: text, s: number):
+    loop za_monde_joueurs():
+        send title {_t} with subtitle {_st} to loop-value for ("%{_s}% seconds" parsed as timespan)
+
+function za_leg_son_tous(son: text, vol: number, pitch: number):
+    loop za_monde_joueurs():
+        za_zm("son %loop-value% %{_son}% %{_vol}% %{_pitch}%")
+
+function za_leg_nom_u(u: text) :: text:
+    loop all players:
+        if "%loop-player's uuid%" is {_u}:
+            return "%loop-player%"
+    if {za::leg::nom::%{_u}%} is set:
+        return {za::leg::nom::%{_u}%}
+    return "un survivant"
+
+# ================================================================ 1. LA GRANDE MIGRATION
+
+function za_leg_migration(ech: number):
+    if {za::leg::mig::actif} is true:
+        stop
+    set {_n} to {za::saison::num} ? 1
+    set {za::leg::mig::actif} to true
+    set {za::leg::mig::saison::%{_n}%} to {za::serveur::jours}
+    set {_np} to max(1, size of za_leg_joueurs())
+    set {_but} to min(400, max(60, 45 * {_np}))
+    set {za::leg::mig::but} to {_but}
+    set {za::leg::mig::kills} to 0
+    delete {za::leg::mig::k::*}
+    za_journal("Signes avant-coureurs d'une migration massive.")
+    za_leg_son_tous("za_modeles:sfx.radio_statique", 0.6, 0.8)
+    za_radio("&bLéa", "Les sismographes de la centrale s'affolent. Quelque chose de très lourd bouge, au nord. Ce n'est pas un séisme.")
+    wait (za_leg_attendre_ticks(90, {_ech}) parsed as timespan)
+    za_leg_son_tous("za_modeles:sfx.horde_grondement", 0.4, 0.7)
+    za_radio("&bLéa", "Ils descendent. Pas des dizaines. Des milliers. Rentrez les enfants, fermez tout, montez sur les toits...")
+    wait (za_leg_attendre_ticks(60, {_ech}) parsed as timespan)
+    za_leg_son_tous("za_modeles:sfx.sirene_ambulance", 0.8, 0.6)
+    za_leg_son_tous("za_modeles:sfx.sting_danger", 1, 0.7)
+    za_leg_titre_tous("&4&lUNE MIGRATION MASSIVE", "&cA ÉTÉ DÉTECTÉE", 5)
+    za_diffuser("&4&l══════ UNE MIGRATION MASSIVE A ÉTÉ DÉTECTÉE ══════")
+    za_diffuser("&7Des milliers de morts traversent Saint-Aurèle. &fAbattez-en &c%{_but}% &fensemble &7avant qu'ils ne passent.")
+    za_diffuser("&7Si vous tenez, la région tient. &cSinon, ils emporteront un camp avec eux.")
+    za_leg_bb("migration", "MIGRATION MASSIVE — 0/%{_but}%", "red", {_but})
+    set {za::leg::mig::bb} to true
+    set {_w} to 1
+    while {_w} <= 6:
+        if {za::leg::mig::actif} is not true:
+            stop
+        za_leg_bb_joueurs("migration")
+        za_leg_bb_nom("migration", "MIGRATION MASSIVE — vague %{_w}%/6 — %{za::leg::mig::kills}%/%{_but}%", "red")
+        loop za_leg_joueurs():
+            set {_p} to loop-value
+            if gamemode of {_p} is survival or adventure:
+                if size of (all zombies in radius 40 around {_p}) < 35:
+                    set {_nb} to 3 + {_w}
+                    loop {_nb} times:
+                        set {_t} to random element out of "ZA_Shambler", "ZA_Shambler", "ZA_Runner" and "ZA_Citoyen_Infecte"
+                        if {_w} >= 3:
+                            if chance of 30%:
+                                set {_t} to random element out of "ZA_Spitter", "ZA_Leaper" and "ZA_Runner"
+                        if {_w} >= 5:
+                            if chance of 12%:
+                                set {_t} to random element out of "ZA_Brute" and "ZA_Charognard"
+                        za_spawn_at(location of {_p}, {_t}, 18, 36)
+                za_zm("son %{_p}% za_modeles:sfx.horde_grondement 0.5 0.9")
+        if {_w} is 3:
+            za_radio("&bLéa", "La moitié est passée. Tenez. Pour l'amour de Dieu, tenez.")
+        add 1 to {_w}
+        wait (za_leg_attendre_ticks(40, {_ech}) parsed as timespan)
+    wait (za_leg_attendre_ticks(40, {_ech}) parsed as timespan)
+    za_leg_migration_fin()
+
+function za_leg_migration_fin():
+    if {za::leg::mig::actif} is not true:
+        stop
+    set {za::leg::mig::actif} to false
+    za_leg_bb_fin("migration")
+    set {za::leg::mig::bb} to false
+    set {_k} to {za::leg::mig::kills}
+    set {_but} to {za::leg::mig::but}
+    set {_best} to 0
+    set {_bu} to ""
+    loop {za::leg::mig::k::*}:
+        if loop-value > {_best}:
+            set {_best} to loop-value
+            set {_bu} to loop-index
+    set {_heros} to "personne"
+    if {_bu} is not "":
+        set {_heros} to za_leg_nom_u({_bu})
+    set {_j} to {za::serveur::jours}
+    if {_k} >= {_but}:
+        za_leg_son_tous("za_modeles:sfx.sting_revelation", 1, 1)
+        za_leg_titre_tous("&a&lLA MIGRATION EST PASSÉE", "&7Saint-Aurèle tient encore.", 5)
+        za_diffuser("&a&lLa Grande Migration est passée. &7%{_k}% morts abattus. &fMeilleur tireur : &e%{_heros}% &7(%{_best}%).")
+        loop {za::leg::mig::k::*}:
+            if loop-value >= 5:
+                loop all players:
+                    if "%loop-player's uuid%" is loop-index-1:
+                        za_jetons_ajouter(loop-player, 15 + min(35, floor(loop-value-1 / 2)))
+                        za_faction_ajouter(loop-player, "milice", 8)
+                        za_stat_ajouter(loop-index-1, "territoires_defendus", 1)
+                        send "&a&lTU AS TENU. &7+jetons, Milice +8. On se souviendra de cette nuit." to loop-player
+        za_monde_legende("La Grande Migration. Les survivants ont tenu (%{_k}% morts). Meilleur tireur : %{_heros}%.")
+    else:
+        za_leg_son_tous("za_modeles:musique.effondrement", 0.8, 1)
+        za_leg_titre_tous("&4&lLA MIGRATION A TOUT EMPORTÉ", "&7%{_k}%/%{_but}% — ce n'était pas assez.", 5)
+        # le camp le plus fragile est emporté
+        set {_pire} to 0
+        set {_ps} to 1000
+        loop {za::camp::liste::*}:
+            if {za::camp::%loop-value%::etat} is "vivant":
+                if {za::camp::%loop-value%::securite} < {_ps}:
+                    set {_ps} to {za::camp::%loop-value%::securite}
+                    set {_pire} to loop-value
+        set {_txt} to "La Grande Migration a traversé Saint-Aurèle. Rien n'a été pareil après."
+        if {_pire} is not 0:
+            set {_cn} to {za::camp::%{_pire}%::nom}
+            za_radio("&bLéa", "La migration est passée sur le camp « %{_cn}% ». Je... je n'entends plus rien, là-bas.")
+            za_cmp_tomber({_pire}, "emporté par la Grande Migration")
+            set {_txt} to "La Grande Migration a emporté le camp « %{_cn}% »."
+        za_monde_legende({_txt})
+    delete {za::leg::mig::k::*}
+
+on death of zombie:
+    if {za::leg::mig::actif} is true:
+        if attacker is a player:
+            set {_u} to "%attacker's uuid%"
+            add 1 to {za::leg::mig::kills}
+            if {za::leg::mig::k::%{_u}%} is not set:
+                set {za::leg::mig::k::%{_u}%} to 0
+            add 1 to {za::leg::mig::k::%{_u}%}
+            set {za::leg::nom::%{_u}%} to "%attacker%"
+    if {za::leg::vega::actif} is true:
+        if attacker is a player:
+            if {za::leg::vega::loc} is set:
+                if world of attacker is world of {za::leg::vega::loc}:
+                    if distance between attacker and {za::leg::vega::loc} < 50:
+                        set {_u} to "%attacker's uuid%"
+                        if {za::leg::vega::k::%{_u}%} is not set:
+                            set {za::leg::vega::k::%{_u}%} to 0
+                        add 1 to {za::leg::vega::k::%{_u}%}
+                        set {za::leg::nom::%{_u}%} to "%attacker%"
+
+every 3 seconds:
+    if {za::leg::mig::actif} is true:
+        if {za::leg::mig::bb} is true:
+            za_leg_bb_val("migration", min({za::leg::mig::kills}, {za::leg::mig::but}))
+
+# ================================================================ 2. LE GRAND SIÈGE
+
+function za_leg_siege(ech: number):
+    set {_n} to {za::saison::num} ? 1
+    if {za::leg::siege::actif} is true:
+        stop
+    # le plus grand camp encore debout
+    set {_id} to 0
+    set {_pop} to -1
+    loop {za::camp::liste::*}:
+        if {za::camp::%loop-value%::etat} is "vivant":
+            if {za::camp::%loop-value%::pop} > {_pop}:
+                set {_pop} to {za::camp::%loop-value%::pop}
+                set {_id} to loop-value
+    if {_id} is 0:
+        stop
+    set {za::leg::siege::actif} to true
+    set {za::leg::siege::saison::%{_n}%} to {za::serveur::jours}
+    set {_nom} to {za::camp::%{_id}%::nom}
+    set {_l} to {za::camp::%{_id}%::loc}
+    set {_x} to floor(x-coordinate of {_l} / 50) * 50
+    set {_z} to floor(z-coordinate of {_l} / 50) * 50
+    za_leg_son_tous("za_modeles:sfx.sting_danger", 1, 0.8)
+    za_leg_titre_tous("&4&lLE GRAND SIÈGE", "&7Les morts convergent vers le camp « %{_nom}% »", 5)
+    za_radio("&bLéa", "Tous les morts du secteur tournent la tête dans la même direction. Vers le camp « %{_nom}% ». %floor({_pop})% personnes vivent là-bas. Vers X=%{_x}% Z=%{_z}%. Ils frapperont dans quelques minutes.")
+    za_diffuser("&c[Grand Siège] &7Le camp &f« %{_nom}% » &7sera assiégé trois fois. &fAllez-y, donnez-leur des vivres, des armes, tenez la palissade.")
+    za_lieu_camp({_id}, "attaque")
+    za_lieu_evt("camp:%{_id}%", "Le Grand Siège du camp « %{_nom}% » commence.", 2, "raid")
+    wait (za_leg_attendre_ticks(300, {_ech}) parsed as timespan)
+    set {_v} to 1
+    while {_v} <= 3:
+        if {za::camp::%{_id}%::etat} is not "vivant":
+            set {_v} to 4
+        else:
+            if za_cmp_joueur_proche({_l}, 150) is false:
+                za_cmp_pop_ajouter({_id}, 0 - max(1, round({za::camp::%{_id}%::pop} * 0.35)))
+                za_cmp_champ({_id}, "securite", -15)
+                za_radio("&bLéa", "Personne n'est venu au camp « %{_nom}% ». La palissade cède, assaut %{_v}%/3...")
+                if {za::camp::%{_id}%::pop} <= 0:
+                    za_cmp_tomber({_id}, "au Grand Siège")
+            else:
+                za_cmp_champ({_id}, "securite", -8)
+                za_leg_titre_tous("&c&lASSAUT %{_v}%/3", "&7%{_nom}%", 3)
+            if {za::camp::%{_id}%::etat} is "vivant":
+                delete {za::camp::%{_id}%::attaque}
+                remove {_id} from {za::camp::attaques::*}
+                za_cmp_attaque({_id}, "zombies")
+            add 1 to {_v}
+            wait (za_leg_attendre_ticks(270, {_ech}) parsed as timespan)
+    wait (za_leg_attendre_ticks(30, {_ech}) parsed as timespan)
+    set {za::leg::siege::actif} to false
+    set {_j} to {za::serveur::jours}
+    if {za::camp::%{_id}%::etat} is "vivant":
+        za_leg_titre_tous("&a&lLE SIÈGE EST LEVÉ", "&7Le camp « %{_nom}% » tient toujours.", 5)
+        za_leg_son_tous("za_modeles:sfx.sting_revelation", 1, 1.1)
+        loop all players:
+            if za_pro(loop-player) is false:
+                if world of loop-player is world of {_l}:
+                    if distance between loop-player and {_l} < 120:
+                        za_jetons_ajouter(loop-player, 30)
+                        za_faction_ajouter(loop-player, "survivants", 15)
+                        za_stat_ajouter("%loop-player's uuid%", "territoires_defendus", 1)
+                        send "&a&lLE CAMP « %{_nom}% » TE DOIT LA VIE. &7+30 jetons, Survivants +15." to loop-player
+        za_lieu_evt("camp:%{_id}%", "Le Grand Siège est levé : le camp « %{_nom}% » a tenu.", 3, "legende")
+        za_monde_legende("Le Grand Siège du camp « %{_nom}% ». Il a tenu.")
+    else:
+        za_leg_titre_tous("&4&l%{_nom}%", "&7est tombé. Pour toujours.", 5)
+        za_leg_son_tous("za_modeles:musique.effondrement", 0.8, 1)
+        za_monde_legende("La chute du camp « %{_nom}% », au Grand Siège. Il ne s'est jamais relevé.")
+
+# ================================================================ 3. LE DERNIER CARRÉ DE VEGA
+
+function za_leg_vega_lieu() :: location:
+    loop za_bat_liste("caserne"):
+        if {_res} is not set:
+            set {_c} to za_bat_centre(loop-value)
+            if {_c} is set:
+                # devant la caserne, pas sur son toit
+                set {_res} to za_sol(location(x-coordinate of {_c}, 64, z-coordinate of {_c} + 13, world of {_c}))
+    if {_res} is set:
+        return {_res}
+    set {_ps::*} to za_leg_joueurs()
+    if size of {_ps::*} is 0:
+        stop
+    set {_rp} to random element out of {_ps::*}
+    set {_pl} to za_point_loin({_rp}, 120, 170)
+    return za_sol({_pl})
+
+function za_leg_vega(ech: number):
+    if {za::pnj::mort::vega} is set:
+        stop
+    if {za::leg::vega::actif} is true:
+        stop
+    set {_l} to za_leg_vega_lieu()
+    if {_l} is not set:
+        stop
+    set {_l} to location(floor(x-coordinate of {_l}) + 0.5, floor(y-coordinate of {_l}), floor(z-coordinate of {_l}) + 0.5, world of {_l})
+    set {za::leg::vega::actif} to true
+    set {za::leg::vega::fait} to {za::serveur::jours}
+    set {za::leg::vega::loc} to {_l}
+    delete {za::leg::vega::k::*}
+    set {_x} to floor(x-coordinate of {_l})
+    set {_z} to floor(z-coordinate of {_l})
+    set {_ln} to za_lieu_pres({_l}, 150)
+    set {_ou} to "au checkpoint nord"
+    if {_ln} is not "":
+        set {_ou} to "près de « %za_lieu_nom({_ln})% »"
+    set {za::leg::vega::ou} to {_ou}
+    za_leg_son_tous("za_modeles:sfx.radio_statique", 0.8, 0.7)
+    za_radio("&6Sergent Vega", "Ici Vega. Je suis %{_ou}%. Ils arrivent de partout... Bravo-3 est avec eux. Si quelqu'un m'entend : X=%{_x}%, Z=%{_z}%.")
+    za_diffuser("&6[Dernier carré] &7Le Sergent Vega est encerclé vers &fX=%{_x}% Z=%{_z}%&7. &cS'il reste seul, il mourra.")
+    wait (za_leg_attendre_ticks(120, {_ech}) parsed as timespan)
+    za_radio("&6Sergent Vega", "Je tiens. Je tiens encore. Je compte... j'ai arrêté de compter.")
+    # Vega en chair et en os (invincible pour MythicMobs : sa « vie » est une jauge, les morts à son contact la rongent)
+    execute console command "mm mobs kill ZA_Survivant_Vega"
+    set {za::pnj::actif::vega} to true
+    execute console command "mm mobs spawn ZA_Survivant_Vega 1 %world of {_l}%,%{_x}%,%floor(y-coordinate of {_l})%,%{_z}%"
+    set {za::leg::vega::vie} to 100
+    za_leg_bb("vega", "SERGENT VEGA", "yellow", 100)
+    za_leg_bb_val("vega", 100)
+    set {_t} to 0
+    while {_t} < 30:
+        if {za::leg::vega::vie} <= 0:
+            set {_t} to 99
+        else:
+            if mod({_t}, 3) is 0:
+                set {_np} to 0
+                loop za_leg_joueurs():
+                    if distance between loop-value and {_l} < 60:
+                        add 1 to {_np}
+                loop (3 + min(6, {_np} * 2)) times:
+                    set {_ty} to random element out of "ZA_Soldat_Infecte", "ZA_Shambler", "ZA_Runner" and "ZA_Shambler"
+                    za_spawn_at({_l}, {_ty}, 9, 18)
+            set {_pres} to 0
+            loop za_leg_joueurs():
+                if distance between loop-value and {_l} < 50:
+                    add 1 to {_pres}
+            set {_z0} to size of (all zombies in radius 5 around {_l})
+            set {_perte} to {_z0} * 2
+            if {_pres} is 0:
+                add 4 to {_perte}
+            remove {_perte} from {za::leg::vega::vie}
+            za_leg_bb_val("vega", {za::leg::vega::vie})
+            za_leg_bb_joueurs("vega")
+            if {_t} is 12:
+                za_radio("&6Sergent Vega", "Il y en a trop... Si je deviens comme eux, vous ne me laissez pas marcher. Promettez-le.")
+            add 1 to {_t}
+            wait (za_leg_attendre_ticks(10, {_ech}) parsed as timespan)
+    za_leg_vega_fin()
+
+function za_leg_vega_fin():
+    if {za::leg::vega::actif} is not true:
+        stop
+    set {za::leg::vega::actif} to false
+    za_leg_bb_fin("vega")
+    set {_l} to {za::leg::vega::loc}
+    set {_ou} to {za::leg::vega::ou}
+    set {_j} to {za::serveur::jours}
+    # ceux qui se sont battus à ses côtés
+    set {_noms} to ""
+    loop {za::leg::vega::k::*}:
+        if loop-value >= 3:
+            set {_nm} to za_leg_nom_u(loop-index)
+            if {_noms} is "":
+                set {_noms} to {_nm}
+            else:
+                set {_noms} to "%{_noms}%, %{_nm}%"
+    if {za::leg::vega::vie} > 0:
+        za_leg_son_tous("za_modeles:sfx.sting_revelation", 1, 1)
+        za_leg_titre_tous("&6&lVEGA A TENU", "&7Le dernier carré n'est pas tombé.", 5)
+        za_radio("&6Sergent Vega", "Vous êtes venus. Je ne l'oublierai pas. Jamais.")
+        loop {za::leg::vega::k::*}:
+            if loop-value >= 3:
+                loop all players:
+                    if "%loop-player's uuid%" is loop-index-1:
+                        za_jetons_ajouter(loop-player, 30)
+                        za_faction_ajouter(loop-player, "milice", 15)
+                        za_rel_ajouter(loop-player, "vega", 20)
+                        if {za::titre::special::%loop-index-1%} is not set:
+                            set {za::titre::special::%loop-index-1%} to "&6Frère d'armes de Vega"
+                        send "&6&lVEGA TE DOIT LA VIE. &7+30 jetons, Milice +15, confiance de Vega +20." to loop-player
+        set {_txt} to "Le dernier carré de Vega, %{_ou}%. Il a tenu."
+        if {_noms} is not "":
+            set {_txt} to "Le dernier carré de Vega, %{_ou}%. Il a tenu, avec %{_noms}% à ses côtés."
+        za_monde_legende({_txt})
+        wait 60 seconds
+        execute console command "mm mobs kill ZA_Survivant_Vega"
+        set {za::pnj::actif::vega} to false
+    else:
+        # VEGA MEURT : pour toujours
+        set {za::pnj::mort::vega} to {_j}
+        execute console command "mm mobs kill ZA_Survivant_Vega"
+        set {za::pnj::actif::vega} to true
+        loop za_monde_joueurs():
+            execute console command "execute as %loop-value% at @s run stopsound @s music"
+            za_zm("son %loop-value% za_modeles:voix.vega_adieu 1 1")
+        wait 7 seconds
+        za_leg_titre_tous("&8&lSERGENT VEGA", "&7Mort %{_ou}% — jour %{_j}%", 6)
+        za_leg_son_tous("za_modeles:musique.effondrement", 0.7, 1)
+        if {_l} is set:
+            execute console command "execute in %za_dim(world of {_l})% run particle minecraft:soul %x-coordinate of {_l}% %y-coordinate of {_l} + 1% %z-coordinate of {_l}% 0.4 1 0.4 0.02 60 force"
+            drop za_item("iron ingot", "Béret de Vega", "&6", 1) at {_l}
+            za_mem_mort("Sergent Vega", {_l}, "tombé seul au dernier carré", true)
+        wait 4 seconds
+        za_radio("&bLéa", "Vega ne répond plus. Il comptait les morts, un par un... Maintenant c'est nous qui comptons les siens.")
+        za_monde_legende("Le Sergent Vega est mort %{_ou}%. Personne n'a pu le sauver.")
+        za_journal("Le Sergent Vega est mort.")
+    delete {za::leg::vega::k::*}
+
+# ================================================================ 4. LA TRANSMISSION IMPOSSIBLE
+
+function za_leg_transmission(partie: number):
+    set {za::leg::trans::partie} to {_partie}
+    set {za::leg::trans::jour} to {za::serveur::jours}
+    loop za_monde_joueurs():
+        za_zm("son %loop-value% za_modeles:sfx.radio_statique 0.9 0.6")
+        set {_u} to "%loop-value's uuid%"
+        if {za::leg::trans::ecoute::%{_u}%::%{_partie}%} is not set:
+            set {za::leg::trans::ecoute::%{_u}%::%{_partie}%} to true
+            if {za::leg::trans::n::%{_u}%} is not set:
+                set {za::leg::trans::n::%{_u}%} to 0
+            add 1 to {za::leg::trans::n::%{_u}%}
+    wait 2 seconds
+    if {_partie} is 1:
+        za_leg_son_tous("za_modeles:voix.lea_ancienne", 1, 1)
+        za_diffuser("&8[Fréquence 98,5] &bLéa &8» &7J'ai capté un message. Horodatage : &fJour -3, 03 h 12&7. C'est impossible. C'est trois jours AVANT le jour zéro.")
+        wait 5 seconds
+        za_diffuser("&8[Horodatage J-3 · 03:12] &7&o« ...ici Samuel Arel, technicien de nuit, NORDA. Si ce message vous parvient, c'est que j'avais raison. Ne laissez pas Z-01 quitter la Réserve 7... »")
+        wait 5 seconds
+        za_diffuser("&8[Fréquence 98,5] &bLéa &8» &7Il y a une suite. Elle se répète chaque nuit, sous le bruit. Je vais essayer de la nettoyer.")
+    else if {_partie} is 2:
+        set {_cible} to "toi"
+        set {_best} to -1
+        loop za_monde_joueurs():
+            set {_nv} to za_niv(loop-value)
+            if {_nv} > {_best}:
+                set {_best} to {_nv}
+                set {_cp} to loop-value
+        if {_cp} is set:
+            set {_cible} to "%{_cp}%"
+            set {za::lea::nom::%{_cp}'s uuid%} to true
+            set {za::leg::trans::cible} to {_cible}
+        za_diffuser("&8[Horodatage J-2 · 03:12] &7&o« ...je ne sais pas comment je le sais. Je vois un nom dans le bruit : &f&o%{_cible}%&7&o. %{_cible}%, tu liras ceci. Tu arriveras par le bus de 17 h 40. Tu ne sais pas encore ce que tu portes... »")
+        wait 6 seconds
+        if {_cp} is set:
+            za_zm("son %{_cp}% za_modeles:voix.lea_noms 1 1")
+        za_diffuser("&8[Fréquence 98,5] &bLéa &8» &7%{_cible}%... C'est toi ? Comment un homme mort avant tout ça peut-il connaître ton nom ?")
+    else:
+        za_leg_z00_generer()
+        set {_l} to {za::leg::z00::loc}
+        set {_x} to "?"
+        set {_z} to "?"
+        if {_l} is set:
+            set {_x} to floor(x-coordinate of {_l} / 10) * 10
+            set {_z} to floor(z-coordinate of {_l} / 10) * 10
+        za_diffuser("&8[Horodatage J-1 · 03:12] &7&o« ...ils ont creusé la chambre froide sous le vieux chemin. Z-00. Avant Z-01, il y avait Z-00. C'était moi. &fX=%{_x}%, Z=%{_z}%&7&o. Venez avant qu'elle ne s'effondre... »")
+        wait 6 seconds
+        za_diffuser("&8[Fréquence 98,5] &bLéa &8» &7Des coordonnées. Le message s'arrête là. Il ne se répétera plus. Quelqu'un doit y aller... une seule fois.")
+        za_monde_legende("La transmission impossible. Un message daté de trois jours avant le jour zéro.")
+        # ceux qui ont entendu au moins deux nuits comprennent (chapitre « La révélation », za_p60)
+        loop za_monde_joueurs():
+            set {_u} to "%loop-value's uuid%"
+            if {za::leg::trans::n::%{_u}%} >= 2:
+                set {za::fil::verite::%{_u}%} to true
+                send "&8&oTu as entendu les trois nuits... ou presque. Tu sais maintenant que tout a commencé avant le jour zéro." to loop-value
+    za_journal("Transmission impossible : partie %{_partie}%/3.")
+
+# ================================================================ 5. LA CHAMBRE FROIDE Z-00
+
+function za_leg_z00_generer():
+    if {za::leg::z00::loc} is set:
+        stop
+    set {_w} to world("world")
+    if {_w} is not set:
+        stop
+    set {_sp} to spawn of {_w}
+    set {_ok} to false
+    set {_essai} to 0
+    while {_essai} < 8:
+        add 1 to {_essai}
+        if {_ok} is false:
+            set {_a} to random number between 0 and 360
+            set {_d} to random number between 550 and 900
+            set {_x} to floor(x-coordinate of {_sp} + ({_d} * cos({_a})))
+            set {_z} to floor(z-coordinate of {_sp} + ({_d} * sin({_a})))
+            set {_hb} to highest block at location({_x}, 64, {_z}, {_w})
+            set {_b} to "%biome at location({_x}, 64, {_z}, {_w})%"
+            if {_b} does not contain "ocean":
+                if {_b} does not contain "river":
+                    if y-coordinate of (location of {_hb}) > 55:
+                        set {_ok} to true
+    if {_ok} is false:
+        stop
+    set {_y} to floor(y-coordinate of (location of {_hb}))
+    # charge les chunks voisins (une commande fill qui touche un chunk non chargé échoue en entier)
+    loop -8 and 8:
+        loop -8 and 8:
+            set {_tmp} to highest block at location({_x} + loop-value-1, 64, {_z} + loop-value-2, {_w})
+    set {_wd} to za_dim({_w})
+    set {_c} to "execute in %{_wd}% run"
+    # dalle et kiosque de béton
+    execute console command "%{_c}% fill %{_x} - 4% %{_y}% %{_z} - 4% %{_x} + 4% %{_y}% %{_z} + 4% minecraft:cracked_stone_bricks"
+    execute console command "%{_c}% fill %{_x} - 4% %{_y} + 1% %{_z} - 4% %{_x} + 4% %{_y} + 6% %{_z} + 4% minecraft:air"
+    execute console command "%{_c}% fill %{_x} - 2% %{_y} + 1% %{_z} - 2% %{_x} + 2% %{_y} + 3% %{_z} + 2% minecraft:gray_concrete hollow"
+    execute console command "%{_c}% fill %{_x} - 2% %{_y} + 4% %{_z} - 2% %{_x} + 2% %{_y} + 4% %{_z} + 2% minecraft:smooth_stone_slab"
+    execute console command "%{_c}% setblock %{_x}% %{_y} + 1% %{_z} + 2% minecraft:iron_door[facing=south,half=lower]"
+    execute console command "%{_c}% setblock %{_x}% %{_y} + 2% %{_z} + 2% minecraft:iron_door[facing=south,half=upper]"
+    execute console command "%{_c}% setblock %{_x} + 1% %{_y} + 1% %{_z} + 3% minecraft:stone_button[face=floor]"
+    execute console command "%{_c}% setblock %{_x} + 1% %{_y} + 2% %{_z} + 1% minecraft:soul_lantern[hanging=false]"
+    # puits (échelle) et salle froide, 14 blocs sous terre
+    execute console command "%{_c}% fill %{_x} - 1% %{_y} - 13% %{_z} - 1% %{_x} + 1% %{_y}% %{_z} + 1% minecraft:polished_deepslate"
+    execute console command "%{_c}% fill %{_x} - 6% %{_y} - 15% %{_z} - 6% %{_x} + 6% %{_y} - 9% %{_z} + 6% minecraft:polished_deepslate hollow"
+    execute console command "%{_c}% fill %{_x} - 5% %{_y} - 15% %{_z} - 5% %{_x} + 5% %{_y} - 15% %{_z} + 5% minecraft:packed_ice"
+    execute console command "%{_c}% fill %{_x}% %{_y} - 14% %{_z} - 1% %{_x}% %{_y} - 10% %{_z} - 1% minecraft:packed_ice"
+    execute console command "%{_c}% fill %{_x}% %{_y} - 14% %{_z}% %{_x}% %{_y}% %{_z}% minecraft:ladder[facing=south]"
+    loop -4 and 4:
+        loop -4 and 4:
+            execute console command "%{_c}% fill %{_x} + loop-value-1% %{_y} - 14% %{_z} + loop-value-2% %{_x} + loop-value-1% %{_y} - 10% %{_z} + loop-value-2% minecraft:blue_ice"
+            execute console command "%{_c}% setblock %{_x} + loop-value-1% %{_y} - 11% %{_z} + (loop-value-2 / 2)% minecraft:soul_lantern[hanging=false]"
+    # capsules : verre et glace
+    loop -3, -1, 1 and 3:
+        execute console command "%{_c}% fill %{_x} + loop-value% %{_y} - 14% %{_z} + 4% %{_x} + loop-value% %{_y} - 13% %{_z} + 4% minecraft:light_blue_stained_glass"
+        execute console command "%{_c}% setblock %{_x} + loop-value% %{_y} - 12% %{_z} + 4% minecraft:snow_block"
+    execute console command "%{_c}% setblock %{_x} - 3% %{_y} - 14% %{_z} - 3% minecraft:lectern[facing=south]"
+    execute console command "%{_c}% setblock %{_x} + 3% %{_y} - 14% %{_z} - 3% minecraft:chest[facing=south]"
+    execute console command "%{_c}% setblock %{_x}% %{_y} - 10% %{_z} + 3% minecraft:sculk_shrieker"
+    set {za::leg::z00::loc} to location({_x} + 0.5, {_y} + 1, {_z} + 3.5, {_w})
+    set {za::leg::z00::salle} to location({_x} + 0.5, {_y} - 14, {_z} + 0.5, {_w})
+    set {za::leg::z00::coffre} to za_lkey(location({_x} + 3, {_y} - 14, {_z} - 3, {_w}))
+    set {za::leg::z00::pupitre} to za_lkey(location({_x} - 3, {_y} - 14, {_z} - 3, {_w}))
+    # panneau d'entrée (sur un poteau, à côté du kiosque : il survivra à l'effondrement)
+    execute console command "%{_c}% setblock %{_x} + 4% %{_y} + 1% %{_z} + 4% minecraft:dark_oak_fence"
+    execute console command "%{_c}% setblock %{_x} + 4% %{_y} + 2% %{_z} + 4% minecraft:dark_oak_sign[rotation=8]"
+    set {_s} to block at location({_x} + 4, {_y} + 2, {_z} + 4, {_w})
+    set line 1 of {_s} to "&1NORDA"
+    set line 2 of {_s} to "&0Chambre froide"
+    set line 3 of {_s} to "&0Z-00"
+    set line 4 of {_s} to "&4ACCÈS INTERDIT"
+    set {za::leg::z00::panneau} to location({_x} + 4, {_y} + 2, {_z} + 4, {_w})
+    za_lieu_creer("legende:z00", "legende", "Chambre froide Z-00", {za::leg::z00::loc}, false)
+    za_journal("La Chambre froide Z-00 existe quelque part (X=%{_x}% Z=%{_z}%).")
+
+function za_leg_z00_decouvrir(p: player):
+    if {za::leg::z00::decouverte} is set:
+        stop
+    set {_j} to {za::serveur::jours}
+    set {za::leg::z00::decouverte} to {_j}
+    set {za::leg::z00::effondre} to {_j} + 2
+    set {_l} to {za::leg::z00::loc}
+    set {_noms} to ""
+    set {_n} to 0
+    loop za_leg_joueurs():
+        if distance between loop-value and {_l} < 40:
+            add 1 to {_n}
+            add "%loop-value's uuid%" to {za::leg::z00::par::*}
+            set {za::fil::labo::%loop-value's uuid%} to true
+            if {_noms} is "":
+                set {_noms} to "%loop-value%"
+            else:
+                set {_noms} to "%{_noms}%, %loop-value%"
+            send title "&b&lCHAMBRE FROIDE Z-00" with subtitle "&7Personne d'autre ne la verra jamais comme toi." to loop-value for 5 seconds
+            za_zm("son %loop-value% za_modeles:sfx.sting_revelation 1 0.7")
+            za_zm("son %loop-value% za_modeles:sfx.acouphene 0.4 1")
+    set {za::leg::z00::noms} to {_noms}
+    # les noms sont gravés
+    set {_s} to block at {za::leg::z00::panneau}
+    set line 1 of {_s} to "&1Z-00 découverte"
+    set line 2 of {_s} to "&0jour %{_j}% par"
+    set {_l2::*} to za_cmp_lignes({_noms})
+    set line 3 of {_s} to "&0%{_l2::1}%"
+    set line 4 of {_s} to "&0%{_l2::2}%"
+    # ses gardiens se réveillent
+    set {_sa} to {za::leg::z00::salle}
+    execute console command "mm mobs spawn ZA_Garde_Z01 1 %world of {_sa}%,%floor(x-coordinate of {_sa}) - 3%,%floor(y-coordinate of {_sa})%,%floor(z-coordinate of {_sa})%"
+    execute console command "mm mobs spawn ZA_Garde_Z01 1 %world of {_sa}%,%floor(x-coordinate of {_sa}) + 3%,%floor(y-coordinate of {_sa})%,%floor(z-coordinate of {_sa}) + 2%"
+    za_spawn_at({_l}, "ZA_Alpha_Z01", 10, 16)
+    set {_v1} to "ont trouvé"
+    set {_v2} to "découvrent"
+    if {_n} <= 1:
+        set {_v1} to "a trouvé"
+        set {_v2} to "découvre"
+    za_diffuser("&b✦ &f%{_noms}% &7%{_v1}% la &bChambre froide Z-00&7. Personne d'autre ne la trouvera jamais : dans deux jours, elle s'effondrera.")
+    za_lieu_evt("legende:z00", "%{_noms}% %{_v2}% la Chambre froide Z-00.", 3, "legende")
+    za_journal("La Chambre froide Z-00 a été découverte par %{_noms}%.")
+
+function za_leg_z00_effondrer():
+    if {za::leg::z00::effondree} is set:
+        stop
+    set {za::leg::z00::effondree} to {za::serveur::jours}
+    set {_l} to {za::leg::z00::loc}
+    set {_x} to floor(x-coordinate of {_l})
+    set {_y} to floor(y-coordinate of {_l}) - 1
+    set {_z} to floor(z-coordinate of {_l}) - 3
+    set {_c} to "execute in %za_dim(world of {_l})% run"
+    execute console command "%{_c}% fill %{_x} - 6% %{_y} - 15% %{_z} - 6% %{_x} + 6% %{_y} - 9% %{_z} + 6% minecraft:gravel"
+    execute console command "%{_c}% fill %{_x} - 1% %{_y} - 13% %{_z} - 1% %{_x} + 1% %{_y}% %{_z} + 1% minecraft:gravel"
+    execute console command "%{_c}% fill %{_x} - 2% %{_y} + 1% %{_z} - 2% %{_x} + 2% %{_y} + 4% %{_z} + 2% minecraft:air"
+    execute console command "%{_c}% fill %{_x} - 2% %{_y} + 1% %{_z} - 2% %{_x} + 2% %{_y} + 1% %{_z} + 2% minecraft:cobblestone"
+    execute console command "%{_c}% setblock %{_x}% %{_y} + 2% %{_z}% minecraft:gravel"
+    execute console command "%{_c}% playsound minecraft:entity.generic.explode block @a %{_x}% %{_y}% %{_z}% 4 0.5"
+    za_lieu_tomber("legende:z00", "La Chambre froide Z-00 s'effondre. Personne ne la reverra.")
+    za_diffuser("&8[Radio] &bLéa &8» &7La fréquence de Z-00 s'est tue. Le sol s'est refermé là-bas. Ceux qui y sont allés sont les seuls à savoir.")
+
+every 5 seconds:
+    if {za::leg::z00::loc} is set:
+        if {za::leg::z00::decouverte} is not set:
+            loop za_leg_joueurs():
+                if {za::leg::z00::decouverte} is not set:
+                    if world of loop-value is world of {za::leg::z00::loc}:
+                        if distance between loop-value and {za::leg::z00::loc} < 14:
+                            za_leg_z00_decouvrir(loop-value)
+
+every 1 minute:
+    if {za::leg::z00::decouverte} is set:
+        if {za::leg::z00::effondree} is not set:
+            if {za::serveur::jours} >= {za::leg::z00::effondre}:
+                set {_libre} to true
+                loop za_leg_joueurs():
+                    if distance between loop-value and {za::leg::z00::loc} < 30:
+                        set {_libre} to false
+                if {_libre} is true:
+                    za_leg_z00_effondrer()
+
+on right click on chest:
+    if {za::leg::z00::coffre} is set:
+        if za_lkey(location of event-block) is {za::leg::z00::coffre}:
+            cancel the event
+            if {za::leg::relique::etat} is set:
+                send "&8&oLe coffre est vide. Du givre en forme de main. Quelqu'un est passé avant toi." to player
+                stop
+            za_carnet_donner(player, "trouve")
+
+on right click on lectern:
+    if {za::leg::z00::pupitre} is set:
+        if za_lkey(location of event-block) is {za::leg::z00::pupitre}:
+            cancel the event
+            za_leg_arel_journal(player)
+
+function za_leg_arel_journal(p: player):
+    send "&b&lJOURNAL DE SAMUEL AREL &8— chambre froide Z-00" to {_p}
+    send "&7&o« Jour -9. On m'a dit que c'était un essai de conservation. Froid, sommeil, surveillance. On paie bien. »" to {_p}
+    send "&7&o« Jour -6. Je n'ai plus faim. Je n'ai plus froid. Les techniciens ne me regardent plus dans les yeux. »" to {_p}
+    send "&7&o« Jour -4. Ils appellent le nouveau Z-01. Ils disent que je suis Z-00. Le premier. L'échec. »" to {_p}
+    send "&7&o« Jour -3, 03 h 12. Je vais envoyer un message. Je ne sais pas à qui. À quelqu'un qui n'est pas encore arrivé. »" to {_p}
+    set {_u} to "%{_p}'s uuid%"
+    if {za::fil::verite::%{_u}%} is not set:
+        set {za::fil::verite::%{_u}%} to true
+        za_souvenir_ajouter({_u}, "legende:z00", "verite", "Tu as lu le journal de Samuel Arel, dans la chambre froide.")
+        send "&8&oTu comprends, maintenant. Samuel Arel n'était pas le patient zéro par accident." to {_p}
+
+# ================================================================ 6. LE CARNET DE SAMUEL AREL (relique unique)
+
+function za_carnet_item() :: itemtype:
+    set {_i} to za_item("book", "{@relique}", "&d", 1)
+    set lore of {_i} to "&8Il n'en existe qu'un.", "&7Couverture givrée. Des pages de chiffres,", "&7et un mot qui revient : Z-00." and "&8Clic droit pour lire."
+    return {_i}
+
+function za_carnet_a(p: player) :: number:
+    return za_count_named({_p}, "{@relique}")
+
+function za_carnet_donner(p: player, comment: text):
+    set {_u} to "%{_p}'s uuid%"
+    set {_avant} to {za::leg::relique::porteur}
+    set {za::leg::relique::porteur} to {_u}
+    set {za::leg::relique::etat} to "porte"
+    set {za::leg::nom::%{_u}%} to "%{_p}%"
+    delete {za::leg::relique::sol}
+    if za_carnet_a({_p}) is 0:
+        give {_p} za_carnet_item()
+    add "%{za::serveur::jours}%|%{_p}%|%{_comment}%" to {za::leg::relique::hist::*}
+    za_zm("son %{_p}% za_modeles:sfx.sting_revelation 0.8 0.6")
+    send title "&d&l{@relique}" with subtitle "&7Il n'en existe qu'un. Il est à toi." to {_p} for 4 seconds
+    if {_comment} is "trouve":
+        za_diffuser("&d✦ &7Le &d{@relique} &7a été trouvé par &f%{_p}%&7. Il n'en existe qu'un seul exemplaire.")
+        za_lieu_evt("legende:z00", "%{_p}% emporte le Carnet de Samuel Arel.", 3, "legende")
+    else if {_avant} is {_u}:
+        za_diffuser("&d✦ &f%{_p}% &7a récupéré le &d{@relique}&7.")
+    else:
+        za_diffuser("&d✦ &7Le &d{@relique} &7a changé de mains. Il appartient désormais à &f%{_p}%&7.")
+    za_souvenir_ajouter({_u}, "", "legende", "Le Carnet de Samuel Arel est à toi.")
+
+# porteur, doublons, changement de mains, effets
+every 5 seconds:
+    if {za::leg::relique::etat} is set:
+        set {_por} to {za::leg::relique::porteur}
+        set {_porp} to false
+        loop all players:
+            if "%loop-player's uuid%" is {_por}:
+                if za_carnet_a(loop-player) >= 1:
+                    set {_porp} to true
+        loop all players:
+            set {_q} to za_carnet_a(loop-player)
+            if {_q} >= 1:
+                set {_u} to "%loop-player's uuid%"
+                set {_reprendre} to false
+                if {_u} is not {_por}:
+                    set {_reprendre} to true
+                else if {za::leg::relique::etat} is "sol":
+                    set {_reprendre} to true
+                if {_reprendre} is true:
+                    if {_u} is not {_por}:
+                        if {_porp} is true:
+                            # un double : il n'en existe qu'un
+                            za_take_named(loop-player, "{@relique}", {_q})
+                            send "&8&oLe carnet s'effrite en givre entre tes doigts. Ce n'était pas le vrai." to loop-player
+                            set {_reprendre} to false
+                if {_reprendre} is true:
+                    za_take_named(loop-player, "{@relique}", {_q})
+                    za_carnet_donner(loop-player, "ramasse")
+                    set {_por} to {_u}
+                    set {_porp} to true
+                else if {_u} is {_por}:
+                    if {_q} > 1:
+                        za_take_named(loop-player, "{@relique}", {_q} - 1)
+                    if za_pro(loop-player) is false:
+                        # « il voyait comme eux » : les morts proches brillent, la nuit est claire
+                        loop all zombies in radius 18 around loop-player:
+                            apply potion of glowing of tier 1 to loop-zombie for 6 seconds
+                        if za_nuit(loop-player) is true:
+                            apply potion of night vision of tier 1 to loop-player for 14 seconds
+
+# ils sentent le carnet
+every 90 seconds:
+    if {za::leg::relique::etat} is "porte":
+        loop all players:
+            if "%loop-player's uuid%" is {za::leg::relique::porteur}:
+                if za_pro(loop-player) is false:
+                    if za_nuit(loop-player) is true:
+                        if chance of 35%:
+                            za_spawn_near(loop-player, random element out of ("ZA_Charognard", "ZA_Runner" and "ZA_Stalker"), 20, 34)
+                            send "&8&oLe carnet est glacé contre toi. Quelque chose l'a senti." to loop-player
+
+on drop:
+    if uncolored name of event-item is "{@relique}":
+        cancel the event
+        send "&8&oLe carnet refuse de quitter tes mains. Il faudra te l'arracher." to player
+
+on death of player:
+    if za_carnet_a(victim) >= 1:
+        loop drops:
+            if uncolored name of loop-item is "{@relique}":
+                remove loop-item from drops
+        set {_l} to location of victim
+        set {za::leg::relique::etat} to "sol"
+        set {za::leg::relique::sol} to {_l}
+        add "%{za::serveur::jours}%|%victim%|perdu" to {za::leg::relique::hist::*}
+        execute console command "execute in %za_dim(world of {_l})% run summon item %x-coordinate of {_l}% %y-coordinate of {_l} + 0.5% %z-coordinate of {_l}% {Item:{id:""minecraft:book"",Count:1b,tag:{display:{Name:'{""text"":""{@relique}"",""color"":""light_purple"",""italic"":false}'}}},Age:-32768,Invulnerable:1b,Glowing:1b,PickupDelay:60}"
+        za_diffuser("&d✦ &f%victim% &7est tombé. Le &d{@relique} &7gît quelque part vers &fX=%floor(x-coordinate of {_l} / 10) * 10% Z=%floor(z-coordinate of {_l} / 10) * 10%&7. Le premier qui le ramasse en devient le porteur.")
+        za_souvenir_ajouter("%victim's uuid%", "", "legende", "Tu es mort avec le Carnet de Samuel Arel. Il n'est plus à toi.")
+
+on right click:
+    if uncolored name of player's tool is "{@relique}":
+        cancel the event
+        send "&d&l{@relique}" to player
+        send "&7&o« Z-00 n'est pas un numéro de lot. C'est un nom. On me l'a donné le jour où j'ai cessé d'avoir faim. »" to player
+        send "&7&o« Ils ne veulent pas guérir. Ils veulent savoir combien de temps un mort peut obéir. »" to player
+        send "&7&o« Si quelqu'un lit ceci : la Réserve 7 n'était pas une prison. C'était une pouponnière. »" to player
+        set {_u} to "%player's uuid%"
+        if {za::fil::verite::%{_u}%} is not set:
+            set {za::fil::verite::%{_u}%} to true
+            send "&8&oTu refermes le carnet. Tu sais, maintenant." to player
+
+# ================================================================ DÉCLENCHEMENTS AUTOMATIQUES
+
+every 2 minutes:
+    set {_ps::*} to za_leg_joueurs()
+    if size of {_ps::*} is 0:
+        stop
+    set {_n} to {za::saison::num} ? 1
+    set {_pct} to za_saison_pct()
+    set {_sj} to za_saison_jours()
+    set {_nuit} to za_nuit(random element out of {_ps::*})
+    # la transmission : trois nuits différentes, à partir du jour 12
+    if {za::leg::trans::partie} is not set:
+        set {za::leg::trans::partie} to 0
+    if {za::leg::trans::jour} is not set:
+        set {za::leg::trans::jour} to -1
+    if {za::leg::trans::partie} < 3:
+        if {za::serveur::jours} >= 12:
+            if {_nuit} is true:
+                if {za::leg::trans::jour} is not {za::serveur::jours}:
+                    if chance of 40%:
+                        za_leg_transmission({za::leg::trans::partie} + 1)
+                        stop
+    # la Grande Migration : une fois par saison, la nuit, passé 40 % (ou 10 jours de saison)
+    if {za::leg::mig::saison::%{_n}%} is not set:
+        if any:
+            {_pct} >= 40
+            {_sj} >= 10
+        then:
+            if {_nuit} is true:
+                if {za::leg::siege::actif} is not true:
+                    if chance of 20%:
+                        za_leg_migration(1)
+                        stop
+    # le Grand Siège : une fois par saison, passé 65 %
+    if {za::leg::siege::saison::%{_n}%} is not set:
+        if {_pct} >= 65:
+            if {za::leg::mig::actif} is not true:
+                if chance of 8%:
+                    za_leg_siege(1)
+                    stop
+    # le dernier carré de Vega : une seule fois dans la vie du serveur (jour 30+, saison bien avancée)
+    if {za::leg::vega::fait} is not set:
+        if {za::pnj::mort::vega} is not set:
+            if {za::serveur::jours} >= 30:
+                if {_pct} >= 50:
+                    if {_nuit} is true:
+                        if {za::leg::mig::actif} is not true:
+                            if chance of 10%:
+                                za_leg_vega(1)
+
+# ================================================================ COMMANDES
+
+command /legendes:
+    aliases: /légendes
+    trigger:
+        send "&6&lLÉGENDES DE SAINT-AURÈLE" to sender
+        set {_i} to 0
+        loop {za::lieux::liste::*}:
+            set {_k} to loop-value-1
+            loop {za::lieu::%{_k}%::hist::*}:
+                set {_e::*} to split loop-value-2 at "|"
+                if {_e::2} is "legende":
+                    add "%{_e::1}%|%{_e::3}%" to {_all::*}
+        if size of {_all::*} is 0:
+            send "&7Rien encore. Les légendes s'écrivent la nuit." to sender
+            stop
+        loop {_all::*}:
+            set {_e::*} to split loop-value at "|"
+            send "&8· &7Jour %{_e::1}% &8— &f%{_e::2}%" to sender
+        send "&8Ton rôle dans tout ça : &7/souvenirs" to sender
+
+command /relique:
+    trigger:
+        set {_e} to {za::leg::relique::etat}
+        if {_e} is not set:
+            send "&8&oOn parle d'un carnet. Un seul. Personne ne l'a jamais vu." to sender
+            stop
+        if {_e} is "porte":
+            send "&dLe {@relique} &7appartient à &f%za_leg_nom_u({za::leg::relique::porteur})%&7." to sender
+        else:
+            set {_l} to {za::leg::relique::sol}
+            send "&dLe {@relique} &7gît au sol, vers &fX=%floor(x-coordinate of {_l} / 10) * 10% Z=%floor(z-coordinate of {_l} / 10) * 10%&7." to sender
+        send "&8Ses porteurs :" to sender
+        loop {za::leg::relique::hist::*}:
+            set {_h::*} to split loop-value at "|"
+            send "&8· &7Jour %{_h::1}% &8— &f%{_h::2}% &8(%{_h::3}%)" to sender
+
+command /zalegende [<text>] [<text>] [<number>]:
+    permission: za.admin
+    trigger:
+        set {_ech} to 1
+        if arg-3 is set:
+            set {_ech} to arg-3
+        if arg-1 is "migration":
+            za_leg_migration({_ech})
+            send "Migration lancée (échelle %{_ech}%)." to sender
+        else if arg-1 is "migration-fin":
+            za_leg_migration_fin()
+        else if arg-1 is "siege":
+            za_leg_siege({_ech})
+            send "Grand Siège lancé." to sender
+        else if arg-1 is "vega":
+            delete {za::leg::vega::fait}
+            za_leg_vega({_ech})
+            send "Dernier carré de Vega lancé." to sender
+        else if arg-1 is "vega-fin":
+            za_leg_vega_fin()
+        else if arg-1 is "transmission":
+            set {_p} to (arg-2 parsed as number) ? 1
+            za_leg_transmission({_p})
+        else if arg-1 is "z00":
+            za_leg_z00_generer()
+            send "Z-00 : %{za::leg::z00::loc}%" to sender
+        else if arg-1 is "z00-effondrer":
+            za_leg_z00_effondrer()
+        else if arg-1 is "relique":
+            loop all players:
+                if "%loop-player%" is arg-2:
+                    za_carnet_donner(loop-player, "trouve")
+        else:
+            send "migration : saison %{za::leg::mig::saison::%{za::saison::num}%}% actif %{za::leg::mig::actif}% (%{za::leg::mig::kills}%/%{za::leg::mig::but}%)" to sender
+            send "siège : %{za::leg::siege::saison::%{za::saison::num}%}% · vega : fait %{za::leg::vega::fait}% mort %{za::pnj::mort::vega}% vie %{za::leg::vega::vie}%" to sender
+            send "transmission : partie %{za::leg::trans::partie}% · z00 : %{za::leg::z00::loc}% découverte %{za::leg::z00::decouverte}% · relique : %{za::leg::relique::etat}% %{za::leg::relique::porteur}%" to sender
+            send "&7Usage : /zalegende migration|siege|vega|transmission <1-3>|z00|z00-effondrer|relique <joueur>|etat [_] [échelle]" to sender

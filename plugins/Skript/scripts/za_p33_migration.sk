@@ -1,0 +1,131 @@
+# =====================================================================
+#  ZombieApocalypse - MIGRATION DES HORDES
+#  Une horde traverse la zone en suivant une ROUTE : si une riviere passe pres d'un joueur, elle la longe (deux points de riviere),
+#  sinon elle coupe en ligne droite a 30-50 blocs du joueur. Un "leurre" invisible aux joueurs mais pas aux zombies (villageois
+#  invincible sans IA, deplace par le script) entraine les morts ; la horde grossit sur son passage (les zombies proches se joignent
+#  a elle). Si un joueur s'approche du leurre (14 blocs), la horde se retourne contre lui.
+#  Annonce radio avec les directions et un point de passage. Dure 2 a 4 minutes.
+#  Admin : /evenement migration
+# =====================================================================
+
+function za_cardinal(dx: number, dz: number) :: text:
+    set {_ax} to abs({_dx})
+    set {_az} to abs({_dz})
+    set {_ns} to "sud"
+    if {_dz} < 0:
+        set {_ns} to "nord"
+    set {_ew} to "ouest"
+    if {_dx} > 0:
+        set {_ew} to "est"
+    if {_ax} > (2 * {_az}):
+        return {_ew}
+    if {_az} > (2 * {_ax}):
+        return {_ns}
+    return "%{_ns}%-%{_ew}%"
+
+function za_pt_anneau(c: location, r: number, a: number) :: location:
+    set {_x} to x-coordinate of {_c} + ({_r} * cos({_a}))
+    set {_z} to z-coordinate of {_c} + ({_r} * sin({_a}))
+    return location of (highest block at (location({_x}, 64, {_z}, world of {_c})))
+
+function za_migration():
+    if {za::migr::actif} is true:
+        stop
+    if size of za_monde_joueurs() is 0:
+        stop
+    set {za::migr::actif} to true
+    set {_p} to random element out of za_monde_joueurs()
+    set {_c} to location of {_p}
+    set {_w} to world of {_c}
+    # 1) cherche une riviere autour du joueur (16 directions, 3 rayons)
+    loop 48 times:
+        set {_i} to loop-number - 1
+        set {_k} to floor({_i} / 16)
+        set {_a} to ({_i} - (16 * {_k})) * 22.5
+        set {_pt} to za_pt_anneau({_c}, 60 + (25 * {_k}), {_a})
+        if "%biome at {_pt}%" contains "river":
+            add {_pt} to {_riv::*}
+    set {_type} to "chemin"
+    set {_s} to za_pt_anneau({_c}, 105, 0)
+    set {_e} to za_pt_anneau({_c}, 105, 180)
+    if size of {_riv::*} >= 2:
+        set {_s2} to first element of {_riv::*}
+        set {_best} to 0
+        set {_e2} to {_s2}
+        loop {_riv::*}:
+            set {_d} to distance between {_s2} and loop-value
+            if {_d} > {_best}:
+                set {_best} to {_d}
+                set {_e2} to loop-value
+        if {_best} >= 60:
+            set {_s} to {_s2}
+            set {_e} to {_e2}
+            set {_type} to "riviere"
+    if {_type} is "chemin":
+        set {_t} to random number between 0 and 360
+        set {_s} to za_pt_anneau({_c}, 105, {_t})
+        set {_e} to za_pt_anneau({_c}, 105, {_t} + 180 + (random number between -25 and 25))
+    # 2) annonce
+    set {_sx} to floor(x-coordinate of {_s})
+    set {_sy} to floor(y-coordinate of {_s})
+    set {_sz} to floor(z-coordinate of {_s})
+    set {_ex} to floor(x-coordinate of {_e})
+    set {_ez} to floor(z-coordinate of {_e})
+    set {_from} to za_cardinal({_sx} - x-coordinate of {_c}, {_sz} - z-coordinate of {_c})
+    set {_to} to za_cardinal({_ex} - x-coordinate of {_c}, {_ez} - z-coordinate of {_c})
+    set {_mx} to floor(({_sx} + {_ex}) / 100) * 50
+    set {_mz} to floor(({_sz} + {_ez}) / 100) * 50
+    set {_how} to "en coupant a travers champs"
+    if {_type} is "riviere":
+        set {_how} to "en longeant la riviere"
+    za_diffuser("&8[Radio] &7Une horde migre du %{_from}% vers le %{_to}%, %{_how}%. Passage estime vers X=%{_mx}% Z=%{_mz}% dans 2 minutes environ. Barricadez-vous ou restez a l'ecart.")
+    za_journal("Une horde a entame sa migration.")
+    # 3) leurre + horde au point de depart
+    set {_wn} to "%{_w}%"
+    execute console command "mm mobs spawn ZA_Leurre 1 %{_wn}%,%{_sx}%,%{_sy} + 1%,%{_sz}%"
+    set {_types::*} to "ZA_Shambler", "ZA_Shambler", "ZA_Shambler", "ZA_Runner", "ZA_Runner", "ZA_Brute"
+    loop 30 times:
+        set {_ox} to random integer between -6 and 6
+        set {_oz} to random integer between -6 and 6
+        execute console command "mm mobs spawn %random element out of {_types::*}% 1 %{_wn}%,%{_sx} + {_ox}%,%{_sy} + 1%,%{_sz} + {_oz}%"
+    wait 2 seconds
+    loop all entities in radius 8 around {_s}:
+        if uncolored name of loop-entity is "Leurre":
+            set {_lure} to loop-entity
+    if {_lure} is not set:
+        execute console command "mm mobs kill ZA_Leurre"
+        set {za::migr::actif} to false
+        stop
+    # 4) la marche : le leurre avance de 2 blocs par seconde, les zombies le suivent
+    set {_dx} to x-coordinate of {_e} - x-coordinate of {_s}
+    set {_dz} to z-coordinate of {_e} - z-coordinate of {_s}
+    set {_steps} to floor((distance between {_s} and {_e}) / 2)
+    if {_steps} > 240:
+        set {_steps} to 240
+    loop {_steps} times:
+        set {_f} to loop-number / {_steps}
+        set {_pt} to location(x-coordinate of {_s} + ({_dx} * {_f}), 64, z-coordinate of {_s} + ({_dz} * {_f}), {_w})
+        set {_g} to location of (highest block at {_pt})
+        add 1 to y-coordinate of {_g}
+        teleport {_lure} to {_g}
+        set {_m} to loop-number - (3 * floor(loop-number / 3))
+        if {_m} is 0:
+            set {_near::*} to all zombies in radius 40 around {_lure}
+            set {_pl::*} to all players in radius 14 around {_lure}
+            loop {_near::*}:
+                if size of {_pl::*} > 0:
+                    set target of loop-value-2 to random element out of {_pl::*}
+                else if target of loop-value-2 is not set:
+                    set target of loop-value-2 to {_lure}
+        wait 1 second
+    execute console command "mm mobs kill ZA_Leurre"
+    set {za::migr::actif} to false
+
+on load:
+    set {za::migr::actif} to false
+    set {za::signal::actif} to false
+
+every 2 hours:
+    if size of za_monde_joueurs() is greater than 0:
+        if chance of 45%:
+            za_migration()

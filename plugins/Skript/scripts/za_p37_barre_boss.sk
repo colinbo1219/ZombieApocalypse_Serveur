@@ -1,0 +1,46 @@
+#  ZombieApocalypse - messages MythicMobs + barre de vie de l'Undead Overlord
+#  Sur Arclight, MythicMobs 5.7.2 plante des qu'il envoie un "message" ou une barre de boss
+#  a un joueur (ArrayStoreException : il suppose un serveur Paper). Le reste de la competence
+#  etait alors annule (invocations, phases, "zaboss mort"...).
+#  -> les messages passent par /zamsg, la barre de boss est la barre vanilla.
+
+# appelee par MythicMobs : command{c="zamsg <target.l.w> <target.l.x> <target.l.y> <target.l.z> rayon texte"} @self
+command /zamsg <text> <number> <number> <number> <number> <text>:
+    executable by: console
+    trigger:
+        set {_l} to location(arg-2, arg-3, arg-4, world(arg-1))
+        loop all players in radius arg-5 around {_l}:
+            send colored arg-6 to loop-player
+
+on load:
+    execute console command "bossbar add za:overlord {""text"":""Undead Overlord"",""color"":""dark_red"",""bold"":true}"
+    execute console command "bossbar set za:overlord color red"
+    execute console command "bossbar set za:overlord style notched_10"
+    execute console command "bossbar set za:overlord max 100"
+    execute console command "bossbar set za:overlord visible false"
+    set {za::boss::barre} to false
+
+every 1 second:
+    set {_o::*} to all zombies where [uncolored name of input is "Undead Overlord"]
+    if {_o::1} is not set:
+        if {za::boss::barre} is true:
+            execute console command "bossbar set za:overlord visible false"
+            set {za::boss::barre} to false
+            delete {za::boss::barre_v}
+        stop
+    set {_z} to {_o::1}
+    set {_v} to round(100 * (health of {_z}) / (max health of {_z}))
+    # commandes seulement si quelque chose change (moins de bruit dans la console)
+    if {za::boss::barre_v} is not set:
+        set {za::boss::barre_v} to -1
+    if {_v} is not {za::boss::barre_v}:
+        execute console command "bossbar set za:overlord value %{_v}%"
+        set {za::boss::barre_v} to {_v}
+    add 1 to {za::boss::barre_t}
+    if {za::boss::barre_t} >= 3:
+        set {za::boss::barre_t} to 0
+        execute console command "execute as %uuid of {_z}% at @s run bossbar set za:overlord players @a[distance=..70]"
+    if {za::boss::barre} is not true:
+        execute console command "execute as %uuid of {_z}% at @s run bossbar set za:overlord players @a[distance=..70]"
+        execute console command "bossbar set za:overlord visible true"
+        set {za::boss::barre} to true

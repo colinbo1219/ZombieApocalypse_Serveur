@@ -1,0 +1,48 @@
+# =====================================================================
+#  ZombieApocalypse - AIR TOXIQUE (masque a gaz) ET IMPULSION EMP
+#  * Masque a gaz (Medecin, 15 jetons, rang Survivant) : un casque en cuir nomme "Masque a gaz". Porte, il annule les degats de la
+#    pluie acide, les malus des zones contaminees (faim, faiblesse) et la toux des cendres. Il ne protege pas d'une zone perdue (poison).
+#  * Impulsion EMP : toutes les ~4 h (35 pourcent) ou /evenement emp. Pendant 4 minutes : generateurs, tourelles, alarmes et /radio
+#    sont hors service. Flash sombre a l'annonce.
+# =====================================================================
+
+function za_masque(p: player) :: boolean:
+    if uncolored name of {_p}'s helmet is "Masque a gaz":
+        return true
+    return false
+
+function za_emp_actif() :: boolean:
+    if {za::emp::fin} is set:
+        if now is less than {za::emp::fin}:
+            return true
+    return false
+
+function za_emp():
+    if za_emp_actif() is true:
+        stop
+    set {za::emp::fin} to now
+    add 4 minutes to {za::emp::fin}
+    za_diffuser("&b&lIMPULSION EMP &7Une onde electromagnetique balaie la region : generateurs, tourelles, alarmes et radios sont HORS SERVICE pendant 4 minutes.")
+    za_journal("Une impulsion electromagnetique a coupe l'electricite.")
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_effet(loop-player, "darkness", 6, 0)
+            execute console command "execute at %loop-player% run playsound minecraft:entity.lightning_bolt.thunder master %loop-player% ~ ~ ~ 1 0.7"
+            execute console command "execute at %loop-player% run particle minecraft:electric_spark ~ ~1 ~ 3 2 3 0.1 80 force"
+    wait 4 minutes
+    za_diffuser("&7L'impulsion retombe : les appareils redemarrent.")
+
+every 4 hours:
+    if size of za_monde_joueurs() is greater than 0:
+        if chance of 35%:
+            za_emp()
+
+# ---------- cendres : le masque evite la toux (les autres respirent mal) ----------
+every 20 seconds:
+    if {za::cendres::fin} is set:
+        if now is less than {za::cendres::fin}:
+            loop all players:
+                if za_pro(loop-player) is false:
+                    if za_masque(loop-player) is false:
+                        za_effet(loop-player, "nausea", 6, 0)
+                        send action bar "&8Les cendres te brulent la gorge... un masque a gaz aiderait." to loop-player

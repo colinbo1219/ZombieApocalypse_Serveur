@@ -1,0 +1,17 @@
+# =====================================================================
+#  ZombieApocalypse - CONFIG MONDE : difficulte et gamerules (appliques a chaque demarrage)
+#  Pour changer un reglage : modifie la ligne, puis /sk reload za_config_monde
+#  (Les gamerules restent aussi enregistres dans le monde.)
+# =====================================================================
+
+on load:
+    execute console command "difficulty hard"
+    # pas de marchand errant vanilla (on a nos marchands nomades), pas de patrouilles, pas de phantoms
+    execute console command "gamerule doTraderSpawning false"
+    execute console command "gamerule doPatrolSpawning false"
+    execute console command "gamerule doInsomnia false"
+    # pas de spam de succes dans le chat (l'ambiance passe avant)
+    execute console command "gamerule announceAdvancements false"
+    execute console command "gamerule showDeathMessages true"
+    execute console command "gamerule doImmediateRespawn false"
+    execute console command "gamerule keepInventory false"

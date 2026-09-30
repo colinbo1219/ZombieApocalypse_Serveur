@@ -1,0 +1,3319 @@
+# =====================================================================
+#  ZombieApocalypse - ÉNIGMES (#9), CHASSE AU TRÉSOR (#10), ENQUÊTES (#15)
+#  (en cours d'écriture : voir les sections ci-dessous)
+# =====================================================================
+
+options:
+    monde: world
+    dim: overworld
+
+# =====================================================================
+#  0. OUTILS COMMUNS
+# =====================================================================
+
+# remplit un pavé relatif à (bx, by, bz)
+function za_e_f(bx: number, by: number, bz: number, a: number, b: number, c: number, d: number, e: number, f: number, blk: text):
+    execute console command "execute in minecraft:{@dim} run fill %{_bx} + {_a}% %{_by} + {_b}% %{_bz} + {_c}% %{_bx} + {_d}% %{_by} + {_e}% %{_bz} + {_f}% %{_blk}%"
+
+# pose un bloc relatif à (bx, by, bz)
+function za_e_s(bx: number, by: number, bz: number, a: number, b: number, c: number, blk: text):
+    execute console command "execute in minecraft:{@dim} run setblock %{_bx} + {_a}% %{_by} + {_b}% %{_bz} + {_c}% %{_blk}%"
+
+# panneau à coordonnées absolues (4 lignes, codes & acceptés)
+function za_e_panneau(x: number, y: number, z: number, blk: text, l1: text, l2: text, l3: text, l4: text):
+    execute console command "execute in minecraft:{@dim} run setblock %{_x}% %{_y}% %{_z}% %{_blk}%"
+    set {_sg} to block at location({_x}, {_y}, {_z}, world("{@monde}"))
+    set line 1 of {_sg} to {_l1}
+    set line 2 of {_sg} to {_l2}
+    set line 3 of {_sg} to {_l3}
+    set line 4 of {_sg} to {_l4}
+
+function za_e_loc(x: number, y: number, z: number) :: location:
+    return location({_x}, {_y}, {_z}, world("{@monde}"))
+
+# charge (et génère au besoin) tous les chunks de la zone, puis les garde chargés (forceload) jusqu'à za_e_decharger
+function za_e_charger(x1: number, z1: number, x2: number, z2: number):
+    set {_x1} to floor({_x1})
+    set {_z1} to floor({_z1})
+    set {_x2} to floor({_x2})
+    set {_z2} to floor({_z2})
+    execute console command "execute in minecraft:{@dim} run forceload add %{_x1}% %{_z1}% %{_x2}% %{_z2}%"
+    set {_w} to world("{@monde}")
+    set {_x} to {_x1}
+    while {_x} <= ({_x2} + 15):
+        set {_z} to {_z1}
+        while {_z} <= ({_z2} + 15):
+            set {_c} to chunk at location(min({_x}, {_x2}), 64, min({_z}, {_z2}), {_w})
+            add 16 to {_z}
+        add 16 to {_x}
+
+function za_e_decharger(x1: number, z1: number, x2: number, z2: number):
+    set {_x1} to floor({_x1})
+    set {_z1} to floor({_z1})
+    set {_x2} to floor({_x2})
+    set {_z2} to floor({_z2})
+    execute console command "execute in minecraft:{@dim} run forceload remove %{_x1}% %{_z1}% %{_x2}% %{_z2}%"
+
+# ---------------------------------------------------------------- variantes relatives (l'analyse de Skript est très lente
+#  quand un appel de fonction reçoit une expression arithmétique : on passe donc une base et des décalages)
+
+function za_e_ch(bx: number, bz: number, a: number, b: number, c: number, d: number):
+    set {_x1} to {_bx} + {_a}
+    set {_z1} to {_bz} + {_b}
+    set {_x2} to {_bx} + {_c}
+    set {_z2} to {_bz} + {_d}
+    za_e_charger({_x1}, {_z1}, {_x2}, {_z2})
+
+function za_e_dech(bx: number, bz: number, a: number, b: number, c: number, d: number):
+    set {_x1} to {_bx} + {_a}
+    set {_z1} to {_bz} + {_b}
+    set {_x2} to {_bx} + {_c}
+    set {_z2} to {_bz} + {_d}
+    za_e_decharger({_x1}, {_z1}, {_x2}, {_z2})
+
+# vieillissement relatif (za_decay)
+function za_e_dc(bx: number, by: number, bz: number, a: number, b: number, c: number, d: number, e: number, f: number, force: number):
+    set {_x1} to {_bx} + {_a}
+    set {_y1} to {_by} + {_b}
+    set {_z1} to {_bz} + {_c}
+    set {_x2} to {_bx} + {_d}
+    set {_y2} to {_by} + {_e}
+    set {_z2} to {_bz} + {_f}
+    za_decay("minecraft:{@dim}", {_x1}, {_y1}, {_z1}, {_x2}, {_y2}, {_z2}, {_force})
+
+# emplacement relatif
+function za_e_lr(bx: number, by: number, bz: number, a: number, b: number, c: number) :: location:
+    set {_x} to {_bx} + {_a}
+    set {_y} to {_by} + {_b}
+    set {_z} to {_bz} + {_c}
+    return location({_x}, {_y}, {_z}, world("{@monde}"))
+
+# panneau relatif
+function za_e_pr(bx: number, by: number, bz: number, a: number, b: number, c: number, blk: text, l1: text, l2: text, l3: text, l4: text):
+    set {_x} to {_bx} + {_a}
+    set {_y} to {_by} + {_b}
+    set {_z} to {_bz} + {_c}
+    za_e_panneau({_x}, {_y}, {_z}, {_blk}, {_l1}, {_l2}, {_l3}, {_l4})
+
+# sol / niveau relatifs
+function za_e_nv(bx: number, bz: number, a: number, b: number, r: number) :: number:
+    set {_x} to {_bx} + {_a}
+    set {_z} to {_bz} + {_b}
+    return za_e_niveau({_x}, {_z}, {_r})
+
+function za_e_sy(bx: number, bz: number, a: number, b: number) :: number:
+    set {_x} to {_bx} + {_a}
+    set {_z} to {_bz} + {_b}
+    return za_e_sol_y({_x}, {_z})
+
+# site relatif
+function za_e_sn(bx: number, bz: number, a: number, b: number):
+    set {_x} to {_bx} + {_a}
+    set {_z} to {_bz} + {_b}
+    za_e_site_noter({_x}, {_z})
+
+# veilleur relatif
+function za_e_vr(bx: number, by: number, bz: number, a: number, b: number, c: number, spec: text, prop: text, rayon: number):
+    set {_l} to za_e_lr({_bx}, {_by}, {_bz}, {_a}, {_b}, {_c})
+    za_e_veiller({_l}, {_spec}, {_prop}, {_rayon})
+
+# ---------------------------------------------------------------- direction et distance (en « pas »)
+
+function za_e_dir(de: location, vers: location) :: text:
+    set {_dx} to (x-coordinate of {_vers}) - (x-coordinate of {_de})
+    set {_dz} to (z-coordinate of {_vers}) - (z-coordinate of {_de})
+    set {_ax} to abs({_dx})
+    set {_az} to abs({_dz})
+    if {_az} < ({_ax} * 0.4142):
+        if {_dx} > 0:
+            return "l'est"
+        return "l'ouest"
+    if {_ax} < ({_az} * 0.4142):
+        if {_dz} > 0:
+            return "le sud"
+        return "le nord"
+    if {_dz} > 0:
+        if {_dx} > 0:
+            return "le sud-est"
+        return "le sud-ouest"
+    if {_dx} > 0:
+        return "le nord-est"
+    return "le nord-ouest"
+
+function za_e_dist(de: location, vers: location) :: number:
+    set {_dx} to (x-coordinate of {_vers}) - (x-coordinate of {_de})
+    set {_dz} to (z-coordinate of {_vers}) - (z-coordinate of {_de})
+    return sqrt(({_dx} * {_dx}) + ({_dz} * {_dz}))
+
+# distance arrondie « à la louche »
+function za_e_pas(d: number) :: number:
+    if {_d} < 30:
+        return max(10, round({_d} / 5) * 5)
+    if {_d} < 300:
+        return round({_d} / 10) * 10
+    if {_d} < 1000:
+        return round({_d} / 25) * 25
+    return round({_d} / 50) * 50
+
+# « vers le nord-est, à environ 190 pas »
+function za_e_vers(de: location, vers: location) :: text:
+    if world of {_de} is not world of {_vers}:
+        return "quelque part, très loin d'ici"
+    set {_d} to za_e_dist({_de}, {_vers})
+    if {_d} < 12:
+        return "tout près d'ici"
+    return "vers %za_e_dir({_de}, {_vers})%, à environ %za_e_pas({_d})% pas"
+
+# secteur par rapport au centre-ville (spawn), pour la radio
+function za_e_secteur(l: location) :: text:
+    set {_c} to spawn location of world("{@monde}")
+    set {_d} to za_e_dist({_c}, {_l})
+    if {_d} < 60:
+        return "en plein centre de Saint-Aurèle"
+    return "à %za_e_pas({_d})% pas de Saint-Aurèle, vers %za_e_dir({_c}, {_l})%"
+
+# ---------------------------------------------------------------- noms de personnages (Québec)
+
+function za_e_prenom_f() :: text:
+    return random element out of "Camille", "Sophie", "Marie-Ève", "Isabelle", "Nathalie", "Valérie", "Josée", "Audrey", "Émilie", "Geneviève", "Mélanie", "Karine", "Julie", "Stéphanie", "Hélène" and "Catherine"
+
+function za_e_prenom_m() :: text:
+    return random element out of "Mathieu", "Étienne", "Jean-Philippe", "Kevin", "Olivier", "Simon", "Guillaume", "Patrick", "Luc", "Maxime", "Pascal", "Yannick", "Denis", "Sylvain", "Marc-André" and "Réjean"
+
+function za_e_famille() :: text:
+    return random element out of "Rioux", "Gagnon", "Tremblay", "Lavoie", "Bouchard", "Poirier", "Bergeron", "Gauthier", "Côté", "Pelletier", "Morin", "Lévesque", "Fortin", "Beaulieu", "Lachance", "Desrosiers", "Paradis", "Bélanger", "Ouellet" and "Cloutier"
+
+function za_e_nom_f() :: text:
+    return "%za_e_prenom_f()% %za_e_famille()%"
+
+function za_e_nom_m() :: text:
+    return "%za_e_prenom_m()% %za_e_famille()%"
+
+# ---------------------------------------------------------------- terrain
+
+# y du sol solide en (x, z), en sautant feuillages, troncs et lianes
+function za_e_sol_y(x: number, z: number) :: number:
+    set {_w} to world("{@monde}")
+    set {_b} to highest block at location({_x}, 100, {_z}, {_w})
+    set {_y} to floor(y-coordinate of (location of {_b}))
+    set {_k} to 0
+    while {_k} < 40:
+        set {_t} to "%type of block at location({_x}, {_y}, {_z}, {_w})%"
+        if {_t} contains "leaf" or "leaves" or "log" or "vine" or "mushroom" or "bamboo":
+            remove 1 from {_y}
+        else:
+            return {_y}
+        add 1 to {_k}
+    return {_y}
+
+# niveau du sol pour un site plat de demi-largeur r (5 points) : y, ou -999 si eau, glace, lave ou pente trop forte
+function za_e_niveau(x: number, z: number, r: number) :: number:
+    set {_w} to world("{@monde}")
+    set {_ymax} to -999
+    set {_ymin} to 9999
+    set {_i} to 0
+    while {_i} < 5:
+        set {_px} to {_x}
+        set {_pz} to {_z}
+        if {_i} is 1:
+            add {_r} to {_px}
+            add {_r} to {_pz}
+        else if {_i} is 2:
+            subtract {_r} from {_px}
+            add {_r} to {_pz}
+        else if {_i} is 3:
+            add {_r} to {_px}
+            subtract {_r} from {_pz}
+        else if {_i} is 4:
+            subtract {_r} from {_px}
+            subtract {_r} from {_pz}
+        set {_y} to za_e_sol_y({_px}, {_pz})
+        set {_t} to "%type of block at location({_px}, {_y}, {_pz}, {_w})%"
+        if {_t} contains "water" or "lava" or "ice" or "air" or "bedrock":
+            return -999
+        set {_t2} to "%type of block at location({_px}, {_y} + 1, {_pz}, {_w})%"
+        if {_t2} contains "water" or "lava":
+            return -999
+        if {_y} > {_ymax}:
+            set {_ymax} to {_y}
+        if {_y} < {_ymin}:
+            set {_ymin} to {_y}
+        add 1 to {_i}
+    if {_ymax} - {_ymin} > 6:
+        return -999
+    if {_ymax} < 35:
+        return -999
+    return {_ymax}
+
+# le site est-il libre (ni bâtiment, ni camp, ni Trêve, ni base, ni nid, ni autre site de ce module) ?
+function za_e_libre(x: number, z: number, r: number) :: boolean:
+    set {_l} to location({_x}, 64, {_z}, world("{@monde}"))
+    if za_zone_morte({_l}) is true:
+        return false
+    set {_r2} to {_r} + 16
+    if za_bat_proche({_l}, {_r2}) is not "":
+        return false
+    loop {za::camp::liste::*}:
+        set {_c} to {za::camp::%loop-value%::loc}
+        if {_c} is set:
+            if world of {_c} is world of {_l}:
+                if distance between {_c} and {_l} < 55:
+                    return false
+    if {za::treve::loc} is set:
+        if world of {za::treve::loc} is world of {_l}:
+            if distance between {za::treve::loc} and {_l} < 70:
+                return false
+    loop {za::base::liste::*}:
+        set {_c} to {za::base::%loop-value%}
+        if {_c} is set:
+            if world of {_c} is world of {_l}:
+                if distance between {_c} and {_l} < 60:
+                    return false
+    if za_nid_proche({_l}, 40) is not 0:
+        return false
+    loop {za::e::sites::*}:
+        set {_p::*} to split loop-value at ";"
+        set {_dx} to ({_p::1} parsed as number) - {_x}
+        set {_dz} to ({_p::2} parsed as number) - {_z}
+        if (({_dx} * {_dx}) + ({_dz} * {_dz})) < 1600:
+            return false
+    return true
+
+# mémorise un site (borné à 90 entrées)
+function za_e_site_noter(x: number, z: number):
+    add "%floor({_x})%;%floor({_z})%" to {za::e::sites::*}
+    if size of {za::e::sites::*} > 90:
+        set {_f} to first element of {za::e::sites::*}
+        remove {_f} from {za::e::sites::*}
+
+# point candidat au hasard autour de c
+function za_e_candidat(c: location, dmin: number, dmax: number) :: location:
+    set {_d} to random number between {_dmin} and {_dmax}
+    set {_a} to random number between 0 and 360
+    return location((x-coordinate of {_c}) + ({_d} * cos({_a})), 64, (z-coordinate of {_c}) + ({_d} * sin({_a})), world of {_c})
+
+# ---------------------------------------------------------------- objets
+
+# donne un objet (ou le jette aux pieds si l'inventaire est plein)
+function za_e_donner(p: player, it: itemtype):
+    give {_it} to {_p}
+
+function za_e_uuid(p: player) :: text:
+    return {_p}'s uuid
+
+# jetons physiques
+function za_e_jetons(n: number) :: itemtype:
+    return za_item("gold nugget", "Jeton de Survie", "&6", {_n})
+
+# arme d'un niveau donné (au hasard), à partir de la table du module armes
+function za_e_arme_hasard(niveau: number) :: text:
+    loop {za::arme::ids::*}:
+        if {za::arme::tier::%loop-value%} is {_niveau}:
+            add loop-value to {_pool::*}
+    if {_pool::*} is not set:
+        if {_niveau} <= 2:
+            return random element out of "glock_17", "m1911", "cz75", "p320", "m870" and "db_short"
+        if {_niveau} >= 4:
+            return random element out of "ai_awp", "m107", "fn_evolys", "timeless50" and "deagle_golden"
+        return random element out of "hk416d", "scar_l", "aug", "g36k", "mk14", "hk_g3", "aa12" and "qbz_95"
+    return random element out of {_pool::*}
+
+# munitions d'une arme (identifiant TaCZ), "" si inconnue
+function za_e_munition(g: text) :: text:
+    if {_g} is "glock_17" or "cz75" or "m9a4" or "b93r" or "uzi" or "hk_mp5a5" or "taurus943":
+        return "9mm"
+    if {_g} is "m1911" or "p320" or "hk_mk23" or "ump45" or "vector45":
+        return "45acp"
+    if {_g} is "deagle" or "timeless50" or "taurus500":
+        return "50ae"
+    if {_g} is "rhino357" or "deagle_golden":
+        return "357mag"
+    if {_g} is "m870" or "spas_12" or "m1014" or "aa12" or "db_short" or "db_long":
+        return "12g"
+    if {_g} is "m4a1" or "hk416d" or "m16a4" or "m16a1" or "aug" or "g36k" or "scar_l" or "m249" or "spr15hb" or "minigun":
+        return "556x45"
+    if {_g} is "ak47" or "rpk" or "sks_tactical" or "type_81":
+        return "762x39"
+    if {_g} is "scar_h" or "fn_fal" or "hk_g3" or "mk14" or "fn_evolys":
+        return "308"
+    if {_g} is "m700" or "lonetrail":
+        return "30_06"
+    if {_g} is "kar98":
+        return "792x57"
+    if {_g} is "ai_awp":
+        return "338"
+    if {_g} is "m107" or "m95":
+        return "50bmg"
+    if {_g} is "p90":
+        return "57x28"
+    if {_g} is "qbz_95" or "qbz_191":
+        return "58x42"
+    if {_g} is "rpg7":
+        return "rpg_rocket"
+    if {_g} is "m320":
+        return "40mm"
+    if {_g} is "springfield1873":
+        return "45_70"
+    return ""
+
+# taille maximale d'une pile de munitions TaCZ
+function za_e_munition_pile(m: text) :: number:
+    if {_m} is "9mm" or "45acp" or "556x45" or "762x39" or "57x28" or "58x42":
+        return 60
+    if {_m} is "50ae" or "357mag" or "308" or "45_70":
+        return 48
+    if {_m} is "12g" or "30_06" or "792x57":
+        return 36
+    if {_m} is "338" or "50bmg":
+        return 30
+    if {_m} is "rpg_rocket" or "40mm":
+        return 6
+    return 30
+
+# place des munitions TaCZ (n au plus, une pile) dans l'emplacement d'un conteneur (bloc)
+function za_e_munition_pose(l: location, slot: number, g: text, n: number):
+    set {_m} to za_e_munition({_g})
+    if {_m} is "":
+        stop
+    set {_q} to min({_n}, za_e_munition_pile({_m}))
+    execute console command "execute in minecraft:{@dim} run item replace block %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% container.%{_slot}% with tacz:ammo{AmmoId:""tacz:%{_m}%""} %{_q}%"
+
+# place un accessoire TaCZ (au hasard parmi les rares) dans l'emplacement n d'un conteneur
+function za_e_accessoire_pose(l: location, slot: number):
+    set {_id} to za_arme_accessoire_id("rare")
+    execute console command "execute in minecraft:{@dim} run item replace block %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% container.%{_slot}% with tacz:attachment{AttachmentId:""tacz:%{_id}%""} 1"
+
+# ---------------------------------------------------------------- « veilleurs » : gardes qui apparaissent quand un joueur s'approche
+#  spécification : "ZA_Type@dx@dy@dz;ZA_Type@dx@dy@dz" (décalages par rapport à l)
+
+function za_e_veiller(l: location, spec: text, prop: text, rayon: number = 42):
+    if {za::e::veille::next} is not set:
+        set {za::e::veille::next} to 0
+    add 1 to {za::e::veille::next}
+    set {_i} to {za::e::veille::next}
+    set {za::e::veille::%{_i}%::loc} to {_l}
+    set {za::e::veille::%{_i}%::spec} to {_spec}
+    set {za::e::veille::%{_i}%::prop} to {_prop}
+    set {za::e::veille::%{_i}%::r} to {_rayon}
+    add {_i} to {za::e::veille::liste::*}
+
+# supprime les veilleurs d'un propriétaire (ex. "enig:3")
+function za_e_veille_purger(prop: text):
+    loop {za::e::veille::liste::*}:
+        if {za::e::veille::%loop-value%::prop} is {_prop}:
+            delete {za::e::veille::%loop-value%::*}
+            remove loop-value from {za::e::veille::liste::*}
+
+every 8 seconds:
+    if {za::e::veille::liste::*} is not set:
+        stop
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        loop {za::e::veille::liste::*}:
+            set {_i} to loop-value-2
+            set {_l} to {za::e::veille::%{_i}%::loc}
+            if {_l} is set:
+                if world of {_l} is world of {_p}:
+                    set {_dx} to (x-coordinate of {_l}) - (x-coordinate of {_p})
+                    set {_dz} to (z-coordinate of {_l}) - (z-coordinate of {_p})
+                    set {_rr} to {za::e::veille::%{_i}%::r}
+                    if {_rr} is not set:
+                        set {_rr} to 42
+                    if (({_dx} * {_dx}) + ({_dz} * {_dz})) < ({_rr} * {_rr}):
+                        if abs((y-coordinate of {_l}) - (y-coordinate of {_p})) < 30:
+                            set {_spec::*} to split {za::e::veille::%{_i}%::spec} at ";"
+                            delete {za::e::veille::%{_i}%::*}
+                            remove {_i} from {za::e::veille::liste::*}
+                            loop {_spec::*}:
+                                set {_e::*} to split loop-value-3 at "@"
+                                execute console command "mm mobs spawn %{_e::1}% 1 %world of {_l}%,%floor((x-coordinate of {_l}) + ({_e::2} parsed as number))%,%floor((y-coordinate of {_l}) + ({_e::3} parsed as number))%,%floor((z-coordinate of {_l}) + ({_e::4} parsed as number))%"
+                            za_zm("son %{_p}% za_modeles:sfx.sting_danger 0.5 1")
+            else:
+                delete {za::e::veille::%{_i}%::*}
+                remove {_i} from {za::e::veille::liste::*}
+
+# ---------------------------------------------------------------- blocs protégés (coffres scellés, indices, coffres de bunker)
+
+function za_e_proteger(l: location, ref: text):
+    set {za::e::prot::%za_lkey({_l})%} to {_ref}
+
+function za_e_proteger_retirer(l: location):
+    delete {za::e::prot::%za_lkey({_l})%}
+
+on break:
+    if za_pro(player) is true:
+        stop
+    if {za::e::prot::*} is not set:
+        stop
+    set {_k} to za_lkey(location of event-block)
+    if {za::e::prot::%{_k}%} is set:
+        cancel the event
+        send action bar "&8Impossible : la serrure et le bloc résistent (scellé)." to player
+
+# ---------------------------------------------------------------- petite construction (annexe) : 7 x 6, coffre en (3, 1, 1)
+#  styles : norda (poste technique), casiers (local de consigne), confinement (salle contaminée),
+#           cache (planque d'un fuyard), refuge (abri d'un survivant)
+#  Renvoie l'emplacement du coffre (rien si le terrain ne convient pas). Le panneau est posé par l'appelant.
+
+function za_e_annexe(cx: number, cz: number, style: text) :: location:
+    set {_bx} to floor({_cx}) - 3
+    set {_bz} to floor({_cz}) - 2
+    set {_w} to world("{@monde}")
+    za_e_ch({_bx}, {_bz}, -6, -6, 12, 11)
+    set {_y0} to za_e_nv({_bx}, {_bz}, 3, 2, 3)
+    if {_y0} < 0:
+        za_e_dech({_bx}, {_bz}, -6, -6, 12, 11)
+        stop
+    set {_mur} to "gray_concrete"
+    set {_sol} to "polished_blackstone"
+    set {_toit} to "smooth_stone_slab"
+    if {_style} is "casiers":
+        set {_mur} to "stone_bricks"
+        set {_sol} to "polished_andesite"
+        set {_toit} to "stone_brick_slab"
+    else if {_style} is "confinement":
+        set {_mur} to "green_terracotta"
+        set {_sol} to "moss_block"
+        set {_toit} to "mossy_stone_brick_slab"
+    else if {_style} is "cache":
+        set {_mur} to "spruce_planks"
+        set {_sol} to "coarse_dirt"
+        set {_toit} to "spruce_slab"
+    else if {_style} is "refuge":
+        set {_mur} to "oak_planks"
+        set {_sol} to "spruce_planks"
+        set {_toit} to "oak_slab"
+    # dégager, fondations, sol, murs, toit
+    za_e_f({_bx}, {_y0}, {_bz}, -1, 1, -1, 7, 6, 6, "minecraft:air")
+    za_e_f({_bx}, {_y0}, {_bz}, -1, -8, -1, 7, -1, 6, "minecraft:cobblestone")
+    za_e_f({_bx}, {_y0}, {_bz}, 0, 0, 0, 6, 0, 5, "minecraft:%{_sol}%")
+    za_e_f({_bx}, {_y0}, {_bz}, 0, 1, 0, 6, 3, 5, "minecraft:%{_mur}%")
+    za_e_f({_bx}, {_y0}, {_bz}, 1, 1, 1, 5, 3, 4, "minecraft:air")
+    za_e_f({_bx}, {_y0}, {_bz}, -1, 4, -1, 7, 4, 6, "minecraft:%{_toit}%")
+    za_e_f({_bx}, {_y0}, {_bz}, 0, 4, 0, 6, 4, 5, "minecraft:%{_mur}%")
+    # fenêtres et porte (sud)
+    za_e_s({_bx}, {_y0}, {_bz}, 1, 2, 0, "minecraft:iron_bars")
+    za_e_s({_bx}, {_y0}, {_bz}, 5, 2, 0, "minecraft:iron_bars")
+    za_e_s({_bx}, {_y0}, {_bz}, 0, 2, 2, "minecraft:iron_bars")
+    za_e_s({_bx}, {_y0}, {_bz}, 6, 2, 3, "minecraft:iron_bars")
+    za_e_f({_bx}, {_y0}, {_bz}, 3, 1, 5, 3, 2, 5, "minecraft:air")
+    # vieillissement avant le mobilier
+    za_e_dc({_bx}, {_y0}, {_bz}, 0, 1, 0, 6, 4, 5, 14)
+    za_e_f({_bx}, {_y0}, {_bz}, 3, 1, 5, 3, 2, 5, "minecraft:air")
+    za_e_f({_bx}, {_y0}, {_bz}, 1, 1, 1, 5, 1, 4, "minecraft:air")
+    # mobilier selon le style
+    if {_style} is "norda":
+        za_e_s({_bx}, {_y0}, {_bz}, 1, 1, 1, "minecraft:barrel[facing=up]")
+        za_e_s({_bx}, {_y0}, {_bz}, 5, 1, 1, "minecraft:barrel[facing=up]")
+        za_e_s({_bx}, {_y0}, {_bz}, 5, 1, 3, "minecraft:lectern[facing=west]")
+        za_e_f({_bx}, {_y0}, {_bz}, 2, 1, 3, 4, 1, 3, "minecraft:red_carpet")
+        za_e_f({_bx}, {_y0}, {_bz}, 1, 1, 2, 1, 2, 3, "minecraft:black_concrete")
+        za_e_s({_bx}, {_y0}, {_bz}, 1, 1, 4, "minecraft:cauldron")
+        za_e_s({_bx}, {_y0}, {_bz}, 3, 3, 3, "minecraft:soul_lantern[hanging=true]")
+    else if {_style} is "casiers":
+        za_e_s({_bx}, {_y0}, {_bz}, 1, 1, 2, "minecraft:barrel[facing=east]")
+        za_e_s({_bx}, {_y0}, {_bz}, 1, 1, 3, "minecraft:barrel[facing=east]")
+        za_e_s({_bx}, {_y0}, {_bz}, 1, 1, 4, "minecraft:barrel[facing=east]")
+        za_e_f({_bx}, {_y0}, {_bz}, 5, 1, 2, 5, 2, 3, "minecraft:bookshelf")
+        za_e_s({_bx}, {_y0}, {_bz}, 4, 1, 4, "minecraft:oak_stairs[facing=west]")
+        za_e_s({_bx}, {_y0}, {_bz}, 3, 3, 2, "minecraft:lantern[hanging=true]")
+    else if {_style} is "confinement":
+        za_e_f({_bx}, {_y0}, {_bz}, 2, 0, 2, 3, 0, 3, "minecraft:sculk")
+        za_e_s({_bx}, {_y0}, {_bz}, 4, 0, 4, "minecraft:sculk")
+        za_e_s({_bx}, {_y0}, {_bz}, 5, 1, 4, "minecraft:slime_block")
+        za_e_s({_bx}, {_y0}, {_bz}, 1, 1, 4, "minecraft:cauldron")
+        za_e_s({_bx}, {_y0}, {_bz}, 5, 1, 1, "minecraft:brewing_stand")
+        za_e_s({_bx}, {_y0}, {_bz}, 2, 3, 2, "minecraft:cobweb")
+        za_e_s({_bx}, {_y0}, {_bz}, 4, 3, 3, "minecraft:cobweb")
+        za_e_s({_bx}, {_y0}, {_bz}, 1, 1, 1, "minecraft:white_carpet")
+        za_e_s({_bx}, {_y0}, {_bz}, 3, 3, 4, "minecraft:soul_lantern[hanging=true]")
+    else if {_style} is "cache":
+        za_e_s({_bx}, {_y0}, {_bz}, 3, 1, 3, "minecraft:campfire[lit=false]")
+        za_e_s({_bx}, {_y0}, {_bz}, 5, 1, 1, "minecraft:barrel[facing=up]")
+        za_e_s({_bx}, {_y0}, {_bz}, 5, 1, 2, "minecraft:barrel[facing=up]")
+        za_e_s({_bx}, {_y0}, {_bz}, 1, 1, 1, "minecraft:red_bed[facing=south,part=foot]")
+        za_e_s({_bx}, {_y0}, {_bz}, 1, 1, 2, "minecraft:red_bed[facing=south,part=head]")
+    else if {_style} is "refuge":
+        za_e_s({_bx}, {_y0}, {_bz}, 1, 1, 1, "minecraft:white_bed[facing=south,part=foot]")
+        za_e_s({_bx}, {_y0}, {_bz}, 1, 1, 2, "minecraft:white_bed[facing=south,part=head]")
+        za_e_s({_bx}, {_y0}, {_bz}, 3, 1, 3, "minecraft:campfire[lit=false]")
+        za_e_s({_bx}, {_y0}, {_bz}, 5, 1, 1, "minecraft:barrel[facing=up]")
+        za_e_s({_bx}, {_y0}, {_bz}, 5, 1, 3, "minecraft:crafting_table")
+        za_e_s({_bx}, {_y0}, {_bz}, 3, 3, 2, "minecraft:lantern[hanging=true]")
+    # coffre + panneau (le panneau est réécrit par l'appelant)
+    za_e_s({_bx}, {_y0}, {_bz}, 3, 1, 1, "minecraft:chest[facing=south]")
+    za_e_s({_bx}, {_y0}, {_bz}, 3, 2, 1, "minecraft:oak_wall_sign[facing=south]")
+    za_e_dech({_bx}, {_bz}, -6, -6, 12, 11)
+    za_e_sn({_bx}, {_bz}, 3, 2)
+    return za_e_lr({_bx}, {_y0}, {_bz}, 3, 1, 1)
+
+# variantes qui prennent un emplacement (évite les expressions dans les appels)
+function za_e_libre_loc(c: location, r: number) :: boolean:
+    set {_x} to x-coordinate of {_c}
+    set {_z} to z-coordinate of {_c}
+    return za_e_libre({_x}, {_z}, {_r})
+
+function za_e_annexe_loc(c: location, style: text) :: location:
+    set {_x} to x-coordinate of {_c}
+    set {_z} to z-coordinate of {_c}
+    return za_e_annexe({_x}, {_z}, {_style})
+
+# panneau au-dessus du coffre d'une annexe (l = emplacement du coffre)
+function za_e_annexe_panneau(l: location, l1: text, l2: text, l3: text, l4: text):
+    set {_sg} to block at location(x-coordinate of {_l}, (y-coordinate of {_l}) + 1, z-coordinate of {_l}, world of {_l})
+    set line 1 of {_sg} to {_l1}
+    set line 2 of {_sg} to {_l2}
+    set line 3 of {_sg} to {_l3}
+    set line 4 of {_sg} to {_l4}
+
+# coffre (bloc) à un emplacement
+function za_e_bloc(l: location) :: block:
+    return block at location(floor(x-coordinate of {_l}), floor(y-coordinate of {_l}), floor(z-coordinate of {_l}), world of {_l})
+
+# =====================================================================
+#  1. ÉNIGMES (#9) : coffre scellé NORDA, clé de casier, dossier, code à 4 chiffres
+#  Chaîne : « Note froissée » (butin, morts) -> clé de casier (bâtiment) + « Note de service » (2 premiers chiffres)
+#           -> « Dossier » (zone contaminée : 2 derniers chiffres + position du coffre) -> coffre scellé + digicode.
+#  Données : {za::enig::<id>::*} (etat prep|actif|resolu|expire, casier, code, coffre, cle, dos, t1..t3, essais, verrou...)
+#            {za::enig::liste::*} énigmes en cours (2 au plus), {za::enig::casier::<n>} = id, {za::enig::coffre::<lkey>} = id
+# =====================================================================
+
+function za_enig_lieu_txt(t: text) :: text:
+    if {_t} is "police":
+        return "au poste de police"
+    if {_t} is "caserne":
+        return "à la caserne"
+    if {_t} is "hopital":
+        return "à l'hôpital"
+    if {_t} is "ecole":
+        return "à l'école"
+    if {_t} is "station":
+        return "à la station-service"
+    if {_t} is "super":
+        return "au supermarché"
+    if {_t} is "labo2":
+        return "au laboratoire"
+    return "dans un local de consigne, à l'écart"
+
+function za_enig_texte1(v: number, n: number, p: text, l: text) :: text:
+    set {_t} to "« Si tu lis ceci, c'est que je n'ai pas pu revenir. J'ai laissé la clé de mon casier n°[N] [L]. Le coffre scellé est à moi, mais qui s'en soucie encore ? » — [P]"
+    if {_v} is 2:
+        set {_t} to "Ordre de NORDA : sécuriser le coffre du site. Clé de casier n°[N] déposée [L]. Le code est en deux morceaux. Personne ne doit connaître les deux. — [P]"
+    else if {_v} is 3:
+        set {_t} to "Jour 3. On m'a confisqué mon badge à l'entrée. Ma clé de casier n°[N] est [L], avec mes affaires. Si je m'en sors, je reviens. Sinon, à qui la trouve : servez-vous. — [P]"
+    else if {_v} is 4:
+        set {_t} to "Rappel à moi-même : clé n°[N] [L]. Ne pas la garder sur moi, ils fouillent. Le reste du code, je l'ai laissé dans mon dossier, là où personne n'ira. — [P]"
+    else if {_v} is 5:
+        set {_t} to "Écriture pressée, papier froissé : « Clé du casier [N] : [L]. Le coffre, c'est ce que NORDA voulait que je cache. Ils ne l'auront pas. » (signé [P])"
+    replace all "[N]" with "%{_n}%" in {_t}
+    replace all "[P]" with {_p} in {_t}
+    replace all "[L]" with {_l} in {_t}
+    return {_t}
+
+function za_enig_texte2(v: number, n: number, p: text, d: text, ab: text) :: text:
+    set {_t} to "NOTE DE SERVICE — casier [N]. Le dossier de scellé de [P] a été déplacé [D]. Les deux premiers chiffres du code : [AB]. Les deux derniers figurent au dossier. Ne rien noter d'autre."
+    if {_v} is 2:
+        set {_t} to "Casier [N] — instructions : le dossier complet est [D]. Chiffres 1 et 2 du code de scellé : [AB]. Le dossier contient la suite. Brûler cette note après usage."
+    else if {_v} is 3:
+        set {_t} to "« Tu as trouvé ma clé ? Bien. Le dossier est [D]. Je te donne les deux premiers chiffres du code : [AB]. Les deux autres... il faudra aller les chercher. Bonne chance. » — [P]"
+    replace all "[N]" with "%{_n}%" in {_t}
+    replace all "[P]" with {_p} in {_t}
+    replace all "[D]" with {_d} in {_t}
+    replace all "[AB]" with {_ab} in {_t}
+    return {_t}
+
+function za_enig_texte3(v: number, n: number, p: text, cd: text) :: text:
+    set {_t} to "DOSSIER — casier [N] — [P]. Incident biologique classé Z-01. Consigne de scellé : les deux derniers chiffres du code sont [CD]. Les deux premiers ont été confiés à la note de service, dans le casier du responsable de site. À détruire après lecture."
+    if {_v} is 2:
+        set {_t} to "Rapport interne NORDA. Objet : cache d'urgence de [P]. Code de scellé, chiffres 3 et 4 : [CD]. Chiffres 1 et 2 : voir la note de service du casier [N]. Toute copie est interdite."
+    else if {_v} is 3:
+        set {_t} to "« Je n'ai plus le droit de tout écrire au même endroit. Chiffres 3 et 4 du code : [CD]. Le début est dans mon casier n°[N]. Si tu lis ça sans la note de service, cherche encore. » — [P]"
+    replace all "[N]" with "%{_n}%" in {_t}
+    replace all "[P]" with {_p} in {_t}
+    replace all "[CD]" with {_cd} in {_t}
+    return {_t}
+
+# ---------------------------------------------------------------- objets de l'énigme
+
+function za_enig_cle(n: number) :: itemtype:
+    set {_it} to za_item("tripwire hook", "Clé de casier n°%{_n}%", "&e", 1)
+    set lore of {_it} to za_wrap("Une clé plate en acier, poinçonnée « %{_n}% ». Elle ouvre un coffre scellé de NORDA Biotech, à condition d'en connaître le code.")
+    return {_it}
+
+function za_enig_note1(id: number) :: itemtype:
+    set {_n} to {za::enig::%{_id}%::casier}
+    set {_it} to za_item("paper", "Note froissée — casier %{_n}%", "&f", 1)
+    set {_l::*} to za_wrap({za::enig::%{_id}%::t1})
+    add "&8Clic droit : relire et s'orienter." to {_l::*}
+    set lore of {_it} to {_l::*}
+    return {_it}
+
+function za_enig_note2(id: number) :: itemtype:
+    set {_n} to {za::enig::%{_id}%::casier}
+    set {_it} to za_item("paper", "Note de service — casier %{_n}%", "&b", 1)
+    set {_l::*} to za_wrap({za::enig::%{_id}%::t2})
+    add "&8Clic droit : relire et s'orienter." to {_l::*}
+    set lore of {_it} to {_l::*}
+    return {_it}
+
+function za_enig_dossier(id: number) :: itemtype:
+    set {_n} to {za::enig::%{_id}%::casier}
+    set {_it} to za_item("paper", "Dossier — casier %{_n}%", "&c", 1)
+    set {_l::*} to za_wrap({za::enig::%{_id}%::t3})
+    add "&8Clic droit : relire et s'orienter." to {_l::*}
+    set lore of {_it} to {_l::*}
+    return {_it}
+
+# ---------------------------------------------------------------- choix des sites
+
+# bâtiment (clé "type;index") à moins de 260 pas de l, "" si aucun
+function za_enig_bat_cle(l: location) :: text:
+    set {_ts::*} to "police", "police", "caserne", "hopital", "ecole", "station", "super" and "labo2"
+    set {_i} to 1
+    while {_ts::%{_i}%} is set:
+        set {_ks::*} to za_bat_liste({_ts::%{_i}%})
+        loop {_ks::*}:
+            set {_c} to za_bat_centre(loop-value)
+            if {_c} is set:
+                if world of {_c} is world of {_l}:
+                    if distance between {_c} and {_l} < 260:
+                        add loop-value to {_cand::*}
+        add 1 to {_i}
+    if {_cand::*} is not set:
+        return ""
+    return random element out of {_cand::*}
+
+# un coffre dans le bâtiment (chunks chargés, à décharger par l'appelant autour du coffre), rien si aucun
+function za_enig_coffre_bat(cle: text) :: location:
+    set {_c} to za_bat_centre({_cle})
+    if {_c} is not set:
+        stop
+    set {_w} to world of {_c}
+    set {_bx} to round((x-coordinate of {_c}) - 6.5)
+    set {_gy} to round(y-coordinate of {_c}) - 1
+    set {_bz} to round((z-coordinate of {_c}) - 4.5)
+    za_e_ch({_bx}, {_bz}, 0, 0, 14, 9)
+    set {_x} to 1
+    while {_x} <= 14:
+        set {_z} to 1
+        while {_z} <= 7:
+            set {_b} to block at location({_bx} + {_x}, {_gy} + 1, {_bz} + {_z}, {_w})
+            if {_b} is chest:
+                add location of {_b} to {_ch::*}
+            add 1 to {_z}
+        add 1 to {_x}
+    if {_ch::*} is not set:
+        za_e_dech({_bx}, {_bz}, 0, 0, 14, 9)
+        stop
+    return random element out of {_ch::*}
+
+# ---------------------------------------------------------------- création d'une énigme (asynchrone : plusieurs secondes)
+
+function za_enig_annuler(id: number):
+    set {_n} to {za::enig::%{_id}%::casier}
+    if {_n} is set:
+        delete {za::enig::casier::%{_n}%}
+    set {_l} to {za::enig::%{_id}%::coffre}
+    if {_l} is set:
+        delete {za::enig::coffre::%za_lkey({_l})%}
+        za_e_proteger_retirer({_l})
+    set {_l2} to {za::enig::%{_id}%::cle}
+    if {_l2} is set:
+        za_e_proteger_retirer({_l2})
+    set {_l3} to {za::enig::%{_id}%::dos}
+    if {_l3} is set:
+        za_e_proteger_retirer({_l3})
+    za_e_veille_purger("enig:%{_id}%")
+    remove {_id} from {za::enig::liste::*}
+    delete {za::enig::%{_id}%::*}
+
+# échec de la construction (terrain impraticable) : on efface et on réessaie dans quelques minutes
+function za_enig_echec(id: number, quoi: text):
+    log "Enigme %{_id}% : pas de terrain pour le site « %{_quoi}% », abandon." to file "za_enigmes.log"
+    za_enig_annuler({_id})
+    delete {-e::occupe}
+    set {za::enig::prochain} to 6 minutes after now
+
+function za_enig_creer(ref: location, dcoffre: number = 0):
+    if {za::enig::next} is not set:
+        set {za::enig::next} to 0
+    if size of {za::enig::liste::*} >= 2:
+        stop
+    if {-e::occupe} is set:
+        if difference between {-e::occupe} and now is less than 4 minutes:
+            stop
+    set {-e::occupe} to now
+    add 1 to {za::enig::next}
+    set {_id} to {za::enig::next}
+    add {_id} to {za::enig::liste::*}
+    set {za::enig::%{_id}%::etat} to "prep"
+    set {_n} to random integer between 11 and 98
+    while {za::enig::casier::%{_n}%} is set:
+        set {_n} to random integer between 11 and 98
+    set {za::enig::casier::%{_n}%} to {_id}
+    set {za::enig::%{_id}%::casier} to {_n}
+    set {_ab} to "%random integer between 1 and 9%%random integer between 0 and 9%"
+    set {_cd} to "%random integer between 0 and 9%%random integer between 0 and 9%"
+    set {za::enig::%{_id}%::code} to "%{_ab}%%{_cd}%"
+    set {_r} to random integer between 1 and 3
+    if {_r} is 1:
+        set {_prop} to "Dre %za_e_nom_f()%"
+    else if {_r} is 2:
+        set {_prop} to "Dr %za_e_nom_m()%"
+    else:
+        set {_prop} to "Agent %za_e_nom_m()%"
+    set {za::enig::%{_id}%::proprio} to {_prop}
+    # ---- 1) le coffre scellé (poste technique NORDA)
+    delete {_loc1}
+    loop 12 times:
+        if {_loc1} is not set:
+            set {_d1} to 70 + {_dcoffre}
+            set {_d2} to 150 + {_dcoffre}
+            set {_c} to za_e_candidat({_ref}, {_d1}, {_d2})
+            if za_e_libre_loc({_c}, 8) is true:
+                set {_loc1} to za_e_annexe_loc({_c}, "norda")
+            wait 1 second
+    if {_loc1} is not set:
+        za_enig_echec({_id}, "coffre")
+        stop
+    set {za::enig::%{_id}%::coffre} to {_loc1}
+    za_e_annexe_panneau({_loc1}, "&4&lCOFFRE SCELLÉ", "&0NORDA Biotech", "&0Clé casier n°%{_n}%", "&0+ code 4 chiffres")
+    set {_k1} to za_lkey({_loc1})
+    set {za::enig::coffre::%{_k1}%} to {_id}
+    set {za::loot::%{_k1}%} to true
+    za_e_proteger({_loc1}, "enig:%{_id}%")
+    za_e_veiller({_loc1}, "ZA_Armored@0@0@4;ZA_Shambler@-2@0@6;ZA_Runner@3@0@6", "enig:%{_id}%")
+    wait 2 seconds
+    # ---- 2) la clé de casier : un bâtiment (poste de police, caserne...) ou, à défaut, un local de consigne
+    delete {_kl}
+    set {_kt} to "annexe"
+    set {_kb} to za_enig_bat_cle({_loc1})
+    if {_kb} is not "":
+        set {_kl} to za_enig_coffre_bat({_kb})
+        if {_kl} is set:
+            set {_pp::*} to split {_kb} at ";"
+            set {_kt} to {_pp::1}
+    if {_kl} is not set:
+        loop 12 times:
+            if {_kl} is not set:
+                set {_c} to za_e_candidat({_loc1}, 60, 130)
+                if za_e_libre_loc({_c}, 8) is true:
+                    set {_kl} to za_e_annexe_loc({_c}, "casiers")
+                wait 1 second
+        if {_kl} is not set:
+            za_enig_echec({_id}, "cle")
+            stop
+        za_e_annexe_panneau({_kl}, "&8&lCASIERS", "&0Local de consigne", "&0Casier n°%{_n}%", "&0Personnel autorisé")
+        set {_kt} to "annexe"
+        za_e_veiller({_kl}, "ZA_Shambler@0@0@4;ZA_Runner@-2@0@6", "enig:%{_id}%")
+    else:
+        za_e_veiller({_kl}, "ZA_Runner@1@0@1", "enig:%{_id}%")
+    set {za::enig::%{_id}%::cle} to {_kl}
+    set {za::enig::%{_id}%::cletype} to {_kt}
+    set {_kk} to za_lkey({_kl})
+    set {za::loot::%{_kk}%} to true
+    wait 2 seconds
+    # ---- 3) le dossier : salle de confinement contaminée (près d'un nid s'il y en a un)
+    delete {_dl}
+    set {_dt} to "annexe"
+    set {_nid} to 0
+    loop {za::nid::liste::*}:
+        set {_nc} to {za::nid::%loop-value%::loc}
+        if {_nc} is set:
+            if world of {_nc} is world of {_loc1}:
+                if distance between {_nc} and {_loc1} < 320:
+                    add loop-value to {_nids::*}
+    if {_nids::*} is set:
+        set {_nid} to random element out of {_nids::*}
+    loop 12 times:
+        if {_dl} is not set:
+            if {_nid} is not 0:
+                set {_c} to za_e_candidat({za::nid::%{_nid}%::loc}, 22, 32)
+            else:
+                set {_c} to za_e_candidat({_loc1}, 70, 140)
+            if za_e_libre_loc({_c}, 8) is true:
+                set {_dl} to za_e_annexe_loc({_c}, "confinement")
+                if {_dl} is set:
+                    if {_nid} is not 0:
+                        set {_dt} to "nid"
+            wait 1 second
+    if {_dl} is not set:
+        za_enig_echec({_id}, "dossier")
+        stop
+    za_e_annexe_panneau({_dl}, "&2&lCONFINEMENT", "&0Dossiers sensibles", "&0Masque requis", "&0Casier n°%{_n}%")
+    set {za::enig::%{_id}%::dos} to {_dl}
+    set {za::enig::%{_id}%::dostype} to {_dt}
+    set {_kd} to za_lkey({_dl})
+    set {za::loot::%{_kd}%} to true
+    set {za::contam::%za_ckey({_dl})%} to 260
+    if {_dt} is "nid":
+        za_e_veiller({_dl}, "ZA_Patient_Infecte@0@0@4;ZA_Crawler@-2@0@5;ZA_Spitter@3@0@7;ZA_Runner@0@0@8", "enig:%{_id}%")
+    else:
+        za_e_veiller({_dl}, "ZA_Patient_Infecte@0@0@4;ZA_Crawler@-2@0@5;ZA_Spitter@3@0@7", "enig:%{_id}%")
+    # ---- textes, objets déposés
+    set {_lieu} to za_enig_lieu_txt({_kt})
+    set {_dtxt} to "dans une salle de confinement à l'écart (masque à gaz recommandé)"
+    if {_dt} is "nid":
+        set {_dtxt} to "près du nid, là où l'air sent la charogne (masque à gaz recommandé)"
+    set {za::enig::%{_id}%::t1} to za_enig_texte1(random integer between 1 and 5, {_n}, {_prop}, {_lieu})
+    set {za::enig::%{_id}%::t2} to za_enig_texte2(random integer between 1 and 3, {_n}, {_prop}, {_dtxt}, {_ab})
+    set {za::enig::%{_id}%::t3} to za_enig_texte3(random integer between 1 and 3, {_n}, {_prop}, {_cd})
+    set {_bk} to za_e_bloc({_kl})
+    add za_enig_cle({_n}) to inventory of {_bk}
+    add za_enig_note2({_id}) to inventory of {_bk}
+    if {_kt} is not "annexe":
+        set {_kx} to floor(x-coordinate of {_kl})
+        set {_kz} to floor(z-coordinate of {_kl})
+        za_e_dech({_kx}, {_kz}, -16, -16, 16, 16)
+    else:
+        add za_item("paper", "Bandage", "&f", 2) to inventory of {_bk}
+    set {_bd} to za_e_bloc({_dl})
+    add za_enig_dossier({_id}) to inventory of {_bd}
+    add za_item("paper", "Bandage", "&f", 1) to inventory of {_bd}
+    set {za::enig::%{_id}%::cree} to {za::serveur::jours}
+    set {_j} to {za::serveur::jours}
+    set {za::enig::%{_id}%::exp} to {_j} + 8
+    set {za::enig::%{_id}%::notes} to 0
+    set {za::enig::%{_id}%::essais} to 0
+    set {za::enig::%{_id}%::etat} to "actif"
+    za_journal("Un coffre scelle de NORDA (casier %{_n}%) attend quelque part, avec sa cle et son code.")
+    delete {-e::occupe}
+    set {_pl::*} to za_monde_joueurs()
+    if size of {_pl::*} > 0:
+        za_radio("&bLéa", "J'ai capté une balise NORDA : un coffre scellé, avec une clé et un code. Les morts gardent parfois des papiers froissés sur eux. Ne les jetez pas, lisez-les.")
+
+# ---------------------------------------------------------------- lecture des objets (clic droit) et progression du joueur
+
+# nom sans couleur -> numéro d'énigme (par le numéro de casier), 0 si périmée
+function za_enig_id_nom(nom: text, pre: text) :: number:
+    set {_s} to subtext of {_nom} from characters (length of {_pre} + 1) to length of {_nom}
+    set {_n} to {_s} parsed as integer
+    if {_n} is not set:
+        return 0
+    if {za::enig::casier::%{_n}%} is not set:
+        return 0
+    return {za::enig::casier::%{_n}%}
+
+function za_enig_stade(p: player, id: number, s: number):
+    set {za::enig::lu::%{_id}%::%{_p}'s uuid%::%{_s}%} to true
+
+function za_enig_entete(p: player, titre: text):
+    send "&8&m                                              " to {_p}
+    send "%{_titre}%" to {_p}
+
+# lecture d'un objet d'énigme : k = 1 note froissée, 2 note de service, 3 dossier
+function za_enig_lire(p: player, id: number, k: number):
+    set {_n} to {za::enig::%{_id}%::casier}
+    set {_l} to location of {_p}
+    if {_k} is 1:
+        za_enig_entete({_p}, "&f&lNOTE FROISSÉE &8— &7casier %{_n}%")
+        send "&f&o%{za::enig::%{_id}%::t1}%" to {_p}
+        send "&6➤ &7La clé : &e%za_e_vers({_l}, {za::enig::%{_id}%::cle})%&7." to {_p}
+    else if {_k} is 2:
+        za_enig_entete({_p}, "&b&lNOTE DE SERVICE &8— &7casier %{_n}%")
+        send "&f&o%{za::enig::%{_id}%::t2}%" to {_p}
+        send "&6➤ &7Le dossier : &e%za_e_vers({_l}, {za::enig::%{_id}%::dos})%&7." to {_p}
+    else:
+        za_enig_entete({_p}, "&c&lDOSSIER NORDA &8— &7casier %{_n}%")
+        send "&f&o%{za::enig::%{_id}%::t3}%" to {_p}
+        send "&6➤ &7Le coffre scellé : &e%za_e_vers({_l}, {za::enig::%{_id}%::coffre})%&7." to {_p}
+        send "&8Il faut aussi la clé n°%{_n}% et les deux premiers chiffres du code (note de service)." to {_p}
+    send "&8&m                                              " to {_p}
+    za_zm("son %{_p}% minecraft:item.book.page_turn 0.8 1")
+    za_enig_stade({_p}, {_id}, {_k})
+
+on right click with paper:
+    if za_pro(player) is true:
+        stop
+    set {_nm} to uncolored name of player's tool
+    if {_nm} starts with "Note froissée — casier ":
+        cancel the event
+        set {_id} to za_enig_id_nom({_nm}, "Note froissée — casier ")
+        if {_id} is 0:
+            send "&7Le papier est illisible, la clé et le coffre ont disparu depuis longtemps." to player
+            stop
+        za_enig_lire(player, {_id}, 1)
+    else if {_nm} starts with "Note de service — casier ":
+        cancel the event
+        set {_id} to za_enig_id_nom({_nm}, "Note de service — casier ")
+        if {_id} is 0:
+            send "&7Note périmée : plus personne n'en a l'usage." to player
+            stop
+        za_enig_lire(player, {_id}, 2)
+    else if {_nm} starts with "Dossier — casier ":
+        cancel the event
+        set {_id} to za_enig_id_nom({_nm}, "Dossier — casier ")
+        if {_id} is 0:
+            send "&7Dossier périmé : les chiffres ne mènent plus à rien." to player
+            stop
+        za_enig_lire(player, {_id}, 3)
+
+# la clé ne se pose pas
+on place:
+    if za_pro(player) is true:
+        stop
+    if event-block is tripwire hook:
+        if uncolored name of player's tool starts with "Clé de casier":
+            cancel the event
+            send action bar "&7Tu gardes la clé : elle sert au coffre scellé, pas à décorer." to player
+
+on right click with tripwire hook:
+    if za_pro(player) is true:
+        stop
+    if uncolored name of player's tool starts with "Clé de casier":
+        cancel the event
+        send action bar "&eClé de casier : à insérer dans le coffre scellé NORDA (clic droit dessus)." to player
+
+# ---------------------------------------------------------------- le coffre scellé et son digicode
+
+# emplacement -> chiffre / action dans le clavier (5 rangées)
+function za_enig_touche(slot: number) :: text:
+    if {_slot} is 12:
+        return "1"
+    if {_slot} is 13:
+        return "2"
+    if {_slot} is 14:
+        return "3"
+    if {_slot} is 21:
+        return "4"
+    if {_slot} is 22:
+        return "5"
+    if {_slot} is 23:
+        return "6"
+    if {_slot} is 30:
+        return "7"
+    if {_slot} is 31:
+        return "8"
+    if {_slot} is 32:
+        return "9"
+    if {_slot} is 40:
+        return "0"
+    if {_slot} is 39:
+        return "effacer"
+    if {_slot} is 41:
+        return "valider"
+    return ""
+
+function za_enig_affichage(s: text) :: text:
+    set {_r} to ""
+    set {_i} to 1
+    while {_i} <= 4:
+        if length of {_s} >= {_i}:
+            set {_r} to "%{_r}%&a&l%subtext of {_s} from characters {_i} to {_i}% "
+        else:
+            set {_r} to "%{_r}%&8&l_ "
+        add 1 to {_i}
+    return {_r}
+
+function za_enig_clavier_maj(p: player):
+    set {_u} to {_p}'s uuid
+    set {_s} to {-enig::saisie::%{_u}%}
+    if {_s} is not set:
+        set {_s} to ""
+    set {_it} to za_item("name tag", za_enig_affichage({_s}), "", 1)
+    set lore of {_it} to "&8Code à 4 chiffres" and "&8Valide quand tu es prêt."
+    set slot 4 of (current inventory of {_p}) to {_it}
+
+function za_enig_clavier(p: player, id: number):
+    set {_u} to {_p}'s uuid
+    set {-enig::cible::%{_u}%} to {_id}
+    set {-enig::saisie::%{_u}%} to ""
+    open chest inventory with 5 rows named "&8Digicode NORDA" to {_p}
+    set {_v} to za_item("gray stained glass pane", " ", "&8", 1)
+    set {_i} to 0
+    while {_i} < 45:
+        set slot {_i} of (current inventory of {_p}) to {_v}
+        add 1 to {_i}
+    set {_slots::*} to 12, 13, 14, 21, 22, 23, 30, 31, 32 and 40
+    loop {_slots::*}:
+        set {_d} to za_enig_touche(loop-value)
+        set {_it} to za_item("stone button", {_d}, "&f&l", 1)
+        set lore of {_it} to "&8Touche %{_d}%"
+        set slot loop-value of (current inventory of {_p}) to {_it}
+    set slot 39 of (current inventory of {_p}) to za_item("red concrete", "Effacer", "&c&l", 1)
+    set slot 41 of (current inventory of {_p}) to za_item("lime concrete", "Valider", "&a&l", 1)
+    za_enig_clavier_maj({_p})
+
+on inventory click:
+    if za_pro(player) is true:
+        stop
+    if uncolored name of (player's current inventory) is not "Digicode NORDA":
+        stop
+    cancel the event
+    if event-inventory is not player's current inventory:
+        stop
+    set {_u} to player's uuid
+    if {-enig::clk::%{_u}%} is set:
+        if difference between {-enig::clk::%{_u}%} and now is less than 0.12 seconds:
+            stop
+    set {-enig::clk::%{_u}%} to now
+    set {_t} to za_enig_touche(index of event-slot)
+    if {_t} is "":
+        stop
+    set {_s} to {-enig::saisie::%{_u}%}
+    if {_s} is not set:
+        set {_s} to ""
+    if {_t} is "effacer":
+        set {-enig::saisie::%{_u}%} to ""
+        za_zm("son %player% minecraft:block.note_block.hat 0.7 0.8")
+        za_enig_clavier_maj(player)
+    else if {_t} is "valider":
+        if length of {_s} < 4:
+            send action bar "&cIl faut 4 chiffres." to player
+            za_zm("son %player% minecraft:block.note_block.bass 0.8 0.6")
+        else:
+            set {_id} to {-enig::cible::%{_u}%}
+            close player's inventory
+            delete {-enig::saisie::%{_u}%}
+            za_enig_essayer(player, {_id}, {_s})
+    else:
+        if length of {_s} < 4:
+            set {-enig::saisie::%{_u}%} to "%{_s}%%{_t}%"
+            za_zm("son %player% minecraft:block.note_block.hat 0.7 1.4")
+            za_enig_clavier_maj(player)
+
+on inventory drag:
+    if za_pro(player) is true:
+        stop
+    if uncolored name of (player's current inventory) is "Digicode NORDA":
+        cancel the event
+
+on inventory close:
+    delete {-enig::saisie::%player's uuid%}
+
+# coffre scellé : clic droit
+on right click on chest:
+    if za_pro(player) is true:
+        stop
+    if {za::enig::coffre::*} is not set:
+        stop
+    set {_id} to {za::enig::coffre::%za_lkey(location of event-block)%}
+    if {_id} is not set:
+        stop
+    cancel the event
+    if {za::enig::%{_id}%::etat} is not "actif":
+        send action bar "&7Le coffre est encore froid... reviens plus tard." to player
+        stop
+    set {_n} to {za::enig::%{_id}%::casier}
+    if {za::enig::%{_id}%::verrou} is set:
+        if now is less than {za::enig::%{_id}%::verrou}:
+            send "&cLe clavier est verrouillé (alarme). Attends %difference between now and {za::enig::%{_id}%::verrou}%." to player
+            za_zm("son %player% minecraft:block.note_block.bass 1 0.5")
+            stop
+    if za_count_named(player, "Clé de casier n°%{_n}%") < 1:
+        send "&8&m                                              " to player
+        send "&4&lCOFFRE SCELLÉ &8— &7NORDA Biotech" to player
+        send "&7Un lecteur de clé clignote en rouge : &f« Clé de casier n°%{_n}% requise »&7." to player
+        send "&7Au-dessus, un clavier attend un code à 4 chiffres." to player
+        send "&8Trouve la clé et le code : lis les notes froissées, les dossiers. (/enigme)" to player
+        send "&8&m                                              " to player
+        za_zm("son %player% minecraft:block.iron_door.close 0.7 0.6")
+        stop
+    send action bar "&aLa clé n°%{_n}% entre dans la serrure. Le clavier s'allume." to player
+    za_zm("son %player% minecraft:block.iron_trapdoor.open 0.9 1.2")
+    za_enig_clavier(player, {_id})
+
+# /code : essayer un code près du coffre
+command /code [<text>]:
+    description: Taper le code du coffre scellé NORDA
+    usage: /code <4 chiffres>
+    executable by: players
+    trigger:
+        if za_pro(player) is true:
+            send "&7Pas ici." to player
+            stop
+        set {_best} to 7
+        set {_id} to 0
+        loop {za::enig::liste::*}:
+            set {_c} to {za::enig::%loop-value%::coffre}
+            if {_c} is set:
+                if world of {_c} is world of player:
+                    if distance between {_c} and player < {_best}:
+                        if {za::enig::%loop-value%::etat} is "actif":
+                            set {_best} to distance between {_c} and player
+                            set {_id} to loop-value
+        if {_id} is 0:
+            send "&7Aucun coffre scellé NORDA à portée. Approche-toi du coffre, puis &e/code <4 chiffres>&7." to player
+            stop
+        set {_n} to {za::enig::%{_id}%::casier}
+        if za_count_named(player, "Clé de casier n°%{_n}%") < 1:
+            send "&cIl te faut la clé de casier n°%{_n}% dans ton inventaire." to player
+            stop
+        if arg-1 is not set:
+            za_enig_clavier(player, {_id})
+            stop
+        if length of arg-1 is not 4:
+            send "&cLe code fait 4 chiffres. Exemple : &e/code 4719" to player
+            stop
+        if arg-1 parsed as integer is not set:
+            send "&cLe code ne contient que des chiffres." to player
+            stop
+        za_enig_essayer(player, {_id}, arg-1)
+
+# ---------------------------------------------------------------- essai d'un code, alarme, ouverture
+
+function za_enig_essayer(p: player, id: number, code: text):
+    if {za::enig::%{_id}%::etat} is not "actif":
+        send "&7Le coffre ne réagit plus." to {_p}
+        stop
+    set {_n} to {za::enig::%{_id}%::casier}
+    if {za::enig::%{_id}%::verrou} is set:
+        if now is less than {za::enig::%{_id}%::verrou}:
+            send action bar "&cClavier verrouillé." to {_p}
+            stop
+    if za_count_named({_p}, "Clé de casier n°%{_n}%") < 1:
+        send "&cIl te faut la clé de casier n°%{_n}%." to {_p}
+        stop
+    set {_l} to {za::enig::%{_id}%::coffre}
+    if {_code} is {za::enig::%{_id}%::code}:
+        za_enig_ouvrir({_p}, {_id})
+        stop
+    add 1 to {za::enig::%{_id}%::essais}
+    set {_e} to {za::enig::%{_id}%::essais}
+    za_zm("son %{_p}% minecraft:block.note_block.bass 1 0.5")
+    if {_e} >= 3:
+        set {za::enig::%{_id}%::essais} to 0
+        set {za::enig::%{_id}%::verrou} to 3 minutes after now
+        send title "&4&lALARME" with subtitle "&7Trois erreurs. Le coffre hurle : les morts arrivent." to {_p} for 3 seconds
+        send "&4Le coffre déclenche une sirène NORDA. Le clavier est verrouillé 3 minutes. &7Tiens-toi prêt." to {_p}
+        za_zm("son %{_p}% za_modeles:sfx.alarme_auto 1 1")
+        za_bruit_ajouter({_p}, 70)
+        za_activite_ajouter({_l}, 40)
+        loop 3 times:
+            set {_z} to random element out of "ZA_Runner", "ZA_Shambler" and "ZA_Armored"
+            za_spawn_at({_l}, {_z}, 8, 14)
+    else:
+        send "&cCode refusé &8(erreur %{_e}%/3)&c. Le voyant rouge clignote." to {_p}
+
+# remplit le coffre scellé : arme de niveau 3 + munitions, ressource de saison, jetons, soins, fragment de carte A, accessoire (1 fois sur 2)
+function za_enig_butin(id: number):
+    set {_l} to {za::enig::%{_id}%::coffre}
+    set {_b} to za_e_bloc({_l})
+    set {_g} to za_e_arme_hasard(3)
+    execute console command "zaarme coffre %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% %world of {_l}% %{_g}% NORDA"
+    add za_ressource_item(random integer between 2 and 4) to inventory of {_b}
+    add za_e_jetons(random integer between 18 and 34) to inventory of {_b}
+    add za_item("paper", "Bandage", "&f", random integer between 3 and 5) to inventory of {_b}
+    add za_item("honey bottle", "Antibiotique", "&b", 1) to inventory of {_b}
+    add za_tres_fragment("A") to inventory of {_b}
+    za_e_munition_pose({_l}, 20, {_g}, 60)
+    if chance of 50%:
+        za_e_accessoire_pose({_l}, 21)
+
+function za_enig_ouvrir(p: player, id: number):
+    set {_n} to {za::enig::%{_id}%::casier}
+    set {_l} to {za::enig::%{_id}%::coffre}
+    set {za::enig::%{_id}%::etat} to "resolu"
+    set {za::enig::%{_id}%::par} to "%{_p}%"
+    set {_ok} to za_take_named({_p}, "Clé de casier n°%{_n}%", 1)
+    za_enig_butin({_id})
+    # le coffre s'ouvre
+    delete {za::enig::coffre::%za_lkey({_l})%}
+    za_e_proteger_retirer({_l})
+    execute console command "execute in minecraft:{@dim} run particle minecraft:happy_villager %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l}) + 1% %floor(z-coordinate of {_l})% 0.6 0.6 0.6 0.1 30 force"
+    execute console command "execute in minecraft:{@dim} run playsound minecraft:block.iron_door.open block @a %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% 1 0.8"
+    za_zm("son %{_p}% minecraft:ui.toast.challenge_complete 0.8 1")
+    send title "&a&lSCELLÉ BRISÉ" with subtitle "&7Le coffre NORDA s'ouvre. Sers-toi." to {_p} for 4 seconds
+    send "&a&lCOFFRE NORDA OUVERT &7— le butin est dans le coffre : arme, munitions, ressource, jetons, et un &6Fragment de carte A&7." to {_p}
+    za_e_annexe_panneau({_l}, "&2&lOUVERT", "&0NORDA Biotech", "&0Casier n°%{_n}%", "&0Sceau rompu")
+    za_stat_ajouter({_p}'s uuid, "enigmes", 1)
+    za_faction_ajouter({_p}, "scientifiques", 3)
+    za_journal("%{_p}% a ouvert le coffre scelle NORDA du casier %{_n}%.")
+    za_diffuser("&8[Radio] &7On dit qu'un coffre scellé de NORDA vient d'être ouvert quelque part. Il en reste peut-être d'autres.")
+    za_enig_fermer({_id}, "resolu")
+
+# retire l'énigme des énigmes en cours (données conservées un moment)
+function za_enig_fermer(id: number, etat: text):
+    set {_n} to {za::enig::%{_id}%::casier}
+    if {_n} is set:
+        delete {za::enig::casier::%{_n}%}
+    remove {_id} from {za::enig::liste::*}
+    za_e_veille_purger("enig:%{_id}%")
+    set {_c} to {za::enig::%{_id}%::cle}
+    if {_c} is set:
+        za_e_proteger_retirer({_c})
+    if {_etat} is not "resolu":
+        set {za::enig::%{_id}%::etat} to {_etat}
+    set {za::enig::%{_id}%::fin} to {za::serveur::jours}
+
+# expiration : le coffre est forcé par d'autres, la piste s'éteint
+function za_enig_expirer(id: number):
+    set {_l} to {za::enig::%{_id}%::coffre}
+    if {_l} is set:
+        delete {za::enig::coffre::%za_lkey({_l})%}
+        za_e_proteger_retirer({_l})
+        if {za::enig::%{_id}%::etat} is "actif":
+            za_e_annexe_panneau({_l}, "&8&lFORCÉ", "&0Sceau arraché", "&0Vide", "&0")
+    za_enig_fermer({_id}, "expire")
+    za_journal("Le coffre scelle NORDA du casier %{za::enig::%{_id}%::casier}% a ete force par d autres. La piste est froide.")
+
+# ---------------------------------------------------------------- butin : une note froissée peut tomber des morts ou d'un coffre
+
+# donne (au sol ou au joueur) une note froissée d'une énigme active proche ; renvoie vrai si une note a été produite
+function za_enig_note_hasard(l: location) :: itemtype:
+    loop {za::enig::liste::*}:
+        set {_id} to loop-value
+        if {za::enig::%{_id}%::etat} is "actif":
+            if {za::enig::%{_id}%::notes} < 6:
+                set {_c} to {za::enig::%{_id}%::cle}
+                if {_c} is set:
+                    if world of {_c} is world of {_l}:
+                        if distance between {_c} and {_l} < 450:
+                            add {_id} to {_cand::*}
+    if {_cand::*} is not set:
+        stop
+    set {_pick} to random element out of {_cand::*}
+    add 1 to {za::enig::%{_pick}%::notes}
+    return za_enig_note1({_pick})
+
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    if attacker is not a player:
+        stop
+    if {za::enig::liste::*} is not set:
+        stop
+    if chance of 3%:
+        set {_it} to za_enig_note1_ou_rien(location of victim)
+        if {_it} is set:
+            drop {_it} at location of victim
+            send action bar "&f&oUn papier froissé est tombé du cadavre..." to attacker
+
+# (fonction intermédiaire : évite un retour vide dans les appelants)
+function za_enig_note1_ou_rien(l: location) :: itemtype:
+    set {_r} to za_enig_note_hasard({_l})
+    if {_r} is not set:
+        stop
+    return {_r}
+
+on right click on chest:
+    if za_pro(player) is true:
+        stop
+    if {za::enig::liste::*} is not set:
+        stop
+    set {_k} to za_lkey(location of event-block)
+    if {za::e::vu::%{_k}%} is set:
+        stop
+    set {za::e::vu::%{_k}%} to true
+    if {za::enig::coffre::%{_k}%} is set:
+        stop
+    if chance of 5%:
+        set {_it} to za_enig_note1_ou_rien(location of event-block)
+        if {_it} is set:
+            add {_it} to inventory of event-block
+            send action bar "&f&oUn papier froissé, coincé au fond du coffre..." to player
+
+# ---------------------------------------------------------------- tâches périodiques : génération, expiration, contamination du dossier
+
+every 5 minutes:
+    # expiration
+    loop {za::enig::liste::*}:
+        set {_id} to loop-value
+        if {za::enig::%{_id}%::etat} is "actif":
+            if {za::serveur::jours} >= {za::enig::%{_id}%::exp}:
+                za_enig_expirer({_id})
+            else:
+                # la salle du dossier reste contaminée
+                set {_d} to {za::enig::%{_id}%::dos}
+                if {_d} is set:
+                    set {_ck} to za_ckey({_d})
+                    if {za::contam::%{_ck}%} < 200:
+                        set {za::contam::%{_ck}%} to 260
+    if size of za_monde_joueurs() is 0:
+        stop
+    if {za::calme::fin} is set:
+        if {za::calme::fin} is greater than now:
+            stop
+    if {za::enig::prochain} is not set:
+        set {za::enig::prochain} to 4 minutes after now
+    if now is greater than {za::enig::prochain}:
+        if size of {za::enig::liste::*} < 2:
+            set {_p} to random element out of za_monde_joueurs()
+            za_enig_creer(location of {_p})
+        set {_m} to random integer between 40 and 90
+        set {za::enig::prochain} to now
+        add (1 minute) * {_m} to {za::enig::prochain}
+
+
+# ---------------------------------------------------------------- /enigme : le carnet du joueur (ce qu'il sait)
+
+function za_enig_a_lu(p: player, id: number, k: number) :: boolean:
+    if {za::enig::lu::%{_id}%::%{_p}'s uuid%::%{_k}%} is true:
+        return true
+    set {_n} to {za::enig::%{_id}%::casier}
+    if {_k} is 1:
+        if za_count_named({_p}, "Note froissée — casier %{_n}%") > 0:
+            return true
+    if {_k} is 2:
+        if za_count_named({_p}, "Note de service — casier %{_n}%") > 0:
+            return true
+    if {_k} is 3:
+        if za_count_named({_p}, "Dossier — casier %{_n}%") > 0:
+            return true
+    return false
+
+function za_enig_carnet(p: player):
+    set {_l} to location of {_p}
+    send "&8&m                                              " to {_p}
+    send "&6&lÉNIGMES NORDA &8— &7coffres scellés" to {_p}
+    set {_vu} to 0
+    loop {za::enig::liste::*}:
+        set {_id} to loop-value
+        if {za::enig::%{_id}%::etat} is "actif":
+            set {_n} to {za::enig::%{_id}%::casier}
+            set {_c} to {za::enig::%{_id}%::code}
+            set {_a1} to za_enig_a_lu({_p}, {_id}, 1)
+            set {_a2} to za_enig_a_lu({_p}, {_id}, 2)
+            set {_a3} to za_enig_a_lu({_p}, {_id}, 3)
+            set {_any} to false
+            if {_a1} is true:
+                set {_any} to true
+            if {_a2} is true:
+                set {_any} to true
+            if {_a3} is true:
+                set {_any} to true
+            if {_any} is true:
+                add 1 to {_vu}
+                send "&e▸ Casier n°%{_n}% &8(%{za::enig::%{_id}%::proprio}%)" to {_p}
+                if {_a1} is true:
+                    send "  &7Clé : &f%za_enig_lieu_txt({za::enig::%{_id}%::cletype})%&7, &e%za_e_vers({_l}, {za::enig::%{_id}%::cle})%" to {_p}
+                if {_a2} is true:
+                    send "  &7Dossier : &f%{za::enig::%{_id}%::dostype}% &7— &e%za_e_vers({_l}, {za::enig::%{_id}%::dos})%&7. Chiffres 1-2 : &a%subtext of {_c} from characters 1 to 2%" to {_p}
+                if {_a3} is true:
+                    send "  &7Coffre scellé : &e%za_e_vers({_l}, {za::enig::%{_id}%::coffre})%&7. Chiffres 3-4 : &a%subtext of {_c} from characters 3 to 4%" to {_p}
+                if {_a2} is true:
+                    if {_a3} is true:
+                        send "  &aCode reconstitué : &l%{_c}%" to {_p}
+                if za_count_named({_p}, "Clé de casier n°%{_n}%") > 0:
+                    send "  &aTu as la clé." to {_p}
+                else:
+                    send "  &8Tu n'as pas (ou plus) la clé." to {_p}
+    if {_vu} is 0:
+        send "&7Tu ne suis aucune énigme pour l'instant." to {_p}
+        send "&7Ramasse les &fnotes froissées&7 sur les morts et dans les coffres, lis-les (clic droit)." to {_p}
+    send "&8Coffre trouvé ? Clique dessus avec la clé, ou &e/code <4 chiffres>&8 tout près. Trois erreurs : alarme." to {_p}
+    send "&8&m                                              " to {_p}
+
+command /enigme:
+    description: Ton carnet d'énigmes (coffres scellés NORDA)
+    executable by: players
+    trigger:
+        if za_pro(player) is true:
+            send "&7Pas ici." to player
+            stop
+        za_enig_carnet(player)
+
+# ---------------------------------------------------------------- admin / console
+
+command /zaenigme [<text>] [<text>] [<text>]:
+    description: Outils admin des énigmes
+    usage: /zaenigme <creer [x z]|etat|butin id|expirer id|annuler id|purger>
+    permission: za.admin
+    trigger:
+        set {_a} to arg-1
+        if {_a} is "creer":
+            set {_x} to arg-2 parsed as number
+            set {_z} to arg-3 parsed as number
+            if {_z} is set:
+                set {_ref} to za_e_loc({_x}, 64, {_z})
+                set {_d} to 0
+                send "&7[zaenigme] création autour de %{_x}% %{_z}% (patiente ~30 s)..." to sender
+                za_enig_creer({_ref}, 0)
+            else:
+                set {_p} to random element out of za_monde_joueurs()
+                if {_p} is not set:
+                    send "&cAucun joueur en ligne : donne x z. Ex : zaenigme creer 7000 -7000" to sender
+                    stop
+                send "&7[zaenigme] création autour de %{_p}% (patiente ~30 s)..." to sender
+                za_enig_creer(location of {_p}, 0)
+        else if {_a} is "etat":
+            send "&6Énigmes actives (%size of {za::enig::liste::*}%) — prochaine génération : %{za::enig::prochain}%" to sender
+            loop {za::enig::liste::*}:
+                set {_id} to loop-value
+                send "&e#%{_id}% &7casier %{za::enig::%{_id}%::casier}% [%{za::enig::%{_id}%::etat}%] code=%{za::enig::%{_id}%::code}% prop=%{za::enig::%{_id}%::proprio}% exp=jour %{za::enig::%{_id}%::exp}% essais=%{za::enig::%{_id}%::essais}% notes=%{za::enig::%{_id}%::notes}%" to sender
+                send "  &7coffre %floor(x-coordinate of {za::enig::%{_id}%::coffre})% %floor(y-coordinate of {za::enig::%{_id}%::coffre})% %floor(z-coordinate of {za::enig::%{_id}%::coffre})% | clé (%{za::enig::%{_id}%::cletype}%) %floor(x-coordinate of {za::enig::%{_id}%::cle})% %floor(y-coordinate of {za::enig::%{_id}%::cle})% %floor(z-coordinate of {za::enig::%{_id}%::cle})% | dossier (%{za::enig::%{_id}%::dostype}%) %floor(x-coordinate of {za::enig::%{_id}%::dos})% %floor(y-coordinate of {za::enig::%{_id}%::dos})% %floor(z-coordinate of {za::enig::%{_id}%::dos})%" to sender
+                send "  &8t1: %{za::enig::%{_id}%::t1}%" to sender
+        else if {_a} is "butin":
+            set {_id} to arg-2 parsed as integer
+            if {_id} is not set:
+                send "&cUsage : zaenigme butin <id>" to sender
+                stop
+            za_enig_butin({_id})
+            send "&a[zaenigme] butin de test placé dans le coffre #%{_id}%." to sender
+        else if {_a} is "expirer":
+            set {_id} to arg-2 parsed as integer
+            if {_id} is not set:
+                send "&cUsage : zaenigme expirer <id>" to sender
+                stop
+            za_enig_expirer({_id})
+            send "&a[zaenigme] #%{_id}% expirée." to sender
+        else if {_a} is "annuler":
+            set {_id} to arg-2 parsed as integer
+            if {_id} is not set:
+                send "&cUsage : zaenigme annuler <id>" to sender
+                stop
+            za_enig_annuler({_id})
+            send "&a[zaenigme] #%{_id}% annulée (données effacées)." to sender
+        else if {_a} is "purger":
+            loop {za::enig::liste::*}:
+                za_enig_annuler(loop-value)
+            delete {za::e::veille::*}
+            send "&a[zaenigme] toutes les énigmes en cours ont été annulées." to sender
+        else:
+            send "&cUsage : /zaenigme <creer [x z]|etat|butin id|expirer id|annuler id|purger>" to sender
+            send "&7Note : la chasse au trésor (/zatresor) et les enquêtes (/zaenquete) ont leurs propres outils." to sender
+
+# =====================================================================
+#  2. CHASSE AU TRÉSOR (#10) : fragments de carte A/B/C, /carte assembler, bunker souterrain Z-01
+#  A = énigme (coffre scellé), B = enquête résolue, C = rare butin d'Alpha / Caporal Dumas.
+#  Un seul bunker actif. Pillé -> radio -> nouvelle chasse 3 jours serveur plus tard.
+#  Données : {za::tres::id} n° de chasse · {za::tres::etat} plan|prep|actif|pille · {za::tres::debut} jour de construction
+#            {za::tres::x|z|y} entrée réelle · {za::tres::mapx|mapz} centre de la carte (±30) · {za::tres::coffre::<lkey>::*}
+# =====================================================================
+
+# ---------------------------------------------------------------- objets : fragments, carte, boussole
+
+function za_tres_fragment(l: text) :: itemtype:
+    za_tres_assurer()
+    set {_h} to {za::tres::id}
+    set {_it} to za_item("paper", "Fragment de carte %{_l}%", "&6", 1)
+    if {_l} is "A":
+        set {_lo::*} to "&7Un coin de carte dessiné à la main, taché de graisse." and "&7Une colonne de chiffres, soulignée au crayon." and "&8Clic droit : déchiffrer." and "&8Il manque les morceaux B et C." and "&8Chasse n°%{_h}%"
+    else if {_l} is "B":
+        set {_lo::*} to "&7Un coin de carte, brûlé sur un bord." and "&7Une seconde colonne de chiffres, à moitié effacée." and "&8Clic droit : déchiffrer." and "&8Il manque les morceaux A et C." and "&8Chasse n°%{_h}%"
+    else:
+        set {_lo::*} to "&7Un coin de carte : un croquis à l'encre, très précis." and "&7Une flèche, et un mot : « dessous »." and "&8Clic droit : regarder." and "&8Il manque les morceaux A et B." and "&8Chasse n°%{_h}%"
+    set lore of {_it} to {_lo::*}
+    return {_it}
+
+# n° de chasse écrit dans le lore d'un objet (0 si absent)
+function za_carte_hunt(it: itemtype) :: number:
+    set {_l::*} to lore of {_it}
+    loop {_l::*}:
+        set {_u} to uncolored loop-value
+        if {_u} starts with "Chasse n°":
+            set {_n} to (subtext of {_u} from characters 10 to length of {_u}) parsed as integer
+            if {_n} is set:
+                return {_n}
+    return 0
+
+function za_carte_a(p: player, nom: text, h: number) :: boolean:
+    loop all items in inventory of {_p}:
+        if uncolored name of loop-item is {_nom}:
+            if za_carte_hunt(loop-item) is {_h}:
+                return true
+    return false
+
+function za_carte_retirer(p: player, nom: text, h: number):
+    loop all items in inventory of {_p}:
+        if uncolored name of loop-item is {_nom}:
+            if za_carte_hunt(loop-item) is {_h}:
+                remove 1 of loop-item from inventory of {_p}
+                stop
+
+# la carte assemblée
+function za_tres_carte_item() :: itemtype:
+    set {_h} to {za::tres::id}
+    set {_it} to za_item("paper", "Carte du bunker", "&6&l", 1)
+    set {_lo::*} to "&7Trois morceaux recollés au ruban adhésif." and "&fZone : &eX ≈ %{za::tres::mapx}%&f, &eZ ≈ %{za::tres::mapz}% &7(à 30 pas près)" and "&7Cherche un poste de garde en ruine, un fanion rouge," and "&7une trappe au milieu d'un carré de pierre." and "&7Sous terre : la Réserve Z-01." and "&8Clic droit : orienter la boussole." and "&8Chasse n°%{_h}%"
+    set lore of {_it} to {_lo::*}
+    return {_it}
+
+function za_tres_boussole() :: itemtype:
+    set {_it} to za_item("compass", "Boussole du bunker", "&6", 1)
+    set lore of {_it} to "&7Pointe vers la zone de la carte." and "&8Clic droit sur la carte du bunker pour la recaler."
+    return {_it}
+
+# oriente la boussole du joueur vers la zone de la carte ; renvoie le texte de direction
+function za_tres_orienter(p: player):
+    if {za::tres::mapx} is not set:
+        stop
+    set {_l} to za_e_loc({za::tres::mapx}, 64, {za::tres::mapz})
+    set compass target of {_p} to {_l}
+    send "&6➤ &7Zone du bunker : &e%za_e_vers(location of {_p}, {_l})%&7. Ta boussole pointe dessus." to {_p}
+
+# ---------------------------------------------------------------- planification d'une chasse
+
+function za_tres_assurer():
+    if {za::tres::id} is not set:
+        za_tres_planifier(0, 0, 0)
+
+# nouvelle chasse : n° incrémenté tout de suite, emplacement cherché ensuite (asynchrone)
+function za_tres_planifier(delai: number, x0: number, z0: number):
+    if {za::tres::id} is not set:
+        set {za::tres::id} to 0
+    add 1 to {za::tres::id}
+    set {za::tres::etat} to "plan"
+    set {za::tres::debut} to {za::serveur::jours} + {_delai}
+    delete {za::tres::x}
+    delete {za::tres::z}
+    delete {za::tres::y}
+    delete {za::tres::mapx}
+    delete {za::tres::mapz}
+    delete {za::tres::nb}
+    delete {za::tres::premier}
+    set {za::tres::cible_x} to {_x0}
+    set {za::tres::cible_z} to {_z0}
+    za_tres_chercher()
+
+# cherche un emplacement valide (terre ferme, libre, à 400-900 pas du centre-ville), sans construire
+function za_tres_chercher():
+    if {za::tres::etat} is not "plan":
+        stop
+    if {-e::occupe} is set:
+        if difference between {-e::occupe} and now is less than 4 minutes:
+            stop
+    set {-e::occupe} to now
+    set {_w} to world("{@monde}")
+    set {_sp} to spawn location of {_w}
+    set {_essai} to 0
+    set {_fini} to false
+    while {_fini} is false:
+        add 1 to {_essai}
+        if {_essai} > 16:
+            set {_fini} to true
+        else:
+            if {za::tres::cible_x} is not 0:
+                set {_j} to 6 * ({_essai} - 1)
+                set {_x} to {za::tres::cible_x} + (random integer between (0 - {_j}) and {_j})
+                set {_z} to {za::tres::cible_z} + (random integer between (0 - {_j}) and {_j})
+            else:
+                set {_d} to random number between 400 and 900
+                set {_a} to random number between 0 and 360
+                set {_x} to floor((x-coordinate of {_sp}) + ({_d} * cos({_a})))
+                set {_z} to floor((z-coordinate of {_sp}) + ({_d} * sin({_a})))
+            if za_e_libre({_x}, {_z}, 14) is true:
+                za_e_ch({_x}, {_z}, -8, -8, 32, 12)
+                set {_y} to za_e_niveau({_x}, {_z}, 5)
+                set {_y2} to za_e_nv({_x}, {_z}, 26, 2, 3)
+                za_e_dech({_x}, {_z}, -8, -8, 32, 12)
+                if {_y} > 0:
+                    if {_y2} > 0:
+                        set {za::tres::x} to {_x}
+                        set {za::tres::z} to {_z}
+                        set {za::tres::y} to {_y}
+                        set {za::tres::mapx} to {_x} + random integer between -25 and 25
+                        set {za::tres::mapz} to {_z} + random integer between -25 and 25
+                        set {za::tres::etat} to "prep"
+                        set {_fini} to true
+            wait 1 second
+    delete {-e::occupe}
+    if {za::tres::etat} is "plan":
+        log "Chasse au tresor %{za::tres::id}% : aucun emplacement valide trouve, nouvel essai plus tard." to file "za_enigmes.log"
+    else:
+        log "Chasse au tresor %{za::tres::id}% : emplacement %{za::tres::x}% %{za::tres::z}% (map %{za::tres::mapx}% %{za::tres::mapz}%), construction jour %{za::tres::debut}%." to file "za_enigmes.log"
+
+# ---------------------------------------------------------------- le bunker (Réserve Z-01)
+#  Repère : (ex, f, ez) = pied de l'échelle, au ras du plafond de la salle A ; f = niveau du plancher.
+#  Salle A (sas de décontamination)  x -4..4   ; salle B (dortoir) x 4..14 ; salle C (salle centrale) x 14..28. Portes blindées + boutons.
+
+function za_tres_remplir(c1: location, c2: location, c3: location):
+    # coffre 1 : ARSENAL — arme de niveau 4, munitions, accessoires rares
+    set {_g} to za_e_arme_hasard(4)
+    set {_b1} to za_e_bloc({_c1})
+    execute console command "zaarme coffre %floor(x-coordinate of {_c1})% %floor(y-coordinate of {_c1})% %floor(z-coordinate of {_c1})% %world of {_c1}% %{_g}% Militaire"
+    add za_item("paper", "Bandage", "&f", 4) to inventory of {_b1}
+    za_e_munition_pose({_c1}, 20, {_g}, 60)
+    za_e_accessoire_pose({_c1}, 21)
+    if chance of 60%:
+        za_e_accessoire_pose({_c1}, 22)
+    set {za::tres::arme::%{za::tres::id}%} to {_g}
+    # coffre 2 : RÉSERVES — ressource de saison, gros tas de jetons, soins
+    set {_b2} to za_e_bloc({_c2})
+    add za_ressource_item(random integer between 5 and 9) to inventory of {_b2}
+    add za_e_jetons(64) to inventory of {_b2}
+    add za_e_jetons(random integer between 25 and 50) to inventory of {_b2}
+    add za_item("honey bottle", "Serum", "&d", 1) to inventory of {_b2}
+    add za_item("honey bottle", "Antibiotique", "&b", 2) to inventory of {_b2}
+    add za_item("paper", "Bandage", "&f", 6) to inventory of {_b2}
+    # coffre 3 : LABO Z-01 — Matériau expérimental, accessoires, sérums
+    set {_b3} to za_e_bloc({_c3})
+    set {_m} to za_item("echo shard", "Matériau expérimental", "&d", random integer between 3 and 6)
+    set lore of {_m} to "&7Un alliage sorti des labos de NORDA." and "&8Recherché par les ateliers et les camps."
+    add {_m} to inventory of {_b3}
+    add za_item("honey bottle", "Antidote", "&a", 2) to inventory of {_b3}
+    add za_item("honey bottle", "Serum", "&d", 2) to inventory of {_b3}
+    za_e_accessoire_pose({_c3}, 20)
+    za_e_accessoire_pose({_c3}, 21)
+
+# construit le bunker à l'emplacement prévu ; asynchrone seulement par le verrou (tout est posé dans le même tick)
+function za_tres_construire():
+    if {za::tres::etat} is not "prep":
+        stop
+    if {-e::occupe} is set:
+        if difference between {-e::occupe} and now is less than 4 minutes:
+            stop
+    set {-e::occupe} to now
+    set {_ex} to {za::tres::x}
+    set {_ez} to {za::tres::z}
+    set {_w} to world("{@monde}")
+    za_e_ch({_ex}, {_ez}, -10, -10, 34, 14)
+    set {_ey} to za_e_sol_y({_ex}, {_ez})
+    set {_t} to "%type of block at location({_ex}, {_ey}, {_ez}, {_w})%"
+    if {_t} contains "water" or "lava" or "air":
+        za_e_dech({_ex}, {_ez}, -10, -10, 34, 14)
+        log "Bunker : le sol en %{_ex}% %{_ez}% ne convient plus (%{_t}%), nouvelle recherche." to file "za_enigmes.log"
+        set {za::tres::etat} to "plan"
+        set {za::tres::cible_x} to 0
+        delete {-e::occupe}
+        stop
+    set {_mn} to {_ey}
+    loop 5 times:
+        set {_ox} to loop-number * 6
+        set {_yy} to za_e_sy({_ex}, {_ez}, {_ox}, 2)
+        if {_yy} < {_mn}:
+            set {_mn} to {_yy}
+    set {_f} to min({_ey} - 12, {_mn} - 10)
+    if {_f} < -56:
+        set {_f} to -56
+    set {_h} to {_ey} - {_f}
+    set {_hm} to {_h} - 1
+    # -- coques, intérieurs, sols
+    za_e_f({_ex}, {_f}, {_ez}, -4, 0, -1, 4, 5, 5, "minecraft:gray_concrete")
+    za_e_f({_ex}, {_f}, {_ez}, 4, 0, -1, 14, 5, 5, "minecraft:light_gray_concrete")
+    za_e_f({_ex}, {_f}, {_ez}, 14, 0, -3, 28, 5, 7, "minecraft:black_concrete")
+    za_e_f({_ex}, {_f}, {_ez}, -3, 1, 0, 3, 4, 4, "minecraft:air")
+    za_e_f({_ex}, {_f}, {_ez}, 5, 1, 0, 13, 4, 4, "minecraft:air")
+    za_e_f({_ex}, {_f}, {_ez}, 15, 1, -2, 27, 4, 6, "minecraft:air")
+    za_e_f({_ex}, {_f}, {_ez}, -3, 0, 0, 3, 0, 4, "minecraft:smooth_stone")
+    za_e_f({_ex}, {_f}, {_ez}, 5, 0, 0, 13, 0, 4, "minecraft:polished_andesite")
+    za_e_f({_ex}, {_f}, {_ez}, 15, 0, -2, 27, 0, 6, "minecraft:polished_blackstone")
+    # -- vieillissement (avant le mobilier)
+    za_e_dc({_ex}, {_f}, {_ez}, -3, 1, 0, 3, 4, 4, 10)
+    za_e_dc({_ex}, {_f}, {_ez}, 5, 1, 0, 13, 4, 4, 10)
+    za_e_dc({_ex}, {_f}, {_ez}, 15, 1, -2, 27, 4, 6, 16)
+    # -- puits, échelle, trappe
+    za_e_f({_ex}, {_f}, {_ez}, -1, 5, -1, 1, {_h}, 1, "minecraft:stone_bricks")
+    za_e_f({_ex}, {_f}, {_ez}, 0, 5, 0, 0, {_hm}, 0, "minecraft:air")
+    za_e_f({_ex}, {_f}, {_ez}, 0, 1, 0, 0, {_hm}, 0, "minecraft:ladder[facing=south]")
+    # -- portes blindées et boutons
+    za_e_f({_ex}, {_f}, {_ez}, 4, 1, 2, 4, 2, 2, "minecraft:air")
+    za_e_s({_ex}, {_f}, {_ez}, 4, 1, 2, "minecraft:iron_door[facing=east,half=lower,hinge=left,open=false]")
+    za_e_s({_ex}, {_f}, {_ez}, 4, 2, 2, "minecraft:iron_door[facing=east,half=upper,hinge=left,open=false]")
+    za_e_f({_ex}, {_f}, {_ez}, 14, 1, 2, 14, 2, 2, "minecraft:air")
+    za_e_s({_ex}, {_f}, {_ez}, 14, 1, 2, "minecraft:iron_door[facing=east,half=lower,hinge=left,open=false]")
+    za_e_s({_ex}, {_f}, {_ez}, 14, 2, 2, "minecraft:iron_door[facing=east,half=upper,hinge=left,open=false]")
+    za_e_s({_ex}, {_f}, {_ez}, 3, 2, 3, "minecraft:stone_button[face=wall,facing=west]")
+    za_e_s({_ex}, {_f}, {_ez}, 5, 2, 3, "minecraft:stone_button[face=wall,facing=east]")
+    za_e_s({_ex}, {_f}, {_ez}, 13, 2, 3, "minecraft:stone_button[face=wall,facing=west]")
+    za_e_s({_ex}, {_f}, {_ez}, 15, 2, 3, "minecraft:stone_button[face=wall,facing=east]")
+    # -- éclairage (quelques lampes ont sauté)
+    za_e_s({_ex}, {_f}, {_ez}, -2, 4, 2, "minecraft:sea_lantern")
+    za_e_s({_ex}, {_f}, {_ez}, 2, 4, 2, "minecraft:sea_lantern")
+    za_e_s({_ex}, {_f}, {_ez}, 7, 4, 2, "minecraft:sea_lantern")
+    za_e_s({_ex}, {_f}, {_ez}, 11, 4, 2, "minecraft:sea_lantern")
+    za_e_s({_ex}, {_f}, {_ez}, 17, 4, 0, "minecraft:sea_lantern")
+    za_e_s({_ex}, {_f}, {_ez}, 21, 4, 2, "minecraft:sea_lantern")
+    za_e_s({_ex}, {_f}, {_ez}, 25, 4, 4, "minecraft:sea_lantern")
+    za_e_s({_ex}, {_f}, {_ez}, 25, 4, 0, "minecraft:soul_lantern[hanging=true]")
+    # -- salle A : sas de décontamination
+    za_e_f({_ex}, {_f}, {_ez}, -3, 1, 3, -1, 3, 3, "minecraft:iron_bars")
+    za_e_f({_ex}, {_f}, {_ez}, -3, 1, 4, -1, 1, 4, "minecraft:cauldron")
+    za_e_s({_ex}, {_f}, {_ez}, 3, 1, 0, "minecraft:barrel[facing=up]")
+    za_e_s({_ex}, {_f}, {_ez}, 2, 1, 0, "minecraft:barrel[facing=up]")
+    za_e_s({_ex}, {_f}, {_ez}, 2, 1, 4, "minecraft:smooth_stone_slab")
+    za_e_s({_ex}, {_f}, {_ez}, 3, 1, 4, "minecraft:smooth_stone_slab")
+    za_e_pr({_ex}, {_f}, {_ez}, 2, 3, 0, "minecraft:oak_wall_sign[facing=south]", "&4&lSAS 1", "&0Décontamination", "&0Porte scellée", "&0Bouton = ouverture")
+    # -- salle B : dortoir
+    za_e_s({_ex}, {_f}, {_ez}, 6, 1, 4, "minecraft:red_bed[facing=north,part=foot]")
+    za_e_s({_ex}, {_f}, {_ez}, 6, 1, 3, "minecraft:red_bed[facing=north,part=head]")
+    za_e_s({_ex}, {_f}, {_ez}, 8, 1, 4, "minecraft:gray_bed[facing=north,part=foot]")
+    za_e_s({_ex}, {_f}, {_ez}, 8, 1, 3, "minecraft:gray_bed[facing=north,part=head]")
+    za_e_s({_ex}, {_f}, {_ez}, 10, 1, 4, "minecraft:white_bed[facing=north,part=foot]")
+    za_e_s({_ex}, {_f}, {_ez}, 10, 1, 3, "minecraft:white_bed[facing=north,part=head]")
+    za_e_s({_ex}, {_f}, {_ez}, 13, 1, 3, "minecraft:jukebox")
+    za_e_s({_ex}, {_f}, {_ez}, 13, 1, 0, "minecraft:crafting_table")
+    loop 4 times:
+        set {_o} to 4 + (loop-number * 2)
+        za_e_s({_ex}, {_f}, {_ez}, {_o}, 1, 0, "minecraft:barrel[facing=south]")
+        set {_lq} to za_e_lr({_ex}, {_f}, {_ez}, {_o}, 1, 0)
+        set {_lb} to za_e_bloc({_lq})
+        if chance of 55%:
+            add za_item("paper", "Bandage", "&f", random integer between 1 and 2) to inventory of {_lb}
+        if chance of 35%:
+            add za_e_jetons(random integer between 1 and 4) to inventory of {_lb}
+        if chance of 30%:
+            add za_item("bread", "Ration militaire", "&f", 1) to inventory of {_lb}
+    za_e_pr({_ex}, {_f}, {_ez}, 5, 3, 1, "minecraft:oak_wall_sign[facing=east]", "&4&lDORTOIR", "&0Personnel Z-01", "&0Extinction : 22 h", "&0")
+    # -- salle C : salle centrale, trois coffres, terminal
+    set {_c1} to za_e_lr({_ex}, {_f}, {_ez}, 19, 1, -2)
+    set {_c2} to za_e_lr({_ex}, {_f}, {_ez}, 21, 1, -2)
+    set {_c3} to za_e_lr({_ex}, {_f}, {_ez}, 23, 1, -2)
+    za_e_s({_ex}, {_f}, {_ez}, 19, 1, -2, "minecraft:chest[facing=south]")
+    za_e_s({_ex}, {_f}, {_ez}, 21, 1, -2, "minecraft:chest[facing=south]")
+    za_e_s({_ex}, {_f}, {_ez}, 23, 1, -2, "minecraft:chest[facing=south]")
+    za_e_pr({_ex}, {_f}, {_ez}, 19, 3, -2, "minecraft:oak_wall_sign[facing=south]", "&4&lARSENAL", "&0Réserve 7", "&0Sortie interdite", "&0")
+    za_e_pr({_ex}, {_f}, {_ez}, 21, 3, -2, "minecraft:oak_wall_sign[facing=south]", "&4&lRÉSERVES", "&0Réserve 7", "&0Inventaire : 0", "&0")
+    za_e_pr({_ex}, {_f}, {_ez}, 23, 3, -2, "minecraft:oak_wall_sign[facing=south]", "&4&lLABO Z-01", "&0Réserve 7", "&0Échantillons", "&0Manipuler avec soin")
+    za_e_s({_ex}, {_f}, {_ez}, 16, 1, 2, "minecraft:lectern[facing=east]")
+    za_e_f({_ex}, {_f}, {_ez}, 15, 2, 1, 15, 3, 3, "minecraft:light_blue_stained_glass")
+    za_e_f({_ex}, {_f}, {_ez}, 19, 1, 4, 23, 1, 4, "minecraft:smooth_stone_slab")
+    za_e_f({_ex}, {_f}, {_ez}, 26, 1, 1, 26, 2, 5, "minecraft:iron_bars")
+    za_e_s({_ex}, {_f}, {_ez}, 27, 1, -2, "minecraft:barrel[facing=up]")
+    za_e_s({_ex}, {_f}, {_ez}, 27, 1, -1, "minecraft:barrel[facing=up]")
+    za_e_s({_ex}, {_f}, {_ez}, 27, 1, 6, "minecraft:blast_furnace[facing=west]")
+    za_e_pr({_ex}, {_f}, {_ez}, 16, 3, 2, "minecraft:oak_wall_sign[facing=east]", "&b&lTERMINAL", "&0Z-01", "&0Journal du site", "&0(clic droit)")
+    # -- coffres : contenu, registre, protection
+    za_tres_remplir({_c1}, {_c2}, {_c3})
+    set {_i} to 0
+    loop {_c1}, {_c2} and {_c3}:
+        add 1 to {_i}
+        set {_kk} to za_lkey(loop-value)
+        set {za::tres::coffre::%{_kk}%} to {_i}
+        set {za::loot::%{_kk}%} to true
+        za_e_proteger(loop-value, "tres")
+    set {_lt} to za_e_lr({_ex}, {_f}, {_ez}, 16, 1, 2)
+    set {_ktm} to za_lkey({_lt})
+    set {za::tres::terminal::%{_ktm}%} to true
+    za_e_proteger({_lt}, "tres")
+    # -- surface : poste de garde en ruine, fanion rouge, trappe au centre d'un carré de pierre
+    za_e_f({_ex}, {_ey}, {_ez}, -5, 1, -5, 5, 5, 5, "minecraft:air")
+    za_e_f({_ex}, {_ey}, {_ez}, -5, -3, -5, 5, -1, 5, "minecraft:dirt keep")
+    za_e_f({_ex}, {_ey}, {_ez}, -4, 1, -4, 4, 1, -4, "minecraft:hay_block")
+    za_e_f({_ex}, {_ey}, {_ez}, -4, 1, -3, -4, 1, -2, "minecraft:hay_block")
+    za_e_f({_ex}, {_ey}, {_ez}, 4, 1, -3, 4, 1, -1, "minecraft:hay_block")
+    za_e_f({_ex}, {_ey}, {_ez}, -4, 1, 4, -2, 1, 4, "minecraft:hay_block")
+    za_e_f({_ex}, {_ey}, {_ez}, 2, 1, 4, 4, 1, 4, "minecraft:hay_block")
+    za_e_f({_ex}, {_ey}, {_ez}, -3, 2, -4, 0, 2, -4, "minecraft:hay_block")
+    za_e_f({_ex}, {_ey}, {_ez}, -4, 2, -4, -4, 3, -4, "minecraft:cobblestone_wall")
+    za_e_f({_ex}, {_ey}, {_ez}, 4, 2, -4, 4, 3, -4, "minecraft:cobblestone_wall")
+    za_e_f({_ex}, {_ey}, {_ez}, 3, 1, -2, 3, 4, -2, "minecraft:dark_oak_fence")
+    za_e_s({_ex}, {_ey}, {_ez}, 3, 5, -2, "minecraft:red_banner[rotation=8]")
+    za_e_s({_ex}, {_ey}, {_ez}, -2, 1, 1, "minecraft:campfire[lit=false]")
+    za_e_s({_ex}, {_ey}, {_ez}, 2, 1, 2, "minecraft:barrel[facing=up]")
+    za_e_dc({_ex}, {_ey}, {_ez}, -5, 1, -5, 5, 3, 5, 10)
+    za_e_f({_ex}, {_ey}, {_ez}, -1, 0, -1, 1, 0, 1, "minecraft:cobblestone")
+    za_e_s({_ex}, {_ey}, {_ez}, 0, 0, 0, "minecraft:spruce_trapdoor[facing=south,half=bottom,open=false]")
+    za_e_pr({_ex}, {_ey}, {_ez}, -2, 1, 3, "minecraft:oak_sign[rotation=8]", "&4&lZONE MILITAIRE", "&0ACCÈS INTERDIT", "&0Réserve n° 7", "&0Sous-sol : Z-01")
+    # -- gardes qui se réveillent à l'approche
+    set {_id} to {za::tres::id}
+    set {_pid} to "tres:%{_id}%"
+    za_e_vr({_ex}, {_ey}, {_ez}, 0, 1, 0, "ZA_Soldat_Infecte@-3@0@3;ZA_Soldat_Infecte@3@0@-3", {_pid}, 40)
+    za_e_vr({_ex}, {_f}, {_ez}, 0, 1, 2, "ZA_Soldat_Infecte@-2@0@0;ZA_Soldat_Infecte@2@0@1;ZA_Soldat_Infecte@0@0@2", {_pid}, 30)
+    za_e_vr({_ex}, {_f}, {_ez}, 9, 1, 2, "ZA_Soldat_Infecte@-2@0@0;ZA_Soldat_Infecte@2@0@1", {_pid}, 30)
+    za_e_vr({_ex}, {_f}, {_ez}, 21, 1, 3, "ZA_Alpha@0@0@0;ZA_Soldat_Infecte@-3@0@1;ZA_Soldat_Infecte@3@0@1;ZA_Armored@0@0@-3", {_pid}, 18)
+    za_e_dech({_ex}, {_ez}, -10, -10, 34, 14)
+    za_e_sn({_ex}, {_ez}, 12, 2)
+    set {za::tres::y} to {_ey}
+    set {za::tres::plancher} to {_f}
+    set {za::tres::loc} to za_e_loc({_ex}, {_ey}, {_ez})
+    set {za::tres::nb} to 0
+    set {za::tres::etat} to "actif"
+    delete {-e::occupe}
+    log "Bunker %{_id}% construit : entree %{_ex}% %{_ey}% %{_ez}%, plancher %{_f}%." to file "za_enigmes.log"
+    za_journal("Un bunker de NORDA (Reserve 7) dort quelque part sous terre. Une carte en trois morceaux circule.")
+    if size of za_monde_joueurs() > 0:
+        za_radio("&bLéa", "On parle d'un bunker enterré de NORDA, loin de la ville, avec un arsenal complet. Une carte déchirée en trois morceaux : un dans un coffre scellé, un dans une enquête, un sur un chef de meute. Tapez /carte.")
+
+# ---------------------------------------------------------------- ouverture des coffres, terminal, pillage
+
+function za_tres_terminal(p: player):
+    set {_u} to {_p}'s uuid
+    if {za::tres::lu::%{_u}%} is not set:
+        set {za::tres::lu::%{_u}%} to 0
+    add 1 to {za::tres::lu::%{_u}%}
+    set {_n} to mod({za::tres::lu::%{_u}%} - 1, 6) + 1
+    send "&8&m                                              " to {_p}
+    send "&b&l[TERMINAL Z-01] &8— &7Réserve 7 · entrée %{_n}%/6" to {_p}
+    if {_n} is 1:
+        send "&7Jour 0, 03 h 12. Transfert du sujet Z-01 vers la Réserve 7. Ordre du mandataire : ne pas alerter l'armée. Ne pas alerter la Ville." to {_p}
+    else if {_n} is 2:
+        send "&7Jour 2. La ville est fermée. Liste des transferts : « 0412 Roberge, 0333 Lafleur, 0871 Bouchard... » vers un « site sécurisé ». Il n'y a pas de site sécurisé. Il y a ici." to {_p}
+    else if {_n} is 3:
+        send "&7Inventaire de la Réserve : 3 armoires d'armes, 2 caisses d'échantillons, 1 caisse de matériau expérimental. Accès : mandataire uniquement. Ne rien retirer sans signature." to {_p}
+    else if {_n} is 4:
+        send "&7Jour 4. Les gardes ne répondent plus. Sur les caméras du sas, des soldats marchent, sans but, sans cligner. Quelqu'un a laissé la porte de décontamination ouverte." to {_p}
+    else if {_n} is 5:
+        send "&7Note du Dr H. Vasseur : « Z-01 ne détruit pas. Il réécrit. Ce que nous avons sorti de la mine n'était pas mort, seulement en attente. »" to {_p}
+    else:
+        send "&7Dernière entrée. « Il y a sept réserves comme celle-ci. Nous n'en fermerons qu'une. Si vous lisez ceci, prenez ce que vous voulez... mais ne laissez rien à NORDA. » — Dr H. Vasseur" to {_p}
+    send "&8&m                                              " to {_p}
+    za_zm("son %{_p}% za_modeles:sfx.radio_statique 0.6 1.2")
+    if {za::tres::lecture::%{_u}%::%{_n}%} is not set:
+        set {za::tres::lecture::%{_u}%::%{_n}%} to true
+        za_journal("%{_p}% a lu le terminal Z-01 (entree %{_n}%).")
+
+function za_tres_pille(p: text):
+    if {za::tres::etat} is not "actif":
+        stop
+    set {_id} to {za::tres::id}
+    set {_loc} to {za::tres::loc}
+    set {za::tres::etat} to "pille"
+    loop {za::tres::coffre::*}:
+        delete {za::tres::coffre::%loop-index%}
+    loop {za::e::prot::*}:
+        if loop-value is "tres":
+            delete {za::e::prot::%loop-index%}
+    delete {za::tres::terminal::*}
+    za_e_veille_purger("tres:%{_id}%")
+    if {_loc} is set:
+        za_radio("&bLéa", "Le bunker Z-01 du secteur %za_e_secteur({_loc})% a été pillé. Il n'y a plus rien là-bas, et la carte ne vaut plus rien. Quelqu'un en a fait son arsenal : %{_p}%.")
+    za_journal("Le bunker Z-01 (chasse %{_id}%) a ete pille par %{_p}%.")
+    log "Bunker %{_id}% pille par %{_p}%." to file "za_enigmes.log"
+    # nouvelle chasse dans 3 jours serveur
+    za_tres_planifier(3, 0, 0)
+
+on right click on chest:
+    if za_pro(player) is true:
+        stop
+    if {za::tres::coffre::*} is not set:
+        stop
+    set {_k} to za_lkey(location of event-block)
+    set {_i} to {za::tres::coffre::%{_k}%}
+    if {_i} is not set:
+        stop
+    if {za::tres::ouvert::%{_k}%} is not set:
+        set {za::tres::ouvert::%{_k}%} to true
+        add 1 to {za::tres::nb}
+        if {za::tres::premier} is not set:
+            set {za::tres::premier} to {za::serveur::jours}
+        za_zm("son %player% za_modeles:sfx.alarme_auto 0.6 1")
+        za_bruit_ajouter(player, 45)
+        za_activite_ajouter(location of event-block, 30)
+        send action bar "&6Coffre %{za::tres::nb}%/3 de la Réserve 7 ouvert." to player
+        set {_u} to player's uuid
+        if {za::tres::par::%{za::tres::id}%::%{_u}%} is not set:
+            set {za::tres::par::%{za::tres::id}%::%{_u}%} to true
+            za_stat_ajouter({_u}, "tresors", 1)
+            send title "&6&lTRÉSOR" with subtitle "&7La Réserve 7 de NORDA est à toi." to player for 4 seconds
+            za_zm("son %player% minecraft:ui.toast.challenge_complete 0.8 1")
+        if {za::tres::nb} >= 3:
+            za_tres_pille("%player%")
+
+on right click on lectern:
+    if za_pro(player) is true:
+        stop
+    if {za::tres::terminal::*} is not set:
+        stop
+    if {za::tres::terminal::%za_lkey(location of event-block)%} is set:
+        cancel the event
+        za_tres_terminal(player)
+
+# ---------------------------------------------------------------- Fragment C : rare butin d'Alpha / Caporal Dumas
+
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    if attacker is not a player:
+        stop
+    set {_n} to uncolored name of victim
+    set {_ch} to 0
+    if {_n} is "Alpha":
+        set {_ch} to 12
+    else if {_n} is "Caporal Dumas":
+        set {_ch} to 60
+    if {_ch} is 0:
+        stop
+    if {za::tres::etat} is "pille":
+        stop
+    if chance of {_ch}%:
+        drop za_tres_fragment("C") at location of victim
+        send "&6Un morceau de carte, plié en quatre, dépasse de sa poche : &lFragment de carte C&6." to attacker
+        za_zm("son %attacker% minecraft:entity.experience_orb.pickup 0.8 0.6")
+
+# ---------------------------------------------------------------- lecture des fragments et de la carte (clic droit)
+
+on right click with paper:
+    if za_pro(player) is true:
+        stop
+    set {_nm} to uncolored name of player's tool
+    if {_nm} starts with "Fragment de carte ":
+        cancel the event
+        set {_h} to za_carte_hunt(player's tool)
+        set {_lt} to subtext of {_nm} from characters 19 to 19
+        if {_h} is not {za::tres::id}:
+            send "&7Ce fragment est périmé : le bunker qu'il désignait a été pillé." to player
+            stop
+        send "&8&m                                              " to player
+        send "&6&l%{_nm}% &8— &7chasse n°%{_h}%" to player
+        if {_lt} is "A":
+            if {za::tres::mapx} is set:
+                send "&7Les chiffres soulignés : &eX ≈ %{za::tres::mapx}% &7(à 30 pas près)." to player
+            else:
+                send "&7Les chiffres sont trop effacés pour l'instant. Reviens plus tard." to player
+        else if {_lt} is "B":
+            if {za::tres::mapz} is set:
+                send "&7Les chiffres à moitié effacés : &eZ ≈ %{za::tres::mapz}% &7(à 30 pas près)." to player
+            else:
+                send "&7Les chiffres sont trop effacés pour l'instant. Reviens plus tard." to player
+        else:
+            send "&7Un poste de garde en ruine, un &cfanion rouge&7 cloué sur un poteau, une trappe au milieu d'un carré de pierre. Une flèche : « dessous »." to player
+        send "&8Il faut les trois morceaux, A, B et C : &e/carte assembler" to player
+        send "&8&m                                              " to player
+        za_zm("son %player% minecraft:item.book.page_turn 0.8 1")
+    else if {_nm} is "Carte du bunker":
+        cancel the event
+        set {_h} to za_carte_hunt(player's tool)
+        if {_h} is not {za::tres::id}:
+            send "&7Cette carte est périmée : le bunker a été pillé." to player
+            stop
+        if {za::tres::etat} is not "actif":
+            send "&7La carte est floue... le repère n'est pas encore confirmé." to player
+            stop
+        za_tres_orienter(player)
+        za_zm("son %player% minecraft:item.book.page_turn 0.8 1")
+
+# ---------------------------------------------------------------- /carte
+
+function za_tres_aide(p: player):
+    send "&8&m                                              " to {_p}
+    send "&6&lCHASSE AU TRÉSOR &8— &7le bunker Z-01" to {_p}
+    if {za::tres::id} is not set:
+        send "&7Personne n'a encore entendu parler d'un bunker. Résous des énigmes, des enquêtes..." to {_p}
+    else if {za::tres::etat} is "pille":
+        send "&7Le dernier bunker a été pillé. Une nouvelle chasse commencera bientôt." to {_p}
+    else:
+        set {_h} to {za::tres::id}
+        send "&7Un bunker NORDA est enterré quelque part. La carte est déchirée en 3 morceaux :" to {_p}
+        set {_a} to za_carte_a({_p}, "Fragment de carte A", {_h})
+        set {_b} to za_carte_a({_p}, "Fragment de carte B", {_h})
+        set {_c} to za_carte_a({_p}, "Fragment de carte C", {_h})
+        send "  %{_a}% &6A &7— énigme résolue (coffre scellé NORDA)" to {_p}
+        send "  %{_b}% &6B &7— enquête résolue (scène de crime)" to {_p}
+        send "  %{_c}% &6C &7— butin rare d'un Alpha ou du Caporal Dumas" to {_p}
+        send "&8Quand tu as A, B et C : &e/carte assembler &8(la carte donne la zone à 30 pas près)." to {_p}
+        send "&8Puis suis ta boussole. Cherche un poste de garde en ruine avec un fanion rouge : la trappe mène au bunker." to {_p}
+        send "&8Le bunker est gardé (Soldats infectés, un Alpha). Il contient 3 coffres : on ne sait jamais ce qu'ils cachent." to {_p}
+    send "&8&m                                              " to {_p}
+
+command /carte [<text>]:
+    description: Chasse au trésor : assembler la carte du bunker
+    usage: /carte [assembler|lire]
+    executable by: players
+    trigger:
+        if za_pro(player) is true:
+            send "&7Pas ici." to player
+            stop
+        if arg-1 is "assembler":
+            if {za::tres::id} is not set:
+                send "&7Tu n'as aucun fragment de carte." to player
+                stop
+            set {_h} to {za::tres::id}
+            set {_a} to za_carte_a(player, "Fragment de carte A", {_h})
+            set {_b} to za_carte_a(player, "Fragment de carte B", {_h})
+            set {_c} to za_carte_a(player, "Fragment de carte C", {_h})
+            if any:
+                {_a} is false
+                {_b} is false
+                {_c} is false
+            then:
+                send "&cIl te manque des morceaux pour assembler la carte : &7A %{_a}%, B %{_b}%, C %{_c}%&c. (/carte pour l'aide)" to player
+                stop
+            if {za::tres::etat} is not "actif":
+                send "&7Les trois morceaux s'emboîtent... mais les coordonnées restent floues : le repère n'est pas encore confirmé. Reviens dans quelques jours." to player
+                stop
+            za_carte_retirer(player, "Fragment de carte A", {_h})
+            za_carte_retirer(player, "Fragment de carte B", {_h})
+            za_carte_retirer(player, "Fragment de carte C", {_h})
+            give za_tres_carte_item() to player
+            if za_count_named(player, "Boussole du bunker") < 1:
+                give za_tres_boussole() to player
+            za_zm("son %player% minecraft:ui.toast.challenge_complete 0.8 1.2")
+            send title "&6&lCARTE ASSEMBLÉE" with subtitle "&7Le bunker Z-01 t'attend, quelque part sous terre." to player for 4 seconds
+            za_tres_orienter(player)
+        else if arg-1 is "lire":
+            if za_count_named(player, "Carte du bunker") < 1:
+                send "&7Tu n'as pas de carte assemblée. (/carte pour l'aide)" to player
+                stop
+            if {za::tres::etat} is not "actif":
+                send "&7La carte est floue... le repère n'est pas confirmé." to player
+                stop
+            za_tres_orienter(player)
+        else:
+            za_tres_aide(player)
+
+# ---------------------------------------------------------------- tâches périodiques de la chasse
+
+every 5 minutes:
+    if {za::tres::id} is not set:
+        if size of za_monde_joueurs() > 0:
+            za_tres_planifier(0, 0, 0)
+        stop
+    if {za::tres::etat} is "plan":
+        if size of za_monde_joueurs() > 0:
+            za_tres_chercher()
+    else if {za::tres::etat} is "prep":
+        if {za::serveur::jours} >= {za::tres::debut}:
+            if size of za_monde_joueurs() > 0:
+                za_tres_construire()
+    else if {za::tres::etat} is "actif":
+        if {za::tres::premier} is set:
+            if {za::serveur::jours} >= ({za::tres::premier} + 1):
+                za_tres_pille("d'autres pilleurs")
+
+# =====================================================================
+#  3. ENQUÊTES (#15) : scènes de crime, 6 à 7 indices, carnet /enquete, déduction (3 hypothèses)
+#  7 scénarios : 1 embuscade de pillards contre un convoi · 2 fuite d'une chercheuse de NORDA · 3 famille cachée avec un enfant
+#                4 dernier combat d'un policier · 5 trahison entre survivants · 6 dissimulation NORDA / Z-01 · 7 le prisonnier oublié
+#  Une scène de 15 x 15 (plantée près d'un bâtiment) + une cache ou un abri plus loin (récompense, visible seulement après la bonne déduction).
+#  Données : {za::enq::next|liste::*|prochain} · {za::enq::<id>::etat|scen|nom|aut|fam|ordre|centre|cache|nb|txt::<k>|kind::<k>|clefs::*|exp|fin|par|echecs}
+#            {za::enq::clue::<lkey>} = "id;k" · {za::enq::lu::<id>::<uuid>::<k>} · {za::enq::rate::<id>::<uuid>} · {za::enq::fragb::<chasse>::<uuid>}
+# =====================================================================
+
+# ---------------------------------------------------------------- contenu des scénarios
+
+function za_enq_titre(s: number) :: text:
+    if {_s} is 1:
+        return "Le convoi qui n'est jamais arrivé"
+    if {_s} is 2:
+        return "La chercheuse disparue"
+    if {_s} is 3:
+        return "La voiture abandonnée"
+    if {_s} is 4:
+        return "Le dernier poste du sergent"
+    if {_s} is 5:
+        return "Le camp déserté"
+    if {_s} is 6:
+        return "Le site nettoyé"
+    return "La cage vide"
+
+# rumeur radio (@LIEU@ = secteur)
+function za_enq_rumeur(s: number) :: text:
+    if {_s} is 1:
+        return "Un convoi de ravitaillement de la Trêve n'est jamais arrivé au Marché. Dernière position connue : @LIEU@. Allez voir ce qu'il en reste, et regardez bien."
+    if {_s} is 2:
+        return "Un barrage de sécurité de NORDA a été abandonné dans la nuit, @LIEU@. Une chercheuse, la Dre @NOM@, manque à l'appel. Ceux qui l'aiment paieraient cher pour savoir."
+    if {_s} is 3:
+        return "Une voiture familiale, portières ouvertes, sur le bord d'un chemin, @LIEU@. Un mot est resté sur le pare-brise. Il y a peut-être des gens à retrouver."
+    if {_s} is 4:
+        return "Une radio de police a repris vie, @LIEU@. Une seule voix, un seul message, puis du silence. Un poste de fortune tenait là. Quelqu'un devrait aller comprendre."
+    if {_s} is 5:
+        return "Un petit camp de survivants a été retrouvé vide, @LIEU@. Les tentes sont debout, le feu est éteint, et personne n'a répondu quand on a crié."
+    if {_s} is 6:
+        return "Des hommes en combinaison blanche ont été vus, @LIEU@, avec des bidons et un incinérateur. Puis plus rien. Quelqu'un a fait le ménage, et vite."
+    return "Une bande de pillards a levé le camp, @LIEU@, en laissant des choses derrière eux. On raconte qu'ils traînaient un prisonnier. Personne ne l'a revu."
+
+function za_enq_nb(s: number) :: number:
+    if {_s} is 2 or 6:
+        return 7
+    return 6
+
+# indice : "type;dx;dz" (décalage depuis le coin nord-ouest de la scène, 15 x 15)
+function za_enq_def(s: number, k: number) :: text:
+    set {_c} to ({_s} * 10) + {_k}
+    if {_c} is 11:
+        return "sang;2;7"
+    if {_c} is 12:
+        return "douilles;12;11"
+    if {_c} is 13:
+        return "corps;6;4"
+    if {_c} is 14:
+        return "plaque;9;10"
+    if {_c} is 15:
+        return "note;13;7"
+    if {_c} is 16:
+        return "sac;3;11"
+    if {_c} is 21:
+        return "radio;7;5"
+    if {_c} is 22:
+        return "journal;3;10"
+    if {_c} is 23:
+        return "sang;12;3"
+    if {_c} is 24:
+        return "sac;11;9"
+    if {_c} is 25:
+        return "plaque;2;4"
+    if {_c} is 26:
+        return "douilles;5;9"
+    if {_c} is 27:
+        return "corps;10;12"
+    if {_c} is 31:
+        return "sang;4;9"
+    if {_c} is 32:
+        return "sac;2;4"
+    if {_c} is 33:
+        return "corps;12;12"
+    if {_c} is 34:
+        return "note;7;11"
+    if {_c} is 35:
+        return "plaque;10;4"
+    if {_c} is 36:
+        return "feu;3;12"
+    if {_c} is 41:
+        return "douilles;7;10"
+    if {_c} is 42:
+        return "corps;7;8"
+    if {_c} is 43:
+        return "plaque;4;8"
+    if {_c} is 44:
+        return "radio;13;8"
+    if {_c} is 45:
+        return "journal;2;8"
+    if {_c} is 46:
+        return "sang;6;5"
+    if {_c} is 51:
+        return "feu;7;7"
+    if {_c} is 52:
+        return "douilles;3;9"
+    if {_c} is 53:
+        return "note;11;7"
+    if {_c} is 54:
+        return "sac;12;10"
+    if {_c} is 55:
+        return "corps;3;7"
+    if {_c} is 56:
+        return "plaque;9;11"
+    if {_c} is 61:
+        return "cendres;7;7"
+    if {_c} is 62:
+        return "sac;3;9"
+    if {_c} is 63:
+        return "douilles;12;5"
+    if {_c} is 64:
+        return "corps;11;11"
+    if {_c} is 65:
+        return "journal;3;11"
+    if {_c} is 66:
+        return "note;13;9"
+    if {_c} is 67:
+        return "radio;6;3"
+    if {_c} is 71:
+        return "chaine;7;6"
+    if {_c} is 72:
+        return "sang;3;9"
+    if {_c} is 73:
+        return "douilles;11;3"
+    if {_c} is 74:
+        return "corps;11;11"
+    if {_c} is 75:
+        return "note;2;3"
+    return "plaque;8;12"
+
+function za_enq_kind_txt(kind: text) :: text:
+    if {_kind} is "sang":
+        return "Traces de sang"
+    if {_kind} is "douilles":
+        return "Douilles"
+    if {_kind} is "corps":
+        return "Dépouille"
+    if {_kind} is "plaque":
+        return "Plaque d'identité"
+    if {_kind} is "radio":
+        return "Radio"
+    if {_kind} is "journal":
+        return "Journal"
+    if {_kind} is "note":
+        return "Message griffonné"
+    if {_kind} is "sac":
+        return "Sac abandonné"
+    if {_kind} is "feu":
+        return "Feu de camp éteint"
+    if {_kind} is "cendres":
+        return "Cendres"
+    return "Chaînes"
+
+# description d'un indice (@NOM@, @AUT@ = personnages ; @DIR@ = direction de la cache)
+function za_enq_indice(s: number, k: number) :: text:
+    set {_c} to ({_s} * 10) + {_k}
+    if {_c} is 11:
+        return "Une longue traînée de sang, sèche, qui part du camion et s'arrête net à la lisière. Quelqu'un a été traîné jusque-là, ou s'est traîné lui-même jusqu'à son dernier souffle."
+    if {_c} is 12:
+        return "Des douilles de fusil de chasse et de 9 mm, en éventail dans le fossé. Tous les tirs viennent du même côté du chemin : des tireurs postés en attente, pas des zombies qui déboulent."
+    if {_c} is 13:
+        return "Le chauffeur, @NOM@ : une balle dans le dos, la sacoche ouverte et vidée. Sa montre a été arrachée du poignet. Les morts-vivants ne volent pas les montres."
+    if {_c} is 14:
+        return "Une plaque d'identité au nom de @NOM@, « Convoi Trêve, liaison Marché ». Elle a été jetée après la fouille du corps : il n'y a même pas de sang dessus."
+    if {_c} is 15:
+        return "Une feuille de route clouée sur un poteau : 12 caisses de vivres et de munitions, départ 6 h, arrivée « --- ». Le camion est vide. Les caisses, elles, ne sont pas parties toutes seules."
+    if {_c} is 16:
+        return "Un sac de toile sanglé de chiffon rouge, oublié dans la hâte. Dedans, des bottes de cuir, boueuses. Les traces de bottes lourdement chargées repartent @DIR@ : ce qui pèse n'a pas été transporté loin."
+    if {_c} is 21:
+        return "Une radio de poste, réglée sur une fréquence privée. Elle crachote en boucle : « ...ici @NOM@. Ne signez rien, ne rendez pas le dossier. Je vais... » Puis plus rien."
+    if {_c} is 22:
+        return "Le journal de la Dre @NOM@ : « Ils veulent mes échantillons avant midi. Je ne les leur donnerai pas. J'ai préparé un sac. » La dernière page a été arrachée avec soin."
+    if {_c} is 23:
+        return "Quelques gouttes de sang, sèches, qui partent vers le boisé et non vers la route. Une écorchure, pas une blessure qui tue : on ne s'enfuit pas aussi droit en agonisant."
+    if {_c} is 24:
+        return "Une valise de laboratoire ouverte, des étiquettes « NORDA - ÉCH. 14 ». Il manque les échantillons et la glacière, mais pas le porte-documents : elle a pris exactement ce qui comptait."
+    if {_c} is 25:
+        return "Une plaque d'identité NORDA au nom de @NOM@, posée bien en vue sur une pierre, avec une flèche tracée dans la terre. Un signal, pas une perte : elle voulait qu'on la croie partie, ou qu'on la suive."
+    if {_c} is 26:
+        return "Quatre douilles de pistolet de sécurité, tirées en l'air depuis le barrage. Les gardes cherchaient dans le noir. Ils n'ont rien touché."
+    if {_c} is 27:
+        return "Un garde de NORDA, la gorge déchirée : une morsure, pas une balle. C'est le seul cadavre du site. Personne n'a été emporté de force."
+    if {_c} is 31:
+        return "Du sang côté conducteur, puis une traînée qui s'éloigne de la voiture en ligne droite, dans la direction opposée à celle des petits pas dans la boue."
+    if {_c} is 32:
+        return "Un petit sac à dos d'enfant, dinosaure vert. Les collations ont disparu, le toutou est resté. Quelqu'un est parti vite, mais sans paniquer : on a pris ce qu'il fallait."
+    if {_c} is 33:
+        return "Un homme, seul, à l'écart de la voiture, du côté où ça aurait dû être le plus dangereux, la main crispée sur un pied-de-biche, entouré de zombies tombés. Il ne fuyait pas : il tenait la ligne. C'est @NOM@."
+    if {_c} is 34:
+        return "Un mot au marqueur sur un panneau planté près de la voiture : « Je les emmène au nord. Reste cachée avec @AUT@. Compte jusqu'à mille, puis sors. » Signé @NOM@."
+    if {_c} is 35:
+        return "Un bracelet d'enfant en plastique : « @AUT@, 6 ans ». Il est propre, sans sang, sans marque de dents. L'enfant n'a pas été traîné hors de la voiture."
+    if {_c} is 36:
+        return "Les cendres d'un tout petit feu, éteint depuis quelques jours, sous un surplomb à l'écart de la route. Quelqu'un a dormi là, au chaud, sans être trouvé."
+    if {_c} is 41:
+        return "Un tapis de douilles de 9 mm et de fusil à pompe, dans un demi-cercle serré. Celui qui a tiré n'a jamais reculé d'un pas : elles sont toutes au même endroit."
+    if {_c} is 42:
+        return "Un policier à genoux derrière la barricade, l'arme au poing. Aucune balle dans le dos, aucune trace de bagarre : il est tombé face aux morts, à sa position."
+    if {_c} is 43:
+        return "Un insigne épinglé à la veste, fourbi comme un jour de parade : « Sgt @NOM@, Poste 4 ». Quelqu'un qui déserte n'astique pas son insigne."
+    if {_c} is 44:
+        return "La radio de poste, encore branchée : « ...Poste 4 à toutes les unités : l'évacuation est partie, je tiens le pont jusqu'à ce qu'elle soit loin. Dites à ma femme... » Le message s'arrête là."
+    if {_c} is 45:
+        return "Le carnet de patrouille : « 22 h : 41 civils évacués par le pont. 23 h : plus de munitions au poste. Les armes de service, je les enterre à l'écart, pour qu'un vivant s'en serve. » La suite est illisible."
+    if {_c} is 46:
+        return "Du sang en éclaboussures sur le rebord de la barricade, côté zombies, et pas une goutte plus loin derrière. Personne n'a été traîné, personne n'a fui : tout s'est joué à cet endroit précis."
+    if {_c} is 51:
+        return "Le feu est éteint, la marmite pleine et intacte : personne n'a été chassé pendant le souper. Ils dormaient. Quelqu'un a veillé à ce que le feu ne soit pas ravivé."
+    if {_c} is 52:
+        return "Trois douilles, du même calibre, tirées de l'intérieur du camp vers le sol. Des coups pour effrayer, pas pour tuer. Des pillards n'auraient pas pris cette peine."
+    if {_c} is 53:
+        return "Un mot laissé près d'une tente : « Le partage, c'est fini. On se retrouve au pont. » Une écriture appuyée, celle de @NOM@."
+    if {_c} is 54:
+        return "Un sac à dos vide à l'entrée du camp. Au fond, un bout de corde coupé net. La barricade n'a pas été forcée : la porte de fortune a été ouverte de l'intérieur."
+    if {_c} is 55:
+        return "Un survivant ligoté au poteau de la tente, mort de soif plus que d'autre chose. Aucun zombie n'est venu jusqu'à lui : on l'a laissé là, volontairement."
+    if {_c} is 56:
+        return "Une plaque d'identité au nom de @NOM@, par terre, tout près de l'entrée. C'est le seul du groupe dont on ne retrouve ni le corps, ni le sac, ni les provisions."
+    if {_c} is 61:
+        return "Un incinérateur de fortune, plein de cendres de papier. Quelques bouts lisibles : « Z-01 », « transfert », « aucune trace »."
+    if {_c} is 62:
+        return "Des bidons de solvant vides, des gants de chimie, une combinaison de protection à l'écusson NORDA. L'équipe de nettoyage n'a pas pris la peine de tout emporter."
+    if {_c} is 63:
+        return "Des douilles de calibre militaire, propres, luisantes, alignées comme à l'exercice. Quelqu'un a tiré ici sans être inquiété : de l'entraînement, ou une exécution."
+    if {_c} is 64:
+        return "Un technicien en sarrau, une balle à l'arrière du crâne, tombé à genoux devant un trou dans la terre. Ce n'est pas un accident de labo : c'est une exécution."
+    if {_c} is 65:
+        return "Le carnet du technicien @NOM@ : « Ils nous font brûler les dossiers Z-01. J'en garde une copie. Enterrée si loin d'ici que personne ne la trouvera sans mon nom. » Le reste est raturé."
+    if {_c} is 66:
+        return "Une affiche neuve, clouée à la hâte : « PROPRIÉTÉ NORDA. ZONE DE CONFINEMENT. TOUTE PERSONNE ENTRANT SERA TRAITÉE COMME UNE MENACE. » On n'affiche pas ça pour un simple accident de labo."
+    if {_c} is 67:
+        return "Une radio, réglée sur une seule fréquence. Une voix calme : « Équipe nettoyage à Central : le technicien est neutralisé. Sa copie du dossier Z-01 n'était pas sur lui. Elle est enterrée quelque part. Poursuivre les recherches. »"
+    if {_c} is 71:
+        return "Les chaînes de la cage, pendues à la barre, détachées à la clé et non brisées. Personne ne s'est évadé : on a déplacé le prisonnier, docile ou assommé."
+    if {_c} is 72:
+        return "Une traînée de sang courte, vers le sud : la victime a été traînée, pas portée. Elle saignait de la tête, un coup de crosse. Assommée, pas tuée."
+    if {_c} is 73:
+        return "Des douilles de pistolet tirées à bout portant, entre pillards. Ils se sont querellés sur le partage et s'en sont pris les uns aux autres. Aucune balle n'a touché la cage."
+    if {_c} is 74:
+        return "Un pillard mort, une clé de cadenas encore à la ceinture. Le carcan a été ouvert pour la corvée de déménagement, puis ses complices l'ont abandonné là."
+    if {_c} is 75:
+        return "Un mot à la craie sur un baril : « Le gars vaut cher. Le garder en vie. Cave de la planque. » Un prisonnier de valeur, qu'on tient en réserve."
+    return "Une plaque d'identité au nom de @NOM@, jetée là comme pour qu'on ne le reconnaisse pas. On ne prend pas la peine de cacher l'identité d'un mort. Celui qu'on cache, c'est celui qu'on veut garder."
+
+# texte des panneaux griffonnés (4 lignes séparées par « | »), pour les indices de type « note »
+function za_enq_note(s: number, k: number) :: text:
+    set {_c} to ({_s} * 10) + {_k}
+    if {_c} is 15:
+        return "&0Feuille de route|&012 caisses|&0vivres + muns|&0Arrivee : ---"
+    if {_c} is 34:
+        return "&0Je les emmene|&0au nord. Reste|&0cachee avec|&0@AUT@."
+    if {_c} is 53:
+        return "&0Le partage,|&0c'est fini.|&0On se retrouve|&0au pont. @NOM@"
+    if {_c} is 66:
+        return "&4PROPRIETE|&0NORDA Biotech|&0Zone confinee|&0Ne rien toucher"
+    if {_c} is 75:
+        return "&0Le gars vaut|&0cher. Le garder|&0en vie. Cave|&0de la planque."
+    return "&0...|&0...|&0...|&0..."
+
+# les trois hypothèses proposées (la vraie est donnée par za_enq_vrai)
+function za_enq_hyp(s: number, j: number) :: text:
+    set {_c} to ({_s} * 10) + {_j}
+    if {_c} is 11:
+        return "Des pillards en embuscade ont caché le butin"
+    if {_c} is 12:
+        return "Une horde a submergé le convoi : rien à retrouver"
+    if {_c} is 13:
+        return "Le chauffeur a trahi le convoi et s'est enfui"
+    if {_c} is 21:
+        return "La sécurité de NORDA l'a enlevée de force"
+    if {_c} is 22:
+        return "Elle est morte, dévorée près du barrage"
+    if {_c} is 23:
+        return "Elle a fui de son plein gré avec ses échantillons"
+    if {_c} is 31:
+        return "Toute la famille a été dévorée par les zombies"
+    if {_c} is 32:
+        return "Le père a servi d'appât : les siens se cachent"
+    if {_c} is 33:
+        return "La milice les a évacués avant l'attaque"
+    if {_c} is 41:
+        return "Le sergent a déserté et abandonné son poste"
+    if {_c} is 42:
+        return "Il a couvert une évacuation et caché ses armes"
+    if {_c} is 43:
+        return "Ses propres collègues l'ont exécuté"
+    if {_c} is 51:
+        return "Des pillards ont dévalisé le camp"
+    if {_c} is 52:
+        return "Une horde a surpris le camp dans la nuit"
+    if {_c} is 53:
+        return "L'un des leurs a volé les provisions et trahi le groupe"
+    if {_c} is 61:
+        return "Un accident de labo : nettoyage de routine"
+    if {_c} is 62:
+        return "Des pillards ont brûlé le site pour le plaisir"
+    if {_c} is 63:
+        return "NORDA a effacé les preuves de Z-01 ; une copie survit"
+    if {_c} is 71:
+        return "Les pillards l'ont exécuté avant de partir"
+    if {_c} is 72:
+        return "Il s'est évadé et a fui tout seul"
+    return "Il est encore enfermé dans la planque des pillards"
+
+# numéro de la vraie hypothèse
+function za_enq_vrai(s: number) :: number:
+    if {_s} is 1:
+        return 1
+    if {_s} is 2:
+        return 3
+    if {_s} is 3:
+        return 2
+    if {_s} is 4:
+        return 2
+    if {_s} is 5:
+        return 3
+    if {_s} is 6:
+        return 3
+    return 3
+
+# ce qui s'est vraiment passé (message de réussite)
+function za_enq_verite(s: number) :: text:
+    if {_s} is 1:
+        return "Des pillards ont tiré des deux côtés de la route, tué @NOM@ et vidé le camion. Ils ont enterré les caisses dans une planque à l'écart, en attendant de les revendre."
+    if {_s} is 2:
+        return "La Dre @NOM@ a quitté le barrage de son plein gré, avec les échantillons qu'elle refusait de livrer, pendant que les gardes tiraient à l'aveugle. Elle s'est terrée dans un abri à l'écart, et y attend un visage ami."
+    if {_s} is 3:
+        return "@NOM@ a attiré les morts vers le nord pour laisser sa femme et @AUT@ se cacher. Il n'a pas survécu, mais eux, si : ils se terrent dans un abri à l'écart et n'osent plus sortir."
+    if {_s} is 4:
+        return "Le Sgt @NOM@ a couvert l'évacuation de 41 civils jusqu'à la dernière cartouche, puis il a enterré ses armes de service à l'écart, pour que quelqu'un s'en serve. La cache est encore là."
+    if {_s} is 5:
+        return "@NOM@ a ouvert la barricade de l'intérieur, empoché les provisions et les jetons du groupe, et laissé les autres attachés à leur sort. Il a caché son butin à l'écart, en attendant de revenir."
+    if {_s} is 6:
+        return "NORDA a brûlé les dossiers Z-01 et exécuté @NOM@, le technicien qui en avait gardé une copie. La copie est enterrée à l'écart : une cache que les nettoyeurs n'ont jamais trouvée."
+    return "Les pillards se sont entretués pour le partage, mais @NOM@ valait trop cher pour être abandonné : on l'a enfermé à la cave d'une planque, à l'écart, pour le revendre. Il y est encore."
+
+# mauvaise réponse
+function za_enq_faux(s: number) :: text:
+    if {_s} is 1:
+        return "Ce n'est pas ce que disent les douilles, ni la montre arrachée. Pendant que tu hésitais, les pillards ont déplacé le butin. La piste refroidit."
+    if {_s} is 2:
+        return "Ça ne colle pas avec le sang sec, ni avec la plaque posée en évidence. Quelqu'un d'autre a rôdé sur le site. La piste refroidit."
+    if {_s} is 3:
+        return "Ça ne colle pas avec le bracelet propre ni avec le mot au pare-brise. La pluie a effacé les petits pas. La piste refroidit."
+    if {_s} is 4:
+        return "Ça ne colle pas avec l'insigne fourbi ni avec le carnet de patrouille. Quelqu'un a saccagé la scène pendant que tu doutais. La piste refroidit."
+    if {_s} is 5:
+        return "Ça ne colle pas avec la barricade ouverte de l'intérieur ni avec le mot laissé près de la tente. Le vent a emporté ce qui restait. La piste refroidit."
+    if {_s} is 6:
+        return "Ça ne colle pas avec l'affiche neuve ni avec la radio. Les nettoyeurs sont revenus finir le travail. La piste refroidit."
+    return "Ça ne colle pas avec les chaînes détachées à la clé ni avec le mot à la craie. Les pillards ont changé de cachette. La piste refroidit."
+
+# récompense : "cache" (coffre) ou métier/type de survivant à retrouver
+function za_enq_recomp(s: number) :: text:
+    if {_s} is 2:
+        return "pharmacien"
+    if {_s} is 3:
+        return "enfant"
+    if {_s} is 7:
+        return "prisonnier"
+    return "cache"
+
+function za_enq_panneau(s: number) :: text:
+    if {_s} is 1:
+        return "&8&lPLANQUE|&0Caisses du convoi|&0Marque : chiffon rouge|&0"
+    if {_s} is 2:
+        return "&2&lABRI|&0Personnel civil|&0Ne pas déranger|&0(frapper 3 fois)"
+    if {_s} is 3:
+        return "&6&lABRI|&0« Ne faites pas|&0de bruit, svp. »|&0"
+    if {_s} is 4:
+        return "&9&lPOSTE 4|&0Armoire de service|&0Sgt @NOM@|&0"
+    if {_s} is 5:
+        return "&8&lPLANQUE|&0Rien à voir ici|&0(vraiment)|&0"
+    if {_s} is 6:
+        return "&2&lCOPIE Z-01|&0Ne pas ouvrir|&0Prop. de @NOM@|&0"
+    return "&4&lPLANQUE|&0Propriété privée|&0Chiens méchants|&0"
+
+# gardes de la scène (apparaissent à l'approche)
+function za_enq_gardes(s: number) :: text:
+    if {_s} is 1:
+        return "ZA_Pillard@0@0@-6;ZA_Pillard_Tireur@5@0@6;ZA_Shambler@-5@0@4"
+    if {_s} is 2:
+        return "ZA_Soldat_Infecte@-4@0@3;ZA_Shambler@3@0@-5"
+    if {_s} is 3:
+        return "ZA_Shambler@-3@0@2;ZA_Runner@4@0@-3;ZA_Crawler@0@0@5"
+    if {_s} is 4:
+        return "ZA_Shambler@-4@0@3;ZA_Shambler@4@0@4;ZA_Runner@0@0@-6"
+    if {_s} is 5:
+        return "ZA_Shambler@-3@0@-4;ZA_Runner@4@0@3"
+    if {_s} is 6:
+        return "ZA_Soldat_Infecte@-4@0@3;ZA_Soldat_Infecte@4@0@-3;ZA_Shambler@0@0@5"
+    return "ZA_Pillard@-4@0@3;ZA_Pillard_Tireur@5@0@-4;ZA_Runner@0@0@6"
+
+function za_enq_faction(s: number) :: text:
+    if {_s} is 1:
+        return "marchands"
+    if {_s} is 2 or 6:
+        return "scientifiques"
+    if {_s} is 4:
+        return "milice"
+    return "survivants"
+
+# origine (un mot) de l'arme déposée dans la cache
+function za_enq_origine(s: number) :: text:
+    if {_s} is 1:
+        return "Convoi"
+    if {_s} is 4:
+        return "Police"
+    if {_s} is 5:
+        return "Planque"
+    return "NORDA"
+
+# ---------------------------------------------------------------- outils : remplacements, comptage
+#  (@NOM@, @AUT@, @DIR@ dans les textes sont remplacés par les données de l'affaire)
+
+function za_enq_sub(t: text, id: number) :: text:
+    set {_r} to {_t}
+    set {_n} to "%{za::enq::%{_id}%::nom}%"
+    set {_a} to "%{za::enq::%{_id}%::aut}%"
+    set {_d} to "%{za::enq::%{_id}%::dir}%"
+    replace all "@NOM@" with {_n} in {_r}
+    replace all "@AUT@" with {_a} in {_r}
+    replace all "@DIR@" with {_d} in {_r}
+    return {_r}
+
+# nombre d'indices trouvés par un joueur
+function za_enq_compte(u: text, id: number) :: number:
+    set {_nb} to {za::enq::%{_id}%::nb}
+    set {_n} to 0
+    set {_k} to 1
+    while {_k} <= {_nb}:
+        if {za::enq::lu::%{_id}%::%{_u}%::%{_k}%} is true:
+            add 1 to {_n}
+        add 1 to {_k}
+    return {_n}
+
+function za_enq_actif_scen(s: number) :: boolean:
+    loop {za::enq::liste::*}:
+        if {za::enq::%loop-value%::scen} is {_s}:
+            return true
+    return false
+
+function za_e_prenom_enf() :: text:
+    return random element out of "Léo", "Mia", "Zoé", "Jules", "Emma", "Nathan", "Alice" and "Rémi"
+
+function za_e_prenom_enf_f(n: text) :: boolean:
+    if {_n} is "Mia" or "Zoé" or "Emma" or "Alice":
+        return true
+    return false
+
+# ---------------------------------------------------------------- pose des indices
+
+# enregistre un bloc cliquable
+function za_enq_enreg(id: number, k: number, l: location):
+    set {_kk} to za_lkey({_l})
+    set {za::enq::clue::%{_kk}%} to "%{_id}%;%{_k}%"
+    add {_kk} to {za::enq::%{_id}%::clefs::*}
+    za_e_proteger({_l}, "enq:%{_id}%")
+
+# pose un bloc-indice relatif et l'enregistre
+function za_enq_cb(id: number, k: number, bx: number, y0: number, bz: number, dx: number, dy: number, dz: number, blk: text):
+    za_e_s({_bx}, {_y0}, {_bz}, {_dx}, {_dy}, {_dz}, {_blk})
+    set {_l} to za_e_lr({_bx}, {_y0}, {_bz}, {_dx}, {_dy}, {_dz})
+    za_enq_enreg({_id}, {_k}, {_l})
+
+function za_enq_poser(id: number, s: number, k: number, bx: number, y0: number, bz: number):
+    set {_d} to za_enq_def({_s}, {_k})
+    set {_p::*} to split {_d} at ";"
+    set {_kind} to {_p::1}
+    set {_dx} to {_p::2} parsed as number
+    set {_dz} to {_p::3} parsed as number
+    set {za::enq::%{_id}%::kind::%{_k}%} to {_kind}
+    set {_xp} to {_dx} + 1
+    set {_xm} to {_dx} - 1
+    set {_zp} to {_dz} + 1
+    set {_zm} to {_dz} - 1
+    if {_kind} is "sang":
+        za_enq_cb({_id}, {_k}, {_bx}, {_y0}, {_bz}, {_dx}, 1, {_dz}, "minecraft:red_carpet")
+        za_enq_cb({_id}, {_k}, {_bx}, {_y0}, {_bz}, {_xp}, 1, {_dz}, "minecraft:red_carpet")
+        za_e_s({_bx}, {_y0}, {_bz}, {_dx}, 1, {_zm}, "minecraft:red_carpet")
+        za_e_s({_bx}, {_y0}, {_bz}, {_xp}, 1, {_zp}, "minecraft:red_carpet")
+    else if {_kind} is "douilles":
+        za_enq_cb({_id}, {_k}, {_bx}, {_y0}, {_bz}, {_dx}, 1, {_dz}, "minecraft:yellow_candle[candles=3,lit=false]")
+        za_enq_cb({_id}, {_k}, {_bx}, {_y0}, {_bz}, {_xp}, 1, {_zp}, "minecraft:yellow_candle[candles=2,lit=false]")
+        za_e_s({_bx}, {_y0}, {_bz}, {_xm}, 1, {_zp}, "minecraft:yellow_candle[candles=1,lit=false]")
+    else if {_kind} is "corps":
+        za_enq_cb({_id}, {_k}, {_bx}, {_y0}, {_bz}, {_dx}, 1, {_dz}, "minecraft:bone_block")
+        za_enq_cb({_id}, {_k}, {_bx}, {_y0}, {_bz}, {_xp}, 1, {_dz}, "minecraft:bone_block[axis=x]")
+        za_enq_cb({_id}, {_k}, {_bx}, {_y0}, {_bz}, {_xm}, 1, {_dz}, "minecraft:skeleton_skull[rotation=4]")
+        za_e_s({_bx}, {_y0}, {_bz}, {_dx}, 1, {_zp}, "minecraft:red_carpet")
+    else if {_kind} is "plaque":
+        za_enq_cb({_id}, {_k}, {_bx}, {_y0}, {_bz}, {_dx}, 1, {_dz}, "minecraft:iron_trapdoor[facing=north,half=bottom,open=false]")
+    else if {_kind} is "radio":
+        za_enq_cb({_id}, {_k}, {_bx}, {_y0}, {_bz}, {_dx}, 1, {_dz}, "minecraft:jukebox")
+    else if {_kind} is "journal":
+        za_enq_cb({_id}, {_k}, {_bx}, {_y0}, {_bz}, {_dx}, 1, {_dz}, "minecraft:lectern[facing=south,has_book=true]")
+    else if {_kind} is "sac":
+        za_enq_cb({_id}, {_k}, {_bx}, {_y0}, {_bz}, {_dx}, 1, {_dz}, "minecraft:gray_shulker_box[facing=up]")
+    else if {_kind} is "feu":
+        za_enq_cb({_id}, {_k}, {_bx}, {_y0}, {_bz}, {_dx}, 1, {_dz}, "minecraft:campfire[lit=false]")
+        za_e_s({_bx}, {_y0}, {_bz}, {_xm}, 1, {_dz}, "minecraft:oak_log[axis=x]")
+    else if {_kind} is "cendres":
+        za_enq_cb({_id}, {_k}, {_bx}, {_y0}, {_bz}, {_dx}, 1, {_dz}, "minecraft:campfire[lit=false]")
+        za_e_s({_bx}, {_y0}, {_bz}, {_xp}, 1, {_dz}, "minecraft:blast_furnace[facing=west]")
+    else if {_kind} is "chaine":
+        za_enq_cb({_id}, {_k}, {_bx}, {_y0}, {_bz}, {_dx}, 1, {_dz}, "minecraft:chain[axis=y]")
+        za_enq_cb({_id}, {_k}, {_bx}, {_y0}, {_bz}, {_dx}, 2, {_dz}, "minecraft:chain[axis=y]")
+    else if {_kind} is "note":
+        set {_t} to za_enq_sub(za_enq_note({_s}, {_k}), {_id})
+        set {_ln::*} to split {_t} at "|"
+        za_e_pr({_bx}, {_y0}, {_bz}, {_dx}, 1, {_dz}, "minecraft:oak_sign[rotation=8]", {_ln::1}, {_ln::2}, {_ln::3}, {_ln::4})
+        set {_l} to za_e_lr({_bx}, {_y0}, {_bz}, {_dx}, 1, {_dz})
+        za_enq_enreg({_id}, {_k}, {_l})
+        set {_lx} to floor(x-coordinate of {_l})
+        set {_ly} to floor(y-coordinate of {_l})
+        set {_lz} to floor(z-coordinate of {_l})
+        execute console command "execute in minecraft:{@dim} run data merge block %{_lx}% %{_ly}% %{_lz}% {is_waxed:1b}"
+
+# ---------------------------------------------------------------- décors (par scénario)
+
+function za_enq_decor(s: number, bx: number, y0: number, bz: number):
+    if {_s} is 1:
+        # route, camion renversé (caisse + cabine + roues), tonneaux
+        za_e_f({_bx}, {_y0}, {_bz}, 0, 0, 5, 14, 0, 9, "minecraft:gray_concrete")
+        za_e_f({_bx}, {_y0}, {_bz}, 4, 1, 6, 9, 2, 8, "minecraft:white_concrete hollow")
+        za_e_f({_bx}, {_y0}, {_bz}, 4, 1, 7, 4, 2, 7, "minecraft:air")
+        za_e_f({_bx}, {_y0}, {_bz}, 10, 1, 6, 11, 2, 8, "minecraft:black_concrete hollow")
+        za_e_s({_bx}, {_y0}, {_bz}, 11, 2, 7, "minecraft:glass_pane")
+        za_e_s({_bx}, {_y0}, {_bz}, 5, 1, 5, "minecraft:black_concrete")
+        za_e_s({_bx}, {_y0}, {_bz}, 8, 1, 5, "minecraft:black_concrete")
+        za_e_s({_bx}, {_y0}, {_bz}, 10, 1, 5, "minecraft:black_concrete")
+        za_e_s({_bx}, {_y0}, {_bz}, 5, 1, 9, "minecraft:black_concrete")
+        za_e_s({_bx}, {_y0}, {_bz}, 8, 1, 9, "minecraft:black_concrete")
+        za_e_s({_bx}, {_y0}, {_bz}, 10, 1, 9, "minecraft:black_concrete")
+        za_e_s({_bx}, {_y0}, {_bz}, 2, 1, 4, "minecraft:barrel[facing=up]")
+        za_e_s({_bx}, {_y0}, {_bz}, 12, 1, 4, "minecraft:barrel[facing=east]")
+        za_e_s({_bx}, {_y0}, {_bz}, 13, 1, 10, "minecraft:barrel[facing=up]")
+        za_e_s({_bx}, {_y0}, {_bz}, 1, 1, 10, "minecraft:barrel[facing=north]")
+    else if {_s} is 2:
+        # barrage : glissières, guérite, cônes
+        za_e_f({_bx}, {_y0}, {_bz}, 1, 1, 7, 5, 1, 7, "minecraft:yellow_concrete")
+        za_e_f({_bx}, {_y0}, {_bz}, 9, 1, 7, 13, 1, 7, "minecraft:yellow_concrete")
+        za_e_f({_bx}, {_y0}, {_bz}, 1, 2, 7, 5, 2, 7, "minecraft:iron_bars")
+        za_e_f({_bx}, {_y0}, {_bz}, 9, 2, 7, 13, 2, 7, "minecraft:iron_bars")
+        za_e_f({_bx}, {_y0}, {_bz}, 6, 1, 4, 8, 3, 6, "minecraft:white_concrete hollow")
+        za_e_f({_bx}, {_y0}, {_bz}, 7, 1, 5, 7, 2, 5, "minecraft:air")
+        za_e_f({_bx}, {_y0}, {_bz}, 7, 1, 6, 7, 2, 6, "minecraft:air")
+        za_e_s({_bx}, {_y0}, {_bz}, 6, 2, 5, "minecraft:light_blue_stained_glass")
+        za_e_s({_bx}, {_y0}, {_bz}, 8, 2, 5, "minecraft:light_blue_stained_glass")
+        za_e_s({_bx}, {_y0}, {_bz}, 6, 1, 8, "minecraft:orange_concrete")
+        za_e_s({_bx}, {_y0}, {_bz}, 8, 1, 8, "minecraft:orange_concrete")
+        za_e_s({_bx}, {_y0}, {_bz}, 7, 4, 5, "minecraft:red_banner[rotation=0]")
+    else if {_s} is 3:
+        # route et voiture familiale
+        za_e_f({_bx}, {_y0}, {_bz}, 0, 0, 5, 14, 0, 9, "minecraft:gray_concrete")
+        za_e_f({_bx}, {_y0}, {_bz}, 5, 1, 6, 9, 1, 8, "minecraft:light_blue_concrete")
+        za_e_f({_bx}, {_y0}, {_bz}, 6, 2, 6, 8, 2, 8, "minecraft:light_blue_stained_glass")
+        za_e_f({_bx}, {_y0}, {_bz}, 6, 3, 6, 8, 3, 8, "minecraft:light_blue_concrete")
+        za_e_s({_bx}, {_y0}, {_bz}, 5, 1, 5, "minecraft:black_concrete")
+        za_e_s({_bx}, {_y0}, {_bz}, 9, 1, 5, "minecraft:black_concrete")
+        za_e_s({_bx}, {_y0}, {_bz}, 5, 1, 9, "minecraft:black_concrete")
+        za_e_s({_bx}, {_y0}, {_bz}, 9, 1, 9, "minecraft:black_concrete")
+        za_e_s({_bx}, {_y0}, {_bz}, 6, 4, 7, "minecraft:white_carpet")
+        za_e_s({_bx}, {_y0}, {_bz}, 4, 1, 10, "minecraft:barrel[facing=up]")
+    else if {_s} is 4:
+        # barricade de pierre, sacs de sable, voiture de patrouille
+        za_e_f({_bx}, {_y0}, {_bz}, 3, 1, 6, 11, 1, 6, "minecraft:stone_bricks")
+        za_e_f({_bx}, {_y0}, {_bz}, 4, 2, 6, 10, 2, 6, "minecraft:stone_brick_slab[type=bottom]")
+        za_e_s({_bx}, {_y0}, {_bz}, 2, 1, 6, "minecraft:hay_block")
+        za_e_s({_bx}, {_y0}, {_bz}, 12, 1, 6, "minecraft:hay_block")
+        za_e_f({_bx}, {_y0}, {_bz}, 11, 1, 10, 14, 1, 12, "minecraft:white_concrete")
+        za_e_f({_bx}, {_y0}, {_bz}, 12, 2, 10, 13, 2, 12, "minecraft:blue_stained_glass")
+        za_e_f({_bx}, {_y0}, {_bz}, 12, 3, 10, 13, 3, 12, "minecraft:white_concrete")
+        za_e_s({_bx}, {_y0}, {_bz}, 12, 4, 11, "minecraft:redstone_lamp")
+        za_e_s({_bx}, {_y0}, {_bz}, 13, 4, 11, "minecraft:blue_concrete")
+    else if {_s} is 5:
+        # deux tentes, clôture avec porte ouverte, caisses, marmite
+        za_e_f({_bx}, {_y0}, {_bz}, 2, 1, 2, 5, 3, 5, "minecraft:green_wool hollow")
+        za_e_f({_bx}, {_y0}, {_bz}, 3, 1, 5, 4, 2, 5, "minecraft:air")
+        za_e_f({_bx}, {_y0}, {_bz}, 9, 1, 2, 12, 3, 5, "minecraft:white_wool hollow")
+        za_e_f({_bx}, {_y0}, {_bz}, 10, 1, 5, 11, 2, 5, "minecraft:air")
+        za_e_f({_bx}, {_y0}, {_bz}, 0, 1, 12, 6, 1, 12, "minecraft:spruce_fence")
+        za_e_f({_bx}, {_y0}, {_bz}, 8, 1, 12, 14, 1, 12, "minecraft:spruce_fence")
+        za_e_s({_bx}, {_y0}, {_bz}, 7, 1, 12, "minecraft:spruce_fence_gate[facing=north,open=true]")
+        za_e_s({_bx}, {_y0}, {_bz}, 12, 1, 8, "minecraft:barrel[facing=up]")
+        za_e_s({_bx}, {_y0}, {_bz}, 13, 1, 8, "minecraft:barrel[facing=up]")
+        za_e_s({_bx}, {_y0}, {_bz}, 13, 1, 9, "minecraft:barrel[facing=north]")
+        za_e_s({_bx}, {_y0}, {_bz}, 8, 1, 7, "minecraft:cauldron")
+        za_e_f({_bx}, {_y0}, {_bz}, 1, 1, 7, 1, 2, 7, "minecraft:oak_fence")
+    else if {_s} is 6:
+        # tente brûlée, fûts de produits, incinérateur, fosse
+        za_e_f({_bx}, {_y0}, {_bz}, 2, 1, 2, 5, 3, 5, "minecraft:black_wool hollow")
+        za_e_f({_bx}, {_y0}, {_bz}, 3, 1, 5, 4, 2, 5, "minecraft:air")
+        za_e_s({_bx}, {_y0}, {_bz}, 3, 2, 3, "minecraft:cobweb")
+        za_e_f({_bx}, {_y0}, {_bz}, 11, 1, 2, 12, 2, 3, "minecraft:lime_concrete")
+        za_e_s({_bx}, {_y0}, {_bz}, 9, 1, 2, "minecraft:soul_campfire[lit=false]")
+        za_e_f({_bx}, {_y0}, {_bz}, 0, 0, 13, 6, 0, 14, "minecraft:blackstone")
+        za_e_f({_bx}, {_y0}, {_bz}, 11, -1, 12, 12, 0, 12, "minecraft:air")
+    else:
+        # camp de pillards : cage ouverte, bannière, crânes sur des pieux, tonneaux
+        za_e_f({_bx}, {_y0}, {_bz}, 6, 1, 5, 8, 3, 7, "minecraft:iron_bars hollow")
+        za_e_f({_bx}, {_y0}, {_bz}, 7, 1, 6, 7, 2, 6, "minecraft:air")
+        za_e_f({_bx}, {_y0}, {_bz}, 7, 1, 7, 7, 2, 7, "minecraft:air")
+        za_e_s({_bx}, {_y0}, {_bz}, 2, 1, 2, "minecraft:campfire[lit=false]")
+        za_e_s({_bx}, {_y0}, {_bz}, 12, 1, 3, "minecraft:red_banner[rotation=8]")
+        za_e_f({_bx}, {_y0}, {_bz}, 1, 1, 10, 1, 2, 10, "minecraft:dark_oak_fence")
+        za_e_s({_bx}, {_y0}, {_bz}, 1, 3, 10, "minecraft:skeleton_skull[rotation=6]")
+        za_e_f({_bx}, {_y0}, {_bz}, 13, 1, 10, 13, 2, 10, "minecraft:dark_oak_fence")
+        za_e_s({_bx}, {_y0}, {_bz}, 13, 3, 10, "minecraft:skeleton_skull[rotation=10]")
+        za_e_s({_bx}, {_y0}, {_bz}, 4, 1, 3, "minecraft:barrel[facing=up]")
+        za_e_s({_bx}, {_y0}, {_bz}, 5, 1, 3, "minecraft:barrel[facing=east]")
+
+# construit la scène (15 x 15) autour de (cx, cz) ; renvoie son centre (rien si le terrain ne convient pas)
+function za_enq_scene(id: number, s: number, cx: number, cz: number) :: location:
+    set {_bx} to floor({_cx}) - 7
+    set {_bz} to floor({_cz}) - 7
+    za_e_ch({_bx}, {_bz}, -6, -6, 20, 20)
+    set {_y0} to za_e_nv({_bx}, {_bz}, 7, 7, 7)
+    if {_y0} < 0:
+        za_e_dech({_bx}, {_bz}, -6, -6, 20, 20)
+        stop
+    # terrain : dégager, remblayer, sol battu
+    za_e_f({_bx}, {_y0}, {_bz}, 0, 1, 0, 14, 14, 14, "minecraft:air")
+    za_e_f({_bx}, {_y0}, {_bz}, 0, -8, 0, 14, -1, 14, "minecraft:dirt keep")
+    za_e_f({_bx}, {_y0}, {_bz}, 0, 0, 0, 14, 0, 14, "minecraft:coarse_dirt")
+    za_enq_decor({_s}, {_bx}, {_y0}, {_bz})
+    za_e_dc({_bx}, {_y0}, {_bz}, 0, 1, 0, 14, 4, 14, 8)
+    # mince filet de fumée (se voit de loin)
+    za_e_s({_bx}, {_y0}, {_bz}, 0, 1, 0, "minecraft:hay_block")
+    za_e_s({_bx}, {_y0}, {_bz}, 0, 2, 0, "minecraft:campfire[lit=true,signal_fire=true]")
+    # indices
+    set {_nb} to za_enq_nb({_s})
+    set {_k} to 1
+    while {_k} <= {_nb}:
+        za_enq_poser({_id}, {_s}, {_k}, {_bx}, {_y0}, {_bz})
+        add 1 to {_k}
+    za_e_dech({_bx}, {_bz}, -6, -6, 20, 20)
+    za_e_sn({_bx}, {_bz}, 7, 7)
+    return za_e_lr({_bx}, {_y0}, {_bz}, 7, 1, 7)
+
+function za_enq_scene_loc(id: number, s: number, c: location) :: location:
+    set {_x} to x-coordinate of {_c}
+    set {_z} to z-coordinate of {_c}
+    return za_enq_scene({_id}, {_s}, {_x}, {_z})
+
+# ---------------------------------------------------------------- création d'une affaire (asynchrone : plusieurs secondes)
+
+function za_enq_annuler(id: number):
+    loop {za::enq::%{_id}%::clefs::*}:
+        delete {za::enq::clue::%loop-value%}
+        delete {za::e::prot::%loop-value%}
+    za_e_veille_purger("enq:%{_id}%")
+    remove {_id} from {za::enq::liste::*}
+    remove {_id} from {za::enq::clos::*}
+    delete {za::enq::lu::%{_id}%::*}
+    delete {za::enq::rate::%{_id}%::*}
+    delete {za::enq::%{_id}%::*}
+
+function za_enq_echec(id: number, quoi: text):
+    log "Enquete %{_id}% : pas de terrain pour « %{_quoi}% », abandon." to file "za_enigmes.log"
+    za_enq_annuler({_id})
+    delete {-e::occupe}
+    set {za::enq::prochain} to 6 minutes after now
+
+function za_enq_creer(ref: location, scen: number = 0):
+    if {za::enq::next} is not set:
+        set {za::enq::next} to 0
+    if size of {za::enq::liste::*} >= 2:
+        stop
+    if {-e::occupe} is set:
+        if difference between {-e::occupe} and now is less than 4 minutes:
+            stop
+    set {-e::occupe} to now
+    add 1 to {za::enq::next}
+    set {_id} to {za::enq::next}
+    # scénario (jamais le même que celui d'une affaire en cours)
+    set {_s} to {_scen}
+    if any:
+        {_s} < 1
+        {_s} > 7
+    then:
+        set {_s} to random integer between 1 and 7
+        set {_t} to 0
+        while {_t} < 12:
+            if za_enq_actif_scen({_s}) is true:
+                set {_s} to random integer between 1 and 7
+            add 1 to {_t}
+    add {_id} to {za::enq::liste::*}
+    set {za::enq::%{_id}%::etat} to "prep"
+    set {za::enq::%{_id}%::scen} to {_s}
+    set {za::enq::%{_id}%::titre} to za_enq_titre({_s})
+    # personnages
+    set {_fam} to za_e_famille()
+    set {_pm} to za_e_prenom_m()
+    set {_pf} to za_e_prenom_f()
+    set {_nom} to "%{_pm}% %{_fam}%"
+    if {_s} is 2:
+        set {_nom} to "%{_pf}% %{_fam}%"
+    set {_aut} to ""
+    if {_s} is 3:
+        set {_aut} to za_e_prenom_enf()
+    set {za::enq::%{_id}%::nom} to {_nom}
+    set {za::enq::%{_id}%::aut} to {_aut}
+    set {za::enq::%{_id}%::fam} to {_fam}
+    set {za::enq::%{_id}%::dir} to "au loin"
+    set {za::enq::%{_id}%::ordre} to random element out of "1;2;3", "1;3;2", "2;1;3", "2;3;1", "3;1;2" and "3;2;1"
+    set {za::enq::%{_id}%::nb} to za_enq_nb({_s})
+    # ---- 1) la scène, plantée près d'un bâtiment (à défaut, à 80-170 pas du joueur)
+    set {_anc} to {_ref}
+    set {_pres} to false
+    set {_kb} to za_enig_bat_cle({_ref})
+    if {_kb} is not "":
+        set {_ac} to za_bat_centre({_kb})
+        if {_ac} is set:
+            set {_anc} to {_ac}
+            set {_pres} to true
+    delete {_sc}
+    loop 14 times:
+        if {_sc} is not set:
+            if {_pres} is true:
+                set {_c} to za_e_candidat({_anc}, 32, 60)
+            else:
+                set {_c} to za_e_candidat({_anc}, 80, 170)
+            if za_e_libre_loc({_c}, 10) is true:
+                set {_sc} to za_enq_scene_loc({_id}, {_s}, {_c})
+            wait 1 second
+    if {_sc} is not set:
+        za_enq_echec({_id}, "scène")
+        stop
+    set {za::enq::%{_id}%::centre} to {_sc}
+    # ---- 2) la cache ou l'abri (récompense), à 60-140 pas de la scène
+    set {_rc} to za_enq_recomp({_s})
+    set {_style} to "cache"
+    if {_rc} is not "cache":
+        set {_style} to "refuge"
+    delete {_cl}
+    loop 14 times:
+        if {_cl} is not set:
+            set {_c} to za_e_candidat({_sc}, 60, 140)
+            if za_e_libre_loc({_c}, 8) is true:
+                set {_cl} to za_e_annexe_loc({_c}, {_style})
+            wait 1 second
+    if {_cl} is not set:
+        za_enq_echec({_id}, "cache")
+        stop
+    set {za::enq::%{_id}%::cache} to {_cl}
+    set {za::enq::%{_id}%::dir} to za_e_dir({_sc}, {_cl})
+    set {_kk} to za_lkey({_cl})
+    set {za::loot::%{_kk}%} to true
+    za_e_proteger({_cl}, "enq:%{_id}%")
+    add {_kk} to {za::enq::%{_id}%::clefs::*}
+    set {_pn} to za_enq_sub(za_enq_panneau({_s}), {_id})
+    set {_ln::*} to split {_pn} at "|"
+    za_e_annexe_panneau({_cl}, {_ln::1}, {_ln::2}, {_ln::3}, {_ln::4})
+    # ---- textes des indices (avec la direction de la cache), gardes, échéance
+    set {_nb} to {za::enq::%{_id}%::nb}
+    set {_k} to 1
+    while {_k} <= {_nb}:
+        set {_raw} to za_enq_indice({_s}, {_k})
+        set {za::enq::%{_id}%::txt::%{_k}%} to za_enq_sub({_raw}, {_id})
+        add 1 to {_k}
+    set {_sx} to floor(x-coordinate of {_sc})
+    set {_sy} to floor(y-coordinate of {_sc})
+    set {_sz} to floor(z-coordinate of {_sc})
+    set {_gs} to za_enq_gardes({_s})
+    za_e_vr({_sx}, {_sy}, {_sz}, 0, 0, 0, {_gs}, "enq:%{_id}%", 40)
+    set {_j} to {za::serveur::jours}
+    set {za::enq::%{_id}%::cree} to {_j}
+    set {za::enq::%{_id}%::exp} to {_j} + 6
+    set {za::enq::%{_id}%::echecs} to 0
+    set {za::enq::%{_id}%::etat} to "actif"
+    delete {-e::occupe}
+    log "Enquete %{_id}% (scenario %{_s}%) : scene %{_sx}% %{_sy}% %{_sz}%, cache %floor(x-coordinate of {_cl})% %floor(z-coordinate of {_cl})% (%{_rc}%)." to file "za_enigmes.log"
+    za_journal("Une scene de crime (%za_enq_titre({_s})%) attend des enqueteurs.")
+    set {_pl::*} to za_monde_joueurs()
+    if size of {_pl::*} > 0:
+        set {_r} to za_enq_rumeur({_s})
+        set {_lieu} to za_e_secteur({_sc})
+        replace all "@LIEU@" with {_lieu} in {_r}
+        set {_r} to za_enq_sub({_r}, {_id})
+        za_radio("&bLéa", {_r})
+
+# ---------------------------------------------------------------- récompenses (monde)
+
+# remplit le coffre de la cache selon le scénario
+function za_enq_butin(id: number):
+    set {_l} to {za::enq::%{_id}%::cache}
+    set {_s} to {za::enq::%{_id}%::scen}
+    set {_b} to za_e_bloc({_l})
+    set {_org} to za_enq_origine({_s})
+    set {_x} to floor(x-coordinate of {_l})
+    set {_y} to floor(y-coordinate of {_l})
+    set {_z} to floor(z-coordinate of {_l})
+    if {_s} is 1:
+        set {_g} to za_e_arme_hasard(2)
+        execute console command "zaarme coffre %{_x}% %{_y}% %{_z}% %world of {_l}% %{_g}% %{_org}%"
+        za_e_munition_pose({_l}, 20, {_g}, 45)
+        add za_ressource_item(random integer between 2 and 3) to inventory of {_b}
+        add za_e_jetons(random integer between 20 and 34) to inventory of {_b}
+        add za_item("paper", "Bandage", "&f", 3) to inventory of {_b}
+        add za_item("bread", "Ration militaire", "&f", 4) to inventory of {_b}
+    else if {_s} is 4:
+        set {_g} to za_e_arme_hasard(3)
+        execute console command "zaarme coffre %{_x}% %{_y}% %{_z}% %world of {_l}% %{_g}% %{_org}%"
+        za_e_munition_pose({_l}, 20, {_g}, 60)
+        add za_item("paper", "Bandage", "&f", 4) to inventory of {_b}
+        add za_e_jetons(random integer between 12 and 22) to inventory of {_b}
+        if chance of 40%:
+            za_e_accessoire_pose({_l}, 21)
+    else if {_s} is 5:
+        add za_e_jetons(64) to inventory of {_b}
+        add za_e_jetons(random integer between 10 and 30) to inventory of {_b}
+        add za_ressource_item(random integer between 3 and 5) to inventory of {_b}
+        add za_item("bread", "Ration militaire", "&f", 6) to inventory of {_b}
+        add za_item("paper", "Bandage", "&f", 2) to inventory of {_b}
+        if chance of 35%:
+            set {_g} to za_e_arme_hasard(2)
+            execute console command "zaarme coffre %{_x}% %{_y}% %{_z}% %world of {_l}% %{_g}% %{_org}%"
+            za_e_munition_pose({_l}, 20, {_g}, 30)
+    else:
+        set {_m} to za_item("echo shard", "Matériau expérimental", "&d", random integer between 2 and 4)
+        set lore of {_m} to "&7Un alliage sorti des labos de NORDA." and "&8Recherché par les ateliers et les camps."
+        add {_m} to inventory of {_b}
+        add za_item("honey bottle", "Antidote", "&a", 2) to inventory of {_b}
+        add za_item("honey bottle", "Serum", "&d", 1) to inventory of {_b}
+        add za_e_jetons(random integer between 15 and 30) to inventory of {_b}
+        za_e_accessoire_pose({_l}, 20)
+
+# petit butin d'un abri (survivant à retrouver)
+function za_enq_butin_abri(id: number):
+    set {_l} to {za::enq::%{_id}%::cache}
+    set {_b} to za_e_bloc({_l})
+    add za_item("paper", "Bandage", "&f", random integer between 2 and 4) to inventory of {_b}
+    add za_e_jetons(random integer between 8 and 16) to inventory of {_b}
+    add za_item("bread", "Ration militaire", "&f", 2) to inventory of {_b}
+    if {za::enq::%{_id}%::scen} is 2:
+        add za_item("honey bottle", "Antibiotique", "&b", 1) to inventory of {_b}
+
+# le survivant apparaît dans l'abri (le nom et le genre de l'histoire remplacent ceux tirés au hasard)
+function za_enq_survivant(id: number):
+    set {_l} to {za::enq::%{_id}%::cache}
+    set {_s} to {za::enq::%{_id}%::scen}
+    set {_rc} to za_enq_recomp({_s})
+    set {_x} to floor(x-coordinate of {_l}) - 0.5
+    set {_y} to floor(y-coordinate of {_l})
+    set {_z} to floor(z-coordinate of {_l}) + 2.5
+    execute console command "zasurv creer %{_x}% %{_y}% %{_z}% %world of {_l}% %{_rc}%"
+    set {_sid} to {za::surv::next}
+    if {_sid} is not set:
+        stop
+    set {_sl} to {za::surv::%{_sid}%::lieu}
+    if {_sl} is not set:
+        stop
+    if distance between {_sl} and {_l} > 8:
+        stop
+    set {_nom} to {za::enq::%{_id}%::nom}
+    set {_g} to "m"
+    set {_titre} to {_nom}
+    if {_s} is 2:
+        set {_g} to "f"
+        set {_titre} to "Dre %{_nom}%"
+    if {_s} is 3:
+        set {_nom} to "%{za::enq::%{_id}%::aut}% %{za::enq::%{_id}%::fam}%"
+        set {_titre} to {_nom}
+        if za_e_prenom_enf_f({za::enq::%{_id}%::aut}) is true:
+            set {_g} to "f"
+    set {za::surv::%{_sid}%::nom} to {_nom}
+    set {za::surv::%{_sid}%::titre} to {_titre}
+    set {za::surv::%{_sid}%::vnom} to {_titre}
+    set {za::surv::%{_sid}%::genre} to {_g}
+    za_surv_npc_retirer({_sid})
+    za_surv_npc_placer({_sid})
+    set {za::enq::%{_id}%::survivant} to {_sid}
+
+# ce qui se passe dans le monde quand l'affaire est résolue (utilisable sans joueur)
+function za_enq_recompenses(id: number):
+    set {_l} to {za::enq::%{_id}%::cache}
+    if {_l} is not set:
+        stop
+    set {_s} to {za::enq::%{_id}%::scen}
+    set {_kx} to floor(x-coordinate of {_l})
+    set {_kz} to floor(z-coordinate of {_l})
+    za_e_ch({_kx}, {_kz}, -8, -8, 8, 8)
+    if za_enq_recomp({_s}) is "cache":
+        za_enq_butin({_id})
+    else:
+        za_enq_butin_abri({_id})
+        za_enq_survivant({_id})
+    execute console command "execute in minecraft:{@dim} run particle minecraft:happy_villager %{_kx}% %floor(y-coordinate of {_l}) + 1% %{_kz}% 0.6 0.6 0.6 0.1 30 force"
+    za_e_dech({_kx}, {_kz}, -8, -8, 8, 8)
+
+# ---------------------------------------------------------------- fin d'une affaire
+
+function za_enq_fermer(id: number, etat: text):
+    remove {_id} from {za::enq::liste::*}
+    loop {za::enq::%{_id}%::clefs::*}:
+        delete {za::enq::clue::%loop-value%}
+        delete {za::e::prot::%loop-value%}
+    delete {za::enq::%{_id}%::clefs::*}
+    za_e_veille_purger("enq:%{_id}%")
+    set {za::enq::%{_id}%::etat} to {_etat}
+    set {za::enq::%{_id}%::fin} to {za::serveur::jours}
+    add {_id} to {za::enq::clos::*}
+
+function za_enq_expirer(id: number):
+    set {_l} to {za::enq::%{_id}%::cache}
+    if {_l} is set:
+        za_e_annexe_panneau({_l}, "&8&lVIDE", "&0Piste froide", "&0Trop tard", "&0")
+    za_journal("L'affaire « %za_enq_titre({za::enq::%{_id}%::scen})% » s'est refroidie : personne n'a su conclure.")
+    za_enq_fermer({_id}, "expire")
+
+# fragment de carte B (une fois par joueur et par chasse), sinon quelques jetons
+function za_enq_fragment_b(p: player):
+    za_tres_assurer()
+    set {_h} to {za::tres::id}
+    set {_u} to {_p}'s uuid
+    if {za::enq::fragb::%{_h}%::%{_u}%} is set:
+        za_jetons_ajouter({_p}, 12)
+        send "&7Tu connais déjà le morceau &6B&7 de cette carte : la Trêve te verse &e12 jetons&7 pour ton travail." to {_p}
+        stop
+    set {za::enq::fragb::%{_h}%::%{_u}%} to true
+    give za_tres_fragment("B") to {_p}
+    send "&6➤ &7Dans les papiers de l'affaire, un coin de carte brûlé sur un bord : un &6Fragment de carte B&7. (/carte)" to {_p}
+
+# bonne conclusion
+function za_enq_resoudre(p: player, id: number):
+    set {_s} to {za::enq::%{_id}%::scen}
+    set {_u} to {_p}'s uuid
+    set {za::enq::%{_id}%::par} to "%{_p}%"
+    set {_titre} to {za::enq::%{_id}%::titre}
+    set {_cl} to {za::enq::%{_id}%::cache}
+    za_enq_recompenses({_id})
+    set {_v} to za_enq_sub(za_enq_verite({_s}), {_id})
+    za_enq_fermer({_id}, "resolu")
+    za_zm("son %{_p}% minecraft:ui.toast.challenge_complete 0.8 1")
+    send title "&a&lAFFAIRE RÉSOLUE" with subtitle "&7%{_titre}%" to {_p} for 4 seconds
+    send "&8&m                                              " to {_p}
+    send "&a&lCONCLUSION &8— &7%{_titre}%" to {_p}
+    send "&f&o%{_v}%" to {_p}
+    if za_enq_recomp({_s}) is "cache":
+        send "&6➤ &7La cache : &e%za_e_vers(location of {_p}, {_cl})%&7. Ta boussole pointe dessus." to {_p}
+    else:
+        send "&6➤ &7L'abri : &e%za_e_vers(location of {_p}, {_cl})%&7. Frappe à la porte, doucement. Ta boussole pointe dessus." to {_p}
+    send "&8&m                                              " to {_p}
+    set compass target of {_p} to {_cl}
+    za_enq_fragment_b({_p})
+    za_stat_ajouter({_u}, "enquetes", 1)
+    set {_fa} to za_enq_faction({_s})
+    za_faction_ajouter({_p}, {_fa}, 3)
+    za_journal("%{_p}% a resolu l'affaire « %{_titre}% ».")
+    za_diffuser("&8[Radio] &bLéa &8» &7L'affaire « %{_titre}% » est résolue. Quelqu'un a su lire les indices. Il reste peut-être d'autres scènes à visiter.")
+
+# mauvaise conclusion : la piste refroidit pour ce joueur (quelques jetons de consolation)
+function za_enq_rate(p: player, id: number):
+    set {_s} to {za::enq::%{_id}%::scen}
+    set {_u} to {_p}'s uuid
+    set {za::enq::rate::%{_id}%::%{_u}%} to true
+    add 1 to {za::enq::%{_id}%::echecs}
+    za_zm("son %{_p}% minecraft:entity.villager.no 0.8 0.9")
+    send title "&c&lPISTE FROIDE" with subtitle "&7Ta conclusion ne tient pas." to {_p} for 3 seconds
+    send "&c&lMAUVAISE PISTE &8— &f&o%za_enq_faux({_s})%" to {_p}
+    za_jetons_ajouter({_p}, 8)
+    send "&7La Trêve te verse &e8 jetons&7 pour l'effort. Tu ne peux plus conclure cette affaire (les autres, si)." to {_p}
+    if {za::enq::%{_id}%::echecs} >= 3:
+        za_enq_expirer({_id})
+
+# ---------------------------------------------------------------- examiner un indice (clic droit)
+
+function za_enq_examiner(p: player, id: number, k: number):
+    if {za::enq::%{_id}%::etat} is not "actif":
+        send action bar "&7Les traces se sont effacées avec le temps." to {_p}
+        stop
+    set {_u} to {_p}'s uuid
+    set {_kind} to {za::enq::%{_id}%::kind::%{_k}%}
+    set {_nb} to {za::enq::%{_id}%::nb}
+    set {_deja} to false
+    if {za::enq::lu::%{_id}%::%{_u}%::%{_k}%} is true:
+        set {_deja} to true
+    set {za::enq::lu::%{_id}%::%{_u}%::%{_k}%} to true
+    set {_n} to za_enq_compte({_u}, {_id})
+    send "&8&m                                              " to {_p}
+    send "&e&lINDICE %{_n}%/%{_nb}% &8— &7%za_enq_kind_txt({_kind})% &8(%{za::enq::%{_id}%::titre}%)" to {_p}
+    send "&f&o%{za::enq::%{_id}%::txt::%{_k}%}%" to {_p}
+    if {_deja} is true:
+        send "&8Déjà noté dans ton carnet." to {_p}
+    else:
+        send "&8Noté dans ton carnet : &e/enquete" to {_p}
+    send "&8&m                                              " to {_p}
+    if {_kind} is "radio":
+        za_zm("son %{_p}% za_modeles:sfx.radio_statique 0.6 1")
+    else:
+        za_zm("son %{_p}% minecraft:item.book.page_turn 0.8 1")
+    if {_deja} is false:
+        if {_n} >= {_nb}:
+            send title "&a&lINDICES RÉUNIS" with subtitle "&7Il est temps de conclure." to {_p} for 3 seconds
+            wait 3 seconds
+            za_enq_deduction({_p}, {_id})
+
+on right click:
+    if {za::enq::clue::*} is not set:
+        stop
+    if event-block is not set:
+        stop
+    if za_pro(player) is true:
+        stop
+    set {_kk} to za_lkey(location of event-block)
+    set {_c} to {za::enq::clue::%{_kk}%}
+    if {_c} is not set:
+        stop
+    cancel the event
+    set {_u} to player's uuid
+    if {-enq::cd::%{_u}%} is set:
+        if difference between {-enq::cd::%{_u}%} and now is less than 1 second:
+            stop
+    set {-enq::cd::%{_u}%} to now
+    set {_a::*} to split {_c} at ";"
+    set {_id} to {_a::1} parsed as number
+    set {_k} to {_a::2} parsed as number
+    za_enq_examiner(player, {_id}, {_k})
+
+# ---------------------------------------------------------------- déduction
+
+function za_enq_deduction(p: player, id: number):
+    if {za::enq::%{_id}%::etat} is not "actif":
+        send "&7Cette affaire est close." to {_p}
+        stop
+    set {_u} to {_p}'s uuid
+    if {za::enq::rate::%{_id}%::%{_u}%} is set:
+        send "&7Tu as déjà tiré ta conclusion sur cette affaire : la piste est froide pour toi." to {_p}
+        stop
+    if za_enq_compte({_u}, {_id}) < {za::enq::%{_id}%::nb}:
+        send "&7Il te manque encore des indices (&e/enquete&7)." to {_p}
+        stop
+    set {_s} to {za::enq::%{_id}%::scen}
+    set {_titre} to {za::enq::%{_id}%::titre}
+    set {_o::*} to split {za::enq::%{_id}%::ordre} at ";"
+    set {_i} to 1
+    while {_i} <= 3:
+        set {_j} to {_o::%{_i}%} parsed as number
+        set {_h} to za_enq_hyp({_s}, {_j})
+        set {_lt} to "A"
+        if {_i} is 2:
+            set {_lt} to "B"
+        if {_i} is 3:
+            set {_lt} to "C"
+        add "%{_lt}%. %{_h}%|h_%{_id}%_%{_j}%" to {_opts::*}
+        add 1 to {_i}
+    add "Je réfléchis encore|quit" to {_opts::*}
+    set {_txt} to "Tu as examiné tous les indices de l'affaire « %{_titre}% ». Qu'est-ce qui s'est vraiment passé ? Tu n'as droit qu'à une seule conclusion."
+    za_menu({_p}, "zaenqclic", "Ta conclusion", {_txt}, {_opts::*})
+
+function za_enq_noeud(p: player, n: text):
+    set {_a::*} to split {_n} at "_"
+    if {_a::1} is not "h":
+        stop
+    set {_id} to {_a::2} parsed as number
+    set {_j} to {_a::3} parsed as number
+    if {za::enq::%{_id}%::etat} is not "actif":
+        send "&7Cette affaire est déjà close." to {_p}
+        stop
+    set {_u} to {_p}'s uuid
+    if {za::enq::rate::%{_id}%::%{_u}%} is set:
+        send "&7Tu as déjà tiré ta conclusion sur cette affaire." to {_p}
+        stop
+    if za_enq_compte({_u}, {_id}) < {za::enq::%{_id}%::nb}:
+        send "&7Il te manque encore des indices." to {_p}
+        stop
+    set {_s} to {za::enq::%{_id}%::scen}
+    if {_j} is za_enq_vrai({_s}):
+        za_enq_resoudre({_p}, {_id})
+    else:
+        za_enq_rate({_p}, {_id})
+
+command /zaenqclic <player> <text>:
+    executable by: console
+    trigger:
+        wait 2 ticks
+        za_enq_noeud(arg-1, arg-2)
+
+# ---------------------------------------------------------------- /enquete : le carnet du joueur
+
+function za_enq_carnet(p: player):
+    set {_u} to {_p}'s uuid
+    set {_l} to location of {_p}
+    send "&8&m                                              " to {_p}
+    send "&6&lCARNET D'ENQUÊTE &8— &7scènes de crime" to {_p}
+    set {_vu} to 0
+    loop {za::enq::liste::*}:
+        set {_id} to loop-value
+        if {za::enq::%{_id}%::etat} is "actif":
+            add 1 to {_vu}
+            set {_nb} to {za::enq::%{_id}%::nb}
+            set {_n} to za_enq_compte({_u}, {_id})
+            set {_c} to {za::enq::%{_id}%::centre}
+            send "&e▸ %{za::enq::%{_id}%::titre}% &8(indices %{_n}%/%{_nb}%)" to {_p}
+            send "  &7Scène : &e%za_e_vers({_l}, {_c})%&7. Cherche un mince filet de fumée." to {_p}
+            set {_k} to 1
+            while {_k} <= {_nb}:
+                if {za::enq::lu::%{_id}%::%{_u}%::%{_k}%} is true:
+                    set {_kind} to {za::enq::%{_id}%::kind::%{_k}%}
+                    send "  &a✔ &7%za_enq_kind_txt({_kind})% : &f%{za::enq::%{_id}%::txt::%{_k}%}%" to {_p}
+                add 1 to {_k}
+            if {za::enq::rate::%{_id}%::%{_u}%} is set:
+                send "  &cTa conclusion était fausse : la piste est froide pour toi." to {_p}
+            else if {_n} >= {_nb}:
+                send "  &aTu as tout examiné : &e/enquete conclure" to {_p}
+    if {_vu} is 0:
+        send "&7Aucune scène de crime à visiter pour l'instant." to {_p}
+        send "&7Écoute la radio : Léa signale parfois des lieux suspects (convoi disparu, camp vide...)." to {_p}
+    set {_ne} to za_stat({_u}, "enquetes")
+    send "&8Affaires résolues : &e%{_ne}%&8. Clique sur les indices (traces, douilles, radios, journaux...)." to {_p}
+    send "&8&m                                              " to {_p}
+
+function za_enq_conclure(p: player):
+    set {_u} to {_p}'s uuid
+    loop {za::enq::liste::*}:
+        set {_id} to loop-value
+        if {za::enq::%{_id}%::etat} is "actif":
+            if {za::enq::rate::%{_id}%::%{_u}%} is not set:
+                if za_enq_compte({_u}, {_id}) >= {za::enq::%{_id}%::nb}:
+                    za_enq_deduction({_p}, {_id})
+                    stop
+    send "&7Aucune affaire prête à conclure : il faut d'abord examiner &etous&7 les indices d'une scène. (/enquete)" to {_p}
+
+command /enquete [<text>]:
+    description: Ton carnet d'enquête (scènes de crime)
+    usage: /enquete [conclure]
+    executable by: players
+    trigger:
+        if za_pro(player) is true:
+            send "&7Pas ici." to player
+            stop
+        if arg-1 is "conclure":
+            za_enq_conclure(player)
+        else:
+            za_enq_carnet(player)
+
+# ---------------------------------------------------------------- tâches périodiques : expiration, purge, génération
+
+every 5 minutes:
+    loop {za::enq::liste::*}:
+        set {_id} to loop-value
+        if {za::enq::%{_id}%::etat} is "actif":
+            if {za::serveur::jours} >= {za::enq::%{_id}%::exp}:
+                za_enq_expirer({_id})
+    # les dossiers clos sont oubliés au bout de 3 jours
+    loop {za::enq::clos::*}:
+        set {_id} to loop-value
+        set {_fin} to {za::enq::%{_id}%::fin}
+        if {_fin} is not set:
+            remove {_id} from {za::enq::clos::*}
+        else if {za::serveur::jours} >= ({_fin} + 3):
+            za_enq_annuler({_id})
+    if size of za_monde_joueurs() is 0:
+        stop
+    if {za::calme::fin} is set:
+        if {za::calme::fin} is greater than now:
+            stop
+    if {za::enq::prochain} is not set:
+        set {za::enq::prochain} to 10 minutes after now
+    if now is greater than {za::enq::prochain}:
+        if size of {za::enq::liste::*} < 2:
+            if {-e::occupe} is set:
+                if difference between {-e::occupe} and now is less than 4 minutes:
+                    stop
+            set {_p} to random element out of za_monde_joueurs()
+            za_enq_creer(location of {_p}, 0)
+            set {_m} to random integer between 55 and 110
+            set {za::enq::prochain} to now
+            add (1 minute) * {_m} to {za::enq::prochain}
+
+# ---------------------------------------------------------------- admin / console
+
+command /zaenquete [<text>] [<text>] [<text>] [<text>]:
+    description: Outils admin des enquêtes
+    usage: /zaenquete <creer [scénario 0-7] [x z]|etat|textes id|recompense id|resoudre id joueur|lire id joueur|expirer id|annuler id|purger>
+    permission: za.admin
+    trigger:
+        set {_a} to arg-1
+        if {_a} is "creer":
+            set {_sc} to arg-2 parsed as integer
+            if {_sc} is not set:
+                set {_sc} to 0
+            set {_x} to arg-3 parsed as number
+            set {_z} to arg-4 parsed as number
+            if {_z} is set:
+                set {_ref} to za_e_loc({_x}, 64, {_z})
+                send "&7[zaenquete] création (scénario %{_sc}%) autour de %{_x}% %{_z}% (patiente ~30 s)..." to sender
+                za_enq_creer({_ref}, {_sc})
+            else:
+                set {_p} to random element out of za_monde_joueurs()
+                if {_p} is not set:
+                    send "&cAucun joueur en ligne : donne x z. Ex : zaenquete creer 0 7000 -7000" to sender
+                    stop
+                send "&7[zaenquete] création (scénario %{_sc}%) autour de %{_p}% (patiente ~30 s)..." to sender
+                za_enq_creer(location of {_p}, {_sc})
+        else if {_a} is "etat":
+            send "&6Enquêtes actives (%size of {za::enq::liste::*}%) — prochaine génération : %{za::enq::prochain}%" to sender
+            loop {za::enq::liste::*}:
+                set {_id} to loop-value
+                send "&e#%{_id}% &7scénario %{za::enq::%{_id}%::scen}% « %{za::enq::%{_id}%::titre}% » [%{za::enq::%{_id}%::etat}%] nom=%{za::enq::%{_id}%::nom}% aut=%{za::enq::%{_id}%::aut}% vrai=H%za_enq_vrai({za::enq::%{_id}%::scen})% ordre=%{za::enq::%{_id}%::ordre}% exp=jour %{za::enq::%{_id}%::exp}% échecs=%{za::enq::%{_id}%::echecs}%" to sender
+                send "  &7scène %floor(x-coordinate of {za::enq::%{_id}%::centre})% %floor(y-coordinate of {za::enq::%{_id}%::centre})% %floor(z-coordinate of {za::enq::%{_id}%::centre})% | cache %floor(x-coordinate of {za::enq::%{_id}%::cache})% %floor(y-coordinate of {za::enq::%{_id}%::cache})% %floor(z-coordinate of {za::enq::%{_id}%::cache})% (%za_enq_recomp({za::enq::%{_id}%::scen})%) | dir=%{za::enq::%{_id}%::dir}% | %size of {za::enq::%{_id}%::clefs::*}% blocs cliquables" to sender
+            send "&8Dossiers clos en mémoire : %size of {za::enq::clos::*}%" to sender
+        else if {_a} is "textes":
+            set {_id} to arg-2 parsed as integer
+            if {_id} is not set:
+                send "&cUsage : zaenquete textes <id>" to sender
+                stop
+            send "&6%{za::enq::%{_id}%::titre}% &7(nb=%{za::enq::%{_id}%::nb}%)" to sender
+            set {_k} to 1
+            while {_k} <= {za::enq::%{_id}%::nb}:
+                send "&e%{_k}%. &7[%{za::enq::%{_id}%::kind::%{_k}%}%] &f%{za::enq::%{_id}%::txt::%{_k}%}%" to sender
+                add 1 to {_k}
+        else if {_a} is "recompense":
+            set {_id} to arg-2 parsed as integer
+            if {_id} is not set:
+                send "&cUsage : zaenquete recompense <id>" to sender
+                stop
+            za_enq_recompenses({_id})
+            send "&a[zaenquete] récompense de #%{_id}% placée (coffre rempli ou survivant créé)." to sender
+        else if {_a} is "resoudre":
+            set {_id} to arg-2 parsed as integer
+            set {_p} to arg-3 parsed as player
+            if {_id} is not set:
+                send "&cUsage : zaenquete resoudre <id> <joueur>" to sender
+                stop
+            if {_p} is not set:
+                send "&cJoueur introuvable (en ligne, avec la première lettre exacte)." to sender
+                stop
+            za_enq_resoudre({_p}, {_id})
+            send "&a[zaenquete] #%{_id}% résolue au nom de %{_p}%." to sender
+        else if {_a} is "lire":
+            set {_id} to arg-2 parsed as integer
+            set {_p} to arg-3 parsed as player
+            if {_id} is not set:
+                send "&cUsage : zaenquete lire <id> <joueur>" to sender
+                stop
+            if {_p} is not set:
+                send "&cJoueur introuvable." to sender
+                stop
+            set {_uu} to {_p}'s uuid
+            set {_k} to 1
+            while {_k} <= {za::enq::%{_id}%::nb}:
+                set {za::enq::lu::%{_id}%::%{_uu}%::%{_k}%} to true
+                add 1 to {_k}
+            send "&a[zaenquete] %{_p}% a examiné tous les indices de #%{_id}%." to sender
+        else if {_a} is "expirer":
+            set {_id} to arg-2 parsed as integer
+            if {_id} is not set:
+                send "&cUsage : zaenquete expirer <id>" to sender
+                stop
+            za_enq_expirer({_id})
+            send "&a[zaenquete] #%{_id}% expirée." to sender
+        else if {_a} is "annuler":
+            set {_id} to arg-2 parsed as integer
+            if {_id} is not set:
+                send "&cUsage : zaenquete annuler <id>" to sender
+                stop
+            za_enq_annuler({_id})
+            send "&a[zaenquete] #%{_id}% annulée (données effacées)." to sender
+        else if {_a} is "purger":
+            loop {za::enq::liste::*}:
+                za_enq_annuler(loop-value)
+            loop {za::enq::clos::*}:
+                za_enq_annuler(loop-value)
+            send "&a[zaenquete] toutes les enquêtes ont été annulées." to sender
+        else:
+            send "&cUsage : /zaenquete <creer [scénario 0-7] [x z]|etat|textes id|recompense id|resoudre id joueur|lire id joueur|expirer id|annuler id|purger>" to sender

@@ -1,0 +1,1236 @@
+# =====================================================================
+#  ZombieApocalypse - MÉCANIQUES PAR LIEU : chaque bâtiment (za_p35) a sa propre raison d'être
+#  Le joueur entre à moins de 12 blocs : barre d'action (une fois par visite) + le bâtiment est équipé la première fois
+#  (blocs interactifs ajoutés : armoire, cellule, réserve, casiers...). État quotidien par bâtiment ({za::lieu::<bâtiment>::...}).
+#   - Hôpital  : Dossiers médicaux (lutrin), Poste de soins (alambic, courant du quartier hospitalier requis), patients infectés
+#   - Police   : Armoire à armes (Clé de l'armurerie), casiers, Dossiers de police, cellule avec un prisonnier
+#   - École    : pupitres (notes, dessins d'enfants), tableau, cafétéria qui se regarnit
+#   - Labo     : paillasses/cuves (Échantillon viral, Sang infecte), terminal d'expériences (risque + Matériau expérimental)
+#   - Super    : rayons (denrées, certaines avariées), chariots, Réserve à forcer avec un Pied-de-biche (bruit)
+#   - Station  : pompes + Jerrican -> Essence (carburant), 3 fois / jour / station
+#   - Caserne  : caisses militaires (munitions, armures, arme rare) gardées par des soldats infectés
+#   - Centrale : turbines (voir /reseau)
+#  /lieux : à quoi sert chaque lieu.   Admin : /zalieu <liste|equiper|restock|proche|role>
+#  Objets créés ici : "Clé de l'armurerie" (tripwire hook), "Pied-de-biche" (lingot de fer), "Jerrican" (seau).
+#  Dépendances souples (consoles) : zaarme donner <joueur> <gunid> <origine>, zasurv creer <x> <y> <z> <monde> prisonnier, zablessure soigner <joueur>
+# =====================================================================
+
+# ---------------------------------------------------------------- outils de géométrie
+
+# identifiant stable d'un bâtiment : la chaîne "bx_gy_bz_monde" de za_p35 (les index de liste peuvent bouger)
+function za_lieu_sid(cle: text) :: text:
+    set {_k::*} to split {_cle} at ";"
+    set {_s} to {za::bat::%{_k::1}%::liste::%{_k::2}%}
+    if {_s} is not set:
+        return ""
+    return "%{_s}%"
+
+function za_lieu_type(cle: text) :: text:
+    set {_k::*} to split {_cle} at ";"
+    return {_k::1}
+
+# coin d'origine (bx, gy, bz) du bâtiment
+function za_lieu_orig(s: text) :: location:
+    set {_a::*} to split {_s} at "_"
+    set {_wn} to {_a::4}
+    set {_i} to 5
+    while {_a::%{_i}%} is set:
+        set {_wn} to "%{_wn}%_%{_a::%{_i}%}%"
+        add 1 to {_i}
+    set {_w} to world({_wn})
+    if {_w} is not set:
+        stop
+    return location(({_a::1} parsed as number), ({_a::2} parsed as number), ({_a::3} parsed as number), {_w})
+
+function za_lieu_loc(o: location, dx: number, dy: number, dz: number) :: location:
+    return location((x-coordinate of {_o}) + {_dx}, (y-coordinate of {_o}) + {_dy}, (z-coordinate of {_o}) + {_dz}, world of {_o})
+
+function za_lieu_set(o: location, dx: number, dy: number, dz: number, b: text):
+    set {_wd} to za_dim(world of {_o})
+    set {_x} to floor((x-coordinate of {_o}) + {_dx})
+    set {_y} to floor((y-coordinate of {_o}) + {_dy})
+    set {_z} to floor((z-coordinate of {_o}) + {_dz})
+    execute console command "execute in %{_wd}% run setblock %{_x}% %{_y}% %{_z}% %{_b}%"
+
+function za_lieu_fill(o: location, x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, b: text):
+    set {_wd} to za_dim(world of {_o})
+    set {_bx} to floor(x-coordinate of {_o})
+    set {_by} to floor(y-coordinate of {_o})
+    set {_bz} to floor(z-coordinate of {_o})
+    execute console command "execute in %{_wd}% run fill %{_bx} + {_x1}% %{_by} + {_y1}% %{_bz} + {_z1}% %{_bx} + {_x2}% %{_by} + {_y2}% %{_bz} + {_z2}% %{_b}%"
+
+# toutes les clés "type;index" des bâtiments connus
+function za_lieu_toutes() :: texts:
+    set {_types::*} to za_bat_types()
+    loop {_types::*}:
+        set {_t} to loop-value-1
+        loop {za::bat::%{_t}%::liste::*}:
+            add "%{_t}%;%loop-index-2%" to {_r::*}
+    return {_r::*}
+
+# bâtiment le plus proche (centre) dans le rayon, "" sinon (remplace za_bat_proche du noyau)
+function za_lieu_proche(l: location, r: number) :: text:
+    set {_best} to {_r}
+    set {_res} to ""
+    set {_all::*} to za_lieu_toutes()
+    loop {_all::*}:
+        set {_c} to za_bat_centre(loop-value)
+        if {_c} is set:
+            if world of {_c} is world of {_l}:
+                set {_d} to distance between {_c} and {_l}
+                if {_d} < {_best}:
+                    set {_best} to {_d}
+                    set {_res} to loop-value
+    return {_res}
+
+# bâtiment dont l'emprise (annexes comprises) contient ce bloc, "" sinon
+function za_lieu_at(l: location) :: text:
+    set {_all::*} to za_lieu_toutes()
+    loop {_all::*}:
+        set {_o} to za_lieu_orig(za_lieu_sid(loop-value))
+        if {_o} is set:
+            if world of {_o} is world of {_l}:
+                set {_dx} to floor(x-coordinate of {_l}) - (x-coordinate of {_o})
+                set {_dy} to floor(y-coordinate of {_l}) - (y-coordinate of {_o})
+                set {_dz} to floor(z-coordinate of {_l}) - (z-coordinate of {_o})
+                if all:
+                    {_dx} >= -3
+                    {_dx} <= 20
+                    {_dz} >= -2
+                    {_dz} <= 9
+                    {_dy} >= -1
+                    {_dy} <= 9
+                then:
+                    return loop-value
+    return ""
+
+# rôle d'un bloc selon le type du bâtiment et sa position relative
+function za_lieu_role(t: text, dx: number, dy: number, dz: number) :: text:
+    if {_t} is "hopital":
+        if all:
+            {_dx} is 2
+            {_dy} is 1
+            {_dz} is 1
+        then:
+            return "dossiers"
+        if all:
+            {_dy} is 1
+            {_dx} is 5
+            {_dz} is 1
+        then:
+            return "soins"
+        if all:
+            {_dy} is 1
+            {_dx} is 7
+            {_dz} is 6
+        then:
+            return "soins"
+    else if {_t} is "police":
+        if all:
+            {_dx} is 1
+            {_dy} is 1
+            {_dz} is 5
+        then:
+            return "dossiers"
+        if all:
+            {_dx} is 9
+            {_dy} is 1
+            {_dz} is 2
+        then:
+            return "armoire"
+        if all:
+            {_dy} is 1
+            {_dx} is 1 or 2
+            {_dz} is 6
+        then:
+            return "casier"
+        if all:
+            {_dx} is 5
+            {_dz} is 1
+            {_dy} is 1 or 2
+        then:
+            return "cellule"
+    else if {_t} is "labo2":
+        if all:
+            {_dx} is 1
+            {_dy} is 1
+            {_dz} is 4
+        then:
+            return "terminal"
+        if all:
+            {_dx} is 6
+            {_dy} is 1
+        then:
+            return "paillasse"
+        if all:
+            {_dx} is 8
+            {_dy} is 1
+        then:
+            return "cuve"
+    else if {_t} is "super":
+        if all:
+            {_dx} is 2 or 6 or 10
+            {_dy} is 1 or 2
+            {_dz} >= 1
+            {_dz} <= 6
+        then:
+            return "rayon"
+        if all:
+            {_dx} is 13
+            {_dz} is 3
+            {_dy} is 1 or 2
+        then:
+            return "reserve"
+    else if {_t} is "station":
+        if all:
+            {_dx} is -2
+            {_dy} >= 1
+            {_dy} <= 3
+            {_dz} is 2 or 4
+        then:
+            return "pompe"
+    else if {_t} is "caserne":
+        if all:
+            {_dy} is 1
+            {_dz} is 1
+            {_dx} is 7 or 9 or 11
+        then:
+            return "caisse"
+    else if {_t} is "ecole":
+        if all:
+            {_dx} is 1 or 4
+            {_dy} is 1
+            {_dz} >= 1
+            {_dz} <= 4
+        then:
+            return "pupitre"
+        if all:
+            {_dx} >= 1
+            {_dx} <= 4
+            {_dy} >= 1
+            {_dy} <= 2
+            {_dz} is 6
+        then:
+            return "tableau"
+    else if {_t} is "centrale":
+        if all:
+            {_dy} is 1
+            {_dz} is 5
+            {_dx} is 2 or 5 or 8
+        then:
+            return "turbine"
+    return ""
+
+function za_lieu_role_l(cle: text, l: location) :: text:
+    set {_o} to za_lieu_orig(za_lieu_sid({_cle}))
+    if {_o} is not set:
+        return ""
+    if world of {_o} is not world of {_l}:
+        return ""
+    set {_dx} to floor(x-coordinate of {_l}) - (x-coordinate of {_o})
+    set {_dy} to floor(y-coordinate of {_l}) - (y-coordinate of {_o})
+    set {_dz} to floor(z-coordinate of {_l}) - (z-coordinate of {_o})
+    return za_lieu_role(za_lieu_type({_cle}), {_dx}, {_dy}, {_dz})
+
+# délai par joueur et par action : vrai si l'action est permise (et lance le délai)
+function za_lieu_cd(p: player, k: text, secs: number) :: boolean:
+    set {_u} to {_p}'s uuid
+    if {za::lieu::cd::%{_u}%::%{_k}%} is set:
+        if now < {za::lieu::cd::%{_u}%::%{_k}%}:
+            return false
+    set {za::lieu::cd::%{_u}%::%{_k}%} to now
+    add ("%{_secs}% seconds" parsed as timespan) to {za::lieu::cd::%{_u}%::%{_k}%}
+    return true
+
+function za_nb_armes(p: player) :: number:
+    set {_n} to 0
+    loop all items in inventory of {_p}:
+        if "%type of loop-item%" contains "modern_kinetic_gun":
+            add item amount of loop-item to {_n}
+    return {_n}
+
+# donne une arme de collection (module armes) ; si la commande n'existe pas ou échoue, arme TaCZ standard en secours
+function za_lieu_arme(p: player, gun: text, origine: text, munition: text, qte: number):
+    set {_avant} to za_nb_armes({_p})
+    execute console command "zaarme donner %{_p}% %{_gun}% %{_origine}%"
+    wait 4 ticks
+    if za_nb_armes({_p}) <= {_avant}:
+        execute console command "give %{_p}% tacz:modern_kinetic_gun{GunId:""tacz:%{_gun}%"",GunFireMode:""SEMI"",GunCurrentAmmoCount:0} 1"
+    if {_munition} is not "":
+        execute console command "give %{_p}% tacz:ammo{AmmoId:""tacz:%{_munition}%""} %{_qte}%"
+
+function za_lieu_nom_court(t: text) :: text:
+    return za_bat_nom({_t})
+
+# ---------------------------------------------------------------- équipement d'un bâtiment (première visite)
+
+function za_lieu_equiper(cle: text):
+    set {_sid} to za_lieu_sid({_cle})
+    if {_sid} is "":
+        stop
+    if {za::lieu::%{_sid}%::equipe} is set:
+        stop
+    set {_o} to za_lieu_orig({_sid})
+    if {_o} is not set:
+        stop
+    set {za::lieu::%{_sid}%::equipe} to {za::serveur::jours}
+    set {_t} to za_lieu_type({_cle})
+    set {_w} to world of {_o}
+    if {_t} is "hopital":
+        za_lieu_set({_o}, 2, 1, 1, "minecraft:lectern[facing=south]")
+        za_lieu_set({_o}, 5, 1, 1, "minecraft:brewing_stand")
+        za_lieu_set({_o}, 5, 1, 2, "minecraft:oak_sign[rotation=8]")
+        wait 2 ticks
+        set {_s} to block at za_lieu_loc({_o}, 5, 1, 2)
+        set line 1 of {_s} to "&2Poste de soins"
+        set line 2 of {_s} to "&85 jetons"
+        set line 3 of {_s} to "&8Soins complets"
+        set line 4 of {_s} to "&cCourant requis"
+    else if {_t} is "police":
+        za_lieu_set({_o}, 1, 1, 5, "minecraft:lectern[facing=east]")
+        za_lieu_set({_o}, 1, 1, 6, "minecraft:barrel[facing=up]")
+        za_lieu_set({_o}, 2, 1, 6, "minecraft:barrel[facing=up]")
+        za_lieu_set({_o}, 9, 1, 2, "minecraft:chest[facing=west]")
+        # la cellule : on ouvre la cage (2 blocs de haut) derrière la porte de fer
+        za_lieu_fill({_o}, 5, 1, 2, 5, 2, 5, "minecraft:air")
+        za_lieu_set({_o}, 5, 1, 3, "minecraft:oak_sign[rotation=8]")
+        wait 2 ticks
+        set {_s} to block at za_lieu_loc({_o}, 5, 1, 3)
+        set line 1 of {_s} to "&8Cellule 1"
+        set line 2 of {_s} to "&8(verrouillée)"
+    else if {_t} is "super":
+        # annexe "Réserve" derrière une porte de fer (pied-de-biche)
+        za_lieu_fill({_o}, 15, 1, 0, 19, 5, 8, "minecraft:air")
+        za_lieu_fill({_o}, 15, 0, 0, 19, 0, 8, "minecraft:light_gray_concrete")
+        za_lieu_fill({_o}, 15, 1, 0, 19, 3, 0, "minecraft:light_gray_concrete")
+        za_lieu_fill({_o}, 15, 1, 8, 19, 3, 8, "minecraft:light_gray_concrete")
+        za_lieu_fill({_o}, 19, 1, 1, 19, 3, 7, "minecraft:light_gray_concrete")
+        za_lieu_fill({_o}, 15, 4, 0, 19, 5, 8, "minecraft:light_gray_concrete")
+        za_lieu_set({_o}, 17, 4, 4, "minecraft:sea_lantern")
+        za_lieu_set({_o}, 18, 1, 1, "minecraft:barrel[facing=up]")
+        za_lieu_set({_o}, 18, 1, 3, "minecraft:barrel[facing=up]")
+        za_lieu_set({_o}, 18, 1, 5, "minecraft:barrel[facing=up]")
+        za_lieu_set({_o}, 18, 1, 7, "minecraft:barrel[facing=up]")
+        za_lieu_fill({_o}, 16, 1, 7, 17, 2, 7, "minecraft:bookshelf")
+        za_lieu_fill({_o}, 13, 1, 3, 14, 2, 3, "minecraft:air")
+        za_lieu_fill({_o}, 13, 1, 3, 13, 1, 3, "minecraft:iron_door[facing=east,half=lower]")
+        za_lieu_fill({_o}, 13, 2, 3, 13, 2, 3, "minecraft:iron_door[facing=east,half=upper]")
+        za_lieu_set({_o}, 12, 2, 2, "minecraft:oak_wall_sign[facing=west]")
+        # chariots abandonnés
+        za_lieu_set({_o}, 4, 1, 3, "minecraft:hopper[facing=down]")
+        za_lieu_set({_o}, 4, 2, 3, "minecraft:iron_bars")
+        za_lieu_set({_o}, 8, 1, 5, "minecraft:hopper[facing=down]")
+        za_lieu_set({_o}, 8, 2, 5, "minecraft:iron_bars")
+        za_lieu_set({_o}, 12, 1, 5, "minecraft:iron_trapdoor[facing=north,half=bottom,open=false]")
+        wait 2 ticks
+        set {_s} to block at za_lieu_loc({_o}, 12, 2, 2)
+        set line 1 of {_s} to "&8RÉSERVE"
+        set line 2 of {_s} to "&7Personnel seulement"
+        set line 3 of {_s} to "&8(porte verrouillée)"
+    else if {_t} is "station":
+        za_lieu_set({_o}, -1, 1, 3, "minecraft:oak_sign[rotation=4]")
+        wait 2 ticks
+        set {_s} to block at za_lieu_loc({_o}, -1, 1, 3)
+        set line 1 of {_s} to "&cPOMPES"
+        set line 2 of {_s} to "&7Jerrican requis"
+        set line 3 of {_s} to "&8Ne pas fumer"
+        set {_c} to block at za_lieu_loc({_o}, 6, 1, 5)
+        if {_c} is chest:
+            if chance of 55%:
+                add za_item("bucket", "Jerrican", "&e", 1) to inventory of {_c}
+            if chance of 40%:
+                add za_item("iron ingot", "Pied-de-biche", "&7", 1) to inventory of {_c}
+    else if {_t} is "labo2":
+        za_lieu_set({_o}, 1, 1, 4, "minecraft:lectern[facing=east]")
+    else if {_t} is "caserne":
+        za_lieu_set({_o}, 7, 1, 1, "minecraft:barrel[facing=up]")
+        za_lieu_set({_o}, 9, 1, 1, "minecraft:barrel[facing=up]")
+        za_lieu_set({_o}, 11, 1, 1, "minecraft:barrel[facing=up]")
+        execute console command "mm mobs spawn ZA_Soldat_Infecte 1 %{_w}%,%floor(x-coordinate of {_o}) + 8%,%floor(y-coordinate of {_o}) + 1%,%floor(z-coordinate of {_o}) + 4%"
+        execute console command "mm mobs spawn ZA_Soldat_Infecte 1 %{_w}%,%floor(x-coordinate of {_o}) + 10%,%floor(y-coordinate of {_o}) + 1%,%floor(z-coordinate of {_o}) + 3%"
+    else if {_t} is "ecole":
+        za_lieu_set({_o}, 9, 1, 5, "minecraft:barrel[facing=up]")
+        za_lieu_set({_o}, 9, 1, 6, "minecraft:barrel[facing=up]")
+    else if {_t} is "centrale":
+        za_lieu_set({_o}, 5, 1, 7, "minecraft:lectern[facing=north]")
+
+# ---------------------------------------------------------------- remise en état quotidienne (paresseuse, à l'arrivée d'un joueur)
+
+function za_lieu_restock(cle: text):
+    set {_sid} to za_lieu_sid({_cle})
+    if {_sid} is "":
+        stop
+    set {_o} to za_lieu_orig({_sid})
+    if {_o} is not set:
+        stop
+    set {_t} to za_lieu_type({_cle})
+    set {_j} to {za::serveur::jours}
+    if {_t} is "ecole":
+        if {za::lieu::%{_sid}%::cafet} is not {_j}:
+            set {za::lieu::%{_sid}%::cafet} to {_j}
+            set {_n} to random integer between 1 and 3
+            if za_reseau_actif("residentiel") is true:
+                add 2 to {_n}
+            loop 2 times:
+                set {_b} to block at za_lieu_loc({_o}, 9, 1, 4 + loop-number)
+                if {_b} is barrel:
+                    if size of (all items in inventory of {_b}) < 4:
+                        add za_item("bread", "Conserve", "&f", {_n}) to inventory of {_b}
+    else if {_t} is "hopital":
+        if za_reseau_actif("hopital") is true:
+            if {za::lieu::%{_sid}%::pharma} is not {_j}:
+                set {za::lieu::%{_sid}%::pharma} to {_j}
+                set {_b} to block at za_lieu_loc({_o}, 10, 1, 6)
+                if {_b} is chest:
+                    if chance of 60%:
+                        add za_item("paper", "Bandage", "&f", random integer between 1 and 3) to inventory of {_b}
+    else if {_t} is "super":
+        # la réserve se referme au bout de 6 jours de serveur
+        if {za::lieu::%{_sid}%::reserve} is set:
+            if {_j} - {za::lieu::%{_sid}%::reserve} >= 6:
+                delete {za::lieu::%{_sid}%::reserve}
+                za_lieu_fill({_o}, 13, 1, 3, 13, 1, 3, "minecraft:iron_door[facing=east,half=lower]")
+                za_lieu_fill({_o}, 13, 2, 3, 13, 2, 3, "minecraft:iron_door[facing=east,half=upper]")
+    else if {_t} is "police":
+        if za_reseau_actif("police") is true:
+            # courant : l'armoire est regarnie chaque jour
+            if {za::lieu::%{_sid}%::armoire} is set:
+                if {za::lieu::%{_sid}%::armoire} is not {_j}:
+                    delete {za::lieu::%{_sid}%::armoire}
+
+# ---------------------------------------------------------------- arrivée dans un bâtiment (barre d'action, équipement, ambiance)
+
+function za_lieu_barre(t: text) :: text:
+    if {_t} is "hopital":
+        return "&f[Hôpital] &7Médicaments · Soins · Dossiers médicaux"
+    if {_t} is "police":
+        return "&9[Poste de police] &7Armoire à armes · Casiers · Cellules · Dossiers"
+    if {_t} is "super":
+        return "&e[Supermarché] &7Rayons · Réserve (pied-de-biche) · Chariots"
+    if {_t} is "station":
+        return "&c[Station-service] &7Pompes · Jerrican · Essence"
+    if {_t} is "labo2":
+        return "&a[Laboratoire] &7Échantillons · Expériences · Terminal"
+    if {_t} is "caserne":
+        return "&2[Caserne] &7Caisses militaires · Gardes infectés · Danger"
+    if {_t} is "ecole":
+        return "&6[École] &7Pupitres · Tableau · Cafétéria · Dessins"
+    if {_t} is "centrale":
+        return "&6[Centrale] &7Turbines · Tableau de commande · /reseau"
+    return ""
+
+function za_lieu_arrivee(p: player, cle: text):
+    set {_t} to za_lieu_type({_cle})
+    set {_sid} to za_lieu_sid({_cle})
+    set {_u} to {_p}'s uuid
+    za_lieu_equiper({_cle})
+    za_lieu_restock({_cle})
+    set {_b} to za_lieu_barre({_t})
+    set {_q} to za_reseau_quartier_de({_t})
+    if {_q} is not "":
+        if za_reseau_actif({_q}) is true:
+            set {_b} to "%{_b}% &a⚡"
+    send action bar {_b} to {_p}
+    if {za::lieu::vu::%{_u}%::%{_sid}%} is not set:
+        set {za::lieu::vu::%{_u}%::%{_sid}%} to true
+        add {_sid} to {za::lieu::vus::%{_u}%::*}
+        send "&8[Lieu] &7Tu découvres : &f%za_bat_nom({_t})%&7. &8(/lieux : à quoi ça sert)" to {_p}
+    # les patients d'un hôpital qui a du courant se réveillent
+    if {_t} is "hopital":
+        if za_reseau_actif("hopital") is true:
+            if chance of 45%:
+                set {_c} to za_bat_centre({_cle})
+                if {_c} is set:
+                    send "&8*bip... bip...* Les machines de l'hôpital se sont rallumées. Quelque chose bouge dans les chambres." to {_p}
+                    za_spawn_at({_c}, "ZA_Patient_Infecte", 4, 9)
+    if {_t} is "centrale":
+        if za_courant() is true:
+            send "&6[Centrale] &7Les turbines tournent encore. &e/reseau &7pour répartir le courant." to {_p}
+        else:
+            send "&6[Centrale] &7Silence. Les turbines sont froides. &83 Composants électroniques au lutrin les relancent." to {_p}
+
+function za_lieu_scan(p: player):
+    set {_u} to {_p}'s uuid
+    set {_cle} to za_lieu_proche(location of {_p}, 12)
+    set {_dans} to {za::lieu::dans::%{_u}%}
+    if {_cle} is "":
+        if {_dans} is set:
+            if za_lieu_proche(location of {_p}, 20) is "":
+                delete {za::lieu::dans::%{_u}%}
+        stop
+    if {_dans} is {_cle}:
+        # présence prolongée : parfois un patient dans un hôpital sous tension
+        if za_lieu_type({_cle}) is "hopital":
+            if za_reseau_actif("hopital") is true:
+                if chance of 2%:
+                    set {_c} to za_bat_centre({_cle})
+                    if {_c} is set:
+                        za_spawn_at({_c}, "ZA_Patient_Infecte", 5, 10)
+        stop
+    set {za::lieu::dans::%{_u}%} to {_cle}
+    za_lieu_arrivee({_p}, {_cle})
+
+every 4 seconds:
+    loop za_monde_joueurs():
+        za_lieu_scan(loop-player)
+
+# ---------------------------------------------------------------- clic droit : dispatch selon le rôle du bloc
+
+function za_lieu_clic(p: player, l: location, bt: text) :: boolean:
+    set {_cle} to za_lieu_at({_l})
+    if {_cle} is "":
+        return false
+    set {_r} to za_lieu_role_l({_cle}, {_l})
+    if {_r} is "":
+        return false
+    set {_t} to za_lieu_type({_cle})
+    if {_r} is "dossiers":
+        if {_t} is "hopital":
+            za_lieu_dossiers_hopital({_p}, {_cle})
+        else:
+            za_lieu_dossiers_police({_p}, {_cle})
+    else if {_r} is "soins":
+        za_lieu_poste_soins({_p}, {_cle}, {_l})
+    else if {_r} is "armoire":
+        za_lieu_armoire({_p}, {_cle})
+    else if {_r} is "casier":
+        za_lieu_casier({_p}, {_cle}, {_l})
+    else if {_r} is "cellule":
+        za_lieu_cellule({_p}, {_cle})
+    else if {_r} is "rayon":
+        za_lieu_rayon({_p}, {_cle}, {_l})
+    else if {_r} is "reserve":
+        za_lieu_reserve({_p}, {_cle})
+    else if {_r} is "pompe":
+        za_lieu_pompe({_p}, {_cle})
+    else if {_r} is "caisse":
+        za_lieu_caisse({_p}, {_cle}, {_l})
+    else if {_r} is "pupitre":
+        za_lieu_pupitre({_p}, {_cle}, {_l})
+    else if {_r} is "tableau":
+        za_lieu_tableau({_p}, {_cle})
+    else if {_r} is "terminal":
+        za_lieu_terminal({_p}, {_cle})
+    else if {_r} is "paillasse":
+        za_lieu_prelevement({_p}, {_cle}, {_l}, "paill")
+    else if {_r} is "cuve":
+        za_lieu_prelevement({_p}, {_cle}, {_l}, "cuve")
+    else if {_r} is "turbine":
+        za_lieu_turbine({_p})
+    else:
+        return false
+    return true
+
+on right click on lectern:
+    if za_pro(player) is true:
+        stop
+    if za_lieu_clic(player, location of event-block, "lectern") is true:
+        cancel the event
+
+on right click on brewing stand:
+    if za_pro(player) is true:
+        stop
+    if za_lieu_clic(player, location of event-block, "brewing") is true:
+        cancel the event
+
+on right click on cauldron:
+    if za_pro(player) is true:
+        stop
+    if za_lieu_clic(player, location of event-block, "cauldron") is true:
+        cancel the event
+
+on right click on chest:
+    if za_pro(player) is true:
+        stop
+    if za_lieu_clic(player, location of event-block, "chest") is true:
+        cancel the event
+
+on right click on barrel:
+    if za_pro(player) is true:
+        stop
+    if za_lieu_clic(player, location of event-block, "barrel") is true:
+        cancel the event
+
+on right click on iron door:
+    if za_pro(player) is true:
+        stop
+    if za_lieu_clic(player, location of event-block, "door") is true:
+        cancel the event
+
+on right click on quartz block:
+    if za_pro(player) is true:
+        stop
+    if za_lieu_clic(player, location of event-block, "quartz") is true:
+        cancel the event
+
+on right click on bookshelf:
+    if za_pro(player) is true:
+        stop
+    if za_lieu_clic(player, location of event-block, "shelf") is true:
+        cancel the event
+
+on right click on black concrete:
+    if za_pro(player) is true:
+        stop
+    if za_lieu_clic(player, location of event-block, "board") is true:
+        cancel the event
+
+on right click on oak fence:
+    if za_pro(player) is true:
+        stop
+    if za_lieu_clic(player, location of event-block, "desk") is true:
+        cancel the event
+
+on right click on blast furnace:
+    if za_pro(player) is true:
+        stop
+    if za_lieu_clic(player, location of event-block, "furnace") is true:
+        cancel the event
+
+# ================================================================= HÔPITAL
+
+function za_lieu_dossiers_hopital(p: player, cle: text):
+    if za_lieu_cd({_p}, "dossier", 6) is false:
+        stop
+    set {_sid} to za_lieu_sid({_cle})
+    set {_u} to {_p}'s uuid
+    set {_d::*} to "Dossier 0412 - Roberge, Gilles, 58 ans. Morsure à l'avant-bras, admis au jour 3. Fièvre à 41. NORDA a demandé un prélèvement « pour le protocole Z-01 ». Le patient n'a jamais été revu.", "Dossier 0388 - Tremblay, Amélie, 7 ans. Toux, aucune morsure. La mère refuse de la quitter. Note manuscrite : « Elle ne dort plus. Elle fredonne toujours la même chanson. »", "Dossier 0455 - Inconnu, homme d'une trentaine d'années. Retrouvé devant l'entrée avec un bracelet NORDA Biotech au poignet. Pouls absent... mais il bouge encore. Salle d'isolation 2.", "Demande de transfert - Dr Lefort : dossier 0455 vers le laboratoire du sous-sol. Refusée par la direction. « Cette décision ne se discute pas. »", "Dossier 0290 - Côté, Réjean, 71 ans. Diabétique, plus d'insuline depuis 4 jours. Petit mot : « Dites à ma fille que la clé est sous le pot de géranium. »", "Note de l'infirmière de nuit : « Tous les patients de la 12 ont la même cicatrice derrière l'oreille. Le code Z-01 est tamponné sur leurs fiches. Ce n'est pas un code de l'hôpital. »", "Résultats de laboratoire - souche Z-01, échantillon 14 : réplication complète en 9 minutes. Latence variable selon les sujets. Mention : NE PAS DIFFUSER." and "Registre des décès - la page est arrachée. Il reste : « ...vingt-trois cette nuit. Nous n'avons plus de sacs. »"
+    set {_d2::*} to "Dossier 0333 - Lafleur, Sophie, 34 ans, enceinte de 6 mois. Transférée au jour 2 vers « un site sécurisé ». Aucune adresse indiquée.", "Inventaire de la pharmacie : antibiotiques 0. Sérums expérimentaux 3, confiés au Dr Lefort. Antidotes : livraison NORDA attendue, jamais arrivée.", "Dossier 0277 - Bouchard, Marc, agent de sécurité. A tiré sur un patient à l'urgence. Dernières lignes du rapport : « Il s'est relevé. »" and "Ordre interne : tout patient présentant les symptômes Z-01 doit être dirigé vers le sous-sol du laboratoire (accès par carte). Ne pas informer les familles."
+    set {_m::*} to {_d::*} and {_d2::*}
+    set {_t} to random element out of {_m::*}
+    send "&8&m                                        " to {_p}
+    send "&f&l[Dossiers médicaux]" to {_p}
+    send "&7&o%{_t}%" to {_p}
+    send "&8&m                                        " to {_p}
+    za_zm("son %{_p}% minecraft:item.book.page_turn 0.8 1")
+    add 1 to {za::lieu::dossiers::%{_u}%}
+    if {za::lieu::dossiers::%{_u}%} is 6:
+        send "&8[Lieu] &7Six dossiers, six fois le même tampon : &fZ-01&7. Ce n'est pas un hasard : quelqu'un a trié ces patients." to {_p}
+        za_journal("%{_p}% a recoupé les dossiers de l'hôpital : le code Z-01 revient partout.")
+    if {za::lieu::%{_sid}%::dossiers_jour} is not {za::serveur::jours}:
+        if chance of 30%:
+            set {za::lieu::%{_sid}%::dossiers_jour} to {za::serveur::jours}
+            give za_item("honey bottle", "Antibiotique", "&b", 1) to {_p}
+            send "&b+1 Antibiotique &7: un flacon était agrafé au dossier." to {_p}
+
+# Poste de soins : courant du quartier hospitalier requis
+function za_infection_stade_moins(p: player) :: text:
+    set {_u} to {_p}'s uuid
+    if {za::infection::%{_u}%} is not set:
+        return "aucune"
+    set {_v} to za_param(za_souche_id({_p}), "vitesse")
+    set {_t} to difference between {za::infection::%{_u}%} and now
+    if {_t} >= ("%10 * {_v}% minutes" parsed as timespan):
+        set {za::infection::%{_u}%} to now
+        remove ("%(5 * {_v}) + 1% minutes" parsed as timespan) from {za::infection::%{_u}%}
+        return "stade 3 -> 2"
+    if {_t} >= ("%5 * {_v}% minutes" parsed as timespan):
+        set {za::infection::%{_u}%} to now
+        remove 1 minute from {za::infection::%{_u}%}
+        return "stade 2 -> 1"
+    delete {za::infection::%{_u}%}
+    return "guérie"
+
+function za_lieu_poste_soins(p: player, cle: text, l: location):
+    if za_lieu_cd({_p}, "soins", 3) is false:
+        stop
+    if za_reseau_actif("hopital") is false:
+        send "&2[Poste de soins] &cHors tension. &7Le quartier hospitalier n'a pas de courant. &8(/reseau : voter ou relancer la centrale)" to {_p}
+        za_zm("son %{_p}% minecraft:block.note_block.bass 1 0.5")
+        stop
+    set {_u} to {_p}'s uuid
+    set {_bless} to 0
+    loop "tete", "bras", "torse" and "jambe":
+        if {za::bless::%loop-value%::%{_u}%} is set:
+            if {za::bless::%loop-value%::%{_u}%} > 0:
+                add 1 to {_bless}
+    set {_besoin} to false
+    if health of {_p} < 9.5:
+        set {_besoin} to true
+    if {za::infection::%{_u}%} is set:
+        set {_besoin} to true
+    if {_bless} > 0:
+        set {_besoin} to true
+    if {_besoin} is false:
+        send "&2[Poste de soins] &7Tu n'as besoin de rien. Les machines ronronnent." to {_p}
+        stop
+    if za_jetons({_p}) < 5:
+        send "&2[Poste de soins] &cIl faut 5 jetons pour un soin complet." to {_p}
+        stop
+    za_jetons_ajouter({_p}, -5)
+    set {_inf} to za_infection_stade_moins({_p})
+    heal {_p} by 10 hearts
+    execute console command "zablessure soigner %{_p}%"
+    delete {za::sang::%{_u}%}
+    delete {za::plaie::flag::%{_u}%}
+    delete {za::mal::plaie::%{_u}%}
+    za_zm("son %{_p}% minecraft:block.beacon.activate 0.8 1.4")
+    execute console command "execute at %{_p}% run particle minecraft:heart ~ ~1.2 ~ 0.4 0.4 0.4 0 10 force"
+    send "&2[Poste de soins] &aSoin complet &7(-5 jetons). Vie remise à niveau, blessures traitées." to {_p}
+    if {_inf} is not "aucune":
+        send "&2[Poste de soins] &7Infection : &f%{_inf}%&7." to {_p}
+    za_bruit_ajouter({_p}, 8)
+    if chance of 35%:
+        set {_c} to za_bat_centre({_cle})
+        if {_c} is set:
+            send "&8Le bip des machines a réveillé quelqu'un dans les chambres..." to {_p}
+            za_spawn_at({_c}, "ZA_Patient_Infecte", 4, 8)
+
+# ================================================================= POLICE
+
+function za_lieu_dossiers_police(p: player, cle: text):
+    if za_lieu_cd({_p}, "dossier", 6) is false:
+        stop
+    set {_sid} to za_lieu_sid({_cle})
+    set {_d::*} to "Rapport d'incident 0871 - Agent Bouchard : « Attroupement à l'hôpital. Les gens refusent de partir. Plusieurs personnes mordues. Demande de renfort refusée. »", "Main courante, 23 h 12 - appel du 2B, rue des Érables. Voisine qui hurle. Sur place : rien. La porte du 2B était ouverte, le café encore chaud.", "Note du sergent : « Ordre de la préfecture : contenir les infectés, ne pas engager. Les contenir avec quoi ? Trois chargeurs par agent. »", "Registre des cellules - Cellule 1 : Étienne P., ivresse. Cellule 2 : occupée, nom effacé. Ne pas ouvrir sans autorisation de NORDA.", "Journal de garde : le prisonnier de la cellule chante depuis hier soir. Je n'arrive plus à dormir." and "Message signé V. : « Bravo-3 embarque les caisses de l'armurerie. On reviendra les chercher. Si vous lisez ça, on n'est pas revenus. »"
+    set {_t} to random element out of {_d::*}
+    # une piste sur un autre bâtiment connu : perquisition
+    if chance of 40%:
+        set {_all::*} to za_lieu_toutes()
+        loop {_all::*}:
+            if za_lieu_sid(loop-value) is not {_sid}:
+                if za_lieu_type(loop-value) is not "police":
+                    add loop-value to {_autres::*}
+        if size of {_autres::*} > 0:
+            set {_a} to random element out of {_autres::*}
+            set {_c} to za_bat_centre({_a})
+            if {_c} is set:
+                set {_t} to "Perquisition - dépôt suspect (%za_bat_nom(za_lieu_type({_a}))%) signalé vers X=%floor(x-coordinate of {_c} / 100) * 100% Z=%floor(z-coordinate of {_c} / 100) * 100% (à 100 blocs près). Rien n'a été fouillé depuis."
+    send "&8&m                                        " to {_p}
+    send "&9&l[Dossiers de police]" to {_p}
+    send "&7&o%{_t}%" to {_p}
+    send "&8&m                                        " to {_p}
+    za_zm("son %{_p}% minecraft:item.book.page_turn 0.8 1")
+
+function za_lieu_casier(p: player, cle: text, l: location):
+    set {_k} to "casier;%za_lieu_sid({_cle})%;%floor(x-coordinate of {_l})%;%floor(z-coordinate of {_l})%"
+    set {_j} to {za::serveur::jours}
+    if {za::lieu::casier::%{_k}%} is set:
+        if {_j} - {za::lieu::casier::%{_k}%} < 4:
+            send "&9[Casier] &7Déjà fouillé. Il ne reste que la poussière." to {_p}
+            stop
+    set {za::lieu::casier::%{_k}%} to {_j}
+    za_bruit_ajouter({_p}, 6)
+    za_zm("son %{_p}% minecraft:block.chest.open 0.7 1.2")
+    set {_r} to random integer between 1 and 100
+    if {_r} <= 22:
+        give za_item("tripwire hook", "Clé de l'armurerie", "&9", 1) to {_p}
+        send "&9[Casier] &fUne clé au bout d'une chaîne : &9Clé de l'armurerie&f !" to {_p}
+        za_zm("son %{_p}% minecraft:entity.experience_orb.pickup 0.8 1.4")
+    else if {_r} <= 45:
+        give za_item("paper", "Bandage", "&f", random integer between 1 and 3) to {_p}
+        send "&9[Casier] &7Une trousse de premiers soins de service." to {_p}
+    else if {_r} <= 60:
+        give za_item("gold nugget", "Jeton de Survie", "&6", random integer between 2 and 5) to {_p}
+        send "&9[Casier] &7De la monnaie oubliée dans un blouson." to {_p}
+    else if {_r} <= 72:
+        give za_item("iron nugget", "Piece mecanique", "&7", random integer between 2 and 4) to {_p}
+        send "&9[Casier] &7Quelques pièces de métal : menottes, cadenas." to {_p}
+    else if {_r} <= 82:
+        give za_item("iron ingot", "Pied-de-biche", "&7", 1) to {_p}
+        send "&9[Casier] &7Un pied-de-biche de service. Ça peut forcer bien des portes." to {_p}
+    else:
+        send "&9[Casier] &7Des chemises trouées, un calendrier de pompiers. Rien d'utile." to {_p}
+
+function za_lieu_armoire(p: player, cle: text):
+    set {_sid} to za_lieu_sid({_cle})
+    set {_j} to {za::serveur::jours}
+    set {_pow} to za_reseau_actif("police")
+    if {za::lieu::%{_sid}%::armoire} is set:
+        if {_pow} is false:
+            send "&9[Armoire à armes] &7Vidée. Sans courant dans le quartier de la police, personne ne la regarnira." to {_p}
+        else:
+            send "&9[Armoire à armes] &7Vidée pour aujourd'hui. Avec le courant, elle sera regarnie demain." to {_p}
+        stop
+    if za_take_named({_p}, "Clé de l'armurerie", 1) is false:
+        send "&9[Armoire à armes] &cVerrouillée. &7Serrure à clé de l'armurerie. &8(Soldats infectés, casiers du poste...)" to {_p}
+        za_zm("son %{_p}% minecraft:block.iron_door.close 0.8 0.7")
+        stop
+    set {za::lieu::%{_sid}%::armoire} to {_j}
+    za_bruit_ajouter({_p}, 12)
+    za_zm("son %{_p}% minecraft:block.iron_trapdoor.open 1 0.8")
+    send "&9[Armoire à armes] &aLa serrure cède." to {_p}
+    set {_g::*} to "glock_17", "cz75", "m9a4", "m1911" and "p320"
+    set {_gun} to random element out of {_g::*}
+    set {_mun} to "9mm"
+    if {_gun} is "m1911":
+        set {_mun} to "45acp"
+    if {_gun} is "p320":
+        set {_mun} to "45acp"
+    za_lieu_arme({_p}, {_gun}, "Poste de police", {_mun}, 30)
+    send "&f+1 arme de service &7et des munitions." to {_p}
+    if {_pow} is true:
+        if chance of 50%:
+            wait 6 ticks
+            give za_item("paper", "Bandage", "&f", 2) to {_p}
+            send "&f+2 Bandage &7(l'armoire était réapprovisionnée grâce au courant)." to {_p}
+
+function za_lieu_cellule(p: player, cle: text):
+    set {_sid} to za_lieu_sid({_cle})
+    set {_o} to za_lieu_orig({_sid})
+    if {_o} is not set:
+        stop
+    if {za::lieu::%{_sid}%::cellule} is set:
+        send "&9[Cellule] &7La cellule est ouverte. Il n'y reste que le froid." to {_p}
+        stop
+    if za_take_named({_p}, "Clé de l'armurerie", 1) is false:
+        send "&9[Cellule] &cLa porte de fer est verrouillée. &7On entend quelqu'un respirer derrière." to {_p}
+        za_zm("son %{_p}% minecraft:block.iron_door.close 0.8 0.7")
+        stop
+    set {za::lieu::%{_sid}%::cellule} to {za::serveur::jours}
+    za_lieu_set({_o}, 5, 1, 1, "minecraft:iron_door[facing=south,half=lower,open=true]")
+    za_lieu_set({_o}, 5, 2, 1, "minecraft:iron_door[facing=south,half=upper,open=true]")
+    za_zm("son %{_p}% minecraft:block.iron_door.open 1 0.8")
+    za_bruit_ajouter({_p}, 10)
+    if chance of 80%:
+        send "&9[Cellule] &7Un homme, recroquevillé au fond : « ...Vous n'êtes pas l'un d'eux ? Merci... j'ai cru que personne ne viendrait. »" to {_p}
+        set {_w} to world of {_o}
+        execute console command "zasurv creer %floor(x-coordinate of {_o}) + 5% %floor(y-coordinate of {_o}) + 1% %floor(z-coordinate of {_o}) + 4% %{_w}% prisonnier"
+    else:
+        send "&9[Cellule] &7Des os, un uniforme déchiré. Le prisonnier n'a pas survécu à l'attente." to {_p}
+
+# clé de l'armurerie : quelques soldats infectés en ont une
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    if uncolored name of victim contains "Soldat infecte":
+        if chance of 8%:
+            drop za_item("tripwire hook", "Clé de l'armurerie", "&9", 1) at location of victim
+
+# ================================================================= ÉCOLE
+
+function za_lieu_pupitre(p: player, cle: text, l: location):
+    set {_k} to "pupitre;%za_lieu_sid({_cle})%;%floor(x-coordinate of {_l})%;%floor(z-coordinate of {_l})%"
+    set {_j} to {za::serveur::jours}
+    set {_u} to {_p}'s uuid
+    if {za::lieu::pup::%{_k}%} is set:
+        if {_j} - {za::lieu::pup::%{_k}%} < 3:
+            send "&6[Pupitre] &7Déjà fouillé : des gommes, une règle cassée." to {_p}
+            stop
+    set {za::lieu::pup::%{_k}%} to {_j}
+    za_zm("son %{_p}% minecraft:block.wooden_trapdoor.open 0.7 1.1")
+    set {_r} to random integer between 1 and 100
+    if {_r} <= 38:
+        za_lieu_dessin({_p})
+    else if {_r} <= 62:
+        set {_n::*} to "Si tu trouves ça, on est partis vers le sud. Le pont est barré. - Isa", "Jour 9. Le gymnase est plein de gens qui toussent. Je ne dors plus. - anonyme", "Pas de sang, pas de fièvre, seulement du silence. Restez ensemble. - M. Langevin, concierge", "Les grands sont partis chercher de l'eau. Ça fait deux jours. Je garde les petits. - Kim", "Ne buvez pas l'eau de la fontaine. Elle goûte le fer. - anonyme" and "On a barricadé la classe 4. Si vous frappez trois fois puis deux fois, on ouvre. - Mme Roy"
+        set {_it} to za_item("paper", "Note de survivant", "&f", 1)
+        set lore of {_it} to random element out of {_n::*}
+        give {_it} to {_p}
+        send "&6[Pupitre] &7Une note pliée en quatre, cachée sous un cahier : &fNote de survivant&7." to {_p}
+    else if {_r} <= 76:
+        set {_c::*} to "Devoir inachevé. Personne n'est venu le corriger.", "Ils ont dit que l'école était un abri. Ils avaient tort.", "Madame Roy n'a jamais fini l'appel du jour 12." and "Dessin d'enfant : une maison, un soleil, et un mot barré plusieurs fois."
+        set {_it} to za_item("paper", "Cahier oublié", "&f", 1)
+        set lore of {_it} to random element out of {_c::*}
+        give {_it} to {_p}
+        send "&6[Pupitre] &7Un cahier oublié." to {_p}
+    else if {_r} <= 88:
+        give za_item("bread", "Pain rassis", "&f", 1) to {_p}
+        send "&6[Pupitre] &7Un vieux sandwich, dur comme du bois. Mangeable... si tu n'as pas le choix." to {_p}
+    else:
+        send "&6[Pupitre] &7Vide. Quelqu'un est passé avant toi." to {_p}
+
+# le dessin suivant de l'histoire de Mathis (6 chapitres, dans l'ordre)
+function za_lieu_dessin(p: player):
+    set {_u} to {_p}'s uuid
+    if {za::lieu::dessins::%{_u}%} is not set:
+        set {za::lieu::dessins::%{_u}%} to 0
+    add 1 to {za::lieu::dessins::%{_u}%}
+    set {_n} to {za::lieu::dessins::%{_u}%}
+    set {_i} to ({_n} - 1) - (6 * floor(({_n} - 1) / 6)) + 1
+    set {_titre} to "Dessin de Mathis (%{_i}%/6)"
+    if {_i} is 1:
+        set {_pg::*} to "Ça c'est ma maison. Ça c'est maman. Ça c'est papa. Le soleil est jaune.", "Lundi, Madame Roy a dit qu'on ne sortait plus à la récré. Y'a du monde bizarre dans la cour." and "Mathis, 8 ans"
+    else if {_i} is 2:
+        set {_pg::*} to "Y'a monsieur Gilles qui marche tout croche dans la cour. Il ressemble à mon grand-père mais il a plus de yeux.", "Madame Roy a fermé les rideaux. Elle pleure quand elle pense qu'on regarde pas." and "Mathis, 8 ans"
+    else if {_i} is 3:
+        set {_pg::*} to "On dort dans le gymnase. Y'a des matelas bleus. Le directeur dit que l'armée s'en vient.", "J'ai dessiné l'armée : des camions verts avec des grosses roues." and "Mathis, 8 ans"
+    else if {_i} is 4:
+        set {_pg::*} to "L'armée est venue. Y ont pris juste les grands. Y ont dit : on revient.", "On attend encore. Ma soeur Léa dit que la radio a arrêté de jouer des chansons." and "Mathis, 8 ans"
+    else if {_i} is 5:
+        set {_pg::*} to "Madame Roy a mordu Simon. Mais elle voulait pas. Elle dit qu'on ferme la porte à clé.", "Elle m'a donné son trousseau. Elle a dit : garde-les, Mathis." and "Mathis, 8 ans"
+    else:
+        set {_pg::*} to "J'ai plus de crayon rouge. Le gymnase est vide.", "Si quelqu'un lit ça : dites à maman que j'ai pas eu peur." and "Mathis, 8 ans"
+    set {_b} to written book
+    set book title of {_b} to {_titre}
+    set book author of {_b} to "Mathis"
+    set book pages of {_b} to {_pg::*}
+    give {_b} to {_p}
+    send "&6[Pupitre] &7Un dessin d'enfant, aux crayons de cire : &f%{_titre}%&7. &8(Clic droit pour le lire)" to {_p}
+    za_zm("son %{_p}% minecraft:item.book.page_turn 0.8 0.9")
+    if {_n} is 6:
+        za_jetons_ajouter({_p}, 10)
+        send "&6[Lieu] &7Tu as lu toute l'histoire de Mathis. Tu ne l'oublieras pas. &8(+10 jetons pour la mémoire des petits)" to {_p}
+        za_journal("%{_p}% a retrouvé tous les dessins de Mathis.")
+
+function za_lieu_tableau(p: player, cle: text):
+    set {_sid} to za_lieu_sid({_cle})
+    if {za::lieu::%{_sid}%::tableau} is not set:
+        set {_t::*} to "Ne sortez pas. Restez dans la classe. Mme Roy, jour 3", "Exercice de lecture : « Le loup est dans la cour. »", "Le 14 : sortie éducative ANNULÉE", "Toutes les fenêtres doivent rester fermées. Merci de votre compréhension." and "Ils reviennent chaque nuit. Comptez-les. Jour 6 : 14. Jour 7 : 31."
+        set {za::lieu::%{_sid}%::tableau} to random element out of {_t::*}
+    send "&6[Tableau] &7À la craie, d'une main qui tremble : &f&o« %{za::lieu::%{_sid}%::tableau}% »" to {_p}
+    za_zm("son %{_p}% minecraft:block.stone_button.click_on 0.7 0.6")
+
+# ================================================================= LABORATOIRE
+
+function za_lieu_prelevement(p: player, cle: text, l: location, k: text):
+    set {_sid} to za_lieu_sid({_cle})
+    set {_kk} to "%{_k}%;%{_sid}%;%floor(x-coordinate of {_l})%;%floor(z-coordinate of {_l})%"
+    set {_j} to {za::serveur::jours}
+    if {za::lieu::prel::%{_kk}%} is set:
+        if {_j} - {za::lieu::prel::%{_kk}%} < 2:
+            send "&a[Labo] &7Ce poste est vide : le dernier prélèvement date de moins de 2 jours." to {_p}
+            stop
+    set {za::lieu::prel::%{_kk}%} to {_j}
+    za_bruit_ajouter({_p}, 4)
+    za_zm("son %{_p}% minecraft:block.brewing_stand.brew 0.8 1")
+    set {_r} to random integer between 1 and 100
+    if {_k} is "paill":
+        if {_r} <= 50:
+            give za_item("glass bottle", "Échantillon viral", "&5", 1) to {_p}
+            send "&a[Labo] &7Une éprouvette étiquetée &5Échantillon viral &7encore scellée." to {_p}
+        else if {_r} <= 68:
+            give za_item("glass bottle", "Sang infecte", "&4", 1) to {_p}
+            send "&a[Labo] &7Une fiole de &4Sang infecte&7. Ne la renverse pas." to {_p}
+        else if {_r} <= 83:
+            send "&a[Labo] &7Verre brisé, culture morte. Rien à récupérer." to {_p}
+        else:
+            send "&a[Labo] &cLa culture s'échappe ! &7Quelque chose sort de la boîte de Pétri..." to {_p}
+            za_spawn_at(location of {_p}, "ZA_Spitter", 3, 6)
+    else:
+        if {_r} <= 55:
+            give za_item("glass bottle", "Sang infecte", "&4", 1) to {_p}
+            send "&a[Labo] &7Tu remplis une fiole de &4Sang infecte &7à la cuve." to {_p}
+        else if {_r} <= 78:
+            give za_item("glass bottle", "Échantillon viral", "&5", 1) to {_p}
+            send "&a[Labo] &7Un échantillon reste collé au fond de la cuve : &5Échantillon viral&7." to {_p}
+        else if {_r} <= 90:
+            send "&a[Labo] &7La cuve est vide, sèche depuis des semaines." to {_p}
+        else:
+            send "&a[Labo] &cLa cuve se met à bouillonner !" to {_p}
+            za_spawn_at(location of {_p}, "ZA_Bloater", 4, 7)
+
+function za_lieu_terminal(p: player, cle: text):
+    set {za::lieu::ctx::%{_p}'s uuid%} to {_cle}
+    set {_o::*} to "Analyser la souche locale|analyse", "Lancer une expérience (1 Échantillon viral)|exp", "Consulter les notes de recherche|notes" and "Quitter|quit"
+    za_menu({_p}, "zalieuclic", "Terminal du laboratoire", "Les écrans clignotent encore. Un vieux terminal répond : analyses de souche, expériences non autorisées, notes de l'équipe. Toute expérience comporte un risque.", {_o::*})
+
+command /zalieuclic <player> <text>:
+    executable by: console
+    trigger:
+        set {_p} to arg-1
+        set {_u} to {_p}'s uuid
+        if arg-2 is "analyse":
+            set {_id} to za_souche_id({_p})
+            send "&a[Terminal] &7Souche dans ta région : &d%za_souche_nom({_id})%" to {_p}
+            set {_pv} to za_param({_id}, "vitesse")
+            set {_pf} to za_param({_id}, "fenetre")
+            set {_pr} to za_param({_id}, "rayon")
+            set {_pb} to za_param({_id}, "bonus")
+            send "&8Vitesse d'incubation x%{_pv}% | Fenêtre de l'antidote : %{_pf}% min | Contagion : %{_pr}% blocs | Bonus d'infection : +%{_pb}% %%" to {_p}
+        else if arg-2 is "notes":
+            set {_n::*} to "Sujet 4 : résistance inattendue à la souche, puis mutation à J+6. Ne pas relâcher.", "Z-01 n'est pas né dans un tube : on l'a trouvé dans le permafrost de la mine, à Saint-Aurèle. NORDA le savait avant tout le monde.", "L'antidote ne fonctionne que dans les premières minutes. Après, seul le sérum instable donne une chance. Une seule.", "Les échantillons de sang infecté réagissent au sérum de Lefort. Il n'est pas des nôtres... et il a raison." and "Si les alarmes sonnent, n'ouvrez pas la chambre froide. Je répète : n'ouvrez pas la chambre froide."
+            send "&a[Terminal] &7&o%random element out of {_n::*}%" to {_p}
+        else if arg-2 is "exp":
+            if za_lieu_cd({_p}, "exp", 240) is false:
+                send "&a[Terminal] &7Les instruments refroidissent. Réessaie dans quelques minutes." to {_p}
+                stop
+            if za_take_named({_p}, "Échantillon viral", 1) is false:
+                send "&a[Terminal] &cIl faut un Échantillon viral à injecter." to {_p}
+                delete {za::lieu::cd::%{_u}%::exp}
+                stop
+            send "&a[Terminal] &7Injection en cours..." to {_p}
+            za_zm("son %{_p}% minecraft:block.beacon.ambient 1 0.6")
+            wait 3 seconds
+            set {_r} to random integer between 1 and 100
+            if {_r} <= 38:
+                give za_item("paper", "Note de recherche", "&a", 1) to {_p}
+                za_jetons_ajouter({_p}, 6)
+                send "&a[Terminal] &aRésultat exploitable. &7Tu imprimes une &aNote de recherche &7(+6 jetons de données revendues)." to {_p}
+            else if {_r} <= 58:
+                send "&a[Terminal] &cRéaction en chaîne ! &7Quelque chose a muté dans la cuve..." to {_p}
+                za_spawn_at(location of {_p}, "ZA_Spitter", 3, 6)
+                za_spawn_at(location of {_p}, "ZA_Spitter", 3, 6)
+            else if {_r} <= 72:
+                send "&a[Terminal] &cFuite de gaz ! &7Un sac de gaz enfle dans le couloir." to {_p}
+                za_spawn_at(location of {_p}, "ZA_Bloater", 4, 8)
+            else if {_r} <= 80:
+                send "&a[Terminal] &cL'aiguille t'a percé le gant." to {_p}
+                za_effet({_p}, "nausea", 10, 0)
+                if chance of 50%:
+                    za_infecter({_p})
+            else if {_r} <= 90:
+                give za_item("honey bottle", "Serum", "&d", 1) to {_p}
+                send "&a[Terminal] &dSérum stabilisé ! &7La machine a synthétisé un Serum utilisable." to {_p}
+            else:
+                give za_item("prismarine crystals", "Matériau expérimental", "&b", 1) to {_p}
+                send "&a[Terminal] &b&lMATÉRIAU EXPÉRIMENTAL &7: la cuve a cristallisé quelque chose de... nouveau." to {_p}
+                za_zm("son %{_p}% minecraft:ui.toast.challenge_complete 0.8 1.2")
+                za_journal("%{_p}% a extrait un Matériau expérimental d'un laboratoire.")
+
+# ================================================================= SUPERMARCHÉ
+
+function za_lieu_rayon(p: player, cle: text, l: location):
+    set {_k} to "rayon;%za_lieu_sid({_cle})%;%floor(x-coordinate of {_l})%;%floor(y-coordinate of {_l})%;%floor(z-coordinate of {_l})%"
+    set {_j} to {za::serveur::jours}
+    if {za::lieu::ray::%{_k}%} is set:
+        if {_j} - {za::lieu::ray::%{_k}%} < 3:
+            send "&e[Rayon] &7Déjà ratissé : quelques emballages vides." to {_p}
+            stop
+    set {za::lieu::ray::%{_k}%} to {_j}
+    za_bruit_ajouter({_p}, 3)
+    za_zm("son %{_p}% minecraft:block.wool.step 0.8 1.3")
+    set {_r} to random integer between 1 and 100
+    if {_r} <= 26:
+        give za_item("bread", "Conserve", "&f", random integer between 1 and 2) to {_p}
+        send "&e[Rayon] &7Des conserves, encore fermées." to {_p}
+    else if {_r} <= 40:
+        give za_item("apple", "Pomme", "&a", 1) to {_p}
+        send "&e[Rayon] &7Une pomme un peu ratatinée mais mangeable." to {_p}
+    else if {_r} <= 52:
+        give za_item("glass bottle", "Eau en bouteille", "&b", 1) to {_p}
+        send "&e[Rayon] &7Une bouteille d'eau tiède." to {_p}
+    else if {_r} <= 62:
+        give za_item("cookie", "Barre de céréales", "&6", 2) to {_p}
+        send "&e[Rayon] &7Des barres de céréales au fond du rayon." to {_p}
+    else if {_r} <= 78:
+        give za_item("rotten flesh", "Denrée avariée", "&2", 1) to {_p}
+        send "&e[Rayon] &2Périmé depuis des mois. &7Ça sent la mort. Tu l'emportes quand même ?" to {_p}
+    else if {_r} <= 86:
+        give za_item("gold nugget", "Jeton de Survie", "&6", random integer between 1 and 3) to {_p}
+        send "&e[Rayon] &7Un fond de caisse coincé derrière les boîtes." to {_p}
+    else:
+        send "&e[Rayon] &7Vide. Pillé jusqu'à l'os." to {_p}
+
+function za_lieu_reserve(p: player, cle: text):
+    set {_sid} to za_lieu_sid({_cle})
+    set {_o} to za_lieu_orig({_sid})
+    if {_o} is not set:
+        stop
+    if {za::lieu::%{_sid}%::reserve} is set:
+        stop
+    if za_count_named({_p}, "Pied-de-biche") < 1:
+        send "&e[Réserve] &cPorte de fer verrouillée. &7Il faudrait un &fPied-de-biche &7(Mécano, casiers de police, stations-service, atelier mécanique)." to {_p}
+        za_zm("son %{_p}% minecraft:block.iron_door.close 0.8 0.7")
+        stop
+    if za_lieu_cd({_p}, "reserve", 6) is false:
+        stop
+    send "&e[Réserve] &7Tu glisses le pied-de-biche dans l'interstice... &8(reste à côté de la porte)" to {_p}
+    set {_i} to 0
+    while {_i} < 4:
+        set {_dl} to distance between {_p} and za_lieu_loc({_o}, 13, 1, 3)
+        if {_dl} > 5:
+            send "&e[Réserve] &7Tu as lâché prise." to {_p}
+            stop
+        za_bruit_ajouter({_p}, 12)
+        execute console command "execute at %{_p}% run playsound minecraft:block.anvil.hit block @a ~ ~ ~ 0.9 1.4"
+        send action bar "&7Forçage de la porte... &f%{_i} + 1%&7/4" to {_p}
+        wait 1 second
+        add 1 to {_i}
+    set {za::lieu::%{_sid}%::reserve} to {za::serveur::jours}
+    za_lieu_fill({_o}, 13, 1, 3, 13, 2, 3, "minecraft:air")
+    execute console command "execute at %{_p}% run playsound minecraft:entity.iron_golem.death block @a ~ ~ ~ 1 0.7"
+    send "&e[Réserve] &aLa porte cède dans un fracas !" to {_p}
+    if chance of 15%:
+        set {_x} to za_take_named({_p}, "Pied-de-biche", 1)
+        send "&7Le pied-de-biche s'est tordu. Il est inutilisable." to {_p}
+    # stock de la réserve
+    loop 4 times:
+        set {_b} to block at za_lieu_loc({_o}, 18, 1, ((loop-number * 2) - 1))
+        if {_b} is barrel:
+            clear inventory of {_b}
+            add za_item("bread", "Conserve", "&f", random integer between 3 and 7) to inventory of {_b}
+            add za_item("glass bottle", "Eau en bouteille", "&b", random integer between 2 and 4) to inventory of {_b}
+            add za_item("apple", "Pomme", "&a", random integer between 1 and 4) to inventory of {_b}
+            if chance of 30%:
+                add za_item("rotten flesh", "Denrée avariée", "&2", random integer between 1 and 3) to inventory of {_b}
+            if chance of 35%:
+                add za_item("gold nugget", "Jeton de Survie", "&6", random integer between 2 and 6) to inventory of {_b}
+    # le bruit attire du monde
+    set {_c} to za_lieu_loc({_o}, 6, 1, 4)
+    za_activite_ajouter({_c}, 10)
+    if chance of 55%:
+        za_spawn_at({_c}, "ZA_Shambler", 6, 12)
+        send "&8Le vacarme a réveillé quelque chose dans le magasin..." to {_p}
+
+# ================================================================= STATION-SERVICE
+
+function za_lieu_pompe(p: player, cle: text):
+    set {_sid} to za_lieu_sid({_cle})
+    set {_j} to {za::serveur::jours}
+    if uncolored name of {_p}'s tool is not "Jerrican":
+        send "&c[Pompe] &7La pompe est encore pleine, mais il te faut un &eJerrican &7pour siphonner. &8(Mécano, atelier mécanique, coffre de la station)" to {_p}
+        stop
+    set {_max} to 3
+    if za_reseau_actif("commerce") is true:
+        set {_max} to 5
+    if {za::lieu::%{_sid}%::pompe_jour} is not {_j}:
+        set {za::lieu::%{_sid}%::pompe_jour} to {_j}
+        set {za::lieu::%{_sid}%::pompe_n} to 0
+    if {za::lieu::%{_sid}%::pompe_n} >= {_max}:
+        send "&c[Pompe] &7À sec pour aujourd'hui (%{_max}% siphonnages par jour de serveur)." to {_p}
+        stop
+    if za_lieu_cd({_p}, "pompe", 5) is false:
+        stop
+    add 1 to {za::lieu::%{_sid}%::pompe_n}
+    send "&c[Pompe] &7Tu siphonnes... &8(ça fait du bruit, ça sent fort)" to {_p}
+    set {_i} to 0
+    while {_i} < 3:
+        za_bruit_ajouter({_p}, 8)
+        za_zm("son %{_p}% minecraft:block.bubble_column.upwards_ambient 1 0.8")
+        wait 1 second
+        add 1 to {_i}
+    set {_n} to 2
+    if za_reseau_actif("commerce") is true:
+        set {_n} to 3
+    give za_item("blaze powder", "Essence (carburant)", "&e", {_n}) to {_p}
+    set {_reste} to {_max} - {za::lieu::%{_sid}%::pompe_n}
+    send "&e+%{_n}% Essence (carburant) &7(%{_reste}% siphonnage(s) restant(s) aujourd'hui)" to {_p}
+    if za_reseau_actif("commerce") is true:
+        send "&8Les pompes électriques débitent plus vite : le quartier commerçant a du courant." to {_p}
+    # vapeurs d'essence : petite chance d'étincelle
+    if chance of 6%:
+        send "&4&lUne étincelle ! &cÇa sent l'essence... BOUM !" to {_p}
+        execute console command "execute at %{_p}% run particle minecraft:explosion ~ ~1 ~ 0.5 0.5 0.5 0 3 force"
+        execute console command "execute at %{_p}% run playsound minecraft:entity.generic.explode block @a ~ ~ ~ 1 1"
+        damage {_p} by 3
+        ignite {_p} for 3 seconds
+        za_bruit_ajouter({_p}, 30)
+
+# ================================================================= CASERNE
+
+function za_lieu_caisse(p: player, cle: text, l: location):
+    set {_sid} to za_lieu_sid({_cle})
+    set {_k} to "caisse;%{_sid}%;%floor(x-coordinate of {_l})%"
+    set {_j} to {za::serveur::jours}
+    if {za::lieu::cai::%{_k}%} is set:
+        if {_j} - {za::lieu::cai::%{_k}%} < 5:
+            send "&2[Caisse militaire] &7Vidée. L'armée a tout pris, ou ce qui reste l'a fait." to {_p}
+            stop
+    set {za::lieu::cai::%{_k}%} to {_j}
+    za_bruit_ajouter({_p}, 18)
+    za_zm("son %{_p}% minecraft:block.barrel.open 0.9 0.8")
+    send "&2[Caisse militaire] &7Tu fais sauter les fermoirs..." to {_p}
+    set {_r} to random integer between 1 and 100
+    if {_r} <= 30:
+        set {_a::*} to "556x45", "762x39", "9mm" and "12g"
+        set {_am} to random element out of {_a::*}
+        execute console command "give %{_p}% tacz:ammo{AmmoId:""tacz:%{_am}%""} 60"
+        send "&2[Caisse militaire] &f+60 munitions &7(%{_am}%)." to {_p}
+    else if {_r} <= 52:
+        set {_it} to za_item("iron chestplate", "Gilet pare-balles", "&2", 1)
+        give {_it} to {_p}
+        send "&2[Caisse militaire] &fGilet pare-balles &7de l'armée." to {_p}
+    else if {_r} <= 70:
+        give za_item("paper", "Bandage", "&f", 4) to {_p}
+        give za_item("honey bottle", "Antibiotique", "&b", 1) to {_p}
+        send "&2[Caisse militaire] &7Trousse médicale : &f4 Bandage &7+ &b1 Antibiotique&7." to {_p}
+    else if {_r} <= 82:
+        give za_item("iron nugget", "Piece mecanique", "&7", random integer between 3 and 6) to {_p}
+        give za_item("gold nugget", "Composant electronique", "&b", 1) to {_p}
+        send "&2[Caisse militaire] &7Du matériel de transmission : &bComposant electronique&7." to {_p}
+    else if {_r} <= 92:
+        give za_item("gold nugget", "Jeton de Survie", "&6", random integer between 6 and 12) to {_p}
+        send "&2[Caisse militaire] &7La solde d'un détachement." to {_p}
+    else:
+        set {_g::*} to "m4a1", "ak47", "hk416d", "scar_l", "mk14" and "aug"
+        set {_gun} to random element out of {_g::*}
+        set {_mun} to "556x45"
+        if {_gun} is "ak47":
+            set {_mun} to "762x39"
+        if {_gun} is "mk14":
+            set {_mun} to "308"
+        send "&2&l[Caisse militaire] &aUne arme est calée dans la mousse !" to {_p}
+        za_lieu_arme({_p}, {_gun}, "Caserne", {_mun}, 60)
+        za_journal("%{_p}% a ouvert une caisse de caserne et trouvé une arme rare.")
+    # les gardes reviennent
+    if chance of 45%:
+        set {_c} to za_bat_centre({_cle})
+        if {_c} is set:
+            za_spawn_at({_c}, "ZA_Soldat_Infecte", 3, 7)
+            send "&8Un râle derrière toi : un garde s'est redressé." to {_p}
+
+# ================================================================= CENTRALE
+
+function za_lieu_turbine(p: player):
+    if za_lieu_cd({_p}, "turbine", 4) is false:
+        stop
+    if za_courant() is true:
+        send "&6[Turbine] &7Elle tourne, chaude. Reste : &f%za_duree(difference between now and {za::elec::fin})%&7. &e/reseau &7pour voir les quartiers alimentés." to {_p}
+    else:
+        send "&6[Turbine] &7Froide et muette. &83 Composants électroniques au tableau de commande (lutrin) relancent la centrale." to {_p}
+    za_zm("son %{_p}% minecraft:block.beacon.ambient 0.6 0.5")
+
+# ================================================================= /lieux
+
+command /lieux [<text>]:
+    trigger:
+        if arg-1 is "proche":
+            set {_u} to player's uuid
+            if size of {za::lieu::vus::%{_u}%::*} is 0:
+                send "&7Tu n'as encore découvert aucun bâtiment. Approche-toi (moins de 12 blocs) d'un lieu repéré à la radio." to player
+                stop
+            send "&6Lieux que tu connais :" to player
+            loop {za::lieu::vus::%{_u}%::*}:
+                set {_o} to za_lieu_orig(loop-value)
+                if {_o} is set:
+                    if world of {_o} is world of player:
+                        send "  &7- &f%floor(distance between {_o} and player)% blocs &8(X=%floor(x-coordinate of {_o})% Z=%floor(z-coordinate of {_o})%)" to player
+            stop
+        send "&8&m                                        " to player
+        send "&6&lLIEUX &7- pourquoi y aller ?" to player
+        send "&f[Hôpital] &7« Je cherche de quoi soigner. » &8Dossiers médicaux, antibiotiques, Poste de soins (5 jetons, si le quartier hospitalier a du courant : vie + infection -1). Des patients rôdent." to player
+        send "&9[Poste de police] &7« Il me faut une arme. » &8Armoire à armes (Clé de l'armurerie : soldats infectés, casiers), casiers, dossiers, cellule (un prisonnier à libérer)." to player
+        send "&e[Supermarché] &7« J'ai faim. » &8Rayons (méfie-toi des denrées avariées), chariots, Réserve derrière une porte de fer : un Pied-de-biche, et du bruit." to player
+        send "&c[Station-service] &7« Il me faut du carburant. » &8Pompes : Jerrican + clic droit = Essence (carburant), 3 fois par jour (plus avec le courant commerçant). Attention aux étincelles." to player
+        send "&a[Laboratoire] &7« Je veux comprendre le virus. » &8Échantillon viral, Sang infecte, terminal d'expériences (risqué), Matériau expérimental." to player
+        send "&2[Caserne] &7« Il me faut du gros calibre. » &8Caisses militaires : munitions, gilets, arme rare. Gardée par des soldats infectés." to player
+        send "&6[École] &7« Je cherche des survivants... ou des traces. » &8Pupitres (notes, dessins de Mathis), tableau, cafétéria qui se regarnit." to player
+        send "&6[Centrale] &7« Je veux la lumière. » &8Turbines : &e/reseau&8. Le courant attire les morts." to player
+        send "&8/lieux proche &7= bâtiments que tu as déjà visités.   &8/reseau &7= quartiers alimentés." to player
+        send "&8&m                                        " to player
+
+# ================================================================= admin
+
+command /zalieu <text> [<text>]:
+    permission: za.admin
+    trigger:
+        set {_a} to arg-1 in lowercase
+        if {_a} is "liste":
+            set {_all::*} to za_lieu_toutes()
+            loop {_all::*}:
+                send "%loop-value% -> %za_lieu_sid(loop-value)% equipe=%{za::lieu::%za_lieu_sid(loop-value)%::equipe}%" to sender
+            send "%size of {_all::*}% bâtiment(s)" to sender
+        else if {_a} is "proche":
+            if sender is not a player:
+                send "joueur requis" to sender
+                stop
+            send "proche=%za_lieu_proche(location of sender, 40)% at=%za_lieu_at(location of sender)%" to sender
+        else if {_a} is "equiper":
+            set {_all::*} to za_lieu_toutes()
+            loop {_all::*}:
+                za_lieu_equiper(loop-value)
+            send "&aBâtiments équipés." to sender
+        else if {_a} is "restock":
+            set {_all::*} to za_lieu_toutes()
+            loop {_all::*}:
+                delete {za::lieu::%za_lieu_sid(loop-value)%::cafet}
+                delete {za::lieu::%za_lieu_sid(loop-value)%::pharma}
+                delete {za::lieu::%za_lieu_sid(loop-value)%::armoire}
+                delete {za::lieu::%za_lieu_sid(loop-value)%::pompe_jour}
+                delete {za::lieu::%za_lieu_sid(loop-value)%::reserve}
+            delete {za::lieu::casier::*}
+            delete {za::lieu::pup::*}
+            delete {za::lieu::ray::*}
+            delete {za::lieu::cai::*}
+            delete {za::lieu::prel::*}
+            send "&aÉtats quotidiens réinitialisés." to sender
+        else if {_a} is "role":
+            if sender is not a player:
+                send "joueur requis" to sender
+                stop
+            set {_b} to target block of sender
+            set {_cle} to za_lieu_at(location of {_b})
+            send "bloc %{_b}% -> bâtiment %{_cle}% rôle=%za_lieu_role_l({_cle}, location of {_b})%" to sender
+        else:
+            send "&cUsage : /zalieu <liste|proche|equiper|restock|role>" to sender

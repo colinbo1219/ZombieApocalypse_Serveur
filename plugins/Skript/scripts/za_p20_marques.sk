@@ -1,0 +1,51 @@
+# =====================================================================
+#  ZombieApocalypse - TITRES ET MARQUES
+#  Plus tu tues de zombies, plus tu es connu... et plus les morts te reconnaissent.
+#  50 kills : Chasseur | 200 kills : Fleau des morts (les morts te traquent un peu) | 500 kills : Proie marquee (beaucoup)
+#  Le titre s'affiche devant ton pseudo (chat et liste des joueurs), avec ton role s'il y en a un.
+# =====================================================================
+
+function za_titre(p: player) :: text:
+    if {za::titre::special::%{_p}'s uuid%} is set:
+        return {za::titre::special::%{_p}'s uuid%}
+    set {_k} to {za::kills::%{_p}'s uuid%}
+    if {_k} is not set:
+        return ""
+    if {_k} >= 500:
+        return "&4Proie marquee"
+    if {_k} >= 200:
+        return "&cFleau des morts"
+    if {_k} >= 50:
+        return "&6Chasseur"
+    return ""
+
+every 30 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_p} to loop-player
+            set {_t} to za_titre({_p})
+            set {_r} to za_role({_p})
+            set {_pre} to ""
+            if {za::traitre::fin::%{_p}'s uuid%} is set:
+                if now is less than {za::traitre::fin::%{_p}'s uuid%}:
+                    set {_pre} to "&4[Traitre] "
+            if {_r} is not "aucun":
+                set {_pre} to "%{_pre}%&7[%{_r}%] "
+            if {_t} is not "":
+                set {_pre} to "%{_pre}%%{_t}% "
+            set {_pre} to "%za_niv_tag({_p})%%{_pre}%"
+            set display name of {_p} to "%{_pre}%&f%{_p}%"
+            set tab list name of {_p} to "%{_pre}%&f%{_p}%"
+
+# ---------- les morts reconnaissent les marques ----------
+every 60 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_t} to za_titre(loop-player)
+            if {_t} is "&4Proie marquee":
+                if chance of 35%:
+                    za_spawn_near(loop-player, "ZA_Stalker", 18, 30)
+                    send action bar "&8Les morts te reconnaissent..." to loop-player
+            else if {_t} is "&cFleau des morts":
+                if chance of 18%:
+                    za_spawn_near(loop-player, "ZA_Runner", 18, 30)

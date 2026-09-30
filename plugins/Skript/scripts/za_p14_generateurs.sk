@@ -1,0 +1,91 @@
+# =====================================================================
+#  ZombieApocalypse - GENERATEURS BRUYANTS
+#  Le "Generateur" (haut fourneau vendu par le Mecano) consomme de l'Essence (carburant).
+#  * Clic droit avec de l'Essence en main : +10 min de fonctionnement (max 60 min)
+#  * Clic droit a mains vides : etat du generateur
+#  * Actif : lumiere et confort (sante mentale +) a moins de 12 blocs... mais le bruit attire les morts
+#  * Un generateur pose pres d'une grande base attire plus de zombies
+# =====================================================================
+
+function za_gen_retirer(key: text):
+    remove {_key} from {za::gen::liste::*}
+    delete {za::gen::%{_key}%::*}
+
+# ---------- pose ----------
+on place:
+    if za_pro(player) is true:
+        stop
+    if event-block is blast furnace:
+        if uncolored name of player's tool is "Generateur":
+            set {_k} to za_lkey(location of event-block)
+            set {za::gen::%{_k}%::loc} to location of event-block
+            set {za::gen::%{_k}%::proprio} to "%player's uuid%"
+            set {za::gen::%{_k}%::fin} to now
+            add {_k} to {za::gen::liste::*}
+            send "&eGenerateur installe. Clic droit avec de l'Essence (carburant) pour le remplir. Attention : le bruit attire les morts." to player
+
+# ---------- remplir / etat ----------
+on right click on blast furnace:
+    if za_pro(player) is true:
+        stop
+    set {_k} to za_lkey(location of event-block)
+    if {za::gen::%{_k}%::proprio} is set:
+        cancel the event
+        if uncolored name of player's tool is "Essence (carburant)":
+            if {za::gen::%{_k}%::fin} is less than now:
+                set {za::gen::%{_k}%::fin} to now
+            if difference between now and {za::gen::%{_k}%::fin} is greater than 50 minutes:
+                send "&7Le reservoir est plein." to player
+            else:
+                remove 1 of player's tool from player's inventory
+                add 10 minutes to {za::gen::%{_k}%::fin}
+                send "&eLe generateur ronronne. +10 minutes de fonctionnement." to player
+        else:
+            if {za::gen::%{_k}%::fin} is greater than now:
+                set {_f} to {za::gen::%{_k}%::fin}
+                send "&eGenerateur en marche jusqu'a %{_f}%. Il fait du bruit..." to player
+            else:
+                send "&7Generateur eteint. Il faut de l'Essence (carburant)." to player
+
+# ---------- destruction ----------
+on break:
+    if za_pro(player) is true:
+        stop
+    if event-block is blast furnace:
+        set {_k} to za_lkey(location of event-block)
+        if {za::gen::%{_k}%::proprio} is set:
+            za_gen_retirer({_k})
+            send "&7Generateur detruit." to player
+
+# ---------- fonctionnement : bruit, confort, attraction des morts ----------
+every 30 seconds:
+    if za_emp_actif() is true:
+        stop
+    loop {za::gen::liste::*}:
+        set {_k} to loop-value
+        set {_l} to {za::gen::%{_k}%::loc}
+        if block at {_l} is not blast furnace:
+            za_gen_retirer({_k})
+        else if {za::gen::%{_k}%::fin} is greater than now:
+            set {_near} to false
+            loop all players:
+                if za_pro(loop-player) is false:
+                    if world of loop-player is world of {_l}:
+                        if distance between loop-player and {_l} < 80:
+                            set {_near} to true
+                        if distance between loop-player and {_l} < 12:
+                            if {za::sanite::%loop-player's uuid%} is set:
+                                add 3 to {za::sanite::%loop-player's uuid%}
+            if {_near} is true:
+                set {_wd} to za_dim(world of {_l})
+                execute console command "execute in %{_wd}% run particle minecraft:campfire_cosy_smoke %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l} + 1)% %floor(z-coordinate of {_l})% 0.3 0.3 0.3 0.02 12 force"
+                execute console command "execute in %{_wd}% run playsound minecraft:block.beacon.ambient block @a %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% 2 0.5"
+                set {_n} to 1
+                set {_o} to {za::gen::%{_k}%::proprio}
+                if {za::base::taille::%{_o}%} is set:
+                    add floor({za::base::taille::%{_o}%} / 300) to {_n}
+                if chance of 55%:
+                    loop {_n} times:
+                        za_spawn_at({_l}, "ZA_Shambler", 12, 26)
+                if chance of 20%:
+                    za_spawn_at({_l}, "ZA_Runner", 12, 26)

@@ -1,0 +1,72 @@
+#  ZombieApocalypse - apparitions aleatoires des zombies ZA
+#  Remplace les RandomSpawns "Action: ADD" de MythicMobs : sur Arclight, le generateur
+#  de MythicMobs (CLUSTER/LEGACY) lit les chunks hors du fil principal et peut GELER le serveur.
+#  Ici tout se fait sur le fil principal, avec un plafond par joueur.
+#  Memes mobs, memes chances et memes priorites que l'ancien RandomSpawns/ZombieApocalypse.yml.
+
+options:
+    rayon_plafond: 48
+    plafond_jour: 6
+    plafond_nuit: 14
+
+function za_nuit(p: player) :: boolean:
+    set {_t} to time in world of {_p}
+    if {_t} is greater than 19:00:
+        return true
+    if {_t} is less than 5:00:
+        return true
+    return false
+
+# un essai d'apparition pres du joueur (priorites : Bloater > Runner/Spitter/Leaper > Shambler)
+function za_apparition(p: player):
+    set {_b} to "%biome at {_p}%"
+    if {_b} contains "ocean":
+        stop
+    if za_nuit({_p}) is false:
+        if chance of 15%:
+            za_spawn_near({_p}, "ZA_Shambler", 24, 44)
+        stop
+    if {_b} contains "swamp", "desert", "savanna", "beach" or "river":
+        if chance of 10%:
+            za_spawn_near({_p}, "ZA_Bloater", 24, 44)
+            stop
+    if {_b} contains "plains", "meadow", "savanna" or "beach":
+        if chance of 25%:
+            za_spawn_near({_p}, "ZA_Runner", 24, 44)
+            stop
+    else if {_b} is "forest" or "birch forest":
+        if chance of 25%:
+            za_spawn_near({_p}, "ZA_Runner", 24, 44)
+            stop
+    if {_b} contains "plains", "forest", "taiga" or "swamp":
+        if chance of 15%:
+            za_spawn_near({_p}, "ZA_Spitter", 24, 44)
+            stop
+    if {_b} contains "forest", "taiga" or "windswept":
+        if chance of 15%:
+            za_spawn_near({_p}, "ZA_Leaper", 24, 44)
+            stop
+    if chance of 55%:
+        za_spawn_near({_p}, "ZA_Shambler", 24, 44)
+
+every 10 seconds:
+    # après-saison (calme) et thème de saison (S2 : moins de morts) : za_p59
+    set {_m} to 1
+    if {za::apres::mult} is set:
+        set {_m} to {_m} * {za::apres::mult}
+    if {za::theme::zombies_mult} is set:
+        set {_m} to {_m} * {za::theme::zombies_mult}
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_p} to loop-player
+            if (random number between 0 and 1) > {_m}:
+                set {_p} to {_rien}
+            if "%world of {_p}%" is "world":
+                if gamemode of {_p} is survival or adventure:
+                    set {_n} to size of (all zombies in radius {@rayon_plafond} around {_p})
+                    if za_nuit({_p}) is true:
+                        if {_n} < {@plafond_nuit}:
+                            za_apparition({_p})
+                            za_apparition({_p})
+                    else if {_n} < {@plafond_jour}:
+                        za_apparition({_p})

@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "tag": "minecraft:wooden_doors"
+    },
+    {
+      "tag": "forge:ingots/iron"
+    },
+    {
+      "item": "minecraft:string"
+    }
+  ],
+  "result": {
+    "item": "minecraft:shield",
+    "nbt": {
+      "Damage": 320,
+      "display": {
+        "Name": "{\"text\":\"Bouclier de porte\",\"color\":\"gray\",\"italic\":false}"
+      }
+    }
+  }
+}

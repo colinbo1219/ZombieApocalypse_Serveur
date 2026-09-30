@@ -1,0 +1,163 @@
+# =====================================================================
+#  ZombieApocalypse - PHASE 5 : MONDE
+#  Contamination des chunks, torches refusees, coffres contamines, zones perdues,
+#  sol qui respire, ressources epuisables, sanctuaires, memoire des lieux de mort,
+#  soleil qui s'affaiblit (jours plus courts).
+#  Commandes: /contamination | /sanctuaire creer|supprimer <nom> (admin)
+# =====================================================================
+
+# ---------- chaque zombie tue contamine son chunk ----------
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    set {_k} to za_ckey(location of victim)
+    if {za::contam::%{_k}%} is not set:
+        set {za::contam::%{_k}%} to 0
+    add 1 to {za::contam::%{_k}%}
+    if {za::contam::%{_k}%} >= 400:
+        set {za::perdue::%{_k}%} to true
+
+# ---------- decroissance lente (sauf zones perdues) ----------
+every 5 minutes:
+    loop {za::contam::*}:
+        set {_k} to loop-index
+        if {za::perdue::%{_k}%} is not set:
+            remove 5 from {za::contam::%{_k}%}
+            if {za::contam::%{_k}%} <= 0:
+                delete {za::contam::%{_k}%}
+
+# ---------- effets de la contamination sur les joueurs ----------
+every 10 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            set {_k} to za_ckey(location of loop-player)
+            set {_c} to {za::contam::%{_k}%}
+            if za_zone_morte(location of loop-player) is true:
+                set {_c} to 400
+            if {_c} is set:
+                if {_c} >= 100:
+                    execute console command "execute at %loop-player% run particle minecraft:sculk_soul ~ ~0.2 ~ 3 0.1 3 0.01 12 force"
+                    if za_masque(loop-player) is true:
+                        send action bar "&aTon masque a gaz filtre l'air contamine." to loop-player
+                    else:
+                        za_effet(loop-player, "hunger", 8, 0)
+                        send action bar "&2Zone contaminee..." to loop-player
+                if {_c} >= 250:
+                    if za_masque(loop-player) is false:
+                        za_effet(loop-player, "weakness", 12, 0)
+                if {_c} >= 400:
+                    za_effet(loop-player, "poison", 4, 0)
+                    send action bar "&4&lZONE PERDUE - fuis !" to loop-player
+
+# ---------- zones qui refusent la lumiere ----------
+on place:
+    if za_pro(player) is true:
+        stop
+    if event-block is torch:
+        set {_k} to za_ckey(location of event-block)
+        if {za::contam::%{_k}%} >= 150:
+            cancel the event
+            send "&8La lumiere s'eteint aussitot... cette zone la refuse." to player
+
+# ---------- coffres contamines ----------
+on right click on chest:
+    if za_pro(player) is true:
+        stop
+    set {_k} to za_ckey(location of event-block)
+    if {za::contam::%{_k}%} >= 100:
+        if chance of 20%:
+            if {za::infection::%player's uuid%} is not set:
+                set {za::infection::%player's uuid%} to now
+                send "&2Des spores s'echappent du coffre... tu sens la fievre monter." to player
+
+command /contamination:
+    trigger:
+        set {_k} to za_ckey(location of player)
+        set {_c} to {za::contam::%{_k}%}
+        if {_c} is not set:
+            set {_c} to 0
+        send "&7Contamination de ce chunk: &2%{_c}% &7(100 = contamine, 250 = dangereux, 400 = perdu)" to player
+
+command /zone:
+    trigger:
+        za_zone_info(player)
+
+# ---------- ressources epuisables (par chunk) ----------
+on break:
+    if za_pro(player) is true:
+        stop
+    if event-block is coal ore or iron ore or copper ore or gold ore or redstone ore or lapis ore or diamond ore or emerald ore:
+        set {_k} to za_ckey(location of event-block)
+        if {za::mine::%{_k}%} is not set:
+            set {za::mine::%{_k}%} to 0
+        if {za::mine::%{_k}%} >= 120:
+            cancel the event
+            send "&7Le filon est epuise dans cette zone. Va explorer plus loin." to player
+        else:
+            add 1 to {za::mine::%{_k}%}
+
+every 30 minutes:
+    loop {za::mine::*}:
+        set {_k} to loop-index
+        remove 20 from {za::mine::%{_k}%}
+        if {za::mine::%{_k}%} <= 0:
+            delete {za::mine::%{_k}%}
+
+# ---------- sanctuaires (soignent) : crees par un admin ----------
+command /sanctuaire <text> [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "creer":
+            if arg-2 is not set:
+                send "&cUsage: /sanctuaire creer <nom>" to player
+            else:
+                set {za::sanctuaire::%arg-2%} to location of player
+                send "&aSanctuaire %arg-2% cree ici (rayon 12)." to player
+        else if arg-1 is "supprimer":
+            delete {za::sanctuaire::%arg-2%}
+            send "&aSanctuaire supprime." to player
+        else:
+            send "&cUsage: /sanctuaire <creer|supprimer> <nom>" to player
+
+every 5 seconds:
+    loop {za::sanctuaire::*}:
+        set {_loc} to loop-value
+        loop all players:
+            if za_pro(loop-player) is false:
+                if world of loop-player is world of {_loc}:
+                    if distance between loop-player and {_loc} < 12:
+                        za_effet(loop-player, "regeneration", 6, 0)
+                        if {za::sanite::%loop-player's uuid%} is set:
+                            add 2 to {za::sanite::%loop-player's uuid%}
+                        if {za::infection::%loop-player's uuid%} is set:
+                            if difference between {za::infection::%loop-player's uuid%} and now is less than 10 minutes:
+                                delete {za::infection::%loop-player's uuid%}
+                                za_resistance(loop-player)
+                                send "&aLe sanctuaire chasse l'infection." to loop-player
+
+# ---------- memoire des lieux de mort ----------
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    add location of victim to {za::morts::*}
+    if size of {za::morts::*} > 60:
+        set {_first} to first element of {za::morts::*}
+        remove {_first} from {za::morts::*}
+
+every 30 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            loop {za::morts::*}:
+                if world of loop-player is world of loop-value-2:
+                    if distance between loop-player and loop-value-2 < 20:
+                        send action bar "&8Un froid t'envahit : quelqu'un est mort ici." to loop-player
+                        exit loop
+                        if {za::sanite::%loop-player's uuid%} is set:
+                            remove 1 from {za::sanite::%loop-player's uuid%}
+
+# ---------- soleil qui s'affaiblit : les jours raccourcissent avec l'age du serveur ----------
+# (toutes les 20 s au lieu de chaque seconde : evite de remplir la console de "Set the time")
+every 20 seconds:
+    set {_e} to min(4, floor({za::serveur::jours} / 10))
+    if {_e} > 0:
+        execute console command "time add %{_e} * 20%"

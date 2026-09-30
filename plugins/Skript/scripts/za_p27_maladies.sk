@@ -1,0 +1,217 @@
+# =====================================================================
+#  ZombieApocalypse - MALADIES SECONDAIRES, HYGIENE, EPUISEMENT
+#  (differents du virus zombie)
+#  * Infection de plaie : une blessure de zombie non bandee dans les 3 minutes s'infecte (30 pourcent, 60 si tu es sale).
+#    Effets : faiblesse. Sans soin apres 15 minutes -> fievre. Soins : Bandage, Antibiotique, Serum.
+#  * Grippe : rester dehors sous la pluie (4 minutes ou plus) peut la donner. Contagieuse de tout pres. Guerit en dormant, au bout
+#    de 30 minutes, ou avec un Antibiotique. Sans soin apres 20 minutes -> fievre.
+#  * Fievre : faim, nausee, vue qui baisse, degats lents. Seuls l'Antibiotique ou le Serum la soignent.
+#  * Hygiene : ton corps se salit ; se laver = entrer dans l'eau ou rester dehors sous la pluie. Sale : les morts te sentent, plaies plus dangereuses.
+#  * Epuisement cumulatif : bouger beaucoup et se battre sans vrai repos fait monter l'epuisement ; a 90, tu t'effondres.
+#    Le repos (immobile ou accroupi) le baisse, le lit le remet a 40.
+#  Objet : "Antibiotique" (Medecin de rue, coffres de labo). /survie affiche tout.
+# =====================================================================
+
+options:
+    maladies_actif: true
+
+# ---------- blessure de zombie : plaie en attente de soin ----------
+on damage of player:
+    if za_pro(victim) is true:
+        stop
+    if {@maladies_actif} is true:
+        if attacker is a zombie:
+            if {za::plaie::flag::%victim's uuid%} is not set:
+                set {za::plaie::flag::%victim's uuid%} to now
+
+# ---------- antibiotique ----------
+on consume:
+    if za_pro(player) is true:
+        stop
+    if uncolored name of event-item is "Antibiotique":
+        set {_u} to "%player's uuid%"
+        set {_ok} to false
+        if any:
+            {za::mal::plaie::%{_u}%} is set
+            {za::mal::grippe::%{_u}%} is set
+            {za::mal::fievre::%{_u}%} is set
+        then:
+            set {_ok} to true
+        delete {za::mal::plaie::%{_u}%}
+        delete {za::mal::grippe::%{_u}%}
+        delete {za::mal::fievre::%{_u}%}
+        delete {za::plaie::flag::%{_u}%}
+        if {_ok} is true:
+            send "&bL'antibiotique agit : plaie, grippe et fievre reculent." to player
+        else:
+            send "&7Tu n'avais rien a soigner (mais ca ne fait pas de mal)." to player
+
+on bed enter:
+    if za_pro(player) is true:
+        stop
+    delete {za::mal::grippe::%player's uuid%}
+    set {_e} to {za::epuis::%player's uuid%}
+    if {_e} is set:
+        if {_e} > 40:
+            set {za::epuis::%player's uuid%} to 40
+
+# ---------- evolution des maladies (toutes les 30 secondes) ----------
+every 30 seconds:
+    if {@maladies_actif} is true:
+        loop all players:
+            if za_pro(loop-player) is false:
+                set {_p} to loop-player
+                set {_u} to "%{_p}'s uuid%"
+                # plaie non soignee au bout de 3 minutes
+                if {za::plaie::flag::%{_u}%} is set:
+                    if difference between {za::plaie::flag::%{_u}%} and now is greater than 3 minutes:
+                        delete {za::plaie::flag::%{_u}%}
+                        set {_c} to 30
+                        if {za::hygiene::%{_u}%} is set:
+                            if {za::hygiene::%{_u}%} < 30:
+                                set {_c} to 60
+                        if chance of {_c}%:
+                            set {za::mal::plaie::%{_u}%} to now
+                            send "&cTa blessure s'infecte... un bandage ou un antibiotique s'impose." to {_p}
+                # effets de la plaie
+                if {za::mal::plaie::%{_u}%} is set:
+                    za_effet({_p}, "weakness", 45, 0)
+                    if difference between {za::mal::plaie::%{_u}%} and now is greater than 15 minutes:
+                        if {za::mal::fievre::%{_u}%} is not set:
+                            set {za::mal::fievre::%{_u}%} to now
+                            send "&4La fievre monte : ta plaie n'a pas ete soignee." to {_p}
+                # grippe : guerison naturelle apres 30 minutes, fievre apres 20
+                if {za::mal::grippe::%{_u}%} is set:
+                    za_effet({_p}, "weakness", 45, 0)
+                    if chance of 25%:
+                        play sound "entity.villager.no" to {_p}
+                        send action bar "&7*tousse*" to {_p}
+                        if {za::sanite::%{_u}%} is set:
+                            remove 1 from {za::sanite::%{_u}%}
+                    set {_age} to difference between {za::mal::grippe::%{_u}%} and now
+                    if {_age} is greater than 30 minutes:
+                        delete {za::mal::grippe::%{_u}%}
+                        send "&aLa grippe est passee." to {_p}
+                    else if {_age} is greater than 20 minutes:
+                        if {za::mal::fievre::%{_u}%} is not set:
+                            set {za::mal::fievre::%{_u}%} to now
+                            send "&4La grippe tourne a la fievre." to {_p}
+                    # contagion de tout pres
+                    set {_near::*} to all players in radius 3 around {_p}
+                    loop {_near::*}:
+                        if loop-value-2 is not {_p}:
+                            if {za::mal::grippe::%loop-value-2's uuid%} is not set:
+                                if chance of 6%:
+                                    set {za::mal::grippe::%loop-value-2's uuid%} to now
+                                    send "&7Tu commences a avoir mal a la gorge... (grippe)" to loop-value-2
+                # fievre
+                if {za::mal::fievre::%{_u}%} is set:
+                    za_effet({_p}, "hunger", 40, 0)
+                    za_effet({_p}, "nausea", 12, 0)
+                    za_effet({_p}, "darkness", 12, 0)
+                    if health of {_p} > 4:
+                        damage {_p} by 0.5
+
+# ---------- grippe : l'exposition a la pluie (toutes les minutes) ----------
+every 60 seconds:
+    if {@maladies_actif} is true:
+        loop all players:
+            if za_pro(loop-player) is false:
+                set {_u} to "%loop-player's uuid%"
+                set {_l} to location of loop-player
+                set {_dehors} to false
+                if weather in world of loop-player is rainy:
+                    if y-coordinate of {_l} >= y-coordinate of (location of (highest block at {_l})):
+                        set {_dehors} to true
+                if {_dehors} is true:
+                    add 1 to {za::grippe::expo::%{_u}%}
+                    if {za::grippe::expo::%{_u}%} >= 4:
+                        if {za::mal::grippe::%{_u}%} is not set:
+                            if chance of 25%:
+                                set {za::mal::grippe::%{_u}%} to now
+                                send "&7Tu es trempe et ca se sent : tu couves une grippe." to loop-player
+                else:
+                    if {za::grippe::expo::%{_u}%} > 0:
+                        remove 1 from {za::grippe::expo::%{_u}%}
+
+# ---------- hygiene ----------
+every 10 seconds:
+    if {@maladies_actif} is true:
+        loop all players:
+            if za_pro(loop-player) is false:
+                set {_p} to loop-player
+                set {_u} to "%{_p}'s uuid%"
+                if {za::hygiene::%{_u}%} is not set:
+                    set {za::hygiene::%{_u}%} to 100
+                remove 0.3 from {za::hygiene::%{_u}%}
+                set {_l} to location of {_p}
+                if "%block at {_l}%" contains "water":
+                    set {za::hygiene::%{_u}%} to 100
+                else if weather in world of {_p} is rainy:
+                    if y-coordinate of {_l} >= y-coordinate of (location of (highest block at {_l})):
+                        add 3 to {za::hygiene::%{_u}%}
+                if {za::hygiene::%{_u}%} > 100:
+                    set {za::hygiene::%{_u}%} to 100
+                if {za::hygiene::%{_u}%} < 0:
+                    set {za::hygiene::%{_u}%} to 0
+                set {_h} to {za::hygiene::%{_u}%}
+                if {_h} < 30:
+                    if {za::sanite::%{_u}%} is set:
+                        remove 0.5 from {za::sanite::%{_u}%}
+                    if chance of 2%:
+                        za_spawn_near({_p}, "ZA_Shambler", 14, 22)
+                    if {_h} < 10:
+                        if {za::hygiene::alerte::%{_u}%} is not "pue":
+                            set {za::hygiene::alerte::%{_u}%} to "pue"
+                            send "&4Tu pues. Les morts te sentent de loin. Lave-toi (eau ou pluie)." to {_p}
+                    else if {za::hygiene::alerte::%{_u}%} is not "sale":
+                        set {za::hygiene::alerte::%{_u}%} to "sale"
+                        send "&8Tu sens mauvais... il serait temps de te laver." to {_p}
+                else:
+                    delete {za::hygiene::alerte::%{_u}%}
+
+# ---------- epuisement cumulatif (toutes les 30 secondes) ----------
+every 30 seconds:
+    if {@maladies_actif} is true:
+        loop all players:
+            if za_pro(loop-player) is false:
+                set {_p} to loop-player
+                set {_u} to "%{_p}'s uuid%"
+                if {za::epuis::%{_u}%} is not set:
+                    set {za::epuis::%{_u}%} to 0
+                set {_l} to location of {_p}
+                set {_d} to 0
+                if {za::epuis::last::%{_u}%} is set:
+                    if world of {za::epuis::last::%{_u}%} is world of {_l}:
+                        set {_d} to distance between {za::epuis::last::%{_u}%} and {_l}
+                set {za::epuis::last::%{_u}%} to {_l}
+                if {_d} > 30:
+                    add 3 to {za::epuis::%{_u}%}
+                else if {_d} > 10:
+                    add 2 to {za::epuis::%{_u}%}
+                else if any:
+                    {_p} is sneaking
+                    {_d} < 3
+                then:
+                    remove 3 from {za::epuis::%{_u}%}
+                if {za::epuis::%{_u}%} < 0:
+                    set {za::epuis::%{_u}%} to 0
+                set {_e} to {za::epuis::%{_u}%}
+                if {_e} >= 90:
+                    send "&4&lTu t'effondres d'epuisement..." to {_p}
+                    za_effet({_p}, "blindness", 15, 0)
+                    za_effet({_p}, "slowness", 20, 3)
+                    za_effet({_p}, "nausea", 12, 0)
+                    set {za::epuis::%{_u}%} to 60
+                else if {_e} >= 75:
+                    za_effet({_p}, "weakness", 40, 0)
+                    za_effet({_p}, "slowness", 40, 0)
+                else if {_e} >= 50:
+                    za_effet({_p}, "slowness", 40, 0)
+
+on damage of zombie:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        if {za::epuis::%attacker's uuid%} is set:
+            add 0.4 to {za::epuis::%attacker's uuid%}

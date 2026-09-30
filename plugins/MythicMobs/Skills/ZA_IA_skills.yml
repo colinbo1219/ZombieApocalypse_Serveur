@@ -1,0 +1,12 @@
+# ZombieApocalypse - skills des zombies intelligents (agent E)
+ZA_Charognard_Bave:
+  Conditions:
+  - playerwithin{d=30} true
+  Skills:
+  - effect:particles{p=falling_dust;m=brown_concrete_powder;a=6;hS=0.3;vS=0.2;s=0} @self
+  - effect:sound{s=entity.hoglin.converted_to_zombified;v=0.6;p=1.4} @self
+ZA_Phototrope_Lueur:
+  Conditions:
+  - playerwithin{d=48} true
+  Skills:
+  - effect:particles{p=end_rod;a=3;hS=0.3;vS=0.6;s=0.01} @self

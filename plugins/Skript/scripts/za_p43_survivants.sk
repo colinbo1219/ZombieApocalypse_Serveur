@@ -1,0 +1,1660 @@
+# =====================================================================
+#  ZombieApocalypse - SURVIVANTS RECRUTABLES (module A1)
+#  * Rencontres : un survivant en détresse (caché ou blessé) apparaît de temps en temps à 60-120 blocs d'un joueur actif.
+#  * Interaction : clic droit sur le villageois -> menu (parler, donner vivres/eau/bandage, base, camp...).
+#  * Base : le survivant s'installe (rayon 40) et travaille chaque jour selon son rôle :
+#      produire / réparer / soigner / garder / commercer. Il mange dans la "Réserve" (coffre), a un moral, des amis, des rivaux.
+#  * Joueur : /survivants [role <nom> <rôle> | reserve | renvoyer <nom> | aide]
+#  * Admin/console : /zasurv creer <x> <y> <z> <monde> [métier|prisonnier|enfant] | liste | info <id> | jour | rencontre [joueur] | ...
+#  Données : {za::surv::<id>::nom|titre|vnom|metier|genre|role|faction|moral|faim|etat|lieu|camp|base|ami|rival|hist|jour|expire|special|pour
+#            |sauve|blesse|bas|alerte|conf::<uuid>}   liste : {za::surv::liste::*}
+#  Publié : {za::base::gardes::<uuid>} (nb de gardes), {za::surv::n::<uuid>} (nb de survivants à la base), {za::surv::reserve::<uuid>} (coffre)
+#  Statistiques : survivants_sauves, survivants_recrutes, camps_aides (via le module camps).
+# =====================================================================
+
+options:
+    base_max: 8
+    libres_max: 3
+
+on load:
+    if {za::surv::next} is not set:
+        set {za::surv::next} to 0
+    if {za::surv::jour} is not set:
+        set {za::surv::jour} to {za::serveur::jours}
+
+# ---------------------------------------------------------------- outils généraux
+
+# joueur en ligne à partir de son uuid ("" si hors ligne)
+function za_surv_joueur(u: text) :: player:
+    loop all players:
+        if loop-player's uuid is {_u}:
+            return loop-player
+
+# le PNJ porte-t-il ce tag ? (les tags "za_surv_12" ne doivent pas être confondus avec "za_surv_1")
+function za_surv_a_tag(e: entity, t: text) :: boolean:
+    loop scoreboard tags of {_e}:
+        if loop-value is {_t}:
+            return true
+    return false
+
+# numéro du survivant d'un PNJ (tag za_surv_<id>), 0 sinon
+function za_surv_id_de(e: entity) :: number:
+    loop scoreboard tags of {_e}:
+        set {_t} to loop-value
+        if {_t} starts with "za_surv_":
+            set {_n} to subtext of {_t} from characters 9 to length of {_t}
+            if {_n} parsed as number is set:
+                return {_n} parsed as number
+    return 0
+
+function za_surv_dit(p: player, nom: text, texte: text):
+    send "&e%{_nom}% &8» &f%{_texte}%" to {_p}
+
+# barre de 10 crans (moral / confiance) colorée selon la valeur
+function za_surv_barre(n: number) :: text:
+    set {_n} to min(100, max(0, {_n}))
+    set {_k} to floor({_n} / 10)
+    set {_c} to "&c"
+    if {_n} >= 60:
+        set {_c} to "&a"
+    else if {_n} >= 30:
+        set {_c} to "&e"
+    set {_s} to "%{_c}%"
+    loop {_k} times:
+        set {_s} to "%{_s}%█"
+    set {_s} to "%{_s}%&8"
+    loop (10 - {_k}) times:
+        set {_s} to "%{_s}%█"
+    return "%{_s}% &f%floor({_n})%"
+
+# point cardinal (français) de A vers B
+function za_surv_dir(a: location, b: location) :: text:
+    set {_dx} to x-coordinate of {_b} - x-coordinate of {_a}
+    set {_dz} to z-coordinate of {_b} - z-coordinate of {_a}
+    set {_ang} to atan2({_dx}, {_dz})
+    if {_ang} < -157.5:
+        return "l'ouest"
+    if {_ang} < -112.5:
+        return "le nord-ouest"
+    if {_ang} < -67.5:
+        return "le nord"
+    if {_ang} < -22.5:
+        return "le nord-est"
+    if {_ang} < 22.5:
+        return "l'est"
+    if {_ang} < 67.5:
+        return "le sud-est"
+    if {_ang} < 112.5:
+        return "le sud"
+    if {_ang} < 157.5:
+        return "le sud-ouest"
+    return "l'ouest"
+
+# distance arrondie à 10 (ou 50 au-delà de 300), même monde requis
+function za_surv_dist(a: location, b: location) :: number:
+    if world of {_a} is not world of {_b}:
+        return 9999
+    set {_d} to distance between {_a} and {_b}
+    if {_d} > 300:
+        return round({_d} / 50) * 50
+    return max(10, round({_d} / 10) * 10)
+
+# message à un joueur, ou mis de côté jusqu'à sa prochaine connexion
+function za_surv_avis(u: text, m: text):
+    set {_p} to za_surv_joueur({_u})
+    if {_p} is set:
+        send "%{_m}%" to {_p}
+    else:
+        if size of {za::surv::avis::%{_u}%::*} < 12:
+            add {_m} to {za::surv::avis::%{_u}%::*}
+
+on join:
+    if za_pro(player) is true:
+        stop
+    set {_u} to player's uuid
+    if {za::surv::avis::%{_u}%::*} is set:
+        wait 6 seconds
+        if player is online:
+            send "&6&lPENDANT TON ABSENCE..." to player
+            loop {za::surv::avis::%{_u}%::*}:
+                send "%loop-value%" to player
+            delete {za::surv::avis::%{_u}%::*}
+
+# ---------------------------------------------------------------- données : noms, métiers, histoires
+
+function za_surv_prenom(g: text) :: text:
+    if {_g} is "f":
+        set {_l::*} to "Marie-Ève", "Sophie", "Isabelle", "Nathalie", "Mélanie", "Geneviève", "Josée", "Chantal", "Sylvie", "Karine", "Julie", "Émilie", "Catherine", "Véronique", "Stéphanie", "Annie", "Manon", "Lucie", "Diane", "Nadia", "Camille", "Amélie", "Cindy", "Roxanne", "Mireille" and "Jocelyne"
+    else:
+        set {_l::*} to "Jean-François", "Mathieu", "Simon", "Luc", "Marc-André", "Yannick", "Sébastien", "Patrick", "Gilles", "Denis", "Alain", "Maxime", "Étienne", "Guillaume", "Pierre-Luc", "Réal", "Normand", "Benoît", "Jocelyn", "Francis", "Dominic", "Steve", "Rémi", "Claude", "Bruno" and "Émile"
+    return random element out of {_l::*}
+
+function za_surv_famille() :: text:
+    set {_l::*} to "Tremblay", "Roy", "Côté", "Gauthier", "Morin", "Lavoie", "Fortin", "Gagné", "Ouellet", "Pelletier", "Bélanger", "Lévesque", "Bergeron", "Paquette", "Girard", "Simard", "Boucher", "Caron", "Beaulieu", "Cloutier", "Dubé", "Poirier", "Fournier", "Lapointe", "Leclerc", "Poulin", "Nadeau", "Landry", "Martel", "Desrosiers", "Thibault", "Hamel", "Turcotte", "Demers", "Bilodeau", "Savard", "Gervais" and "Rioux"
+    return random element out of {_l::*}
+
+function za_surv_metiers() :: texts:
+    return "mecanicien", "infirmier", "cuisinier", "electricien", "soldat", "enseignant", "chasseur", "pharmacien", "ado", "camionneur", "agriculteur" and "menuisier"
+
+# métier affiché (accordé)
+function za_surv_metier_txt(m: text, g: text) :: text:
+    set {_f} to false
+    if {_g} is "f":
+        set {_f} to true
+    if {_m} is "mecanicien":
+        if {_f} is true:
+            return "mécanicienne"
+        return "mécanicien"
+    if {_m} is "infirmier":
+        if {_f} is true:
+            return "infirmière"
+        return "infirmier"
+    if {_m} is "cuisinier":
+        if {_f} is true:
+            return "cuisinière"
+        return "cuisinier"
+    if {_m} is "electricien":
+        if {_f} is true:
+            return "électricienne"
+        return "électricien"
+    if {_m} is "soldat":
+        if {_f} is true:
+            return "ancienne soldate"
+        return "ancien soldat"
+    if {_m} is "enseignant":
+        if {_f} is true:
+            return "enseignante"
+        return "enseignant"
+    if {_m} is "chasseur":
+        if {_f} is true:
+            return "chasseuse"
+        return "chasseur"
+    if {_m} is "pharmacien":
+        if {_f} is true:
+            return "pharmacienne"
+        return "pharmacien"
+    if {_m} is "ado":
+        if {_f} is true:
+            return "ado débrouillarde"
+        return "ado débrouillard"
+    if {_m} is "camionneur":
+        if {_f} is true:
+            return "camionneuse"
+        return "camionneur"
+    if {_m} is "agriculteur":
+        if {_f} is true:
+            return "agricultrice"
+        return "agriculteur"
+    if {_m} is "menuisier":
+        if {_f} is true:
+            return "menuisière"
+        return "menuisier"
+    if {_m} is "enfant":
+        return "enfant"
+    return {_m}
+
+# rôle par défaut selon le métier
+function za_surv_metier_role(m: text) :: text:
+    if {_m} is "mecanicien" or "electricien" or "menuisier":
+        return "reparer"
+    if {_m} is "cuisinier" or "agriculteur" or "enfant":
+        return "produire"
+    if {_m} is "infirmier" or "pharmacien":
+        return "soigner"
+    if {_m} is "soldat" or "chasseur":
+        return "garder"
+    return "commercer"
+
+function za_surv_metier_faction(m: text) :: text:
+    if {_m} is "infirmier" or "pharmacien":
+        return "scientifiques"
+    if {_m} is "soldat" or "chasseur":
+        return "milice"
+    if {_m} is "camionneur" or "ado":
+        return "marchands"
+    return "survivants"
+
+function za_surv_role_nom(r: text) :: text:
+    if {_r} is "reparer":
+        return "Réparateur"
+    if {_r} is "produire":
+        return "Producteur"
+    if {_r} is "soigner":
+        return "Soigneur"
+    if {_r} is "garder":
+        return "Garde"
+    if {_r} is "commercer":
+        return "Marchand"
+    return {_r}
+
+function za_surv_role_desc(r: text) :: text:
+    if {_r} is "reparer":
+        return "Répare chaque jour l'équipement abîmé rangé dans la Réserve (+25 %% de durabilité) et te fait un rabais sur /reparer."
+    if {_r} is "produire":
+        return "Cuisine et cultive : ajoute chaque jour de la nourriture dans la Réserve."
+    if {_r} is "soigner":
+        return "Soigne lentement les joueurs de la base, traite tes blessures chaque jour et fabrique 2 Bandages."
+    if {_r} is "garder":
+        return "Tire sur les morts qui s'approchent (24 blocs) et réduit le danger des sièges."
+    if {_r} is "commercer":
+        return "Vend des provisions et rachète ton butin (clic droit sur lui, à la base)."
+    return ""
+
+# titre du PNJ (nom du villageois) : certains préfixes déclenchent la bonne apparence côté client
+function za_surv_titre(m: text, g: text, nom: text) :: text:
+    if {_m} is "infirmier":
+        if {_g} is "f":
+            return "Infirmière %{_nom}%"
+        return "Infirmier %{_nom}%"
+    if {_m} is "soldat":
+        if {_g} is "f":
+            return "Soldate %{_nom}%"
+        return "Soldat %{_nom}%"
+    return {_nom}
+
+function za_surv_histoire(m: text) :: text:
+    if {_m} is "mecanicien":
+        set {_h::*} to "J'avais un garage à Saint-Aurèle. Le monde m'appelait encore quand leur char partait pus. Là, y'a pus de char qui part." and "Mécano chez un concessionnaire de Beloeil. Le premier matin, un client est entré en toussant sur mon comptoir. J'ai pas fermé la porte assez vite."
+    else if {_m} is "infirmier":
+        set {_h::*} to "Je faisais mes quarts à l'hôpital de Saint-Aurèle. Quand ils ont barré les portes, j'étais du mauvais bord." and "Vingt ans à l'urgence pis j'ai jamais rien vu de pareil. J'ai pas sauvé grand monde. Sauf moi."
+    else if {_m} is "cuisinier":
+        set {_h::*} to "J'avais un casse-croûte sur la 20. Ma poutine, c'était une légende locale. Astheure, je fais bouillir des semelles." and "Cuistot dans un resto de Beloeil. Tu peux pas rater un ragoût avec de vieilles patates. Mais personne m'en demande autant."
+    else if {_m} is "electricien":
+        set {_h::*} to "Mon métier, c'est le courant. Le courant est pu là, fait que je me sens comme un pompier dans le désert." and "Je travaillais pour Hydro. Je sais où passent les lignes... pis où les morts aiment se cacher."
+    else if {_m} is "soldat":
+        set {_h::*} to "Réserviste à Saint-Jean. On nous a dit de tenir le pont. J'ai tenu. Eux autres, non." and "Dix ans dans l'armée pis rien m'avait préparé à ça. Les ordres ont arrêté d'arriver un mardi."
+    else if {_m} is "enseignant":
+        set {_h::*} to "J'enseignais les sciences au secondaire. Mes élèves... j'y pense chaque soir." and "Prof d'histoire. C'est ironique : on est en train d'écrire la pire page de toutes."
+    else if {_m} is "chasseur":
+        set {_h::*} to "Je chasse depuis mes douze ans. Le chevreuil, ça court. Eux autres, ça marche. C'est pas pire." and "Mon camp de chasse était à trois heures d'ici. J'ai marché quatre jours pour rentrer, pis y'avait pus personne."
+    else if {_m} is "pharmacien":
+        set {_h::*} to "J'avais la pharmacie du village. Quand ça a commencé, j'ai tout donné. Après, j'ai barricadé la porte." and "Je connais chaque pilule, chaque dose. Mais pas contre ça. Personne connaît ça."
+    else if {_m} is "ado":
+        set {_h::*} to "J'ai seize ans pis je me débrouille. J'étais déjà bon pour trouver du stock là où y'en a pas." and "Mes parents sont partis chercher du secours. Ça fait onze jours. Je les attends encore."
+    else if {_m} is "camionneur":
+        set {_h::*} to "Camionneur sur la 20, Montréal-Québec. J'ai vu la route se remplir de chars vides. Abandonnés, portières ouvertes." and "Ma cargaison, c'était des palettes de conserves. J'ai tout perdu, sauf mes bottes pis mon vieux thermos."
+    else if {_m} is "agriculteur":
+        set {_h::*} to "Ferme laitière à Saint-Aurèle. Mes vaches... j'ai pas voulu voir. J'ai gardé les semences." and "Je sais faire pousser des patates dans n'importe quoi. C'est utile, astheure."
+    else if {_m} is "menuisier":
+        set {_h::*} to "Menuisier depuis trente ans. Je bâtis des affaires solides. Ces temps-ci, « solide », ça veut dire « vivant »." and "J'ai monté des cabanons pour la moitié du rang. Pas un seul qui aurait tenu une nuit. Je vais faire mieux."
+    else if {_m} is "enfant":
+        set {_h::*} to "Mes parents m'ont dit d'attendre ici. Ils sont pas revenus. J'ai compté les jours sur le mur." and "J'ai huit ans... presque neuf. Faut pas me laisser tout seul, OK ?"
+    else:
+        set {_h::*} to "Je suis encore là. C'est déjà beaucoup."
+    return random element out of {_h::*}
+
+# ---------------------------------------------------------------- enregistrement d'un survivant
+
+function za_surv_conf(u: text, id: number) :: number:
+    if {za::surv::%{_id}%::conf::%{_u}%} is not set:
+        return 0
+    return {za::surv::%{_id}%::conf::%{_u}%}
+
+function za_surv_conf_ajouter(u: text, id: number, n: number):
+    set {_c} to za_surv_conf({_u}, {_id}) + {_n}
+    set {za::surv::%{_id}%::conf::%{_u}%} to min(100, max(0, {_c}))
+
+function za_surv_moral_ajouter(id: number, n: number):
+    set {_m} to {za::surv::%{_id}%::moral}
+    if {_m} is not set:
+        set {_m} to 50
+    set {za::surv::%{_id}%::moral} to min(100, max(0, {_m} + {_n}))
+
+# crée l'enregistrement (sans PNJ). m/g vides = au hasard. etat : cache|blesse|camp|base
+function za_surv_creer_rec(m: text, g: text, l: location, etat: text) :: number:
+    add 1 to {za::surv::next}
+    set {_id} to {za::surv::next}
+    set {_g2} to {_g}
+    if {_g2} is "":
+        set {_g2} to random element out of "f" and "m"
+    set {_m2} to {_m}
+    if {_m2} is "":
+        set {_ms::*} to za_surv_metiers()
+        set {_m2} to random element out of {_ms::*}
+    if {_m2} is "enfant":
+        set {_g2} to random element out of "f" and "m"
+    set {_nom} to "%za_surv_prenom({_g2})% %za_surv_famille()%"
+    set {za::surv::%{_id}%::nom} to {_nom}
+    set {za::surv::%{_id}%::titre} to za_surv_titre({_m2}, {_g2}, {_nom})
+    set {za::surv::%{_id}%::vnom} to {za::surv::%{_id}%::titre}
+    set {za::surv::%{_id}%::metier} to {_m2}
+    set {za::surv::%{_id}%::genre} to {_g2}
+    set {za::surv::%{_id}%::role} to za_surv_metier_role({_m2})
+    set {za::surv::%{_id}%::faction} to za_surv_metier_faction({_m2})
+    set {za::surv::%{_id}%::moral} to random integer between 40 and 65
+    set {za::surv::%{_id}%::faim} to random integer between 15 and 45
+    set {za::surv::%{_id}%::etat} to {_etat}
+    set {za::surv::%{_id}%::lieu} to {_l}
+    set {za::surv::%{_id}%::hist} to za_surv_histoire({_m2})
+    set {za::surv::%{_id}%::jour} to {za::serveur::jours}
+    set {za::surv::%{_id}%::bas} to 0
+    add {_id} to {za::surv::liste::*}
+    return {_id}
+
+# supprime le PNJ (s'il est chargé) : renvoie vrai si trouvé
+function za_surv_npc(id: number) :: entity:
+    set {_l} to {za::surv::%{_id}%::lieu}
+    if {_l} is not set:
+        stop
+    set {_t} to "za_surv_%{_id}%"
+    loop all villagers in radius 64 around {_l}:
+        if za_surv_a_tag(loop-entity, {_t}) is true:
+            return loop-entity
+
+function za_surv_npc_retirer(id: number):
+    set {_e} to za_surv_npc({_id})
+    if {_e} is set:
+        execute console command "execute at %uuid of {_e}% run particle minecraft:poof ~ ~1 ~ 0.3 0.5 0.3 0.02 12 force"
+        delete {_e}
+
+# fait apparaître le villageois (une fois) à l'emplacement enregistré
+function za_surv_npc_placer(id: number):
+    set {_l} to {za::surv::%{_id}%::lieu}
+    if {_l} is not set:
+        stop
+    if za_surv_npc({_id}) is set:
+        stop
+    set {_vn} to {za::surv::%{_id}%::vnom}
+    set {_age} to ""
+    if {za::surv::%{_id}%::metier} is "enfant":
+        set {_age} to "Age:-2000000000,"
+    set {_wd} to za_dim(world of {_l})
+    execute console command "execute in %{_wd}% run summon villager %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% {CustomName:'""%{_vn}%""',CustomNameVisible:1b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b,%{_age}%VillagerData:{profession:""minecraft:nitwit"",level:1,type:""minecraft:plains""},Tags:[""za_surv"",""za_surv_%{_id}%""]}"
+
+# retire un survivant de la partie (record + PNJ). motif : parti|mort|zombifie
+function za_surv_clore(id: number, motif: text):
+    set {_e} to za_surv_npc({_id})
+    if {_e} is set:
+        delete {_e}
+    set {za::surv::%{_id}%::etat} to {_motif}
+    remove {_id} from {za::surv::liste::*}
+    set {_u} to {za::surv::%{_id}%::base}
+    delete {za::surv::%{_id}%::*}
+    if {_u} is set:
+        za_surv_recompte({_u})
+
+# ---------------------------------------------------------------- réserve (coffre de la base)
+
+function za_surv_reserve(u: text) :: block:
+    set {_l} to {za::surv::reserve::%{_u}%}
+    if {_l} is not set:
+        stop
+    set {_b} to block at {_l}
+    set {_t} to "%type of {_b}%"
+    if {_t} contains "chest":
+        return {_b}
+    if {_t} contains "barrel":
+        return {_b}
+
+function za_surv_stocker(u: text, it: itemtype) :: boolean:
+    set {_b} to za_surv_reserve({_u})
+    if {_b} is not set:
+        return false
+    set {_inv} to inventory of {_b}
+    if {_inv} can hold {_it}:
+        add {_it} to {_inv}
+        return true
+    return false
+
+# aliment acceptable pour un survivant (pas de rotten flesh au premier passage, pas de médicaments ni pommes d'or)
+function za_surv_vivre_ok(it: itemtype, dur: boolean) :: boolean:
+    if {_it} is not edible:
+        return false
+    set {_t} to "%type of {_it}%"
+    set {_n} to uncolored name of {_it}
+    if {_n} is "Serum" or "Antibiotique" or "Antidote" or "Bandage":
+        return false
+    if {_t} contains "golden apple" or "honey" or "suspicious" or "chorus" or "potion":
+        return false
+    if {_dur} is false:
+        if {_t} contains "rotten" or "spider eye" or "poisonous" or "pufferfish":
+            return false
+    return true
+
+# le survivant mange un aliment de la Réserve ; renvoie vrai s'il a mangé
+function za_surv_manger(u: text) :: boolean:
+    set {_b} to za_surv_reserve({_u})
+    if {_b} is not set:
+        return false
+    set {_inv} to inventory of {_b}
+    set {_pass} to 1
+    while {_pass} <= 2:
+        set {_i} to 0
+        while slot {_i} of {_inv} is set:
+            set {_it} to slot {_i} of {_inv}
+            set {_dur} to false
+            if {_pass} is 2:
+                set {_dur} to true
+            if za_surv_vivre_ok({_it}, {_dur}) is true:
+                remove 1 from item amount of {_it}
+                if item amount of {_it} <= 0:
+                    set slot {_i} of {_inv} to air
+                else:
+                    set slot {_i} of {_inv} to {_it}
+                return true
+            add 1 to {_i}
+        add 1 to {_pass}
+    return false
+
+# ---------------------------------------------------------------- comptes par base
+
+function za_surv_recompte(u: text):
+    set {_n} to 0
+    set {_g} to 0
+    set {_s} to 0
+    loop {za::surv::liste::*}:
+        set {_id} to loop-value
+        if {za::surv::%{_id}%::etat} is "base":
+            if {za::surv::%{_id}%::base} is {_u}:
+                add 1 to {_n}
+                if {za::surv::%{_id}%::blesse} is not true:
+                    if {za::surv::%{_id}%::role} is "garder":
+                        add 1 to {_g}
+                    if {za::surv::%{_id}%::role} is "soigner":
+                        add 1 to {_s}
+    set {za::surv::n::%{_u}%} to {_n}
+    set {za::base::gardes::%{_u}%} to {_g}
+    set {za::surv::soigneurs::%{_u}%} to {_s}
+
+# nombre de survivants d'un rôle donné à la base d'un joueur (valides, non blessés)
+function za_surv_role_nb(u: text, r: text) :: number:
+    set {_n} to 0
+    loop {za::surv::liste::*}:
+        set {_id} to loop-value
+        if {za::surv::%{_id}%::etat} is "base":
+            if {za::surv::%{_id}%::base} is {_u}:
+                if {za::surv::%{_id}%::role} is {_r}:
+                    if {za::surv::%{_id}%::blesse} is not true:
+                        add 1 to {_n}
+    return {_n}
+
+function za_surv_special_present(u: text, s: text) :: boolean:
+    loop {za::surv::liste::*}:
+        set {_id} to loop-value
+        if {za::surv::%{_id}%::etat} is "base":
+            if {za::surv::%{_id}%::base} is {_u}:
+                if {za::surv::%{_id}%::special} is {_s}:
+                    return true
+    return false
+
+# survivants libres (cachés / blessés) actuellement dans le monde
+function za_surv_libres() :: number:
+    set {_n} to 0
+    loop {za::surv::liste::*}:
+        set {_e} to {za::surv::%loop-value%::etat}
+        if {_e} is "cache" or "blesse":
+            add 1 to {_n}
+    return {_n}
+
+# ---------------------------------------------------------------- arrivée à la base
+
+function za_surv_spot_base(u: text) :: location:
+    set {_c} to {za::base::%{_u}%}
+    set {_r} to {za::surv::reserve::%{_u}%}
+    if {_r} is set:
+        if world of {_r} is world of {_c}:
+            set {_c} to {_r}
+    set {_l} to {_c}
+    add random number between -4 and 4 to x-coordinate of {_l}
+    add random number between -4 and 4 to z-coordinate of {_l}
+    return za_sol({_l})
+
+# le survivant rejoint la base de u (p = le joueur qui l'a convaincu, peut être absent)
+function za_surv_arriver_base(id: number, u: text, p: player):
+    set {_nom} to {za::surv::%{_id}%::nom}
+    set {_old} to {za::surv::%{_id}%::lieu}
+    if {_old} is set:
+        za_surv_npc_retirer({_id})
+    set {_l} to za_surv_spot_base({_u})
+    set {za::surv::%{_id}%::etat} to "base"
+    set {za::surv::%{_id}%::base} to {_u}
+    delete {za::surv::%{_id}%::camp}
+    delete {za::surv::%{_id}%::expire}
+    set {za::surv::%{_id}%::lieu} to {_l}
+    set {za::surv::%{_id}%::vnom} to {za::surv::%{_id}%::titre}
+    set {za::surv::%{_id}%::jour} to {za::serveur::jours}
+    set {za::surv::%{_id}%::moral} to random integer between 55 and 75
+    if za_surv_special_present({_u}, "theo") is true:
+        za_surv_moral_ajouter({_id}, 10)
+    # amitié / rivalité avec un résident
+    if {za::surv::%{_id}%::ami} is not set:
+        loop {za::surv::liste::*}:
+            set {_o} to loop-value
+            if {_o} is not {_id}:
+                if {za::surv::%{_o}%::etat} is "base":
+                    if {za::surv::%{_o}%::base} is {_u}:
+                        if {za::surv::%{_id}%::ami} is not set:
+                            if {za::surv::%{_id}%::rival} is not set:
+                                if {za::surv::%{_o}%::ami} is not set:
+                                    if {za::surv::%{_o}%::rival} is not set:
+                                        if chance of 40%:
+                                            set {za::surv::%{_id}%::ami} to {_o}
+                                            set {za::surv::%{_o}%::ami} to {_id}
+                                        else if chance of 25%:
+                                            set {za::surv::%{_id}%::rival} to {_o}
+                                            set {za::surv::%{_o}%::rival} to {_id}
+    za_surv_recompte({_u})
+    za_surv_npc_placer({_id})
+    if {_p} is set:
+        za_zm("son %{_p}% za_modeles:sfx.porte_grince 0.6 1")
+        send "&a%{_nom}% &7(%za_surv_metier_txt({za::surv::%{_id}%::metier}, {za::surv::%{_id}%::genre})%) rejoint ta base. Rôle : &e%za_surv_role_nom({za::surv::%{_id}%::role})%&7 (/survivants)." to {_p}
+        if {za::surv::reserve::%{_u}%} is not set:
+            send "&8&oIl faut lui montrer où sont les vivres : regarde un coffre de la base et tape &f/survivants reserve&8&o. Sans Réserve, il ne mange pas et ne travaille pas." to {_p}
+        else if za_surv_reserve({_u}) is not set:
+            send "&c&oTa Réserve n'existe plus : désigne un nouveau coffre avec /survivants reserve." to {_p}
+    za_journal("%{_nom}% a rejoint une base.")
+
+# ---------------------------------------------------------------- départ / mort
+
+function za_surv_partir(id: number, motif: text):
+    set {_nom} to {za::surv::%{_id}%::nom}
+    set {_u} to {za::surv::%{_id}%::base}
+    if {_u} is set:
+        if {_motif} is "moral":
+            za_surv_avis({_u}, "&c%{_nom}% a quitté ta base : le moral était au plus bas. « J'en peux pus. Bonne chance. »")
+        else if {_motif} is "base":
+            za_surv_avis({_u}, "&7%{_nom}% est parti : il n'y avait plus de base où rester.")
+        loop {za::surv::liste::*}:
+            set {_o} to loop-value
+            if {za::surv::%{_o}%::etat} is "base":
+                if {za::surv::%{_o}%::base} is {_u}:
+                    if {_o} is not {_id}:
+                        if {_motif} is "moral":
+                            za_surv_moral_ajouter({_o}, -3)
+    set {_e} to za_surv_npc({_id})
+    if {_e} is set:
+        execute console command "execute at %uuid of {_e}% run particle minecraft:poof ~ ~1 ~ 0.3 0.5 0.3 0.02 12 force"
+    za_surv_clore({_id}, "parti")
+
+function za_surv_mourir(id: number, cause: text):
+    set {_nom} to {za::surv::%{_id}%::nom}
+    set {_u} to {za::surv::%{_id}%::base}
+    set {_l} to {za::surv::%{_id}%::lieu}
+    set {_e} to za_surv_npc({_id})
+    if {_e} is set:
+        set {_l} to location of {_e}
+    set {_zomb} to false
+    if {_cause} is "siege":
+        if chance of 35%:
+            set {_zomb} to true
+    if {_l} is set:
+        drop za_item("iron nugget", "Plaque d'identité — %{_nom}%", "&7", 1) at {_l}
+        execute console command "execute in %za_dim(world of {_l})% run particle minecraft:soul ~ ~ ~ 0 0 0 0 1 force"
+    if {_u} is set:
+        loop {za::surv::liste::*}:
+            set {_o} to loop-value
+            if {za::surv::%{_o}%::etat} is "base":
+                if {za::surv::%{_o}%::base} is {_u}:
+                    if {_o} is not {_id}:
+                        za_surv_moral_ajouter({_o}, -15)
+        if {_zomb} is true:
+            za_surv_avis({_u}, "&4&l† &c%{_nom}% est tombé pendant le siège... &4et s'est relevé. &7Achève-le, il rôde près de ta base.")
+        else:
+            za_surv_avis({_u}, "&4&l† &c%{_nom}% est mort. &7Sa plaque d'identité est restée là où il est tombé.")
+    add "%{_nom}% (jour %{za::serveur::jours}%)" to {za::surv::morts::*}
+    za_journal("%{_nom}% est mort.")
+    if {_zomb} is true:
+        if {_l} is set:
+            set {_wd} to za_dim(world of {_l})
+            execute console command "execute in %{_wd}% run summon zombie_villager %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% {CustomName:'""%{_nom}%""',CustomNameVisible:1b,PersistenceRequired:1b,IsBaby:0b,Attributes:[{Name:""generic.max_health"",Base:24},{Name:""generic.attack_damage"",Base:4}],Health:24f,ActiveEffects:[{Id:12,Amplifier:0b,Duration:999999,ShowParticles:0b}]}"
+        za_surv_clore({_id}, "zombifie")
+    else:
+        za_surv_clore({_id}, "mort")
+
+# ---------------------------------------------------------------- menu d'un survivant (clic droit)
+
+function za_surv_menu(p: player, id: number):
+    set {_u} to {_p}'s uuid
+    set {za::surv::ctx::%{_u}%} to {_id}
+    set {_nom} to {za::surv::%{_id}%::nom}
+    set {_et} to {za::surv::%{_id}%::etat}
+    set {_m} to za_surv_metier_txt({za::surv::%{_id}%::metier}, {za::surv::%{_id}%::genre})
+    set {_c} to za_surv_conf({_u}, {_id})
+    if {za::surv::%{_id}%::special} is "theo":
+        if {za::surv::%{_id}%::pour} is not {_u}:
+            if {_et} is not "base":
+                send "&e%{_nom}% &8» &f« ... » &7L'enfant te regarde, méfiant. Il ne parle qu'à celui qui l'a appelé, ce soir-là." to {_p}
+                stop
+    if {_et} is "blesse":
+        set {_o::*} to "Panser ses plaies|bandage", "Lui donner de l'eau|eau", "Lui parler|parler" and "Partir|quit"
+        za_menu({_p}, "zasurvclic", "Survivant blessé", "Il est allongé contre un mur, la main pressée sur le flanc. Son souffle est court. « Un bandage... s'il vous plaît... » (Confiance : %floor({_c})% %%)", {_o::*})
+    else if {_et} is "cache":
+        set {_o::*} to "Lui parler|parler", "Donner de la nourriture|nourriture", "Donner de l'eau|eau", "Donner un bandage|bandage", "Tu peux venir à notre base ?|base", "Va au camp le plus proche|camp" and "Partir|quit"
+        za_menu({_p}, "zasurvclic", {_nom}, "%{_nom}%, %{_m}%. Il vous observe, prêt à fuir. Confiance : %floor({_c})% %%. À 50 %%, il acceptera peut-être de te suivre.", {_o::*})
+    else if {_et} is "base":
+        set {_r} to {za::surv::%{_id}%::role}
+        set {_o::*} to "Lui parler|parler", "Donner de la nourriture|nourriture", "Soigner (Bandage)|bandage" and "Changer son rôle|role"
+        if {_r} is "commercer":
+            add "Commercer|commerce" to {_o::*}
+        add "Le renvoyer|renvoyer" to {_o::*}
+        add "Partir|quit" to {_o::*}
+        set {_ex} to ""
+        if {za::surv::%{_id}%::blesse} is true:
+            set {_ex} to " Il est blessé."
+        za_menu({_p}, "zasurvclic", {_nom}, "%{_nom}%, %{_m}%. Rôle : %za_surv_role_nom({_r})%. Moral %floor({za::surv::%{_id}%::moral})% %%, faim %floor({za::surv::%{_id}%::faim})% %%.%{_ex}%", {_o::*})
+    else if {_et} is "camp":
+        set {_o::*} to "Lui parler|parler" and "Partir|quit"
+        za_menu({_p}, "zasurvclic", {_nom}, "%{_nom}%, %{_m}%, vit au camp.", {_o::*})
+
+function za_surv_role_menu(p: player, id: number):
+    set {_o::*} to "Réparateur|r_reparer", "Producteur|r_produire", "Soigneur|r_soigner", "Garde|r_garder", "Marchand|r_commercer" and "Retour|retour"
+    set {_r} to {za::surv::%{_id}%::role}
+    za_menu({_p}, "zasurvclic", "Changer de rôle", "Rôle actuel : %za_surv_role_nom({_r})%. %za_surv_role_desc({_r})%", {_o::*})
+
+function za_surv_commerce_menu(p: player, id: number):
+    set {_o::*} to "Bandage - 3 jetons|buy_bandage", "Eau purifiée - 2 jetons|buy_eau", "Conserve - 2 jetons|buy_conserve", "Flèches x12 - 3 jetons|buy_fleches", "Torches x8 - 2 jetons|buy_torches", "Vendre l'objet en main|sell" and "Retour|retour"
+    za_menu({_p}, "zasurvclic", "Le comptoir", "Provisions de base, prix fixes (remise de rang incluse). Il rachète aussi ton butin : compostants, essence, notes, lingots...", {_o::*})
+
+# prix de rachat par unité d'un objet tenu ("" -> 0)
+function za_surv_rachat(it: itemtype) :: number:
+    set {_n} to uncolored name of {_it}
+    if {_n} is "Composant electronique":
+        return 3
+    if {_n} is "Essence" or "Essence (carburant)":
+        return 3
+    if {_n} is "Note de survivant":
+        return 4
+    if {_n} is "Sang infecte":
+        return 2
+    if {_n} is "Glande acide" or "Poche de gaz" or "Griffe de Leaper":
+        return 2
+    set {_t} to "%type of {_it}%"
+    if {_t} is "iron ingot" or "gunpowder" or "leather":
+        return 1
+    if {_t} is "gold ingot" or "emerald":
+        return 2
+    if {_t} is "diamond":
+        return 6
+    return 0
+
+# retire 1 aliment valide de l'inventaire ; renvoie son nom lisible ("" si rien)
+function za_surv_prendre_vivres(p: player) :: text:
+    loop all items in inventory of {_p}:
+        set {_it} to loop-item
+        if za_surv_vivre_ok({_it}, false) is true:
+            set {_t} to "%type of {_it}%"
+            remove 1 of {_it} from inventory of {_p}
+            return {_t}
+    return ""
+
+function za_surv_prendre_eau(p: player) :: boolean:
+    loop all items in inventory of {_p}:
+        set {_it} to loop-item
+        set {_t} to "%type of {_it}%"
+        set {_ok} to false
+        if {_t} contains "PURIFIED_WATER_BOTTLE":
+            set {_ok} to true
+        if uncolored name of {_it} starts with "Eau purifiee":
+            set {_ok} to true
+        if {za::tan} is not true:
+            if {_t} is "potion of water":
+                set {_ok} to true
+        if {_ok} is true:
+            remove 1 of {_it} from inventory of {_p}
+            return true
+    return false
+
+# ---------------------------------------------------------------- actions (nœuds du menu)
+
+function za_surv_noeud(p: player, n: text):
+    set {_u} to {_p}'s uuid
+    set {_id} to {za::surv::ctx::%{_u}%}
+    if {_id} is not set:
+        stop
+    if {za::surv::%{_id}%::etat} is not set:
+        send "&8&o(Il n'est plus là.)" to {_p}
+        stop
+    set {_nom} to {za::surv::%{_id}%::nom}
+    set {_et} to {za::surv::%{_id}%::etat}
+    set {_e} to za_surv_npc({_id})
+    if {_e} is set:
+        if world of {_e} is world of {_p}:
+            if distance between {_e} and {_p} > 12:
+                send "&8&o(Tu es trop loin pour lui parler.)" to {_p}
+                stop
+    if {_n} is "parler":
+        set {_l} to {za::surv::%{_id}%::lieu}
+        send "&e%{_nom}% &8» &f« %{za::surv::%{_id}%::hist}% »" to {_p}
+        send "&8(%za_surv_metier_txt({za::surv::%{_id}%::metier}, {za::surv::%{_id}%::genre})%, rencontré au jour %{za::surv::%{_id}%::jour}%)" to {_p}
+        if {_et} is "blesse":
+            send "&c&o Il perd du sang. Il lui faut un Bandage." to {_p}
+        else if {za::surv::%{_id}%::faim} > 60:
+            send "&7&o« J'ai rien mangé depuis deux jours... » Son ventre gargouille." to {_p}
+        if {_et} is "cache":
+            za_surv_conf_ajouter({_u}, {_id}, 3)
+            set {_c} to za_cmp_plus_proche({_l})
+            if {_c} is not 0:
+                if chance of 45%:
+                    set {_cl} to {za::camp::%{_c}%::loc}
+                    send "&8&o« Y'a un camp, %za_surv_dir({_l}, {_cl})%, à peu près %za_surv_dist({_l}, {_cl})% blocs. Le %{za::camp::%{_c}%::nom}%. Ils prennent du monde. »" to {_p}
+        else if {_et} is "base":
+            send "&8&o Moral : %za_surv_barre({za::surv::%{_id}%::moral})% &8| faim : &f%floor({za::surv::%{_id}%::faim})%" to {_p}
+    else if {_n} is "nourriture":
+        set {_v} to za_surv_prendre_vivres({_p})
+        if {_v} is "":
+            send "&cTu n'as rien de comestible à lui donner." to {_p}
+        else:
+            set {za::surv::%{_id}%::faim} to max(0, {za::surv::%{_id}%::faim} - 45)
+            za_surv_conf_ajouter({_u}, {_id}, 15)
+            za_surv_moral_ajouter({_id}, 6)
+            send "&a%{_nom}% mange sans dire un mot, à grosses bouchées. Puis : &f« Merci. Vraiment. »" to {_p}
+            za_zm("son %{_p}% minecraft:entity.generic.eat 0.7 1")
+    else if {_n} is "eau":
+        if za_surv_prendre_eau({_p}) is true:
+            za_surv_conf_ajouter({_u}, {_id}, 10)
+            za_surv_moral_ajouter({_id}, 3)
+            send "&b%{_nom}% boit à longues gorgées. &f« Ça fait du bien... »" to {_p}
+            za_zm("son %{_p}% minecraft:entity.generic.drink 0.7 1")
+        else:
+            send "&cTu n'as pas d'eau propre à lui donner (Eau purifiée)." to {_p}
+    else if {_n} is "bandage":
+        if za_take_named({_p}, "Bandage", 1) is false:
+            send "&cTu n'as pas de Bandage." to {_p}
+        else if {_et} is "blesse":
+            set {za::surv::%{_id}%::etat} to "cache"
+            set {za::surv::%{_id}%::vnom} to {za::surv::%{_id}%::titre}
+            if {_e} is set:
+                set name of {_e} to {za::surv::%{_id}%::titre}
+                execute console command "execute at %uuid of {_e}% run particle minecraft:heart ~ ~2 ~ 0.3 0.3 0.3 0 6 force"
+            set {za::surv::%{_id}%::expire} to now
+            add 40 minutes to {za::surv::%{_id}%::expire}
+            za_surv_conf_ajouter({_u}, {_id}, 30)
+            if {za::surv::%{_id}%::sauve} is not set:
+                set {za::surv::%{_id}%::sauve} to {_u}
+                za_stat_ajouter({_u}, "survivants_sauves", 1)
+            za_faction_ajouter({_p}, "survivants", 1)
+            send "&a%{_nom}% laisse échapper un long souffle pendant que tu serres le bandage." to {_p}
+            send "&e%{_nom}% &8» &f« Je... Merci. Je m'appelle %{_nom}%. J'étais %za_surv_metier_txt({za::surv::%{_id}%::metier}, {za::surv::%{_id}%::genre})%. Je pensais que c'était fini. »" to {_p}
+            za_zm("son %{_p}% minecraft:entity.villager.yes 0.8 1")
+            send title "&a&lSAUVÉ" with subtitle "&7%{_nom}% te doit la vie" to {_p} for 3 seconds
+        else:
+            za_surv_conf_ajouter({_u}, {_id}, 8)
+            if {_et} is "base":
+                if {za::surv::%{_id}%::blesse} is true:
+                    delete {za::surv::%{_id}%::blesse}
+                    za_surv_recompte({za::surv::%{_id}%::base})
+                    send "&a%{_nom}% se remet debout, soulagé(e). &7(Il peut de nouveau travailler.)" to {_p}
+                else:
+                    za_surv_moral_ajouter({_id}, 4)
+                    send "&7%{_nom}% garde le bandage précieusement. &f« Au cas où. »" to {_p}
+            else:
+                send "&7%{_nom}% accepte le bandage, touché. &f« Merci. »" to {_p}
+    else if {_n} is "base":
+        set {_c} to za_surv_conf({_u}, {_id})
+        set {_bu} to {za::base::%{_u}%}
+        if {_bu} is not set:
+            za_surv_dit({_p}, {_nom}, "T'as même pas de base, toi. Je vais pas te suivre dans le bois avec un sac à dos. Trouve un endroit solide (/base definir), pis reviens me voir.")
+        else if {_c} < 50:
+            za_surv_dit({_p}, {_nom}, "Je te connais à peine. Aide-moi d'abord, pis on en reparle. (Confiance : %floor({_c})%/50)")
+        else if {za::surv::n::%{_u}%} >= {@base_max}:
+            za_surv_dit({_p}, {_nom}, "Ta base est déjà pleine à craquer. Faut pas trop en mettre au même endroit.")
+        else:
+            za_surv_dit({_p}, {_nom}, "Une base... avec des murs ? OK. OK, j'te suis. Je vais me rendre utile, promis.")
+            if {za::surv::%{_id}%::sauve} is not set:
+                set {za::surv::%{_id}%::sauve} to {_u}
+                za_stat_ajouter({_u}, "survivants_sauves", 1)
+            za_stat_ajouter({_u}, "survivants_recrutes", 1)
+            za_faction_ajouter({_p}, "survivants", 2)
+            set {_f} to {za::surv::%{_id}%::faction}
+            if {_f} is not "survivants":
+                za_faction_ajouter({_p}, {_f}, 1)
+            za_surv_arriver_base({_id}, {_u}, {_p})
+    else if {_n} is "camp":
+        set {_l} to {za::surv::%{_id}%::lieu}
+        set {_c} to za_cmp_plus_proche({_l})
+        if {_c} is 0:
+            za_surv_dit({_p}, {_nom}, "Un camp ? J'en connais pas. Si tu en trouves un, dis-le-moi.")
+        else:
+            set {_cl} to {za::camp::%{_c}%::loc}
+            za_surv_dit({_p}, {_nom}, "Le %{za::camp::%{_c}%::nom}%, %za_surv_dir({_l}, {_cl})%, à %za_surv_dist({_l}, {_cl})% blocs ? Je connais le chemin. J'y vais... merci de m'avoir aidé.")
+            if {za::surv::%{_id}%::sauve} is not set:
+                set {za::surv::%{_id}%::sauve} to {_u}
+                za_stat_ajouter({_u}, "survivants_sauves", 1)
+            za_cmp_accueillir({_c}, {_id}, {_p})
+    else if {_n} is "role":
+        za_surv_role_menu({_p}, {_id})
+    else if {_n} is "retour":
+        za_surv_menu({_p}, {_id})
+    else if {_n} starts with "r_":
+        set {_r} to subtext of {_n} from characters 3 to length of {_n}
+        set {za::surv::%{_id}%::role} to {_r}
+        za_surv_recompte({za::surv::%{_id}%::base})
+        send "&a%{_nom}% est maintenant &e%za_surv_role_nom({_r})%&a." to {_p}
+        send "&8&o%za_surv_role_desc({_r})%" to {_p}
+    else if {_n} is "commerce":
+        za_surv_commerce_menu({_p}, {_id})
+    else if {_n} starts with "buy_":
+        set {_k} to subtext of {_n} from characters 5 to length of {_n}
+        set {_prix} to 3
+        if {_k} is "eau" or "conserve" or "torches":
+            set {_prix} to 2
+        set {_prix} to za_prix({_p}, {_prix})
+        if za_jetons({_p}) < {_prix}:
+            send "&c%{_nom}% : « Il me faut %{_prix}% jetons. »" to {_p}
+        else:
+            za_jetons_ajouter({_p}, 0 - {_prix})
+            if {_k} is "bandage":
+                give za_item("paper", "Bandage", "&f", 1) to {_p}
+            else if {_k} is "eau":
+                if {za::tan} is true:
+                    execute console command "give %{_p}% toughasnails:purified_water_bottle 1"
+                else:
+                    give za_item("potion of water", "Eau purifiee", "&b", 1) to {_p}
+            else if {_k} is "conserve":
+                give za_item("bread", "Conserve", "&f", 1) to {_p}
+            else if {_k} is "fleches":
+                give 12 of arrow to {_p}
+            else if {_k} is "torches":
+                give 8 of torch to {_p}
+            send "&a%{_nom}% te tend ta commande. &7(-%{_prix}% jetons)" to {_p}
+            za_zm("son %{_p}% minecraft:entity.villager.trade 0.8 1")
+    else if {_n} is "sell":
+        set {_it} to {_p}'s tool
+        set {_pu} to 0
+        if {_it} is not air:
+            set {_pu} to za_surv_rachat({_it})
+        if {_pu} <= 0:
+            send "&c%{_nom}% : « Ça, je peux pas le revendre. » &7(Tiens un objet à vendre en main.)" to {_p}
+        else:
+            set {_q} to min(64, item amount of {_p}'s tool)
+            set {_gain} to min(40, {_pu} * {_q})
+            remove {_q} of {_it} from inventory of {_p}
+            za_jetons_ajouter({_p}, {_gain})
+            send "&a%{_nom}% te rachète le lot. &6+%{_gain}% jetons" to {_p}
+            za_zm("son %{_p}% minecraft:entity.villager.trade 0.8 1")
+    else if {_n} is "renvoyer":
+        if {_et} is "base":
+            send "&7Tu demandes à %{_nom}% de partir. Il ramasse ses affaires sans un mot." to {_p}
+            za_surv_partir({_id}, "renvoi")
+
+# ---------------------------------------------------------------- clic droit sur un PNJ survivant
+
+on right click on villager:
+    if za_pro(player) is true:
+        stop
+    if za_surv_a_tag(clicked entity, "za_surv") is false:
+        stop
+    cancel the event
+    set {_id} to za_surv_id_de(clicked entity)
+    if {_id} is 0:
+        stop
+    set {_et} to {za::surv::%{_id}%::etat}
+    if {_et} is not set:
+        delete clicked entity
+        send "&8&o(Il n'y a plus personne ici.)" to player
+        stop
+    if {za::surv::clic::%player's uuid%} is set:
+        if difference between {za::surv::clic::%player's uuid%} and now is less than 1 second:
+            stop
+    set {za::surv::clic::%player's uuid%} to now
+    za_surv_menu(player, {_id})
+
+command /zasurvclic <player> <text>:
+    executable by: console
+    trigger:
+        wait 2 ticks
+        za_surv_noeud(arg-1, arg-2)
+
+on damage of villager:
+    if za_surv_a_tag(victim, "za_surv") is true:
+        cancel the event
+
+# ---------------------------------------------------------------- rencontres
+
+# point de rencontre : près d'un bâtiment de za_p35 si possible, sinon 60-120 blocs au hasard
+function za_surv_batiments_pres(p: player, dmin: number, dmax: number) :: locations:
+    loop za_bat_types():
+        loop {za::bat::%loop-value-1%::liste::*}:
+            set {_c} to za_bat_centre_s(loop-value-2)
+            if {_c} is set:
+                if world of {_c} is world of {_p}:
+                    set {_d} to distance between {_c} and {_p}
+                    if {_d} >= {_dmin}:
+                        if {_d} <= {_dmax}:
+                            add {_c} to {_r::*}
+    return {_r::*}
+
+function za_surv_sol_ok(l: location) :: boolean:
+    if "%world of {_l}%" is "za_prologue":
+        return false
+    if za_zone_morte({_l}) is true:
+        return false
+    set {_hb} to highest block at {_l}
+    set {_t} to "%type of {_hb}%"
+    if {_t} contains "water" or "lava" or "leaves" or "ice" or "cactus" or "magma":
+        return false
+    loop {za::base::liste::*}:
+        set {_b} to {za::base::%loop-value%}
+        if {_b} is set:
+            if world of {_b} is world of {_l}:
+                if distance between {_b} and {_l} < 60:
+                    return false
+    loop {za::camp::liste::*}:
+        set {_b} to {za::camp::%loop-value%::loc}
+        if {_b} is set:
+            if world of {_b} is world of {_l}:
+                if distance between {_b} and {_l} < 45:
+                    return false
+    return true
+
+function za_surv_point(p: player) :: location:
+    set {_pl} to location of {_p}
+    set {_cands::*} to za_surv_batiments_pres({_p}, 45, 150)
+    loop 12 times:
+        set {_c} to {_pl}
+        if size of {_cands::*} > 0:
+            if chance of 65%:
+                set {_c} to random element out of {_cands::*}
+                set {_d} to random number between 9 and 16
+                set {_a} to random number between 0 and 360
+                add ({_d} * cos({_a})) to x-coordinate of {_c}
+                add ({_d} * sin({_a})) to z-coordinate of {_c}
+            else:
+                set {_d} to random number between 60 and 120
+                set {_a} to random number between 0 and 360
+                add ({_d} * cos({_a})) to x-coordinate of {_c}
+                add ({_d} * sin({_a})) to z-coordinate of {_c}
+        else:
+            set {_d} to random number between 60 and 120
+            set {_a} to random number between 0 and 360
+            add ({_d} * cos({_a})) to x-coordinate of {_c}
+            add ({_d} * sin({_a})) to z-coordinate of {_c}
+        if za_surv_sol_ok({_c}) is true:
+            return za_sol({_c})
+
+# indice donné au joueur (radio de Léa ou murmure)
+function za_surv_indice(p: player, id: number):
+    set {_l} to {za::surv::%{_id}%::lieu}
+    set {_pl} to location of {_p}
+    set {_dir} to za_surv_dir({_pl}, {_l})
+    set {_d} to za_surv_dist({_pl}, {_l})
+    if {za::surv::%{_id}%::etat} is "blesse":
+        set {_v} to "un blessé"
+    else:
+        set {_v} to "quelqu'un"
+    if chance of 45%:
+        za_zm("son %{_p}% za_modeles:sfx.radio_statique 0.5 1")
+        send "&8[Radio] &bLéa &8» &7... si vous m'entendez... j'ai capté %{_v}% qui appelle à l'aide, %{_dir}%, à peu près %{_d}% blocs de toi. Faites attention à vous..." to {_p}
+    else:
+        send "&8&oQuelqu'un appelle à l'aide, %{_dir}%... (~%{_d}% blocs)" to {_p}
+    za_zm("son %{_p}% minecraft:entity.villager.hurt 0.5 0.6")
+
+function za_surv_rencontre(p: player) :: boolean:
+    if za_surv_libres() >= {@libres_max}:
+        return false
+    set {_l} to za_surv_point({_p})
+    if {_l} is not set:
+        return false
+    set {_type} to "cache"
+    if chance of 35%:
+        set {_type} to "blesse"
+    set {_id} to za_surv_creer_rec("", "", {_l}, {_type})
+    set {za::surv::%{_id}%::expire} to now
+    add 45 minutes to {za::surv::%{_id}%::expire}
+    if {_type} is "blesse":
+        set {za::surv::%{_id}%::vnom} to "Survivant blessé"
+        set {za::surv::%{_id}%::faim} to random integer between 40 and 75
+    za_surv_npc_placer({_id})
+    za_surv_indice({_p}, {_id})
+    return true
+
+# prise de contact : la première fois qu'un joueur s'approche
+function za_surv_contact(id: number):
+    set {_l} to {za::surv::%{_id}%::lieu}
+    if {_l} is not set:
+        stop
+    loop all players:
+        if za_pro(loop-player) is false:
+            if world of loop-player is world of {_l}:
+                set {_d} to distance between loop-player and {_l}
+                if {_d} < 13:
+                    if {za::surv::%{_id}%::alerte} is not set:
+                        set {za::surv::%{_id}%::alerte} to true
+                        if {za::surv::%{_id}%::etat} is "blesse":
+                            send "&8&o(Un gémissement, tout près. Quelqu'un est adossé au mur, une main sur le flanc.)" to loop-player
+                        else:
+                            send "&8&o(Une voix à peine audible) &7« Chut... par ici. Vous êtes seul ? »" to loop-player
+                        za_zm("son %loop-player% minecraft:entity.villager.ambient 0.5 0.7")
+                else if {_d} < 45:
+                    if {za::surv::%{_id}%::etat} is "blesse":
+                        execute console command "execute in %za_dim(world of {_l})% run particle minecraft:damage_indicator %x-coordinate of {_l}% %(y-coordinate of {_l}) + 1.2% %z-coordinate of {_l}% 0.2 0.3 0.2 0 2 force"
+
+every 60 seconds:
+    if size of za_monde_joueurs() is 0:
+        stop
+    # rencontres : une minuterie par joueur (15 à 25 minutes)
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        set {_u} to {_p}'s uuid
+        if {za::surv::renc::%{_u}%} is not set:
+            set {za::surv::renc::%{_u}%} to now
+            set {_m} to random integer between 6 and 14
+            add ("%{_m}% minutes" parsed as timespan) to {za::surv::renc::%{_u}%}
+        else if now is greater than {za::surv::renc::%{_u}%}:
+            set {za::surv::renc::%{_u}%} to now
+            set {_m} to random integer between 15 and 25
+            add ("%{_m}% minutes" parsed as timespan) to {za::surv::renc::%{_u}%}
+            if chance of 70%:
+                set {_ok} to za_surv_rencontre({_p})
+    # départ des survivants libres qui n'ont pas été aidés
+    loop {za::surv::liste::*}:
+        set {_id} to loop-value
+        set {_et} to {za::surv::%{_id}%::etat}
+        if {_et} is "cache" or "blesse":
+            set {_ex} to {za::surv::%{_id}%::expire}
+            if {_ex} is set:
+                if now is greater than {_ex}:
+                    set {_l} to {za::surv::%{_id}%::lieu}
+                    set {_vu} to false
+                    loop all players:
+                        if world of loop-player is world of {_l}:
+                            if distance between loop-player and {_l} < 50:
+                                set {_vu} to true
+                    if {_vu} is false:
+                        za_surv_clore({_id}, "parti")
+    # nouveau jour serveur : tick quotidien
+    if {za::serveur::jours} > {za::surv::jour}:
+        set {za::surv::jour} to {za::serveur::jours}
+        za_surv_jour()
+
+every 10 seconds:
+    if size of za_monde_joueurs() is 0:
+        stop
+    loop {za::surv::liste::*}:
+        set {_et} to {za::surv::%loop-value%::etat}
+        if {_et} is "cache" or "blesse":
+            za_surv_contact(loop-value)
+    loop {za::base::liste::*}:
+        set {_u} to loop-value
+        if {za::surv::n::%{_u}%} > 0:
+            za_surv_base_tick({_u})
+
+# PNJ hors de la base : on les ramène (toutes les 30 s) et on nettoie les fantômes
+every 30 seconds:
+    if size of za_monde_joueurs() is 0:
+        stop
+    loop {za::surv::liste::*}:
+        set {_id} to loop-value
+        if {za::surv::%{_id}%::etat} is "base":
+            set {_bu} to {za::surv::%{_id}%::base}
+            set {_bl} to {za::base::%{_bu}%}
+            if {_bl} is set:
+                set {_pres} to false
+                loop all players:
+                    if world of loop-player is world of {_bl}:
+                        if distance between loop-player and {_bl} < 90:
+                            set {_pres} to true
+                if {_pres} is true:
+                    set {_e} to za_surv_npc({_id})
+                    if {_e} is not set:
+                        za_surv_npc_placer({_id})
+                    else:
+                        if world of {_e} is world of {_bl}:
+                            if distance between {_e} and {_bl} > 38:
+                                teleport {_e} to {za::surv::%{_id}%::lieu}
+    loop za_monde_joueurs():
+        za_surv_purge_pres(loop-value)
+
+function za_surv_purge_pres(p: player):
+    loop all villagers in radius 40 around {_p}:
+        if za_surv_a_tag(loop-entity, "za_surv") is true:
+            set {_id} to za_surv_id_de(loop-entity)
+            if {_id} > 0:
+                if {za::surv::%{_id}%::etat} is not set:
+                    delete loop-entity
+
+# ---------------------------------------------------------------- vie de la base : garde, soin, siège (toutes les 10 s)
+
+function za_surv_hostile(e: entity) :: boolean:
+    if {_e} is a zombie:
+        return true
+    if {_e} is a vindicator:
+        return true
+    if {_e} is a pillager:
+        return true
+    return false
+
+function za_surv_base_tick(u: text):
+    set {_bl} to {za::base::%{_u}%}
+    if {_bl} is not set:
+        stop
+    set {_proche} to false
+    loop all players:
+        if world of loop-player is world of {_bl}:
+            if distance between loop-player and {_bl} < 110:
+                set {_proche} to true
+    if {_proche} is false:
+        stop
+    set {_g} to {za::base::gardes::%{_u}%}
+    set {_s} to {za::surv::soigneurs::%{_u}%}
+    set {_n} to 0
+    loop all entities in radius 40 around {_bl}:
+        if za_surv_hostile(loop-entity) is true:
+            add 1 to {_n}
+            if distance between loop-entity and {_bl} <= 24:
+                add loop-entity to {_h::*}
+    # --- siège : détection (>= 4 morts autour de la base)
+    set {_sg} to {za::surv::siege::%{_u}%}
+    if {_sg} is not set:
+        if {_n} >= 4:
+            set {za::surv::siege::%{_u}%} to now
+            set {za::surv::siege::calme::%{_u}%} to 0
+            za_surv_siege_debut({_u}, {_n}, {_g})
+    else:
+        if {_n} <= 1:
+            add 1 to {za::surv::siege::calme::%{_u}%}
+        else:
+            set {za::surv::siege::calme::%{_u}%} to 0
+        set {_fin} to false
+        if {za::surv::siege::calme::%{_u}%} >= 3:
+            set {_fin} to true
+        if difference between {_sg} and now is greater than 6 minutes:
+            set {_fin} to true
+        if {_fin} is true:
+            delete {za::surv::siege::%{_u}%}
+            delete {za::surv::siege::calme::%{_u}%}
+            za_surv_siege_fin({_u}, {_n}, {_g})
+    # --- gardes : tirs sur les morts proches
+    if {_g} > 0:
+        if size of {_h::*} > 0:
+            set {_tirs} to min(3, {_g})
+            if {_sg} is set:
+                set {_tirs} to min(6, 2 * {_g})
+            set {_k} to 0
+            while {_k} < {_tirs}:
+                if size of {_h::*} > 0:
+                    set {_t} to random element out of {_h::*}
+                    remove {_t} from {_h::*}
+                    if {_t} is alive:
+                        damage {_t} by 3
+                        execute console command "execute at %uuid of {_t}% run particle minecraft:crit ~ ~1 ~ 0.2 0.3 0.2 0.1 10 force"
+                        loop all players:
+                            if world of loop-player is world of {_bl}:
+                                if distance between loop-player and {_bl} < 70:
+                                    za_zm("son %loop-player% za_modeles:sfx.coup_de_feu 0.7 1")
+                add 1 to {_k}
+    # --- soigneurs : les joueurs de la base récupèrent lentement
+    if {_s} > 0:
+        loop all players:
+            if world of loop-player is world of {_bl}:
+                if distance between loop-player and {_bl} < 40:
+                    if health of loop-player < 10:
+                        heal loop-player by (0.5 * min(2, {_s}))
+
+function za_surv_siege_debut(u: text, n: number, g: number):
+    set {_bl} to {za::base::%{_u}%}
+    set {_kills} to 0
+    if {_g} > 0:
+        # les gardes ouvrent le feu : la première salve élimine une partie de la horde
+        set {_kmax} to floor({_n} * min(0.45, 0.15 * {_g}))
+        loop all entities in radius 40 around {_bl}:
+            if {_kills} < {_kmax}:
+                if za_surv_hostile(loop-entity) is true:
+                    execute console command "execute at %uuid of loop-entity% run particle minecraft:crit ~ ~1 ~ 0.2 0.3 0.2 0.1 10 force"
+                    delete loop-entity
+                    add 1 to {_kills}
+        loop all players:
+            if world of loop-player is world of {_bl}:
+                if distance between loop-player and {_bl} < 90:
+                    za_zm("son %loop-player% za_modeles:sfx.coup_de_feu 0.9 0.9")
+                    send "&6&l⚔ &eLes gardes de la base ouvrent le feu ! &7(%{_kills}% mort(s) abattu(s) d'entrée)" to loop-player
+    loop {za::surv::liste::*}:
+        set {_id} to loop-value
+        if {za::surv::%{_id}%::etat} is "base":
+            if {za::surv::%{_id}%::base} is {_u}:
+                if {_g} > 0:
+                    za_surv_moral_ajouter({_id}, -3)
+                else:
+                    za_surv_moral_ajouter({_id}, -6)
+    if {_g} is 0:
+        loop all players:
+            if world of loop-player is world of {_bl}:
+                if distance between loop-player and {_bl} < 90:
+                    send "&8&oLes survivants de la base se terrent, terrifiés. Sans garde pour les défendre..." to loop-player
+
+# fin du siège : blessés ou morts (rares, plus fréquents sans gardes)
+function za_surv_siege_fin(u: text, n: number, g: number):
+    set {_f} to 1
+    if {_g} > 0:
+        set {_f} to max(0.25, 1 - (0.25 * {_g}))
+    set {_f} to {_f} * (1 + ({_n} / 6))
+    set {_pertes} to 0
+    loop {za::surv::liste::*}:
+        set {_id} to loop-value
+        if {za::surv::%{_id}%::etat} is "base":
+            if {za::surv::%{_id}%::base} is {_u}:
+                set {_pm} to 3 * {_f}
+                set {_ph} to 10 * {_f}
+                if chance of {_pm}%:
+                    za_surv_mourir({_id}, "siege")
+                    add 1 to {_pertes}
+                else if chance of {_ph}%:
+                    if {za::surv::%{_id}%::blesse} is not true:
+                        set {za::surv::%{_id}%::blesse} to true
+                        za_surv_moral_ajouter({_id}, -8)
+                        za_surv_avis({_u}, "&c%{za::surv::%{_id}%::nom}% a été blessé pendant le siège. &7(Un Bandage, ou un soigneur, et il sera sur pied.)")
+    za_surv_recompte({_u})
+    if {_pertes} is 0:
+        loop {za::surv::liste::*}:
+            set {_id} to loop-value
+            if {za::surv::%{_id}%::etat} is "base":
+                if {za::surv::%{_id}%::base} is {_u}:
+                    za_surv_moral_ajouter({_id}, 3)
+        set {_p} to za_surv_joueur({_u})
+        if {_p} is set:
+            if {za::surv::n::%{_u}%} > 0:
+                send "&8&oLe siège est passé. Personne n'est mort. Les survivants de la base reprennent leur souffle." to {_p}
+
+# ---------------------------------------------------------------- tick quotidien (1 jour serveur = 20 min)
+
+function za_surv_jour():
+    loop {za::surv::liste::*}:
+        set {_id} to loop-value
+        if {za::surv::%{_id}%::etat} is "base":
+            za_surv_jour_base({_id})
+    loop {za::base::liste::*}:
+        za_surv_recompte(loop-value)
+
+function za_surv_jour_base(id: number):
+    set {_u} to {za::surv::%{_id}%::base}
+    set {_nom} to {za::surv::%{_id}%::nom}
+    if {za::base::%{_u}%} is not set:
+        za_surv_partir({_id}, "base")
+        stop
+    # --- manger
+    set {_fed} to za_surv_manger({_u})
+    if {_fed} is true:
+        set {za::surv::%{_id}%::faim} to max(0, {za::surv::%{_id}%::faim} - 70)
+        za_surv_moral_ajouter({_id}, 1)
+    else:
+        set {za::surv::%{_id}%::faim} to min(100, {za::surv::%{_id}%::faim} + 40)
+        za_surv_moral_ajouter({_id}, -8)
+        if {za::surv::%{_id}%::faim} >= 100:
+            za_surv_moral_ajouter({_id}, -5)
+        if {za::surv::reserve::%{_u}%} is not set:
+            za_surv_avis({_u}, "&e%{_nom}% a faim et ne sait pas où sont les vivres. &7Désigne la Réserve : regarde un coffre de la base, puis /survivants reserve.")
+        else:
+            za_surv_avis({_u}, "&e%{_nom}% a faim : la Réserve est vide. &7Ajoute de la nourriture dans le coffre.")
+    # --- humeur
+    set {_a} to {za::surv::%{_id}%::ami}
+    if {_a} is set:
+        if {za::surv::%{_a}%::etat} is "base":
+            if {za::surv::%{_a}%::base} is {_u}:
+                za_surv_moral_ajouter({_id}, 3)
+    set {_r} to {za::surv::%{_id}%::rival}
+    if {_r} is set:
+        if {za::surv::%{_r}%::etat} is "base":
+            if {za::surv::%{_r}%::base} is {_u}:
+                za_surv_moral_ajouter({_id}, -4)
+                if chance of 45%:
+                    za_surv_avis({_u}, "&6%{_nom}% et %{za::surv::%{_r}%::nom}% se sont encore disputés (la vaisselle, le tour de garde...).")
+    if {za::reseau::residentiel} is true:
+        za_surv_moral_ajouter({_id}, 3)
+    if {za::surv::%{_id}%::special} is not "theo":
+        if za_surv_special_present({_u}, "theo") is true:
+            za_surv_moral_ajouter({_id}, 5)
+    # --- blessure
+    if {za::surv::%{_id}%::blesse} is true:
+        if {za::surv::soigneurs::%{_u}%} > 0:
+            delete {za::surv::%{_id}%::blesse}
+            za_surv_avis({_u}, "&a%{_nom}% a été soigné(e) et se remet de sa blessure.")
+        else if chance of 40%:
+            delete {za::surv::%{_id}%::blesse}
+    # --- moral trop bas deux jours de suite : il s'en va
+    if {za::surv::%{_id}%::moral} < 15:
+        add 1 to {za::surv::%{_id}%::bas}
+        if {za::surv::%{_id}%::bas} >= 2:
+            za_surv_partir({_id}, "moral")
+            stop
+    else:
+        set {za::surv::%{_id}%::bas} to 0
+    # --- travail
+    if {za::surv::%{_id}%::blesse} is not true:
+        if {za::surv::%{_id}%::faim} <= 70:
+            za_surv_travail({_id}, {_u})
+
+function za_surv_travail(id: number, u: text):
+    set {_role} to {za::surv::%{_id}%::role}
+    set {_m} to {za::surv::%{_id}%::metier}
+    set {_nom} to {za::surv::%{_id}%::nom}
+    set {_q} to 2 + floor({za::surv::%{_id}%::moral} / 40)
+    if {_role} is "produire":
+        set {_ok} to false
+        if {_m} is "cuisinier":
+            set {_ok} to za_surv_stocker({_u}, {_q} of bread)
+            set {_ok} to za_surv_stocker({_u}, 1 of rabbit stew)
+        else if {_m} is "agriculteur":
+            set {_ok} to za_surv_stocker({_u}, {_q} of baked potato)
+            set {_ok} to za_surv_stocker({_u}, {_q} of carrot)
+        else if {_m} is "enfant":
+            set {_ok} to za_surv_stocker({_u}, {_q} of cookie)
+            set {_ok} to za_surv_stocker({_u}, 2 of apple)
+        else:
+            set {_c} to random integer between 1 and 3
+            if {_c} is 1:
+                set {_ok} to za_surv_stocker({_u}, {_q} of bread)
+            else if {_c} is 2:
+                set {_ok} to za_surv_stocker({_u}, {_q} of baked potato)
+            else:
+                set {_ok} to za_surv_stocker({_u}, za_item("bread", "Conserve", "&f", {_q}))
+        if {_ok} is false:
+            if za_surv_reserve({_u}) is not set:
+                stop
+    else if {_role} is "reparer":
+        set {_b} to za_surv_reserve({_u})
+        if {_b} is set:
+            set {_inv} to inventory of {_b}
+            set {_i} to 0
+            set {_n} to 0
+            while slot {_i} of {_inv} is set:
+                set {_it} to slot {_i} of {_inv}
+                if {_it} is not air:
+                    if max durability of {_it} > 0:
+                        if damage value of {_it} > 0:
+                            if {_n} < 6:
+                                set damage value of {_it} to max(0, damage value of {_it} - ceil(max durability of {_it} * 0.25))
+                                set slot {_i} of {_inv} to {_it}
+                                add 1 to {_n}
+                add 1 to {_i}
+            if {_n} > 0:
+                za_surv_avis({_u}, "&7%{_nom}% a réparé %{_n}% objet(s) dans la Réserve.")
+    else if {_role} is "soigner":
+        set {_p} to za_surv_joueur({_u})
+        if {_p} is set:
+            execute console command "zablessure soigner %{_p}%"
+            za_surv_avis({_u}, "&a%{_nom}% a pansé tes blessures.")
+        set {_ok} to za_surv_stocker({_u}, za_item("paper", "Bandage", "&f", 2))
+        loop {za::surv::liste::*}:
+            set {_o} to loop-value
+            if {za::surv::%{_o}%::etat} is "base":
+                if {za::surv::%{_o}%::base} is {_u}:
+                    if {za::surv::%{_o}%::blesse} is true:
+                        delete {za::surv::%{_o}%::blesse}
+    else if {_role} is "commercer":
+        if chance of 35%:
+            set {_ok} to za_surv_stocker({_u}, za_item("gold nugget", "Jeton de Survie", "&6", 1))
+
+# rabais sur /reparer si un réparateur travaille à ta base
+on command "reparer":
+    if za_pro(player) is true:
+        stop
+    set {_u} to player's uuid
+    set {_nb} to za_surv_role_nb({_u}, "reparer")
+    if {_nb} > 0:
+        set {_avant} to za_jetons(player)
+        wait 3 ticks
+        set {_cout} to {_avant} - za_jetons(player)
+        if {_cout} >= 2:
+            set {_rem} to min({_cout} - 1, ceil({_cout} * 0.3 * min({_nb}, 2)))
+            za_jetons_ajouter(player, {_rem})
+            send "&7Ton réparateur de la base te fait un rabais : &a+%{_rem}% jeton(s)&7." to player
+
+# ---------------------------------------------------------------- commande joueur : /survivants
+
+function za_surv_liste_joueur(p: player):
+    set {_u} to {_p}'s uuid
+    if {za::base::%{_u}%} is not set:
+        send "&cTu n'as pas de base. &7Définis-en une avec /base definir, puis ramène-y des survivants." to {_p}
+        stop
+    send "&6&lTES SURVIVANTS &7(%{za::surv::n::%{_u}%}%/{@base_max})" to {_p}
+    set {_k} to 0
+    loop {za::surv::liste::*}:
+        set {_id} to loop-value
+        if {za::surv::%{_id}%::etat} is "base":
+            if {za::surv::%{_id}%::base} is {_u}:
+                add 1 to {_k}
+                set {_bl} to ""
+                if {za::surv::%{_id}%::blesse} is true:
+                    set {_bl} to " &c(blessé)"
+                send "&f%{_k}%. &e%{za::surv::%{_id}%::nom}% &7- %za_surv_metier_txt({za::surv::%{_id}%::metier}, {za::surv::%{_id}%::genre})%%{_bl}% &8| &b%za_surv_role_nom({za::surv::%{_id}%::role})% &8| &7moral %za_surv_barre({za::surv::%{_id}%::moral})% &8| &7faim &f%floor({za::surv::%{_id}%::faim})%" to {_p}
+    if {_k} is 0:
+        send "&7Personne à la base pour l'instant. &8Aide les survivants que tu croises (nourriture, eau, bandage) puis demande-leur de venir." to {_p}
+    else:
+        set {_r} to za_surv_reserve({_u})
+        if {_r} is set:
+            send "&8Réserve : coffre en &f%x-coordinate of {_r}% %y-coordinate of {_r}% %z-coordinate of {_r}%&8. Gardes : &f%{za::base::gardes::%{_u}%}%" to {_p}
+        else:
+            send "&8Réserve : &cnon définie &8(regarde un coffre de la base, puis /survivants reserve)" to {_p}
+
+# trouve un survivant de la base par numéro (dans la liste) ou par morceau du nom
+function za_surv_trouver(u: text, q: text) :: number:
+    set {_k} to 0
+    loop {za::surv::liste::*}:
+        set {_id} to loop-value
+        if {za::surv::%{_id}%::etat} is "base":
+            if {za::surv::%{_id}%::base} is {_u}:
+                add 1 to {_k}
+                if "%{_k}%" is {_q}:
+                    return {_id}
+                if {za::surv::%{_id}%::nom} contains {_q}:
+                    return {_id}
+    return 0
+
+command /survivants [<text>]:
+    trigger:
+        if player is not set:
+            send "Commande réservée aux joueurs. Console : /zasurv" to sender
+            stop
+        set {_u} to player's uuid
+        if arg-1 is not set:
+            za_surv_liste_joueur(player)
+            stop
+        set {_w::*} to split arg-1 at " "
+        set {_a} to {_w::1}
+        if {_a} is "aide":
+            send "&6&lSURVIVANTS - AIDE" to player
+            send "&7Croise des survivants (cachés ou blessés) : clic droit, aide-les, puis propose-leur ta base (confiance 50 %%)." to player
+            send "&f/survivants &7liste les survivants de ta base." to player
+            send "&f/survivants reserve &7(regarde un coffre de ta base) désigne la Réserve : ils y mangent, y travaillent." to player
+            send "&f/survivants role <nom|n°> <réparer|produire|soigner|garder|commercer>" to player
+            send "&f/survivants renvoyer <nom|n°>" to player
+        else if {_a} is "reserve":
+            if {za::base::%{_u}%} is not set:
+                send "&cTu n'as pas de base (/base definir)." to player
+                stop
+            set {_b} to targeted block of player
+            if {_b} is not set:
+                send "&cRegarde un coffre (ou un tonneau) de ta base." to player
+                stop
+            set {_t} to "%type of {_b}%"
+            if {_t} does not contain "chest":
+                if {_t} does not contain "barrel":
+                    send "&cCe n'est pas un coffre." to player
+                    stop
+            if world of {_b} is not world of {za::base::%{_u}%}:
+                send "&cCe coffre est hors de ta base." to player
+                stop
+            if distance between {_b} and {za::base::%{_u}%} > 40:
+                send "&cCe coffre est à plus de 40 blocs de ta base." to player
+                stop
+            set {za::surv::reserve::%{_u}%} to location of {_b}
+            send "&aRéserve désignée. &7Les survivants y mangent 1 aliment par jour chacun ; ceux qui produisent, réparent ou soignent y déposent et y travaillent." to player
+            za_zm("son %player% minecraft:block.chest.close 0.8 1")
+        else if {_a} is "role":
+            if size of {_w::*} < 3:
+                send "&cUsage : /survivants role <nom|n°> <réparer|produire|soigner|garder|commercer>" to player
+                stop
+            set {_r} to {_w::%size of {_w::*}%}
+            set {_r} to uncolored {_r}
+            if {_r} is "réparer" or "reparer" or "réparateur" or "reparateur":
+                set {_r} to "reparer"
+            else if {_r} is "produire" or "producteur":
+                set {_r} to "produire"
+            else if {_r} is "soigner" or "soigneur":
+                set {_r} to "soigner"
+            else if {_r} is "garder" or "garde":
+                set {_r} to "garder"
+            else if {_r} is "commercer" or "marchand":
+                set {_r} to "commercer"
+            else:
+                send "&cRôle inconnu. Choisis : réparer, produire, soigner, garder ou commercer." to player
+                stop
+            set {_q} to {_w::2}
+            set {_i} to 3
+            while {_i} < size of {_w::*}:
+                set {_q} to "%{_q}% %{_w::%{_i}%}%"
+                add 1 to {_i}
+            set {_id} to za_surv_trouver({_u}, {_q})
+            if {_id} is 0:
+                send "&cAucun survivant de ta base ne correspond à « %{_q}% »." to player
+            else:
+                set {za::surv::%{_id}%::role} to {_r}
+                za_surv_recompte({_u})
+                send "&a%{za::surv::%{_id}%::nom}% est maintenant &e%za_surv_role_nom({_r})%&a." to player
+                send "&8&o%za_surv_role_desc({_r})%" to player
+        else if {_a} is "renvoyer":
+            if size of {_w::*} < 2:
+                send "&cUsage : /survivants renvoyer <nom|n°>" to player
+                stop
+            set {_q} to {_w::2}
+            set {_i} to 3
+            while {_i} <= size of {_w::*}:
+                set {_q} to "%{_q}% %{_w::%{_i}%}%"
+                add 1 to {_i}
+            set {_id} to za_surv_trouver({_u}, {_q})
+            if {_id} is 0:
+                send "&cAucun survivant de ta base ne correspond à « %{_q}% »." to player
+            else:
+                send "&7Tu demandes à %{za::surv::%{_id}%::nom}% de partir. Il ramasse ses affaires sans un mot." to player
+                za_surv_partir({_id}, "renvoi")
+        else:
+            za_surv_liste_joueur(player)
+
+# ---------------------------------------------------------------- administration / console
+
+command /zasurv [<text>] [<text>] [<text>] [<text>] [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        set {_a} to arg-1
+        if {_a} is not set:
+            send "&cUsage : zasurv <creer x y z monde [métier|prisonnier|enfant]|liste|info id|jour|rencontre [joueur]|base id joueur|moral id n|role id r|tuer id|purger>" to sender
+            stop
+        if {_a} is "creer":
+            set {_x} to arg-2 parsed as number
+            set {_y} to arg-3 parsed as number
+            set {_z} to arg-4 parsed as number
+            set {_w} to world(arg-5)
+            set {_ok} to true
+            if {_x} is not set:
+                set {_ok} to false
+            if {_y} is not set:
+                set {_ok} to false
+            if {_z} is not set:
+                set {_ok} to false
+            if {_w} is not set:
+                set {_ok} to false
+            if {_ok} is false:
+                send "&cUsage : zasurv creer <x> <y> <z> <monde> [métier|prisonnier|enfant]" to sender
+                stop
+            set {_l} to location({_x}, {_y}, {_z}, {_w})
+            set {_m} to ""
+            set {_sp} to ""
+            set {_t} to arg-6
+            if {_t} is set:
+                if {_t} is "prisonnier":
+                    set {_sp} to "prisonnier"
+                else if {_t} is "enfant":
+                    set {_m} to "enfant"
+                    set {_sp} to "enfant"
+                else:
+                    set {_m} to {_t}
+            set {_id} to za_surv_creer_rec({_m}, "", {_l}, "cache")
+            set {za::surv::%{_id}%::expire} to now
+            add 6 hours to {za::surv::%{_id}%::expire}
+            if {_sp} is "prisonnier":
+                set {za::surv::%{_id}%::special} to "prisonnier"
+                set {za::surv::%{_id}%::hist} to "Ils m'ont enfermé ici. Trois jours sans eau, à écouter les morts gratter la porte. Je pensais que personne viendrait."
+                set {za::surv::%{_id}%::faim} to random integer between 55 and 85
+            else if {_sp} is "enfant":
+                set {za::surv::%{_id}%::special} to "enfant"
+            za_surv_npc_placer({_id})
+            send "&aSurvivant #%{_id}% créé : %{za::surv::%{_id}%::nom}% (%{za::surv::%{_id}%::metier}%) en %{_x}% %{_y}% %{_z}%." to sender
+        else if {_a} is "liste":
+            send "&6Survivants (%size of {za::surv::liste::*}%) :" to sender
+            loop {za::surv::liste::*}:
+                set {_id} to loop-value
+                send "&7#%{_id}% &f%{za::surv::%{_id}%::nom}% &8[%{za::surv::%{_id}%::metier}%/%{za::surv::%{_id}%::role}%] &e%{za::surv::%{_id}%::etat}% &7moral %floor({za::surv::%{_id}%::moral})% faim %floor({za::surv::%{_id}%::faim})% base=%{za::surv::%{_id}%::base}% camp=%{za::surv::%{_id}%::camp}% lieu=%{za::surv::%{_id}%::lieu}%" to sender
+        else if {_a} is "info":
+            set {_id} to arg-2 parsed as number
+            if {_id} is not set:
+                send "&cUsage : zasurv info <id>" to sender
+                stop
+            send "&6Survivant #%{_id}% : %{za::surv::%{_id}%::nom}% titre=%{za::surv::%{_id}%::titre}% vnom=%{za::surv::%{_id}%::vnom}% métier=%{za::surv::%{_id}%::metier}% rôle=%{za::surv::%{_id}%::role}% faction=%{za::surv::%{_id}%::faction}%" to sender
+            send "&7état=%{za::surv::%{_id}%::etat}% moral=%{za::surv::%{_id}%::moral}% faim=%{za::surv::%{_id}%::faim}% ami=%{za::surv::%{_id}%::ami}% rival=%{za::surv::%{_id}%::rival}% blessé=%{za::surv::%{_id}%::blesse}% spécial=%{za::surv::%{_id}%::special}% expire=%{za::surv::%{_id}%::expire}%" to sender
+            send "&7histoire : %{za::surv::%{_id}%::hist}%" to sender
+        else if {_a} is "jour":
+            za_surv_jour()
+            send "&aTick quotidien des survivants exécuté." to sender
+        else if {_a} is "rencontre":
+            set {_p} to arg-2 parsed as player
+            if {_p} is not set:
+                if sender is a player:
+                    set {_p} to sender
+                else if size of za_monde_joueurs() > 0:
+                    set {_p} to random element out of za_monde_joueurs()
+            if {_p} is not set:
+                send "&cAucun joueur." to sender
+                stop
+            if za_surv_rencontre({_p}) is true:
+                send "&aRencontre créée près de %{_p}%." to sender
+            else:
+                send "&cRencontre impossible (limite de {@libres_max} libres atteinte ou aucun terrain valide)." to sender
+        else if {_a} is "base":
+            set {_id} to arg-2 parsed as number
+            set {_p} to arg-3 parsed as player
+            if {_id} is not set:
+                send "&cUsage : zasurv base <id> <joueur>" to sender
+                stop
+            if {_p} is not set:
+                send "&cUsage : zasurv base <id> <joueur>" to sender
+                stop
+            if {za::base::%{_p}'s uuid%} is not set:
+                send "&c%{_p}% n'a pas de base." to sender
+                stop
+            za_surv_arriver_base({_id}, {_p}'s uuid, {_p})
+            send "&aSurvivant #%{_id}% installé à la base de %{_p}%." to sender
+        else if {_a} is "moral":
+            set {_id} to arg-2 parsed as number
+            set {_n} to arg-3 parsed as number
+            if {_id} is not set:
+                send "&cUsage : zasurv moral <id> <0-100>" to sender
+                stop
+            if {_n} is not set:
+                send "&cUsage : zasurv moral <id> <0-100>" to sender
+                stop
+            set {za::surv::%{_id}%::moral} to {_n}
+            send "&aMoral fixé." to sender
+        else if {_a} is "role":
+            set {_id} to arg-2 parsed as number
+            if {_id} is not set:
+                send "&cUsage : zasurv role <id> <reparer|produire|soigner|garder|commercer>" to sender
+                stop
+            if arg-3 is not set:
+                send "&cUsage : zasurv role <id> <reparer|produire|soigner|garder|commercer>" to sender
+                stop
+            set {za::surv::%{_id}%::role} to arg-3
+            if {za::surv::%{_id}%::base} is set:
+                za_surv_recompte({za::surv::%{_id}%::base})
+            send "&aRôle fixé." to sender
+        else if {_a} is "blesse":
+            set {_id} to arg-2 parsed as number
+            if {_id} is not set:
+                stop
+            set {za::surv::%{_id}%::blesse} to true
+            if {za::surv::%{_id}%::base} is set:
+                za_surv_recompte({za::surv::%{_id}%::base})
+            send "&aSurvivant blessé." to sender
+        else if {_a} is "tuer":
+            set {_id} to arg-2 parsed as number
+            if {_id} is not set:
+                send "&cUsage : zasurv tuer <id>" to sender
+                stop
+            za_surv_mourir({_id}, "siege")
+            send "&aSurvivant tué." to sender
+        else if {_a} is "purger":
+            loop {za::surv::liste::*}:
+                za_surv_clore(loop-value, "parti")
+            delete {za::surv::liste::*}
+            send "&aTous les survivants ont été retirés." to sender
+        else:
+            send "&cSous-commande inconnue." to sender

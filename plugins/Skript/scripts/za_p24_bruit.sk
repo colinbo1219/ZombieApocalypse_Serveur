@@ -1,0 +1,196 @@
+# =====================================================================
+#  ZombieApocalypse - BRUIT ET DISCRETION (s'ajoute a Zombie Awareness)
+#  Zombie Awareness reagit deja aux blocs casses, aux portes, aux coffres, aux explosions ; TSAZ ajoute les tirs de TaCZ.
+#  Ici : une jauge de bruit visible par joueur (/bruit) qui monte quand tu SPRINTES, casses ou poses des blocs, frappes des zombies,
+#  et qui redescend quand tu restes immobile. Accroupi = beaucoup plus discret. Un bruit eleve fait cibler ton joueur
+#  par les zombies proches (rayon 8 a 48 blocs selon le bruit). Une grosse base pres de toi (moins de 30 blocs) fait aussi
+#  monter ta jauge en continu (max +6/tick) : plus elle grandit, plus elle se voit sur /bruit, en plus des sieges directs.
+#  Le "Medaillon de Vega" (relique) divise le bruit par deux quand il est en main.
+#  Munitions TaCZ : la pluie et le sang abiment quelques munitions (interrupteur tacz_actif).
+#  Stockage : des munitions laissees dans un coffre ou un tonneau s'abiment avec le temps (plus vite a ciel ouvert) ; a chaque ouverture,
+#  le script calcule le temps ecoule depuis la derniere visite. Les munitions rangees dans une CAISSE A MUNITIONS de TaCZ ne s'abiment pas.
+#  Demande le datapack DATAPACKS/za_recettes (modificateur za:ammo_humide). Interrupteur stockage_actif.
+# =====================================================================
+
+options:
+    bruit_actif: true
+    tacz_actif: true
+    stockage_actif: true
+
+function za_bruit_ajouter(p: player, n: number):
+    set {_u} to "%{_p}'s uuid%"
+    if {za::bruit::%{_u}%} is not set:
+        set {za::bruit::%{_u}%} to 0
+    set {_g} to {_n}
+    if {_p} is sneaking:
+        set {_g} to {_g} * 0.3
+    if uncolored name of {_p}'s tool is "Medaillon de Vega":
+        set {_g} to {_g} * 0.5
+    add {_g} to {za::bruit::%{_u}%}
+    if {za::bruit::%{_u}%} > 100:
+        set {za::bruit::%{_u}%} to 100
+
+# ---------- paliers nommes, du plus discret au plus dangereux ----------
+function za_bruit_palier(n: number) :: text:
+    if {_n} >= 91:
+        return "&4&l☠ Horde regionale"
+    if {_n} >= 71:
+        return "&c&l🚨 Horde locale"
+    if {_n} >= 41:
+        return "&6🔊 Alerte"
+    if {_n} >= 21:
+        return "&e🔉 Activite"
+    return "&a🔇 Silence"
+
+on break:
+    if za_pro(player) is true:
+        stop
+    if {@bruit_actif} is true:
+        za_bruit_ajouter(player, 6)
+
+on place:
+    if za_pro(player) is true:
+        stop
+    if {@bruit_actif} is true:
+        za_bruit_ajouter(player, 4)
+
+on damage of zombie:
+    if za_pro(victim) is true:
+        stop
+    if {@bruit_actif} is true:
+        if attacker is a player:
+            za_bruit_ajouter(attacker, 3)
+
+every 2 seconds:
+    if {@bruit_actif} is true:
+        loop all players:
+            if za_pro(loop-player) is false:
+                set {_p} to loop-player
+                set {_u} to "%{_p}'s uuid%"
+                if {za::bruit::%{_u}%} is not set:
+                    set {za::bruit::%{_u}%} to 0
+                set {_l} to location of {_p}
+                set {_bouge} to false
+                if {za::bruit::last::%{_u}%} is set:
+                    if world of {za::bruit::last::%{_u}%} is world of {_l}:
+                        if distance between {za::bruit::last::%{_u}%} and {_l} > 0.4:
+                            set {_bouge} to true
+                set {za::bruit::last::%{_u}%} to {_l}
+                remove 2 from {za::bruit::%{_u}%}
+                if {_p} is sprinting:
+                    za_bruit_ajouter({_p}, 8)
+                else if {_bouge} is true:
+                    za_bruit_ajouter({_p}, 1.6)
+                else:
+                    remove 3 from {za::bruit::%{_u}%}
+                if {za::bruit::%{_u}%} < 0:
+                    set {za::bruit::%{_u}%} to 0
+                if {za::base::%{_u}%} is set:
+                    if world of {za::base::%{_u}%} is world of {_l}:
+                        if distance between {za::base::%{_u}%} and {_l} < 30:
+                            set {_bs} to {za::base::taille::%{_u}%}
+                            if {_bs} is not set:
+                                set {_bs} to 0
+                            za_bruit_ajouter({_p}, min(6, {_bs} / 200))
+                set {_n} to {za::bruit::%{_u}%}
+                set {_pal} to za_bruit_palier({_n})
+                if {za::bruit::palier::%{_u}%} is not set:
+                    set {za::bruit::palier::%{_u}%} to {_pal}
+                else if {za::bruit::palier::%{_u}%} is not {_pal}:
+                    set {za::bruit::palier::%{_u}%} to {_pal}
+                    if {_n} < 71:
+                        send action bar "%{_pal}%" to {_p}
+                if {_n} >= 40:
+                    set {_r} to 8 + ({_n} * 0.4)
+                    if {_p} is sneaking:
+                        set {_r} to {_r} * 0.6
+                    set {_c} to {_n} / 2
+                    set {_z::*} to all zombies in radius {_r} around {_p}
+                    loop {_z::*}:
+                        if chance of {_c}%:
+                            set target of loop-value-2 to {_p}
+                if {_n} >= 71:
+                    send action bar "&c&lLes zombies convergent vers ta position." to {_p}
+
+command /bruit:
+    trigger:
+        set {_n} to {za::bruit::%player's uuid%}
+        if {_n} is not set:
+            set {_n} to 0
+        send "&7Bruit : &f%floor({_n})%/100 &7- %za_bruit_palier({_n})%&7. Sprinter, casser et frapper font du bruit ; accroupi, tu es 3 fois plus discret." to player
+
+# ---------- munitions TaCZ abimees par l'humidite et le sang ----------
+every 60 seconds:
+    if {@tacz_actif} is true:
+        loop all players:
+            if za_pro(loop-player) is false:
+                set {_p} to loop-player
+                set {_l} to location of {_p}
+                set {_humide} to false
+                if "%block at {_l}%" contains "water":
+                    set {_humide} to true
+                if weather in world of {_p} is rainy:
+                    if y-coordinate of {_l} >= y-coordinate of (location of (highest block at {_l})):
+                        set {_humide} to true
+                if {_humide} is true:
+                    if chance of 35%:
+                        execute console command "clear %{_p}% tacz:ammo 2"
+                        send action bar "&8Ta poudre est humide : des munitions sont inutilisables." to {_p}
+                if {za::sang::%{_p}'s uuid%} is set:
+                    if chance of 12%:
+                        execute console command "clear %{_p}% tacz:ammo 1"
+
+# ---------- stockage : les munitions oubliees dans un coffre s'abiment ----------
+function za_stock_passe(w: text, x: number, y: number, z: number):
+    loop 27 times:
+        set {_n} to loop-number - 1
+        execute console command "execute in %{_w}% run item modify block %{_x}% %{_y}% %{_z}% container.%{_n}% za:ammo_humide"
+
+function za_stockage(b: block):
+    set {_l} to location of {_b}
+    set {_k} to za_lkey({_l})
+    set {_ancien} to {za::stock::%{_k}%}
+    set {za::stock::%{_k}%} to now
+    if {_ancien} is not set:
+        stop
+    set {_d} to difference between {_ancien} and now
+    set {_passes} to 0
+    if {_d} is greater than 8 hours:
+        set {_passes} to 5
+    else if {_d} is greater than 4 hours:
+        set {_passes} to 4
+    else if {_d} is greater than 2 hours:
+        set {_passes} to 3
+    else if {_d} is greater than 1 hour:
+        set {_passes} to 2
+    else if {_d} is greater than 30 minutes:
+        set {_passes} to 1
+    if {_passes} is 0:
+        stop
+    if y-coordinate of {_l} >= y-coordinate of (location of (highest block at {_l})):
+        add 2 to {_passes}
+    set {_wn} to "%world of {_l}%"
+    set {_wd} to "minecraft:overworld"
+    if {_wn} contains "nether":
+        set {_wd} to "minecraft:the_nether"
+    else if {_wn} contains "end":
+        set {_wd} to "minecraft:the_end"
+    set {_x} to floor(x-coordinate of {_l})
+    set {_y} to floor(y-coordinate of {_l})
+    set {_z} to floor(z-coordinate of {_l})
+    loop {_passes} times:
+        za_stock_passe({_wd}, {_x}, {_y}, {_z})
+
+on right click:
+    if za_pro(player) is true:
+        stop
+    if {@stockage_actif} is true:
+        if {@tacz_actif} is true:
+            if event-block is set:
+                set {_bt} to "%event-block%"
+                if any:
+                    {_bt} contains "chest"
+                    {_bt} contains "barrel"
+                then:
+                    if {_bt} does not contain "ender":
+                        za_stockage(event-block)

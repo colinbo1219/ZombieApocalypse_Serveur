@@ -1,0 +1,37 @@
+# ZombieApocalypse - humains hostiles (pillards). Le pack joueurs leur donne une silhouette humaine.
+ZA_Pillard:
+  Type: VINDICATOR
+  Display: '&cPillard'
+  Health: 32
+  Damage: 6
+  Armor: 2
+  Options:
+    MovementSpeed: 0.31
+    FollowRange: 32
+    PreventOtherDrops: true
+    PreventRandomEquipment: true
+    Despawn: true
+    Silent: false
+  Equipment:
+  - iron_axe HAND
+  Drops:
+  - gold_nugget 1to2 0.4
+  - bread 1to2 0.5
+  - arrow 2to6 0.3
+ZA_Pillard_Tireur:
+  Type: PILLAGER
+  Display: '&cPillarde'
+  Health: 26
+  Damage: 5
+  Options:
+    MovementSpeed: 0.3
+    FollowRange: 40
+    PreventOtherDrops: true
+    PreventRandomEquipment: true
+    Despawn: true
+  Equipment:
+  - crossbow HAND
+  Drops:
+  - gold_nugget 1to2 0.4
+  - arrow 3to8 0.6
+  - cooked_beef 1 0.4

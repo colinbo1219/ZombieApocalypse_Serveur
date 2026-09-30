@@ -1,0 +1,123 @@
+# =====================================================================
+#  ZombieApocalypse - SPECIALISATION (fusion de l'ancien systeme de roles et de l'arbre de competences)
+#  4 roles, exclusifs, 2-3 bonus fixes chacun (pas d'arbre a monter, pas de points a depenser) :
+#    Medecin   (score 25) : bandage +5 coeurs (au lieu de 3), fenetre de l'antidote x1.5, /traiter <joueur>
+#    Soldat    (score 80) : +15 pourcent degats aux zombies, -10 pourcent degats subis, sieges plus faibles pres de lui
+#                            (-15 pourcent par soldat a moins de 60 blocs, max 3)
+#    Eclaireur (score 25) : +15 pourcent loot dans les coffres, meilleur butin sur les cadavres, Collectionneur +10 pourcent,
+#                            un peu plus rapide (Vitesse I passive)
+#    Ingenieur (score 50) : tourelles plus efficaces (+1 coeur de degats, +4 blocs de portee), pieges du Mecano -20 pourcent,
+#                            reparations -30 pourcent
+#  /role                    : voir ton role
+#  /role choisir <nom>      : changement possible tous les 3 jours
+#  Aucun role n'est objectivement meilleur qu'un autre : chacun est indispensable dans une situation differente.
+# =====================================================================
+
+function za_role(p: player) :: text:
+    if {za::role::%{_p}'s uuid%} is set:
+        return {za::role::%{_p}'s uuid%}
+    return "aucun"
+
+function za_role_uuid(u: text) :: text:
+    if {za::role::%{_u}%} is set:
+        return {za::role::%{_u}%}
+    return "aucun"
+
+function za_role_seuil(r: text) :: number:
+    if any:
+        {_r} is "medecin"
+        {_r} is "eclaireur"
+    then:
+        return 25
+    if {_r} is "ingenieur":
+        return 50
+    return 80
+
+command /role [<text>] [<text>]:
+    trigger:
+        set {_u} to "%player's uuid%"
+        if arg-1 is not set:
+            send "&6Role actuel : &e%za_role(player)%" to player
+            send "&7Roles : &fmedecin &7(score 25) | &feclaireur &7(score 25) | &fingenieur &7(score 50) | &fsoldat &7(score 80)" to player
+            send "&7/role choisir <nom> (changement possible tous les 3 jours). Aucun role n'est objectivement meilleur : chacun compte dans une situation differente." to player
+        else if arg-1 is "choisir":
+            set {_r} to arg-2
+            if all:
+                {_r} is not "medecin"
+                {_r} is not "eclaireur"
+                {_r} is not "ingenieur"
+                {_r} is not "soldat"
+            then:
+                send "&cRole inconnu : medecin, eclaireur, ingenieur ou soldat." to player
+            else if za_score(player) < za_role_seuil({_r}):
+                send "&cCe role demande un score de %za_role_seuil({_r})%." to player
+            else if all:
+                {za::role::date::%{_u}%} is set
+                difference between {za::role::date::%{_u}%} and now is less than 3 days
+            then:
+                send "&cTu as deja change de role il y a moins de 3 jours." to player
+            else:
+                set {za::role::%{_u}%} to {_r}
+                set {za::role::date::%{_u}%} to now
+                send "&aTu es maintenant &e%{_r}%&a." to player
+        else:
+            send "&cUsage : /role [choisir <medecin|eclaireur|ingenieur|soldat>]" to player
+
+command /traiter <player>:
+    trigger:
+        set {_t} to arg-1
+        if za_role(player) is not "medecin":
+            send "&cSeul un medecin peut traiter un infecte." to player
+        else if {_t} is player:
+            send "&cTu ne peux pas te traiter toi-meme." to player
+        else if world of {_t} is not world of player:
+            send "&cIl est trop loin." to player
+        else if distance between player and {_t} > 5:
+            send "&cIl est trop loin (5 blocs maximum)." to player
+        else if all:
+            {za::traiter::cd::%player's uuid%} is set
+            {za::traiter::cd::%player's uuid%} is greater than now
+        then:
+            send "&cTu dois attendre un peu entre deux soins." to player
+        else if za_take_named(player, "Antidote", 1) is false:
+            send "&cIl te faut un Antidote dans ton sac." to player
+        else:
+            set {za::traiter::cd::%player's uuid%} to now
+            add 60 seconds to {za::traiter::cd::%player's uuid%}
+            set {_w} to za_param(za_souche_id({_t}), "fenetre")
+            set {_w} to {_w} * 1.5
+            if {za::porteur::%{_t}'s uuid%} is set:
+                delete {za::porteur::%{_t}'s uuid%}
+                send "&aTu purges le corps de %{_t}% (il etait porteur sain)." to player
+                send "&aTon corps se purge grace au medecin." to {_t}
+            if {za::infection::%{_t}'s uuid%} is set:
+                if difference between {za::infection::%{_t}'s uuid%} and now is less than ("%{_w}% minutes" parsed as timespan):
+                    delete {za::infection::%{_t}'s uuid%}
+                    za_resistance({_t})
+                    send "&aTu soignes %{_t}% : l'infection recule." to player
+                    send "&a%player% t'a soigne : l'infection recule." to {_t}
+                else:
+                    send "&cC'est trop tard, il faut un Serum." to player
+            else:
+                send "&7%{_t}% n'a pas de symptomes." to player
+
+# ---------- bonus du Soldat ----------
+on damage of zombie:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a player:
+        if za_role(attacker) is "soldat":
+            set damage to damage * 1.15
+
+on damage of player:
+    if za_pro(victim) is true:
+        stop
+    if za_role(victim) is "soldat":
+        set damage to damage * 0.9
+
+# ---------- bonus de vitesse de l'Eclaireur ----------
+every 30 seconds:
+    loop all players:
+        if za_pro(loop-player) is false:
+            if za_role(loop-player) is "eclaireur":
+                za_effet(loop-player, "speed", 35, 0)

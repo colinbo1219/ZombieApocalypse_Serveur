@@ -1,0 +1,88 @@
+# =====================================================================
+#  ZombieApocalypse - TOURELLES
+#  La "Tourelle" (distributeur vendu par le Trafiquant d'armes, score 80 requis) tire sur les morts proches.
+#  * Clic droit avec des fleches : charge des munitions (1 fleche = 1 tir, max 64)
+#  * Clic droit a mains vides : etat de la tourelle
+#  * Portee 14 blocs, un tir toutes les 2 secondes, 3 coeurs de degats
+#  * Maximum 3 tourelles par joueur
+# =====================================================================
+
+function za_tour_retirer(key: text):
+    set {_o} to {za::tour::%{_key}%::proprio}
+    if {za::tour::compte::%{_o}%} is set:
+        remove 1 from {za::tour::compte::%{_o}%}
+    remove {_key} from {za::tour::liste::*}
+    delete {za::tour::%{_key}%::*}
+
+# ---------- pose ----------
+on place:
+    if za_pro(player) is true:
+        stop
+    if event-block is dispenser:
+        if uncolored name of player's tool is "Tourelle":
+            set {_u} to "%player's uuid%"
+            if {za::tour::compte::%{_u}%} is not set:
+                set {za::tour::compte::%{_u}%} to 0
+            if {za::tour::compte::%{_u}%} >= 3:
+                cancel the event
+                send "&cTu ne peux pas avoir plus de 3 tourelles." to player
+            else:
+                set {_k} to za_lkey(location of event-block)
+                set {za::tour::%{_k}%::loc} to location of event-block
+                set {za::tour::%{_k}%::proprio} to {_u}
+                set {za::tour::%{_k}%::munitions} to 0
+                add {_k} to {za::tour::liste::*}
+                add 1 to {za::tour::compte::%{_u}%}
+                send "&cTourelle installee. Clic droit avec des fleches pour la charger." to player
+
+# ---------- charger / etat ----------
+on right click on dispenser:
+    if za_pro(player) is true:
+        stop
+    set {_k} to za_lkey(location of event-block)
+    if {za::tour::%{_k}%::proprio} is set:
+        cancel the event
+        if player's tool is arrow:
+            set {_place} to 64 - {za::tour::%{_k}%::munitions}
+            set {_n} to min({_place}, item amount of player's tool)
+            if {_n} <= 0:
+                send "&7La tourelle est pleine." to player
+            else:
+                remove {_n} of player's tool from player's inventory
+                add {_n} to {za::tour::%{_k}%::munitions}
+                send "&cTourelle chargee : %{za::tour::%{_k}%::munitions}% munitions." to player
+        else:
+            send "&cTourelle : %{za::tour::%{_k}%::munitions}% munitions." to player
+
+# ---------- destruction ----------
+on break:
+    if za_pro(player) is true:
+        stop
+    if event-block is dispenser:
+        set {_k} to za_lkey(location of event-block)
+        if {za::tour::%{_k}%::proprio} is set:
+            za_tour_retirer({_k})
+            send "&7Tourelle detruite." to player
+
+# ---------- tir ----------
+every 2 seconds:
+    if za_emp_actif() is true:
+        stop
+    loop {za::tour::liste::*}:
+        set {_k} to loop-value
+        set {_l} to {za::tour::%{_k}%::loc}
+        if block at {_l} is not dispenser:
+            za_tour_retirer({_k})
+        else if {za::tour::%{_k}%::munitions} > 0:
+            set {_r} to 14
+            set {_deg} to 3
+            if za_role_uuid({za::tour::%{_k}%::proprio}) is "ingenieur":
+                set {_r} to 18
+                set {_deg} to 4
+            set {_z::*} to all zombies in radius {_r} around {_l}
+            if size of {_z::*} > 0:
+                set {_t} to first element of {_z::*}
+                damage {_t} by {_deg}
+                remove 1 from {za::tour::%{_k}%::munitions}
+                execute console command "playsound minecraft:entity.arrow.shoot block @a %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% 1 1"
+                execute console command "execute at %uuid of {_t}% run particle minecraft:crit ~ ~1 ~ 0.2 0.3 0.2 0.1 8 force"
