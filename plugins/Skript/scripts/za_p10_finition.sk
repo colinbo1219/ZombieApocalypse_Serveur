@@ -63,7 +63,7 @@ function za_aide_categorie(p: player, cat: text):
     else if {_cat} is "Exploration":
         send "&e/lieux &7ce qu'on trouve dans chaque bâtiment | &e/enigme &7coffres scellés NORDA | &e/code <####> | &e/carte &7fragments A-B-C et bunker | &e/enquete &7ton carnet d'indices" to {_p}
     else if {_cat} is "Soins et ateliers":
-        send "&e/blessures &7bras, jambe, torse, tête (Bandage, Attelle, Médecin) | &e/atelier &7créer un atelier à ta base (médical, militaire, mécanique, labo, électronique) | &e/reseau &7quartiers alimentés par la centrale | &e/electricite &7sous-stations Create / CCA / IE" to {_p}
+        send "&e/blessures &7bras, jambe, torse, tête (Bandage, Attelle, Médecin) | &e/atelier &7créer un atelier à ta base (médical, militaire, mécanique, labo, électronique) | &e/reseau &7quartiers alimentés par la centrale | &e/electricite &7sous-stations Create / CCA / IE | &e/telephone &7SMS, appels, alertes | &e/cours &7prix des marchands" to {_p}
     else if {_cat} is "Mémoire et saisons":
         send "&e/succes &7succès secrets et titres | &e/disparus &7stèles et Rue des disparus | &e/chroniques &7l'histoire des saisons | &e/meteo &7catastrophes | &e/adaptation &7ce que les morts ont appris | &e/hall" to {_p}
         send "&e/lieu &7l'histoire datée du lieu où tu es | &e/souvenirs &7ce que tu as vécu | &e/legendes &7les grands moments du serveur | &e/relique &7le Carnet de Samuel Arel (un seul exemplaire)" to {_p}

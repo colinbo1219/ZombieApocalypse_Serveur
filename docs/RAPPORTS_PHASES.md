@@ -311,3 +311,28 @@ légende pour le premier). 4 documents au format §45. Admin `/zaexpl <joueur> [
 **RISQUES** : repose sur les panneaux d'origine des ruines ; si un joueur les casse, l'étape n'est plus cliquable.
 
 **TESTS** : statiques + positions des panneaux extraites automatiquement de la structure.
+
+---
+
+## PHASE 13 — Radio + téléphone
+
+**NOUVEAUX FICHIERS** : `plugins/Skript/scripts/za_p70_ondes.sk` · **MODIFICATIONS** : `/aide` (`za_p10`).
+
+**SYSTÈMES AJOUTÉS**
+- **Bulletin quotidien de Léa** (MISSION §43) : à chaque nouveau jour de serveur, Léa lit à l'antenne jusqu'à 3
+  événements réels de la veille pris dans le journal du serveur (morts, camps, territoires, réseau, légendes,
+  retrouvailles…). Les annonces existantes des modules restent inchangées.
+- **Téléphone** (MISSION §44) : le « Cellulaire mort » du réveil au Jour 8 se répare (clic droit + 1 Composant
+  électronique). Réseau seulement là où le courant revient (centrale en marche ou sous-station qui produit à 300
+  blocs) ; batterie -1 %/min, recharge dans une zone sous tension. `/telephone` (`/tel`) : messages, appels (Léa,
+  Lefort, Vega : réponses selon la confiance, le danger local, le dossier Arel), alertes (horde, Overlord, lune de
+  sang, catastrophe, camps attaqués, pannes, danger local), missions (contrats, sous-stations, dossier Arel, /guide).
+- **SMS de contexte** : camp attaqué (si ce camp te fait confiance), contrat d'une faction où tu es connu, horde,
+  lune de sang, panne de TA sous-station, nouvelles des survivants retrouvés (échos), et un « numéro inconnu »…
+  Les messages attendent le réseau. API : `za_tel_sms(uuid, expéditeur, texte)`.
+- Admin : `/zatel <joueur> donner|sms <texte>|batterie <n>|reset`.
+
+**RISQUES** : le bulletin lit `{za::journal::*}` (200 lignes max) : si la veille a été très chargée, seuls les
+événements encore présents sont lus.
+
+**TESTS** : statiques. En jeu : `/zatel <toi> donner`, `/telephone`, `/zacamp attaque <id> zombies`.
