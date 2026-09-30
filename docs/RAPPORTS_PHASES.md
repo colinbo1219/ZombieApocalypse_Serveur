@@ -483,3 +483,9 @@ retiré de l'overworld. Aucune génération par Minecraft : le programme écrit 
 - Les anciennes données de joueurs pointent vers l'ancien monde : bases, camps, `{za::pro::retour}`.
 - Les 311 barils des ruines restent vides : leur contenu vient des systèmes de jeu, comme avant.
 - Les 1,8 Go de régions ne sont pas versionnés : Colin les génère chez lui.
+
+**AJOUT (même jour) : signalisation routière** (`generateur_monde/signalisation.py`, 47 panneaux sur poteau).
+L'autobus du Jour 8 est à ~700 blocs des ruines : un panneau à côté de lui indique Saint-Aurèle (sortie 117, tout
+droit vers l'ouest) ; la sortie 117 est annoncée dans les deux sens ; aux deux entrées de la ville, « Bienvenue à
+Saint-Aurèle » puis « QUARANTAINE — Accès interdit » ; chaque chemin de lieu a son panneau (nom + distance).
+Testé sur le serveur vanilla : panneaux conservés après chargement et sauvegarde (texte, couleur, texte lumineux).

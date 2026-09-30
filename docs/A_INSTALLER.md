@@ -164,6 +164,9 @@ de région** (`world/region/r.X.Z.mca`). Minecraft ne génère rien : il lit ce 
   nickel, uranium (Immersive Engineering)** pour que l'électricité (Create / IE) se construise avec ce qu'on trouve.
 - **Routes** : l'autoroute 40 (4 voies, ligne jaune, ponts sur la rivière), la route 117, le Chemin du Lac, le
   Rang Saint-Aurèle et un chemin vers chaque lieu. Voitures abandonnées dans les villages.
+- **Panneaux routiers** (47) : « SORTIE 117 » sur l'autoroute, « SAINT-AURÈLE — tout droit » à côté de l'autobus,
+  « Bienvenue à Saint-Aurèle » suivi d'un avis de **QUARANTAINE** aux deux entrées de la ville, et un panneau avec le
+  nom et la distance à l'entrée du chemin de chaque lieu (base Bravo « ACCÈS INTERDIT », NORDA, barrage, fermes...).
 - **Lieux** (tous abandonnés, vitres brisées, lierre, lampes éteintes, coffres avec butin) :
   - au centre (0, 0) : **Saint-Aurèle en ruines** (la ville du prologue, 288 × 288) ;
   - l'**autobus du Jour 8** (point d'apparition, x 641 z 299) ;

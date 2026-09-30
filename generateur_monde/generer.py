@@ -32,6 +32,8 @@ def _init(vanille=False):
     _ETAT['plan'] = pl
     _ETAT['gab'] = flore.gabarits(pl['graine'])
     _ETAT['sites'] = sites
+    import signalisation
+    _ETAT['panneaux'] = signalisation.panneaux(pl)
 
 
 def _une(args):
@@ -39,7 +41,7 @@ def _une(args):
     import monde as M
     t = time.time()
     try:
-        M.generer(_ETAT['plan'], rx, rz, dossier, _ETAT['sites'], _ETAT['gab'])
+        M.generer(_ETAT['plan'], rx, rz, dossier, _ETAT['sites'], _ETAT['gab'], _ETAT['panneaux'])
     except Exception as e:  # une région ratée ne doit pas arrêter les autres
         import traceback
         traceback.print_exc()
