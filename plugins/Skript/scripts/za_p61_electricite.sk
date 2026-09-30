@@ -179,6 +179,8 @@ function za_elec_tick():
         if {_m} >= 0:
             set {za::elec2::ss::%{_i}%::prod} to {_m}
         add ({za::elec2::ss::%{_i}%::prod} ? 0) to {_res}
+    # dérivations clandestines (za_p90) : chacune vole 2 unités à la réserve
+    set {_res} to max(0, {_res} - (2 * size of {za::reseau2::derivation::*}))
     set {za::elec2::reserve} to {_res}
     set {_reste} to {_res}
     loop za_elec_priorites():
@@ -187,6 +189,9 @@ function za_elec_tick():
         set {_c} to za_elec_conso({_q})
         set {_e} to "BLACKOUT"
         set {_alim} to false
+        # quartier coupé volontairement (za_p90) : ne consomme rien
+        if {za::reseau2::coupe::%{_q}%} is set:
+            set {_c} to 999999
         if {za::reseau::actifs::*} contains {_q}:
             # déjà alimenté par la centrale (choix / vote de za_p50)
             if za_courant() is true:
@@ -216,6 +221,9 @@ function za_elec_tick():
         set {_on} to false
         if {_bl} is set:
             if za_elec_pres({_bl}, {@rayon_base}) is true:
+                set {_on} to true
+            # dérivation clandestine vers cette base (za_p90)
+            if {za::reseau2::derivation::%{_u}%} is set:
                 set {_on} to true
             else:
                 loop {za::gen::liste::*}:
@@ -317,6 +325,8 @@ function za_elec_endommager(i: number, cause: text):
     set {_l} to {za::elec2::ss::%{_i}%::loc}
     za_radio("&6CKZA", "%{_cause}% La %{_n}% est hors service. Objectif : réparer la %{_n}% (/electricite).")
     za_journal("%{_n}% endommagée (%{_cause}%).")
+    # la charge se reporte sur les autres : panne en cascade possible (za_p90)
+    za_reseau_cascade({_i})
     if {_l} is set:
         za_monde_evt("La %{_n}% tombe en panne.", {_l}, 1, "reseau")
         execute console command "execute in %za_dim(world of {_l})% run particle minecraft:large_smoke %x-coordinate of {_l}% %(y-coordinate of {_l}) + 1% %z-coordinate of {_l}% 0.4 0.6 0.4 0.02 40 force"

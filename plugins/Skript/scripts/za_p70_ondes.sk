@@ -70,6 +70,12 @@ function za_tel_signal(p: player) :: boolean:
     # silence radio (za_p85) : souterrains, zones mortes, NORDA
     if za_sans_signal({_p}) is true:
         return false
+    # tour radio de sa base (za_p90) : capte à 300 blocs, même sans courant
+    set {_t} to {za::infra::%{_p}'s uuid%::tour}
+    if {_t} is set:
+        if world of {_t} is world of {_p}:
+            if distance between {_t} and {_p} < 300:
+                return true
     if za_courant() is true:
         return true
     if za_elec_pres(location of {_p}, {@rayon_antenne}) is true:
