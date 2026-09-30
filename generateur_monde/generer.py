@@ -14,6 +14,8 @@ import os
 import sys
 import time
 
+import numpy as np
+
 ICI = os.path.dirname(os.path.abspath(__file__))
 RACINE = os.path.dirname(ICI)
 sys.path.insert(0, ICI)
@@ -34,6 +36,8 @@ def _init(vanille=False):
     _ETAT['sites'] = sites
     import signalisation
     _ETAT['panneaux'] = signalisation.panneaux(pl)
+    import epaves
+    _ETAT['evts'] = epaves.evenements(pl)
 
 
 def _une(args):
@@ -41,7 +45,7 @@ def _une(args):
     import monde as M
     t = time.time()
     try:
-        M.generer(_ETAT['plan'], rx, rz, dossier, _ETAT['sites'], _ETAT['gab'], _ETAT['panneaux'])
+        M.generer(_ETAT['plan'], rx, rz, dossier, _ETAT['sites'], _ETAT['gab'], _ETAT['panneaux'], _ETAT['evts'])
     except Exception as e:  # une région ratée ne doit pas arrêter les autres
         import traceback
         traceback.print_exc()
@@ -97,6 +101,10 @@ ZOMBIES = {
     'eglise': 'ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer',
     'depanneur': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner',
     'garage': 'ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte',
+    # événements sur les routes
+    'carambolage': 'ZA_Citoyen_Infecte,ZA_Crawler,ZA_Runner,ZA_Shambler',
+    'exode': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Child,ZA_Runner,ZA_Crawler',
+    'convoi': 'ZA_Soldat_Infecte,ZA_Soldat_Infecte,ZA_Armored',
 }
 
 
@@ -116,6 +124,12 @@ def ecrire_skript(pl):
             nom = nom.replace('"', "'").replace('%', '%%').replace('|', '/')
             lignes.append('%s_%s%d|%s|%s|%d|%d|%d|%d|%d|%s' % (s['id'], genre, k, genre, nom, bx + lx, y, bz + lz,
                                                               dx, dz, ZOMBIES.get(genre, '')))
+    import epaves
+    for k, e in enumerate(epaves.evenements(pl)):
+        c = T.champ(pl, np.array([[float(e['x'])]]), np.array([[float(e['z'])]]))
+        y = int(c['route_y'][0, 0] if c['route'][0, 0] else c['h'][0, 0]) + 1
+        lignes.append('route_%s%d|%s|%s|%d|%d|%d|%d|%d|%s' % (e['type'], k, e['type'], e['nom'].replace('"', "'"), e['x'], y,
+                                                             e['z'], e['dx'], e['dz'], ZOMBIES.get(e['type'], '')))
     for s in pl['sites']:
         if s['type'] == 'ruines':
             continue
@@ -137,6 +151,24 @@ def ecrire_skript(pl):
            'function za_sites_donnees() :: texts:']
     for l in lignes:
         out.append('    add "%s" to {_r::*}' % l)
+    out.append('    return {_r::*}')
+    # points des grandes routes (tous les 64 blocs) : hordes de la nuit qui arrivent par la route (za_p76_routes)
+    out += ['', 'function za_sites_routes() :: texts:']
+    for r in pl['routes']:
+        if r['nom'] not in ('Autoroute 40', 'Route 117'):
+            continue
+        P = r['points']
+        acc, prochain = 0.0, 0.0
+        for i in range(len(P) - 1):
+            (x1, z1), (x2, z2) = P[i], P[i + 1]
+            d = ((x2 - x1) ** 2 + (z2 - z1) ** 2) ** 0.5
+            while prochain <= acc + d:
+                t = (prochain - acc) / d if d else 0
+                x, z = x1 + (x2 - x1) * t, z1 + (z2 - z1) * t
+                if abs(x) < pl['limite'] - 20 and abs(z) < pl['limite'] - 20:
+                    out.append('    add "%d;%d" to {_r::*}' % (round(x), round(z)))
+                prochain += 64
+            acc += d
     out.append('    return {_r::*}')
     chemin = os.path.join(RACINE, 'plugins', 'Skript', 'scripts', 'za_p73_sites_donnees.sk')
     open(chemin, 'w', encoding='utf-8').write('\n'.join(out) + '\n')

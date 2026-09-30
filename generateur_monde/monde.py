@@ -397,7 +397,7 @@ class Region:
         R.ecrire(chemin)
 
 
-def generer(plan, rx, rz, dossier, sites=None, gab=None, panneaux=None):
+def generer(plan, rx, rz, dossier, sites=None, gab=None, panneaux=None, evts=None):
     reg = Region(plan, rx, rz)
     reg.remplir()
     reg.minerais()
@@ -406,6 +406,9 @@ def generer(plan, rx, rz, dossier, sites=None, gab=None, panneaux=None):
     if sites:
         sites.poser(reg)
     reg.vegetation(gab or flore.gabarits(plan['graine']))
+    if evts:
+        import epaves
+        epaves.poser(reg, evts)
     if panneaux:
         import signalisation
         signalisation.poser(reg, panneaux)

@@ -1,0 +1,80 @@
+# =====================================================================
+#  ZombieApocalypse - LES ROUTES LA NUIT : les hordes suivent l'asphalte
+#  La nuit, les morts marchent sur l'autoroute 40 et la route 117 (lignes droites, pas d'obstacles) : un joueur près
+#  d'une grande route peut voir une file de silhouettes arriver par la route, puis foncer sur lui.
+#  * Toutes les minutes la nuit, 7 %% de chances par joueur à moins de 150 blocs d'une grande route (15 min entre deux).
+#  * La horde (5 à 10 morts) apparaît SUR la route, entre 60 et 110 blocs, et prend le joueur pour cible.
+#  Épaves (carambolages, l'exode, convois) : posées par le générateur, lieux et zombies dans za_p73.
+#  Points des routes : za_sites_routes() (za_p73_sites_donnees.sk, généré). Admin : /zaroute horde [joueur]
+# =====================================================================
+
+options:
+    chance: 7
+    attente: 15 minutes
+
+function za_route_horde(p: player, forcer: boolean) :: boolean:
+    set {_l} to location of {_p}
+    if "%world of {_l}%" is not "world":
+        return false
+    set {_pres} to false
+    loop za_sites_routes():
+        set {_c::*} to split loop-value at ";"
+        set {_x} to ({_c::1} parsed as number) - x-coordinate of {_l}
+        set {_z} to ({_c::2} parsed as number) - z-coordinate of {_l}
+        set {_d} to sqrt(({_x} * {_x}) + ({_z} * {_z}))
+        if {_d} < 150:
+            set {_pres} to true
+        if {_d} >= 60:
+            if {_d} <= 110:
+                add loop-value to {_cand::*}
+    if {_pres} is false:
+        return false
+    if size of {_cand::*} is 0:
+        return false
+    set {_c::*} to split (random element out of {_cand::*}) at ";"
+    set {_o} to location({_c::1} parsed as number, y-coordinate of {_l}, {_c::2} parsed as number, world of {_l})
+    set {_n} to random integer between 5 and 10
+    loop {_n} times:
+        set {_t} to random element out of "ZA_Shambler", "ZA_Shambler", "ZA_Citoyen_Infecte", "ZA_Citoyen_Infecte", "ZA_Runner" and "ZA_Crawler"
+        za_spawn_at({_o}, {_t}, 0, 6)
+    send action bar "&8Au loin, sur la route, des silhouettes avancent en file..." to {_p}
+    za_zm("son %{_p}% za_modeles:sfx.horde_grondement 0.5 0.9")
+    za_route_cibler({_p}, {_o})
+    return true
+
+# une fois apparus, ils foncent sur le joueur (fonction séparée : le wait ne bloque pas l'appelant)
+function za_route_cibler(p: player, o: location):
+    wait 3 seconds
+    if {_p} is not online:
+        stop
+    loop all zombies in radius 14 around {_o}:
+        set target of loop-zombie to {_p}
+
+every 1 minute:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if za_pro({_p}) is false:
+            if za_nuit({_p}) is true:
+                set {_u} to "%{_p}'s uuid%"
+                set {_der} to {za::route::horde::%{_u}%}
+                set {_ok} to true
+                if {_der} is set:
+                    if difference between {_der} and now < {@attente}:
+                        set {_ok} to false
+                if {_ok} is true:
+                    if chance of {@chance}%:
+                        if za_route_horde({_p}, false) is true:
+                            set {za::route::horde::%{_u}%} to now
+
+command /zaroute <text> [<player>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "horde":
+            set {_p} to arg-2 ? player
+            if {_p} is not set:
+                send "/zaroute horde <joueur>" to sender
+                stop
+            if za_route_horde({_p}, true) is false:
+                send "&7Pas de grande route à moins de 150 blocs de %{_p}%." to sender
+            else:
+                send "&7Horde lancée sur la route près de %{_p}%." to sender
