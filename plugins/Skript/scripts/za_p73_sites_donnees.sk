@@ -137,6 +137,7 @@ function za_sites_donnees() :: texts:
     add "refuge_18|refuge|Refuge 18|4247|150|-3322|15|15|" to {_r::*}
     add "refuge_19|refuge|Refuge 79|1626|68|4115|15|15|" to {_r::*}
     add "refuge_20|refuge|Refuge 20|3719|69|1989|15|15|" to {_r::*}
+    add "cimetiere|cimetiere|Cimetière de Saint-Aurèle|190|67|-260|31|31|" to {_r::*}
     return {_r::*}
 
 function za_sites_apparitions() :: texts:

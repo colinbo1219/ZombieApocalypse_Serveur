@@ -847,3 +847,54 @@ def refuge(site, plan):
     ch.lieu(R, 7, 7, 'refuge', site['nom'])
     return ch.terminer(0.35)
 
+
+# emplacements des tombes des joueurs (partagés avec za_p88_cimetiere.sk) : moitié sud, 13 x 5
+TOMBES_X = list(range(-18, 19, 3))
+TOMBES_Z = list(range(3, 20, 4))
+ANCIENS = ['Famille Tremblay', 'Joseph Gagnon', 'Rose Bouchard', 'Famille Côté', 'Émile Roy', 'Marie-Ange Morin',
+           'Famille Lavoie', 'Ovide Pelletier', 'Jeanne Fortin', 'Famille Gauthier', 'Adélard Simard', 'Yvette Paquette']
+
+
+def cimetiere(site, plan):
+    """Cimetière : clôture, portail, allées de gravier, chapelle, vieilles tombes au nord, rangées libres au sud."""
+    ch = Chantier(site, 46, 46)
+    m, rng = ch.m, ch.rng
+    for x in range(-22, 23):
+        for z in (-22, 22):
+            m.set(x, 64, z, S('iron_bars'))
+    for z in range(-22, 23):
+        for x in (-22, 22):
+            m.set(x, 64, z, S('iron_bars'))
+    m.fill(-1, 64, 22, 1, 65, 22, AIR)                                        # portail ouvert (sud)
+    m.fill(-1, 63, -21, 1, 63, 22, S('gravel'))                               # allée centrale
+    m.fill(-21, 63, 0, 21, 63, 1, S('gravel'))
+    ch.panneau(3, 65, 23, ['Cimetière de', 'Saint-Aurèle', 'Paroisse', 'fondée en 1872'], rotation=0)
+    # chapelle au nord
+    m.fill(-4, 63, -21, 4, 63, -13, S('stone_bricks'))
+    m.fill(-4, 64, -21, 4, 69, -13, S('stone_bricks'))
+    m.fill(-3, 64, -20, 3, 68, -14, AIR)
+    m.fill(-1, 64, -13, 1, 66, -13, AIR)
+    m.set(0, 70, -17, S('stone_brick_wall'))
+    m.set(0, 71, -17, S('stone_brick_wall'))
+    m.fill(-1, 71, -17, 1, 71, -17, S('stone_brick_wall'))
+    m.set(0, 64, -19, S('lectern', facing='south', has_book=False, powered=False))
+    m.set(-3, 64, -20, S('candle', candles=4, lit=False, waterlogged=False))
+    # vieilles tombes (moitié nord, de part et d'autre de la chapelle)
+    k = 0
+    for z in range(-10, -2, 4):
+        for x in list(range(-18, -5, 3)) + list(range(6, 19, 3)):
+            m.set(x, 64, z, S(rng.choice(['mossy_stone_bricks', 'cracked_stone_bricks', 'stone_bricks'])))
+            nom = ANCIENS[k % len(ANCIENS)]
+            a1 = 1850 + rng.randint(0, 80)
+            ch.panneau(x, 65, z, ['', nom[:15], '%d - %d' % (a1, a1 + rng.randint(20, 90)), 'R.I.P.'], rotation=0)
+            k += 1
+    # rangées libres pour ceux d'aujourd'hui : juste l'herbe, et quelques fleurs
+    for x in TOMBES_X:
+        for z in TOMBES_Z:
+            if rng.random() < 0.2:
+                m.set(x, 64, z + 1, S('poppy'))
+    for (x, z) in ((-20, -20), (20, -20), (-20, 20), (20, 20)):
+        m.fill(x, 64, z, x, 69, z, S('spruce_log', axis='y'))
+        m.fill(x - 1, 67, z - 1, x + 1, 70, z + 1, S('spruce_leaves', distance=1, persistent=True, waterlogged=False))
+    return ch.terminer(0.25)
+

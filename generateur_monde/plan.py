@@ -154,6 +154,9 @@ def construire(graine=GRAINE):
             n += 1
             site('refuge_%d' % n, 'refuge', 'Refuge %d' % (n + rr.randint(0, 3) * 20), x, z, 14, 14, graine=400 + n)
 
+    # cimetière de Saint-Aurèle (les tombes des joueurs y sont gravées : za_p88)
+    site('cimetiere', 'cimetiere', 'Cimetière de Saint-Aurèle', 190, -260, 46, 46)
+
     # ---------------------------------------------------------------- routes
     routes = []
     a40 = [(-LIMITE - 100, 300)]
