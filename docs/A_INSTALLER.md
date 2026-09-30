@@ -182,7 +182,9 @@ de région** (`world/region/r.X.Z.mca`). Minecraft ne génère rien : il lit ce 
    `unzip -o ZA_sources_build.zip` (ou clic droit → Extraire ici). Il faut le dossier `ZA_sources/ville`.
 3. **Sauvegarde puis mets de côté l'ancien monde** : renomme `world` en `world_ancien`, puis crée un dossier `world`
    vide et **recopie dedans** `world_ancien/datapacks` et `world_ancien/serverconfig` (butin, réglages des mods).
-   Ne touche pas au monde `za_prologue` (le prologue).
+   Ne touche pas au monde `za_prologue` (le prologue, la ville « avant ») : normalement c'est un dossier
+   `za_prologue` à côté de `world`. S'il était rangé dans `world` et disparaît avec le renommage, ZAMonde recrée
+   le monde vide au démarrage : refais alors la ville avec `/zamonde construire` (à faire de toute façon, §6).
 4. Lance le générateur depuis le dossier du serveur :
    ```
    python generateur_monde/generer.py
