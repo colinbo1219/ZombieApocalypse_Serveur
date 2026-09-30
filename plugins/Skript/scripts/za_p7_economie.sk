@@ -383,7 +383,8 @@ command /reputation [<player>]:
 # =====================================================================
 # ---------- prix chez un marchand : remise Ingenieur sur les pieges du Mecano ----------
 function za_prix_marchand(p: player, m: text, nom: text, base: number) :: number:
-    set {_pr} to za_prix({_p}, {_base})
+    # cours du marché par catégorie (za_p68_cours)
+    set {_pr} to ceil(za_prix({_p}, {_base}) * za_cours_facteur({_nom}))
     if {_m} is "mecano":
         if any:
             {_nom} contains "Piege"
@@ -417,7 +418,7 @@ on inventory click:
                     if za_score(player) < {_min}:
                         send "&cRang insuffisant (score %{_min}% requis)." to player
                     else:
-                        set {_prix} to za_prix(player, ({_parts::5} parsed as number))
+                        set {_prix} to za_prix_marchand(player, {_m}, {_parts::2}, ({_parts::5} parsed as number))
                         if za_jetons(player) >= {_prix}:
                             za_jetons_ajouter(player, 0 - {_prix})
                             if {_parts::8} is set:

@@ -266,3 +266,48 @@ existent. Il manquait : **ressources**, **alliés / ennemis**, **contrats** de f
 **TESTS** : statiques. En jeu : `/zadiplo stock milice munitions 0`, `/zadiplo jour`, `/faction contrats`.
 
 **RESTE À FAIRE** : rien de bloquant.
+
+---
+
+## PHASE 11 — Marché joueur + marché dynamique
+
+Constat : le marché entre joueurs (`za_p47`) couvre déjà tout le §36 : vendre, acheter, rechercher, prix (moyenne des
+10 dernières ventes), quantité, expiration (7 jours de jeu), historique, pénurie par objet, sans nouvelle monnaie.
+Manquait le §37 : des prix qui bougent avec le monde.
+
+**NOUVEAUX FICHIERS** : `plugins/Skript/scripts/za_p68_cours.sk`
+
+**MODIFICATIONS** : `za_p7_economie.sk` : `za_prix_marchand` applique le cours de la catégorie ; l'achat utilise
+désormais `za_prix_marchand` (avant, il utilisait `za_prix` : la remise ingénieur sur les pièges était affichée mais
+**pas appliquée** — corrigé au passage).
+
+**SYSTÈMES AJOUTÉS** : cours par catégorie (vivres, médicaments, munitions, armes, carburant, matériaux), de ×0,70
+à ×1,80, influencés par les stocks des factions (`za_p67`), les hordes, la lune de sang, les catastrophes, l'absence
+totale de courant, la faim des camps (pénurie régionale). Annonces radio aux seuils ×1,30 et ×0,85. `/cours`,
+admin `/zacours`.
+
+**RISQUES** : les prix des marchands peuvent monter jusqu'à ×1,8 : surveiller l'économie la première semaine.
+
+**TESTS** : statiques. En jeu : `/zacours set munitions 1.5` puis ouvrir le Trafiquant.
+
+---
+
+## PHASE 12 — Exploration + énigmes
+
+Constat : énigmes (coffres scellés, codes, dossiers), chasse au trésor (fragments A/B/C → carte → bunker Z-01) et
+enquêtes existent (`za_p54`). Ajout : une **exploration en couches dans Saint-Aurèle en ruines** (MISSION §40).
+
+**NOUVEAUX FICHIERS** : `plugins/Skript/scripts/za_p69_exploration.sk` ; `za_p66_ruines_donnees.sk` exporte aussi la
+position de 6 panneaux de la ville (régénéré, sortie désormais identique d'une exécution à l'autre).
+
+**SYSTÈMES AJOUTÉS** — « Le dossier Arel » : extérieur (menu du Café du Coin : reçu payé avec la carte d'employé
+NORDA n° 0731) → bâtiment (porte de la chambre 104 : fiche du patient transféré au labo) → zone sécurisée (bureau du
+Dr Lefort à l'étage : agenda des jours 0 à 3, « chez NORDA tout est rangé sous le numéro d'employé ») → pièce secrète
+(labo : serrure magnétique = courant dans le quartier hospitalier **ou** Carte d'accès) → énigme (choisir le bon
+casier en reliant les documents ; erreur = alarme, infectés, 10 min de verrou) → récompense (Disque de données Z-01
+utilisable dans la quête de Lefort, rapport NORDA confidentiel, 25 jetons, stat `enigmes`, souvenir, mémoire du monde,
+légende pour le premier). 4 documents au format §45. Admin `/zaexpl <joueur> [reset]`.
+
+**RISQUES** : repose sur les panneaux d'origine des ruines ; si un joueur les casse, l'étape n'est plus cliquable.
+
+**TESTS** : statiques + positions des panneaux extraites automatiquement de la structure.

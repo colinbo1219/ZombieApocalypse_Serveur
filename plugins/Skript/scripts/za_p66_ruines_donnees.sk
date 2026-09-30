@@ -54,3 +54,18 @@ function za_ruines_lampes(q: text) :: texts:
         add "33;67;34;minecraft:ochre_froglight[axis=y];minecraft:gray_stained_glass", "40;67;23;minecraft:ochre_froglight[axis=y];minecraft:gray_stained_glass", "46;67;12;minecraft:ochre_froglight[axis=y];minecraft:gray_stained_glass", "52;67;10;minecraft:ochre_froglight[axis=y];minecraft:gray_stained_glass", "72;68;-60;minecraft:ochre_froglight[axis=y];minecraft:gray_stained_glass", "72;68;-44;minecraft:ochre_froglight[axis=y];minecraft:gray_stained_glass" and "72;68;-28;minecraft:ochre_froglight[axis=y];minecraft:gray_stained_glass" to {_l::*}
         return {_l::*}
 
+function za_ruines_panneau(n: text) :: text:
+    if {_n} is "cafe":
+        return "52;66;44"
+    if {_n} is "archives":
+        return "136;75;24"
+    if {_n} is "lefort":
+        return "98;75;24"
+    if {_n} is "norda":
+        return "112;76;51"
+    if {_n} is "labo":
+        return "103;76;27"
+    if {_n} is "chambre104":
+        return "136;65;24"
+    return ""
+
