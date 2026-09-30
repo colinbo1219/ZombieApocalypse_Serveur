@@ -399,6 +399,8 @@ function za_terr_change(cle: text, f: text, ctrl: number):
         delete {za::terr::%{_cle}%::ruine}
     za_journal("%za_terr_nom({_cle})% %za_terr_pos_c({_cle})% : %{_old}% -> %{_f}%.")
     za_lieu_terr({_cle}, {_old}, {_f})
+    # relations entre factions (za_p67_diplomatie)
+    za_diplo_changement({_old}, {_f})
 
 # un territoire tombe : chez un rival voisin (35 %%) ou aux morts
 function za_terr_chute(cle: text, motif: text):

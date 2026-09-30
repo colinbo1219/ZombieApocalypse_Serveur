@@ -1,7 +1,7 @@
 # =====================================================================
 #  ZombieApocalypse - CAMPS DE SURVIVANTS VIVANTS (module A2)
 #  * 3-4 camps palissadés (~21x21) générés loin des joueurs : tentes, feu de camp, caisses, tour de guet, cloche, panneaux à jour.
-#  * Chaque camp a des chiffres (pop, nourriture, sécurité, moral, contamination) qui évoluent chaque jour serveur.
+#  * Chaque camp a des chiffres (pop, nourriture, sécurité, moral, électricité, contamination) qui évoluent chaque jour serveur.
 #  * Chef de camp (clic droit) : état, donner (nourriture/matériaux/soins), défendre, recruter, commercer.
 #  * Attaques (zombies ou pillards) : naturelles ou /zacamp attaque ; vagues ~3 min, pertes selon les morts abattus.
 #  * Un camp peut être abandonné ou tomber pour de bon (ruines, panneau "tombé le jour N").
@@ -1098,6 +1098,11 @@ function za_cmp_jour_camp(id: number):
     if {za::reseau::residentiel} is true:
         za_cmp_champ({_id}, "moral", 3)
         za_cmp_champ({_id}, "securite", 2)
+    # électricité (za_p61) : une sous-station qui produit à 64 blocs = lumière et confort... et du bruit
+    set {za::camp::%{_id}%::elec} to za_elec_pres({_l}, 64)
+    if {za::camp::%{_id}%::elec} is true:
+        za_cmp_champ({_id}, "moral", 2)
+        za_cmp_champ({_id}, "securite", 3)
     # bonus de la saison (module ressources) : une fois
     if {za::ressource::bonus_camps} is set:
         za_cmp_champ({_id}, "securite", {za::ressource::bonus_camps})
@@ -1117,6 +1122,8 @@ function za_cmp_jour_camp(id: number):
     # attaque naturelle
     if {za::camp::%{_id}%::attaque} is not set:
         set {_pa} to 6 + ((100 - {za::camp::%{_id}%::securite}) / 5) + (5 * za_danger({_l}))
+        if {za::camp::%{_id}%::elec} is true:
+            add 5 to {_pa}
         set {_pa} to min(45, {_pa})
         if chance of {_pa}%:
             set {_ty} to "zombies"
@@ -1200,6 +1207,10 @@ function za_cmp_noeud(p: player, n: text):
         send "&6&l=== %{_nom}% ===" to {_p}
         send "&7Population : &f%floor({za::camp::%{_id}%::pop})% &8| &7Vivres : %za_surv_barre({za::camp::%{_id}%::nourriture})% &8| &7Sécurité : %za_surv_barre({za::camp::%{_id}%::securite})%" to {_p}
         send "&7Moral : %za_surv_barre({za::camp::%{_id}%::moral})% &8| &7Contamination : &c%floor({za::camp::%{_id}%::contam})% %%" to {_p}
+        if za_elec_pres({za::camp::%{_id}%::loc}, 64) is true:
+            send "&7Électricité : &a&lSOUS TENSION &8(moral et sécurité en hausse, mais le bruit attire les morts)" to {_p}
+        else:
+            send "&7Électricité : &8aucune &7— une sous-station à moins de 64 blocs changerait la vie du camp (/electricite)" to {_p}
         send "&e%{_chef}% &8» &f« %za_cmp_phrase({_id})% »" to {_p}
         set {_b} to za_cmp_besoins({_id})
         if {_b} is not "":

@@ -103,9 +103,19 @@ function za_faction_rang(n: number) :: text:
         return "Ennemi"
     return "Inconnu"
 
-command /faction [<text>]:
+command /faction [<text>] [<text>]:
     trigger:
         set {_u} to "%player's uuid%"
+        # diplomatie, ressources et contrats : za_p67_diplomatie
+        if arg-1 is "diplomatie" or "ressources":
+            za_diplo_afficher(player)
+            stop
+        if arg-1 is "contrats":
+            za_diplo_contrats(player)
+            stop
+        if arg-1 is "livrer":
+            za_diplo_livrer(player, arg-2 ? "")
+            stop
         send "&6&lFACTIONS &8— &7ce que les groupes de survivants pensent de toi" to player
         loop "milice", "scientifiques", "marchands", "pilleurs", "survivants" and "culte":
             set {_v} to {za::fac::%loop-value%::%{_u}%}
@@ -114,6 +124,7 @@ command /faction [<text>]:
             send "%za_faction_nom(loop-value)% &8: &f%floor({_v})% &7(%za_faction_rang({_v})%)" to player
         send "&8Milice : tuer des morts, défendre (évacuations). Scientifiques : Dr Lefort, labos, centrale." to player
         send "&8Marchands : commerce. Pilleurs : marché noir (la Milice n'aime pas). Survivants : aider, SOS, nids. Culte : sacrifices, camp infecté." to player
+        send "&8/faction diplomatie &7(ressources, alliés, ennemis) · &8/faction contrats" to player
 
 # gains automatiques
 on death of zombie:

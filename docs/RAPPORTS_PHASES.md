@@ -219,3 +219,50 @@ plat, idéalement à 150-300 blocs de l'autobus d'arrivée), puis `/zaville inst
 vérificateur Skript OK. Non testé en jeu : la pose, les souvenirs, les lampes.
 
 **RESTE À FAIRE** : `/zaville installer` sur le serveur.
+
+---
+
+## PHASE 9 — Survivants + camps
+
+Constat : survivants (`za_p43`, histoire, métier, faction, moral, état, lieu, mort, camp) et camps (`za_p44`,
+population, vivres, sécurité, moral, contamination, attaques, chute) sont complets. Les personnages du prologue
+peuvent désormais rejoindre un camp (phase 3). Il manquait la statistique **Électricité** (MISSION §34).
+
+**MODIFICATIONS** : `za_p44_camps.sk` (13 lignes).
+
+**SYSTÈMES MODIFIÉS**
+- Camp sous tension si une sous-station qui produit (`za_p61`) est à 64 blocs : chaque jour moral +2, sécurité +3,
+  mais +5 % de risque d'attaque (le bruit). Affiché dans « État du camp » avec un conseil (`/electricite`).
+  Publié : `{za::camp::<id>::elec}`.
+
+**RISQUES** : aucun nouveau. **TESTS** : statiques. **RESTE À FAIRE** : rien.
+
+---
+
+## PHASE 10 — Factions + territoires
+
+Constat : réputation (`za_p40`), territoires qui changent de propriétaire avec défense / raid / reconquête (`za_p45`)
+existent. Il manquait : **ressources**, **alliés / ennemis**, **contrats** de faction (MISSION §35).
+
+**NOUVEAUX FICHIERS** : `plugins/Skript/scripts/za_p67_diplomatie.sk`
+
+**MODIFICATIONS**
+- `za_p45_territoires.sk` : 2 lignes dans `za_terr_change` (seul point de changement de propriétaire) →
+  `za_diplo_changement`.
+- `za_p40_histoire.sk` : `/faction` accepte `diplomatie`, `ressources`, `contrats`, `livrer <faction>`.
+
+**SYSTÈMES AJOUTÉS**
+- Relations entre les 6 factions (-100..100), valeurs de départ cohérentes avec l'histoire (Milice/Pilleurs et
+  Scientifiques/Culte ennemis, Marchands neutres avec tous). Prendre un territoire à une faction : -20. Passage en
+  guerre ouverte annoncé par Léa. Dérive lente vers la neutralité (sauf rivaux historiques).
+- Ressources par faction (vivres, médicaments, munitions, carburant, énergie) produites par leurs territoires,
+  consommées chaque jour ; pénurie = emprise -3/jour ; abondance = +2/jour ; quartier sous tension = +1 énergie.
+- Contrats : une faction en pénurie publie un contrat à la radio ; le livrer rapporte réputation + jetons, plaît à ses
+  alliés et déplaît à ses ennemis. Stat `contrats_faction`.
+- Admin : `/zadiplo etat | jour | set | stock`.
+
+**RISQUES** : la production modifie `{za::terr::<clé>::ctrl}` (±3 max par jour) : équilibre à surveiller.
+
+**TESTS** : statiques. En jeu : `/zadiplo stock milice munitions 0`, `/zadiplo jour`, `/faction contrats`.
+
+**RESTE À FAIRE** : rien de bloquant.
