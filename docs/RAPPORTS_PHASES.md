@@ -489,3 +489,33 @@ L'autobus du Jour 8 est à ~700 blocs des ruines : un panneau à côté de lui i
 droit vers l'ouest) ; la sortie 117 est annoncée dans les deux sens ; aux deux entrées de la ville, « Bienvenue à
 Saint-Aurèle » puis « QUARANTAINE — Accès interdit » ; chaque chemin de lieu a son panneau (nom + distance).
 Testé sur le serveur vanilla : panneaux conservés après chargement et sauvegarde (texte, couleur, texte lumineux).
+
+---
+
+## COMPLÉMENT — Zombies plus effrayants : za_modeles 1.4.0 + capacités (30 sept.)
+
+**MODIFIÉ / NOUVEAU** :
+- `ZA_sources/modeles_generateur/zagen_lib.py` : le peintre des 16 zombies de base produit maintenant :
+  - une peau marbrée (taches larges + grain fin) plutôt qu'un bruit uniforme ;
+  - des ecchymoses, des veines et des plaies ouvertes (bord noir, chair, éclat d'os) ;
+  - du sang frais et séché qui coule vers le bas, de la crasse brunâtre en bas des vêtements ;
+  - des orbites creuses de 2 pixels, une larme de sang, une bouche déchirée aux dents jaunies.
+- `extension_1_4.py` part du jar 1.3.0 et :
+  - installe les 16 zombies régénérés ;
+  - applique une passe « horreur » aux 15 peaux humaines : orbites noires, pupilles luminescentes (textures `_e`,
+    émissives ETF), larme de sang, joue ouverte, morsure au cou, veines, coulures, crasse ;
+  - renforce les animations : craquement du cou, morsure (`head.tz` pendant l'attaque), recul au coup reçu, bras qui
+    s'agitent à la mort, regard fixe à l'arrêt pour les humains ;
+  - ajoute 4 sons (agrippe, cou, charge, chuchote).
+- `pack_joueurs/za_modeles-1.4.0.jar` remplace la 1.3.0, qui reste dans l'historique git.
+- `plugins/MythicMobs/Skills/ZA_Horreur.yml` : 12 capacités, branchées sur 14 zombies dans `Mobs/ZombieApocalypse.yml`.
+
+**TESTS** :
+- Le générateur reproduisait la 1.3.0 octet pour octet avant la modification : la base était saine.
+- Les 36 `.jem` sont du JSON valide et tous les YAML MythicMobs se lisent.
+- Toutes les compétences appelées existent.
+- Planches de textures vérifiées à l'œil.
+
+**NON TESTÉ** :
+- Rendu en jeu : EMF/ETF, émissif des peaux humaines, expressions d'animation ajoutées.
+- Capacités MythicMobs sur Arclight : `JUMP` niveau 128 (bloque le saut), `DARKNESS`, déclencheur `~onDamaged <30%`.

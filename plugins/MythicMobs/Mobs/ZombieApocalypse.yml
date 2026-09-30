@@ -12,6 +12,8 @@ ZA_Shambler:
     PreventConversion: true
     Silent: true
   Skills:
+  - skill{s=ZA_Agrippe} @target ~onAttack 0.2
+  - skill{s=ZA_Frenesie} @self ~onDamaged <30%
   - effect:sound{s=za_modeles:zombie.shambler.rale;v=0.9;p=1} @self ~onTimer:160 0.35
   - effect:sound{s=entity.zombie.ambient;v=1;p=0.65} @self ~onTimer:160 0.6
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
@@ -36,6 +38,7 @@ ZA_Runner:
     Silent: true
     KnockbackResistance: 0.1
   Skills:
+  - skill{s=ZA_Sprint} @self ~onTimer:60
   - effect:sound{s=za_modeles:zombie.runner.souffle;v=0.8;p=1} @self ~onTimer:50 0.4
   - effect:sound{s=za_modeles:zombie.runner.cri;v=1;p=1} @self ~onTimer:220 0.3
   - effect:sound{s=entity.zombie.ambient;v=1;p=1.15} @self ~onTimer:120 0.5
@@ -62,6 +65,7 @@ ZA_Crawler:
     Silent: true
     Baby: true
   Skills:
+  - skill{s=ZA_Cheville} @target ~onAttack 0.35
   - effect:sound{s=za_modeles:zombie.crawler.rale;v=0.9;p=1} @self ~onTimer:180 0.4
   - effect:sound{s=entity.zombie.ambient;v=1;p=1.4} @self ~onTimer:140 0.5
   - effect:sound{s=entity.zombie.hurt;v=1;p=1.5} @self ~onDamaged
@@ -161,6 +165,7 @@ ZA_Brute:
     Silent: true
     KnockbackResistance: 0.7
   Skills:
+  - skill{s=ZA_Charge} @Target ~onTimer:140
   - effect:sound{s=za_modeles:zombie.brute.souffle;v=1.0;p=1} @self ~onTimer:120 0.5
   - effect:sound{s=entity.zombie.ambient;v=1;p=0.4} @self ~onTimer:170 0.6
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.4} @self ~onDamaged
@@ -212,6 +217,7 @@ ZA_Stalker:
     PreventConversion: true
     Silent: true
   Skills:
+  - skill{s=ZA_Chuchote} @self ~onTimer:100 0.5
   - effect:sound{s=za_modeles:zombie.stalker.souffle;v=0.4;p=1} @self ~onTimer:200 0.3
   - effect:sound{s=entity.zombie.ambient;v=0.25;p=0.8} @self ~onTimer:220 0.3
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
@@ -594,6 +600,9 @@ ZA_Citoyen_Infecte:
     PreventItemPickup: true
     Silent: true
   Skills:
+  - skill{s=ZA_Agrippe} @target ~onAttack 0.2
+  - skill{s=ZA_Craque} @self ~onTimer:200 0.12
+  - skill{s=ZA_Frenesie} @self ~onDamaged <30%
   - effect:sound{s=za_modeles:zombie.civil.rale;v=0.8;p=1} @self ~onTimer:180 0.3
   - effect:sound{s=entity.zombie.ambient;v=1;p=0.7} @self ~onTimer:120 0.6
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.75} @self ~onDamaged
@@ -611,6 +620,8 @@ ZA_Patient_Infecte:
     PreventConversion: true
     Silent: true
   Skills:
+  - skill{s=ZA_Agrippe} @target ~onAttack 0.25
+  - skill{s=ZA_Craque} @self ~onTimer:200 0.12
   - effect:sound{s=za_modeles:zombie.civil.rale;v=0.8;p=1} @self ~onTimer:180 0.3
   - effect:sound{s=entity.zombie.ambient;v=1;p=0.8} @self ~onTimer:100 0.6
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.8} @self ~onDamaged
@@ -636,6 +647,8 @@ ZA_Soldat_Infecte:
     Silent: true
     KnockbackResistance: 0.3
   Skills:
+  - skill{s=ZA_Charge} @Target ~onTimer:160
+  - skill{s=ZA_Frenesie} @self ~onDamaged <30%
   - effect:sound{s=za_modeles:zombie.civil.rale;v=0.9;p=1} @self ~onTimer:200 0.3
   - effect:sound{s=entity.zombie.ambient;v=1;p=0.55} @self ~onTimer:140 0.6
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
@@ -723,6 +736,9 @@ ZA_Policier_Infecte:
     Silent: true
     KnockbackResistance: 0.2
   Skills:
+  - skill{s=ZA_Matraque} @target ~onAttack 0.25
+  - skill{s=ZA_Craque} @self ~onTimer:200 0.12
+  - skill{s=ZA_Frenesie} @self ~onDamaged <30%
   - effect:sound{s=za_modeles:zombie.civil.rale;v=0.9;p=0.9} @self ~onTimer:180 0.3
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.7} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=0.6} @self ~onDeath
@@ -747,6 +763,8 @@ ZA_Medecin_Infecte:
     PreventItemPickup: true
     Silent: true
   Skills:
+  - skill{s=ZA_Seringue} @target ~onAttack 0.3
+  - skill{s=ZA_Craque} @self ~onTimer:200 0.12
   - effect:sound{s=za_modeles:zombie.civil.rale;v=0.8;p=1.1} @self ~onTimer:180 0.3
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.85} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=0.75} @self ~onDeath
@@ -772,6 +790,8 @@ ZA_Ouvrier_Infecte:
     Silent: true
     KnockbackResistance: 0.2
   Skills:
+  - skill{s=ZA_Molette} @target ~onAttack 0.25
+  - skill{s=ZA_Craque} @self ~onTimer:200 0.12
   - effect:sound{s=za_modeles:zombie.civil.rale;v=0.9;p=0.75} @self ~onTimer:180 0.3
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.65} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=0.55} @self ~onDeath
@@ -795,6 +815,7 @@ ZA_Ouvrier_Brule:
     PreventItemPickup: true
     Silent: true
   Skills:
+  - skill{s=ZA_Frenesie} @self ~onDamaged <30%
   - effect:sound{s=za_modeles:zombie.shambler.rale;v=1;p=0.6} @self ~onTimer:160 0.35
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.5} @self ~onDamaged
   - effect:sound{s=entity.blaze.death;v=0.6;p=0.5} @self ~onDeath
@@ -823,6 +844,8 @@ ZA_Pompier_Infecte:
     Silent: true
     KnockbackResistance: 0.4
   Skills:
+  - skill{s=ZA_Hache} @target ~onAttack 0.2
+  - potion{type=FIRE_RESISTANCE;duration=999999;level=0} @self ~onSpawn
   - effect:sound{s=za_modeles:zombie.civil.rale;v=1;p=0.6} @self ~onTimer:180 0.3
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
@@ -845,6 +868,8 @@ ZA_Prisonnier_Infecte:
     PreventItemPickup: true
     Silent: true
   Skills:
+  - skill{s=ZA_Bond} @Target ~onTimer:80
+  - skill{s=ZA_Craque} @self ~onTimer:200 0.12
   - effect:sound{s=za_modeles:zombie.leaper.cri;v=0.8;p=0.8} @self ~onTimer:160 0.35
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.9} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=0.8} @self ~onDeath
