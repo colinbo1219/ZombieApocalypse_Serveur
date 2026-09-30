@@ -424,3 +424,62 @@ classes de Create 6.0.8 (+ Flywheel, Ponder inclus). Résultat : Design Decor 0.
 incompatibles ; Kotlin for Forge et Energy Storage Lib 1.1.3 manquants.
 
 **TESTS** : vérificateur Skript OK. Non testé : démarrage réel avec ces mods sur Arclight.
+
+---
+
+## COMPLÉMENT — Le monde de la région de Saint-Aurèle, 10 000 × 10 000, sans Lost Cities (30 sept.)
+
+**OBJECTIF** : demande de Colin : « fais un nouveau monde 10000 par 10000 », « tout généré par moi », Lost Cities
+retiré de l'overworld. Aucune génération par Minecraft : le programme écrit directement les 400 fichiers de région.
+
+**NOUVEAU** :
+- `generateur_monde/` (Python + numpy) :
+  - `anvil.py` : format NBT et régions 1.20.1, écriture atomique ;
+  - `bruit.py` : bruit déterministe ;
+  - `plan.py` : lieux, routes, lacs ;
+  - `terrain.py` : relief, rivière Blanche, réservoir, 11 biomes ;
+  - `flore.py` : arbres et végétation ;
+  - `monde.py` : roche, minerais vanilla, Create et IE, grottes, routes et ponts, végétation ;
+  - `sites.py` : pose des structures, panneaux, coffres à butin ;
+  - `batisse.py` : 13 types de lieux construits avec le générateur de la ville, puis passe « apocalypse » (vitres
+    brisées, toiles, lierre, herbes folles, lampes éteintes) ;
+  - `generer.py` : lanceur multiprocessus avec reprise après interruption ; `--vanille` pour les tests ;
+  - `apercu.py` : carte, publiée dans `docs/carte_region.png`.
+- Lieux :
+  - ruines de Saint-Aurèle au centre ;
+  - l'autobus du Jour 8, qui sert de point d'apparition ;
+  - la base Bravo, NORDA Biotech, le barrage, le parc industriel, l'émetteur CKZA, la carrière, le motel ;
+  - 3 villages, 4 stations-service, 2 barrages routiers ;
+  - 18 fermes, 16 chalets, 22 camps de chasse.
+- `za_p73_sites.sk` :
+  - nom du lieu à l'entrée : titre, ambiance et souvenir la première fois ;
+  - zombies propres à chaque lieu, via `za_type_lieu` de p36 ;
+  - `/zasites installer` : branche les ruines (sans `/zaville installer`), inscrit les 73 lieux dans la mémoire du monde,
+    règle la bordure à 10 000 et le point d'apparition à l'autobus.
+- `za_p73_sites_donnees.sk` : généré par `generer.py`.
+
+**MODIFIÉ** :
+- `za_p36_apparitions.sk` : les lieux générés passent après les bâtiments de p35 et avant la contamination.
+- `world/serverconfig/lostcities-server.toml` : `selectedProfile = ""`.
+
+**TESTS** :
+- Les 13 types de lieux se construisent sans erreur. Ils sont identiques d'un processus à l'autre : un `hash()` Python
+  variait selon le processus, il est remplacé par crc32. Les régions sont identiques octet pour octet entre deux
+  exécutions.
+- Environ 7 s par région et par cœur, soit environ 13 min pour le monde entier sur 4 cœurs.
+- Serveur Minecraft 1.20.1 vanilla, en mode `--vanille` : 6 régions chargées, forcées et réenregistrées sans aucune
+  erreur. Les chunks restent `full`. Panneaux, coffres et barils sont conservés avec leur table de butin (30 à la base
+  Bravo, 50 à Val-des-Pins).
+- Vérificateur Skript : aucune anomalie (80 scripts).
+
+**NON TESTÉ** :
+- Chargement avec Arclight et les mods : identifiants des blocs moddés, en particulier les minerais d'IE (jar non
+  vu).
+- `/zasites installer` en jeu.
+- Effet de `selectedProfile = ""` sur Lost Cities. Tout le monde est pré-généré, donc Lost Cities ne génère de toute
+  façon rien dans la bordure.
+
+**RISQUES** :
+- Les anciennes données de joueurs pointent vers l'ancien monde : bases, camps, `{za::pro::retour}`.
+- Les 311 barils des ruines restent vides : leur contenu vient des systèmes de jeu, comme avant.
+- Les 1,8 Go de régions ne sont pas versionnés : Colin les génère chez lui.

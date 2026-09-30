@@ -51,7 +51,7 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
 
 ## Pièges connus
 - Numéros en double : `za_p7_economie` / `za_p7_progression`, `za_p38_lieux` / `za_p38_prologue`.
-- LISEZMOI.txt annonce 41 scripts : il y en a 78.
+- LISEZMOI.txt annonce 41 scripts : il y en a 80.
 - Colin utilise Java 25 en local, alors que le serveur exige Java 17 ou 21.
 
 ## Travail des phases 2 à 15 (voir docs/RAPPORTS_PHASES.md)
@@ -63,6 +63,15 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
 - Ruines de Saint-Aurèle : `ZA_sources/ville/gen_ruines.py` -> `plugins/ZAMonde/ruines.json.gz` + `za_p66_ruines_donnees.sk`.
 - Vérification statique : `python3 docs/outils/verif_skript.py plugins/Skript/scripts/*.sk` (à lancer après chaque modif).
 - Ce qu'il faut installer / tester : `docs/A_INSTALLER.md`.
+
+## Monde généré (10 000 x 10 000, sans Lost Cities)
+- `generateur_monde/` écrit directement les `.mca` (Anvil 1.20.1, DataVersion 3465) : `plan.py` (lieux, routes, lacs,
+  graine 1250), `terrain.py` (relief, rivière, biomes), `monde.py` (remplissage, minerais, grottes, routes, végétation),
+  `sites.py` + `batisse.py` (structures : ruines/autobus depuis `plugins/ZAMonde`, le reste construit avec
+  `ZA_sources/ville`), `generer.py` (lanceur multiprocessus, reprise, `--vanille` pour tester sur un serveur vanilla).
+- `generer.py` produit aussi `plugins/ZAMonde/placements.yml` (fichier du serveur, non versionné) et
+  `za_p73_sites_donnees.sk` (versionné, généré : ne pas modifier à la main). Module de jeu : `za_p73_sites.sk`.
+- Lost Cities retiré de l'overworld : `world/serverconfig/lostcities-server.toml` `selectedProfile = ""`.
 - Ville moddée : `ZA_sources/ville/blocs_mods.json.gz` (extrait des jars par `extraire_blocs_mods.py`) permet à
   `za_blocs.S()` d'accepter les blocs moddés (propriétés partielles) ; `za_meubles.py` (meubles) et `za_moderne.py`
   (toits, clôtures, grilles, pavés). `ZA_VANILLE=1` = ville vanilla d'origine. Après régénération : recopier dans

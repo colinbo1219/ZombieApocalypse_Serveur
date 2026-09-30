@@ -2,7 +2,7 @@
 """apercu : carte PNG de toute la région (1 pixel = pas blocs), pour vérifier le plan et le relief."""
 import sys, time
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import plan as PL, terrain as T
 
 def carte(chemin, pas=10, etiquettes=True):
@@ -33,11 +33,18 @@ def carte(chemin, pas=10, etiquettes=True):
     im = Image.fromarray(img)
     if etiquettes:
         dr = ImageDraw.Draw(im)
+        try:
+            police = ImageFont.truetype('DejaVuSans.ttf', 12)
+        except OSError:
+            try:
+                police = ImageFont.load_default(12)   # Pillow >= 10.1 : police avec accents
+            except TypeError:
+                police = ImageFont.load_default()
         for s in p['sites']:
             if s['type'] in ('camp_chasse', 'chalet', 'ferme'):
                 continue
             x, z = (s['x'] + L) / pas, (s['z'] + L) / pas
-            dr.text((x + 4, z - 4), s['nom'][:28], fill=(255, 255, 255))
+            dr.text((x + 4, z - 6), s['nom'][:34], fill=(255, 255, 255), font=police, stroke_width=2, stroke_fill=(0, 0, 0))
     im.save(chemin)
     print('carte %s en %.0fs' % (chemin, time.time() - t0))
 

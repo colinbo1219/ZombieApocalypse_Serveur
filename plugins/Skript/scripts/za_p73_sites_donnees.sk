@@ -1,0 +1,83 @@
+# =====================================================================
+#  ZombieApocalypse - DONNÉES DU MONDE GÉNÉRÉ (généré par generateur_monde/generer.py : NE PAS MODIFIER)
+#  id|type|nom|x|y|z|demi-largeur|demi-profondeur|zombies — lu par za_p73_sites.sk
+# =====================================================================
+
+function za_sites_base_ruines() :: text:
+    return "-80;1;-80"
+
+function za_sites_donnees() :: texts:
+    add "arrivee|arrivee|L'autobus du Jour 8|640|70|296|32|32|ZA_Soldat_Infecte,ZA_Citoyen_Infecte" to {_r::*}
+    add "base_bravo|militaire|Base Bravo (Forces armées)|-2750|74|120|108|93|ZA_Soldat_Infecte,ZA_Soldat_Infecte,ZA_Armored,ZA_Shielded" to {_r::*}
+    add "norda|norda|NORDA Biotech — campus de Saint-Aurèle|2650|71|-760|93|83|ZA_Medecin_Infecte,ZA_Patient_Infecte,ZA_Spitter,ZA_Observer" to {_r::*}
+    add "barrage|barrage|Barrage de la Rivière-Blanche|-2600|73|542|63|83|ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte,ZA_Ouvrier_Brule" to {_r::*}
+    add "parc_industriel|industriel|Parc industriel Laurentien|1650|73|470|113|73|ZA_Ouvrier_Infecte,ZA_Ouvrier_Brule,ZA_Brute" to {_r::*}
+    add "val_des_pins|village|Val-des-Pins|-1950|77|-1150|108|108|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Child,ZA_Pompier_Infecte" to {_r::*}
+    add "riviere_blanche|village|Rivière-Blanche|-350|71|1650|138|118|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Child,ZA_Pompier_Infecte" to {_r::*}
+    add "sainte_brigitte|village|Sainte-Brigitte|2350|71|2050|118|108|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Child,ZA_Pompier_Infecte" to {_r::*}
+    add "ckza|emetteur|Émetteur CKZA 98,5 (mont Gagnon)|-700|162|-3650|38|38|ZA_Ouvrier_Infecte,ZA_Screamer" to {_r::*}
+    add "carriere|carriere|Carrière Laurentide|3650|72|-380|78|78|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "motel|motel|Motel du Voyageur|3050|74|339|43|33|ZA_Citoyen_Infecte,ZA_FakeDead,ZA_Stalker" to {_r::*}
+    add "station_1|station|Station-service de l'autoroute 40|-3650|68|373|32|28|ZA_Pompier_Infecte,ZA_Citoyen_Infecte,ZA_Ouvrier_Brule" to {_r::*}
+    add "station_2|station|Station-service de l'autoroute 40|-1250|79|299|32|28|ZA_Pompier_Infecte,ZA_Citoyen_Infecte,ZA_Ouvrier_Brule" to {_r::*}
+    add "station_3|station|Station-service de l'autoroute 40|1850|77|298|32|28|ZA_Pompier_Infecte,ZA_Citoyen_Infecte,ZA_Ouvrier_Brule" to {_r::*}
+    add "station_4|station|Station-service de l'autoroute 40|4050|68|373|32|28|ZA_Pompier_Infecte,ZA_Citoyen_Infecte,ZA_Ouvrier_Brule" to {_r::*}
+    add "checkpoint_ouest|checkpoint|Barrage militaire ouest|-900|70|285|23|23|ZA_Soldat_Infecte,ZA_Policier_Infecte,ZA_Armored" to {_r::*}
+    add "checkpoint_nord|checkpoint|Barrage militaire nord|3|72|-900|23|23|ZA_Soldat_Infecte,ZA_Policier_Infecte,ZA_Armored" to {_r::*}
+    add "ferme_1|ferme|Ferme Ouellet|-2207|68|3112|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "ferme_2|ferme|Ferme Gauthier|-2008|68|2634|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "ferme_3|ferme|Ferme Bouchard|326|69|4576|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "ferme_4|ferme|Ferme Fortin|3084|78|1609|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "ferme_5|ferme|Ferme Gagné|-2357|69|1883|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "ferme_6|ferme|Ferme Gagné|-4282|68|3391|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "ferme_7|ferme|Ferme Bouchard|2151|66|4187|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "ferme_8|ferme|Ferme Gagnon|676|77|1586|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "ferme_9|ferme|Ferme Morin|85|70|2111|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "ferme_10|ferme|Ferme Gauthier|-309|70|2309|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "ferme_11|ferme|Ferme Gauthier|3168|69|4428|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "ferme_12|ferme|Ferme Lavoie|-286|68|3506|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "ferme_13|ferme|Ferme Côté|1346|70|1883|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "ferme_14|ferme|Ferme Roy|504|67|4091|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "ferme_15|ferme|Ferme Roy|-649|72|2117|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "ferme_16|ferme|Ferme Ouellet|-3992|68|1954|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "ferme_17|ferme|Ferme Fortin|-3415|67|4384|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "ferme_18|ferme|Ferme Tremblay|1267|69|3432|53|48|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Crawler" to {_r::*}
+    add "chalet_1|chalet|Chalet du Lac-aux-Loups|-1091|110|-2389|19|18|ZA_Citoyen_Infecte,ZA_Stalker" to {_r::*}
+    add "chalet_2|chalet|Chalet du Lac-aux-Loups|-1030|156|-2861|19|18|ZA_Citoyen_Infecte,ZA_Stalker" to {_r::*}
+    add "chalet_3|chalet|Chalet du Lac Tremblant|1683|142|-3476|19|18|ZA_Citoyen_Infecte,ZA_Stalker" to {_r::*}
+    add "chalet_4|chalet|Chalet du Lac Tremblant|1635|136|-3499|19|18|ZA_Citoyen_Infecte,ZA_Stalker" to {_r::*}
+    add "chalet_5|chalet|Chalet du Lac des Érables|-2699|66|-1569|19|18|ZA_Citoyen_Infecte,ZA_Stalker" to {_r::*}
+    add "chalet_6|chalet|Chalet du Lac des Érables|-3064|76|-1846|19|18|ZA_Citoyen_Infecte,ZA_Stalker" to {_r::*}
+    add "chalet_7|chalet|Chalet du Lac Noir|3099|80|-2095|19|18|ZA_Citoyen_Infecte,ZA_Stalker" to {_r::*}
+    add "chalet_8|chalet|Chalet du Lac Noir|3590|79|-2134|19|18|ZA_Citoyen_Infecte,ZA_Stalker" to {_r::*}
+    add "chalet_9|chalet|Chalet du Lac à la Truite|-419|157|-4106|19|18|ZA_Citoyen_Infecte,ZA_Stalker" to {_r::*}
+    add "chalet_10|chalet|Chalet du Lac à la Truite|-856|158|-4368|19|18|ZA_Citoyen_Infecte,ZA_Stalker" to {_r::*}
+    add "chalet_11|chalet|Chalet du Lac Caché|4166|125|-4201|19|18|ZA_Citoyen_Infecte,ZA_Stalker" to {_r::*}
+    add "chalet_12|chalet|Chalet du Lac Caché|3855|136|-3818|19|18|ZA_Citoyen_Infecte,ZA_Stalker" to {_r::*}
+    add "chalet_13|chalet|Chalet du Lac Vert|-3956|180|-3272|19|18|ZA_Citoyen_Infecte,ZA_Stalker" to {_r::*}
+    add "chalet_14|chalet|Chalet du Lac Vert|-4281|163|-3069|19|18|ZA_Citoyen_Infecte,ZA_Stalker" to {_r::*}
+    add "chalet_15|chalet|Chalet du Lac Long|2155|133|-4659|19|18|ZA_Citoyen_Infecte,ZA_Stalker" to {_r::*}
+    add "chalet_16|chalet|Chalet du Lac Long|2086|141|-4477|19|18|ZA_Citoyen_Infecte,ZA_Stalker" to {_r::*}
+    add "camp_chasse_1|camp_chasse|Camp de chasse|62|78|-1484|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_2|camp_chasse|Camp de chasse|-459|71|894|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_3|camp_chasse|Camp de chasse|-3810|115|-4165|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_4|camp_chasse|Camp de chasse|952|179|-4340|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_5|camp_chasse|Camp de chasse|-2250|134|-3440|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_6|camp_chasse|Camp de chasse|-3205|70|975|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_7|camp_chasse|Camp de chasse|-4529|69|-682|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_8|camp_chasse|Camp de chasse|-199|75|-1170|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_9|camp_chasse|Camp de chasse|-1855|123|-2539|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_10|camp_chasse|Camp de chasse|-1905|120|-3069|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_11|camp_chasse|Camp de chasse|4032|75|-980|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_12|camp_chasse|Camp de chasse|-1522|67|-758|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_13|camp_chasse|Camp de chasse|4461|73|132|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_14|camp_chasse|Camp de chasse|-4240|128|-2399|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_15|camp_chasse|Camp de chasse|-511|74|-708|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_16|camp_chasse|Camp de chasse|1399|70|-1251|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_17|camp_chasse|Camp de chasse|3780|72|-1860|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_18|camp_chasse|Camp de chasse|1666|126|-2596|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_19|camp_chasse|Camp de chasse|3590|72|-81|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_20|camp_chasse|Camp de chasse|-1604|72|-1044|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_21|camp_chasse|Camp de chasse|4277|73|-1175|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "camp_chasse_22|camp_chasse|Camp de chasse|4651|141|-3281|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    return {_r::*}

@@ -1,0 +1,183 @@
+# =====================================================================
+#  ZombieApocalypse - LA RÉGION DE SAINT-AURÈLE : les lieux du monde généré (generateur_monde/)
+#  Le monde de 10 000 x 10 000 n'est pas du Lost Cities : chaque village, ferme, chalet, la base Bravo, NORDA, le barrage,
+#  l'émetteur CKZA... a été posé par le générateur. Ce module les fait exister dans le jeu :
+#    * entrée dans un lieu : son nom à l'écran (la 1re fois : titre + souvenir personnel, ensuite : barre d'action)
+#    * zombies du lieu (za_p36) : soldats à la base Bravo, blouses à NORDA, ouvriers au barrage, rôdeurs aux chalets...
+#    * lieux inscrits dans la mémoire du monde (za_p62) ; ruines de Saint-Aurèle branchées (za_p66, sans /zaville installer)
+#  Données : za_p73_sites_donnees.sk (généré, ne pas modifier à la main).
+#  Admin : /zasites installer (une fois, sur le nouveau monde) | etat | liste | ici
+# =====================================================================
+
+# ---------------------------------------------------------------- index (cellules de 256 blocs)
+
+function za_sites_indexer():
+    delete {za::site::d::*}
+    delete {za::site::g::*}
+    loop za_sites_donnees():
+        set {_c::*} to split loop-value at "|"
+        set {_k} to {_c::1}
+        set {za::site::d::%{_k}%::type} to {_c::2}
+        set {za::site::d::%{_k}%::nom} to {_c::3}
+        set {za::site::d::%{_k}%::x} to {_c::4} parsed as number
+        set {za::site::d::%{_k}%::y} to {_c::5} parsed as number
+        set {za::site::d::%{_k}%::z} to {_c::6} parsed as number
+        set {za::site::d::%{_k}%::dx} to {_c::7} parsed as number
+        set {za::site::d::%{_k}%::dz} to {_c::8} parsed as number
+        set {za::site::d::%{_k}%::zombies} to {_c::9}
+        set {_x1} to floor(({za::site::d::%{_k}%::x} - {za::site::d::%{_k}%::dx}) / 256)
+        set {_x2} to floor(({za::site::d::%{_k}%::x} + {za::site::d::%{_k}%::dx}) / 256)
+        set {_z1} to floor(({za::site::d::%{_k}%::z} - {za::site::d::%{_k}%::dz}) / 256)
+        set {_z2} to floor(({za::site::d::%{_k}%::z} + {za::site::d::%{_k}%::dz}) / 256)
+        set {_gx} to {_x1}
+        while {_gx} <= {_x2}:
+            set {_gz} to {_z1}
+            while {_gz} <= {_z2}:
+                add {_k} to {za::site::g::%{_gx}%_%{_gz}%::*}
+                add 1 to {_gz}
+            add 1 to {_gx}
+
+on load:
+    za_sites_indexer()
+
+# lieu généré qui contient ce point ("" sinon ; monde principal seulement)
+function za_site_ici(l: location) :: text:
+    if "%world of {_l}%" is not "world":
+        return ""
+    set {_x} to x-coordinate of {_l}
+    set {_z} to z-coordinate of {_l}
+    set {_g} to "%floor({_x} / 256)%_%floor({_z} / 256)%"
+    loop {za::site::g::%{_g}%::*}:
+        set {_k} to loop-value
+        if abs({_x} - {za::site::d::%{_k}%::x}) <= {za::site::d::%{_k}%::dx}:
+            if abs({_z} - {za::site::d::%{_k}%::z}) <= {za::site::d::%{_k}%::dz}:
+                return {_k}
+    return ""
+
+# type de zombie du lieu (appelé par za_type_lieu, za_p36) ; "" hors des lieux générés
+function za_site_zombie(l: location) :: text:
+    set {_k} to za_site_ici({_l})
+    if {_k} is "":
+        return ""
+    set {_z} to {za::site::d::%{_k}%::zombies}
+    if {_z} is not set:
+        return ""
+    if {_z} is "":
+        return ""
+    set {_t::*} to split {_z} at ","
+    return random element out of {_t::*}
+
+function za_site_ambiance(t: text) :: text:
+    if {_t} is "village":
+        return "Les volets battent. Personne n'a fermé les portes en partant."
+    if {_t} is "ferme":
+        return "Le bétail est parti. Le silence, lui, est resté."
+    if {_t} is "militaire":
+        return "Zone militaire. Ils devaient nous protéger."
+    if {_t} is "norda":
+        return "NORDA Biotech. Tout a commencé ici, disent les rumeurs."
+    if {_t} is "barrage":
+        return "Les turbines dorment. Quelqu'un pourrait les réveiller."
+    if {_t} is "industriel":
+        return "Les quais de chargement sont restés ouverts."
+    if {_t} is "station":
+        return "Les pompes sont sèches depuis le Jour 9."
+    if {_t} is "motel":
+        return "Chambres libres. Plus personne pour les louer."
+    if {_t} is "checkpoint":
+        return "Le barrage routier n'a arrêté personne."
+    if {_t} is "emetteur":
+        return "CKZA. La dernière voix de la région venait d'ici."
+    if {_t} is "carriere":
+        return "Les machines se sont arrêtées au milieu d'une journée normale."
+    if {_t} is "chalet":
+        return "Un chalet au bord de l'eau. Ils pensaient y être en sécurité."
+    if {_t} is "camp_chasse":
+        return "Un camp de chasse. Les chasseurs sont devenus le gibier."
+    if {_t} is "arrivee":
+        return "L'autobus du Jour 8. C'est ici que tout a recommencé."
+    return "Un lieu que la région a oublié."
+
+# ---------------------------------------------------------------- entrée dans un lieu
+
+every 5 seconds:
+    if {za::site::installe} is not set:
+        stop
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if za_pro({_p}) is false:
+            set {_u} to "%{_p}'s uuid%"
+            set {_k} to za_site_ici(location of {_p})
+            set {_avant} to {za::site::ou::%{_u}%} ? ""
+            if {_k} is not {_avant}:
+                set {za::site::ou::%{_u}%} to {_k}
+                if {_k} is not "":
+                    set {_nom} to {za::site::d::%{_k}%::nom}
+                    if {za::site::vu::%{_k}%::%{_u}%} is not set:
+                        set {za::site::vu::%{_k}%::%{_u}%} to {za::serveur::jours} ? 0
+                        set {_amb} to za_site_ambiance({za::site::d::%{_k}%::type})
+                        send title "&f%{_nom}%" with subtitle "&7&o%{_amb}%" to {_p} for 4 seconds
+                        za_souvenir_ajouter({_u}, "site:%{_k}%", "decouverte", "Découvert : %{_nom}%.")
+                    else:
+                        send action bar "&7%{_nom}%" to {_p}
+
+# ---------------------------------------------------------------- installation (une fois, sur le nouveau monde)
+
+function za_sites_installer(forcer: boolean) :: text:
+    set {_w} to world("world")
+    if {_w} is not set:
+        return "Monde « world » introuvable."
+    za_sites_indexer()
+    # ruines de Saint-Aurèle : déjà posées par le générateur (plugins/ZAMonde/placements.yml)
+    if {za::ruines::base} is not set:
+        set {_b::*} to split za_sites_base_ruines() at ";"
+        set {za::ruines::base} to location({_b::1} parsed as number, {_b::2} parsed as number, {_b::3} parsed as number, {_w})
+        za_ruines_lieux()
+        za_ruines_sous_stations()
+    else if {_forcer} is true:
+        set {_b::*} to split za_sites_base_ruines() at ";"
+        set {za::ruines::base} to location({_b::1} parsed as number, {_b::2} parsed as number, {_b::3} parsed as number, {_w})
+    # lieux de la région dans la mémoire du monde
+    loop za_sites_donnees():
+        set {_c::*} to split loop-value at "|"
+        set {_l} to location({_c::4} parsed as number, {_c::5} parsed as number, {_c::6} parsed as number, {_w})
+        za_lieu_creer("site:%{_c::1}%", {_c::2}, {_c::3}, {_l}, false)
+    # bordure 10 000 x 10 000 et point d'apparition à l'autobus du Jour 8
+    execute console command "worldborder center 0 0"
+    execute console command "worldborder set 10000"
+    if {za::site::d::arrivee::x} is set:
+        set {_sx} to {za::site::d::arrivee::x} + 1
+        set {_sy} to {za::site::d::arrivee::y}
+        set {_sz} to {za::site::d::arrivee::z} + 3
+        execute console command "execute in minecraft:overworld run setworldspawn %{_sx}% %{_sy}% %{_sz}%"
+    set {za::site::installe} to {za::serveur::jours} ? 0
+    return "Région installée : %size of {za::lieux::liste::*}% lieux connus, ruines en %{za::ruines::base}%."
+
+command /zasites [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "installer":
+            set {_f} to false
+            if arg-2 is "forcer":
+                set {_f} to true
+            send "&6[Région] &7%za_sites_installer({_f})%" to sender
+        else if arg-1 is "liste":
+            loop za_sites_donnees():
+                set {_c::*} to split loop-value at "|"
+                send "&e%{_c::3}% &8(%{_c::2}%) &7%{_c::4}% %{_c::5}% %{_c::6}%" to sender
+        else if arg-1 is "ici":
+            if sender is console:
+                send "À faire en jeu." to sender
+                stop
+            set {_k} to za_site_ici(location of player)
+            if {_k} is "":
+                send "&7Hors des lieux générés." to sender
+            else:
+                send "&e%{za::site::d::%{_k}%::nom}% &8(%{_k}%, %{za::site::d::%{_k}%::type}%) &7zombies : %{za::site::d::%{_k}%::zombies}%" to sender
+        else:
+            set {_n} to size of za_sites_donnees()
+            if {za::site::installe} is set:
+                send "&6[Région] &7Installée (jour %{za::site::installe}%). %{_n}% lieux générés." to sender
+            else:
+                send "&6[Région] &cPas encore installée. &7Après avoir généré le monde : &e/zasites installer" to sender
+            send "&7/zasites installer [forcer] | liste | ici" to sender

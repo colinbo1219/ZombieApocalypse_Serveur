@@ -25,6 +25,10 @@ function za_type_lieu(l: location) :: text:
         return {_r}
     set {_k} to za_bat_proche({_l}, 45)
     if {_k} is "":
+        # lieux du monde généré (za_p73) : base Bravo, NORDA, villages, chalets...
+        set {_s} to za_site_zombie({_l})
+        if {_s} is not "":
+            return {_s}
         # zone très contaminée (za_p5) : mutations avancées
         if ({za::contam::%za_ckey({_l})%} ? 0) >= 150:
             return random element out of "ZA_Brute", "ZA_Screamer", "ZA_Spitter" and "ZA_Bloater"

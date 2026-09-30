@@ -3,6 +3,9 @@
 Aucun **plugin** à ajouter. Côté **mods** : les 16 mods décoratifs que tu m'as envoyés sont maintenant utilisés par la
 ville (section 6) : à mettre sur le serveur et dans le pack des joueurs, avec le mod client `za_modeles` 1.3.0.
 
+**Nouveau monde de 10 000 × 10 000 entièrement généré par moi** (pas de Lost Cities) : section 9. C'est la plus grosse
+étape de demain matin : environ 15-60 minutes selon ton PC, à faire serveur arrêté.
+
 Rien n'a pu être testé en jeu (pas de serveur dans la session cloud) : tout a été vérifié « à la lecture » et par un
 petit vérificateur automatique. Il faut donc tester avant d'ouvrir aux joueurs.
 
@@ -32,7 +35,7 @@ git pull
 
 1. Arrête le serveur, récupère les fichiers (étape 1), relance-le (`start.bat`).
    Un redémarrage est plus sûr que 11 `sk reload` (et **jamais** `sk reload all`).
-2. Regarde la console au démarrage : Skript affiche `Loaded 78 scripts`. S'il y a des lignes **error**, copie-les
+2. Regarde la console au démarrage : Skript affiche `Loaded 80 scripts`. S'il y a des lignes **error**, copie-les
    moi dans la prochaine session : je corrige.
 3. MythicMobs se recharge au démarrage (sinon `/mm reload`) : 6 nouveaux zombies (`ZA_Policier_Infecte`,
    `ZA_Medecin_Infecte`, `ZA_Ouvrier_Infecte`, `ZA_Ouvrier_Brule`, `ZA_Pompier_Infecte`, `ZA_Prisonnier_Infecte`).
@@ -46,6 +49,9 @@ git pull
    Sans la 1.3.0, les nouveaux zombies ont l'apparence de base et les nouveaux sons sont muets (pas de plantage).
 
 ## 4. Poser Saint-Aurèle en ruines (une seule fois)
+
+> **Avec le nouveau monde (section 9), saute cette section** : le générateur pose déjà les ruines au centre de la carte,
+> et `/zasites installer` les branche. Cette section ne sert que si tu gardes l'ancien monde.
 
 1. Choisis un endroit **plat, sans construction de joueur**, idéalement à 150-300 blocs de l'autobus d'arrivée.
 2. Pré-génère la zone : `/chunky center <x> <z>`, `/chunky radius 250`, `/chunky start` (attends la fin).
@@ -141,6 +147,65 @@ branche (clés prévues : `voix.radio_j2`, `voix.radio_j4`, `voix.radio_j6`).
 
 ## 8. Ce qui n'a PAS été testé
 
-Tout ce qui est en jeu : chargement réel des 78 scripts par Skript, les commandes, la pose des ruines, les modèles
+Tout ce qui est en jeu : chargement réel des 80 scripts par Skript, les commandes, la pose des ruines, les modèles
 et animations EMF du mod 1.3.0, les sons, la lecture de la redstone des machines Create/CCA/IE par Skript sur
 Arclight. Le détail des risques est dans `docs/RAPPORTS_PHASES.md`, phase par phase.
+
+## 9. Le nouveau monde : la région de Saint-Aurèle (10 000 × 10 000)
+
+Tout le terrain est généré par un programme Python du dépôt (`generateur_monde/`) qui écrit **directement les fichiers
+de région** (`world/region/r.X.Z.mca`). Minecraft ne génère rien : il lit ce qui est déjà là.
+
+**Ce qu'il y a dedans** (carte : `docs/carte_region.png`) :
+- **Relief québécois** : Laurentides au nord (sommets enneigés), plaines agricoles au sud, la **rivière
+  Blanche** qui traverse la carte d'ouest en est, 11 lacs, le réservoir en amont du barrage. 11 biomes vanilla aux
+  lisières naturelles, forêts d'épinettes, de bouleaux et de chênes, marais.
+- **Sous terre** : grottes en tunnels, lave profonde, minerais vanilla + **zinc (Create)** + **aluminium, plomb, argent,
+  nickel, uranium (Immersive Engineering)** pour que l'électricité (Create / IE) se construise avec ce qu'on trouve.
+- **Routes** : l'autoroute 40 (4 voies, ligne jaune, ponts sur la rivière), la route 117, le Chemin du Lac, le
+  Rang Saint-Aurèle et un chemin vers chaque lieu. Voitures abandonnées dans les villages.
+- **Lieux** (tous abandonnés, vitres brisées, lierre, lampes éteintes, coffres avec butin) :
+  - au centre (0, 0) : **Saint-Aurèle en ruines** (la ville du prologue, 288 × 288) ;
+  - l'**autobus du Jour 8** (point d'apparition, x 641 z 299) ;
+  - la **base Bravo** (militaire) à l'ouest ; **NORDA Biotech** au nord-est ; le **barrage** de la Rivière-Blanche ;
+  - le **parc industriel** ; l'**émetteur CKZA** dans les montagnes ; la **carrière** ; un **motel** ;
+  - 3 villages (**Val-des-Pins**, **Rivière-Blanche**, **Sainte-Brigitte**), 4 stations-service, 2 barrages routiers ;
+  - 18 fermes, 16 chalets au bord des lacs, 22 camps de chasse.
+- En jeu (`za_p73_sites.sk`) : en entrant dans un lieu, son nom s'affiche (la 1re fois : titre + phrase d'ambiance +
+  souvenir) ; chaque lieu a **ses zombies** (soldats à la base, blouses blanches à NORDA, ouvriers au barrage...).
+
+### Marche à suivre (serveur ARRÊTÉ)
+
+1. **Python 3** (3.10 ou plus) et **numpy** : `pip install numpy` (Pillow seulement pour l'image de la carte :
+   `pip install pillow`).
+2. Récupère les changements (section 1), puis extrais les sources : dans le dossier du serveur,
+   `unzip -o ZA_sources_build.zip` (ou clic droit → Extraire ici). Il faut le dossier `ZA_sources/ville`.
+3. **Sauvegarde puis mets de côté l'ancien monde** : renomme `world` en `world_ancien`, puis crée un dossier `world`
+   vide et **recopie dedans** `world_ancien/datapacks` et `world_ancien/serverconfig` (butin, réglages des mods).
+   Ne touche pas au monde `za_prologue` (le prologue).
+4. Lance le générateur depuis le dossier du serveur :
+   ```
+   python generateur_monde/generer.py
+   ```
+   Il affiche l'avancement (400 régions, ~8 s chacune par cœur de processeur : ~13 min sur 4 cœurs, ~7 min sur 8).
+   Il faut ~1 Go de mémoire par cœur utilisé (limiter : `--processus 2`) et ~1,8 Go de disque.
+   S'il s'arrête (erreur, PC éteint), **relance la même commande** : il reprend là où il en était.
+   Il écrit aussi `plugins/ZAMonde/placements.yml` (position des ruines et de l'autobus, pour les POIs).
+5. Démarre le serveur. Le Nether et l'End se recréent tout seuls.
+6. En jeu (op) : **`/zasites installer`**. Il branche les ruines (lieux + 4 sous-stations endommagées), inscrit les
+   73 lieux de la région dans la mémoire du monde (+ les 8 de la ville), met la **bordure à 10 000** (`worldborder`) et le **point d'apparition à
+   l'autobus**. Vérifie : `/zasites` (état), `/zasites ici` (lieu où tu es), `/zaville` (ruines).
+7. Lost Cities est **retiré de l'overworld** (`world/serverconfig/lostcities-server.toml` : `selectedProfile = ""`).
+   Le mod reste installé (sa dimension séparée et la table de butin des coffres de ville restent).
+
+**Attention aux anciennes données** : les joueurs qui avaient une partie gardent leurs coordonnées de l'ancien monde
+(maisons, camps, bases dans `variables.csv`). Pour un vrai redémarrage, fais-le aussi pour eux (nouvelle saison).
+
+**Retour arrière** : arrête le serveur, supprime `world`, renomme `world_ancien` en `world`, remets
+`selectedProfile = "default"` dans `world/serverconfig/lostcities-server.toml`.
+
+**Pas testé** : le générateur a été vérifié avec un **serveur Minecraft 1.20.1 vanilla** (régions chargées et
+réenregistrées sans erreur, panneaux et coffres avec butin conservés), mais **pas avec Arclight et les mods** : les
+blocs moddés (Macaw's, Handcrafted, Create, IE) sont écrits avec des identifiants que je n'ai pas pu tous vérifier
+dans les jars (surtout les minerais d'IE). Un identifiant inconnu devient de l'air, sans planter. Regarde la console
+au premier démarrage : des lignes « Unknown block » m'indiqueraient quoi corriger.

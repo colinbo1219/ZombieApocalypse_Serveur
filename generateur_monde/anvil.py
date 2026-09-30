@@ -6,6 +6,7 @@ un tableau de biomes [y/4][z/4][x/4] (indices dans une palette de biomes) et une
 Le serveur recalcule lui-même la lumière (isLightOn = 0) et les cartes de hauteur (absentes) au chargement.
 """
 import io
+import os
 import struct
 import zlib
 
@@ -241,9 +242,11 @@ class Region:
             corps.write(bloc)
             corps.write(b'\x00' * (n * 4096 - len(bloc)))
             secteur += n
-        with open(chemin, 'wb') as f:
+        # écriture atomique : une région interrompue ne laisse pas de fichier tronqué
+        with open(chemin + '.tmp', 'wb') as f:
             f.write(entetes)
             f.write(corps.getvalue())
+        os.replace(chemin + '.tmp', chemin)
 
 
 # ============================================================================ relecture (contrôle)

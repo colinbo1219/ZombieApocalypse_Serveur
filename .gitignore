@@ -32,3 +32,4 @@ plugins/CoreProtect/database.db
 plugins/LuckPerms/luckperms-h2*
 plugins/spark/tmp/
 plugins/*/logs/
+__pycache__/
