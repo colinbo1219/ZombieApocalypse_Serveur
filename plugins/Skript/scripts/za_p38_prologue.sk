@@ -1032,6 +1032,9 @@ function za_pro_arrivee(p: player):
     za_zm("son %{_p}% za_modeles:sfx.silence_ville 0.8 1")
     za_pro_ville({_p}, 8)
     send "&8&oL'autobus est couché sur le flanc. Les autres passagers ne sont plus là. Le silence est énorme." to {_p}
+    # monde généré (za_p73) : la ville est à ~700 blocs à l'ouest, un panneau vert l'indique sur l'autoroute
+    if {za::site::installe} is set:
+        send "&8&oSur l'autoroute, un panneau vert, à peine lisible : SAINT-AURÈLE, tout droit. Vers l'ouest. Vers chez toi." to {_p}
     za_pro_recap({_p})
     za_intro_survie({_p})
 
