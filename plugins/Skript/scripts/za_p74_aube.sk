@@ -5,7 +5,9 @@
 #    d'un joueur restent, mais éblouis (lents, faibles) jusqu'à midi. Les morts à l'abri (sous un toit, dans un
 #    bâtiment, sous terre) ne bougent pas : explorer de jour reste dangereux.
 #  * Au crépuscule (18 h 30 à 19 h 30), chaque nid chargé relâche ceux qui y ont dormi. Léa prévient à la radio.
-#  * Pas touchés : boss, nids, PNJ, faux morts, Phototropes (attirés par la lumière), zombies qui chassent un joueur.
+#  * Pas touchés : boss, nids, PNJ, Phototropes (attirés par la lumière), zombies qui chassent un joueur.
+#  * Infectés du mod zombie_extreme (ils ne brûlent jamais : ce sont des « Monster », pas des « Zombie ») : datapack
+#    world/datapacks/za_aube (liste dans data/za/tags/entity_types/infectes_mods.json).
 #  Brûlure : za_p32_soleil (tous les monstres) + PreventSunburn (MythicMobs).
 #  Admin : /zaaube etat | aube | crepuscule
 # =====================================================================
@@ -71,6 +73,9 @@ function za_aube_retraite():
                                 delete loop-zombie
                                 add 1 to {_n}
     add {_n} to {za::aube::retires}
+    # infectés du mod zombie_extreme : fonction du datapack za_aube (mêmes règles : dehors, loin des joueurs)
+    if size of za_monde_joueurs() > 0:
+        execute console command "execute in minecraft:overworld run function za:aube_retraite_mods"
 
 function za_aube_crepuscule():
     loop {za::nid::liste::*}:
