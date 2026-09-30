@@ -1,0 +1,80 @@
+# =====================================================================
+#  ZombieApocalypse - LA MEUTE : comportements de groupe des morts
+#  * PORTES : les morts qui poursuivent un joueur et arrivent contre une porte en bois cognent (bruit, éclats).
+#    6 coups et elle cède. Une porte renforcée (za_p23, lingots de fer) perd un point à la place : elle tient plus
+#    longtemps, mais pas éternellement.
+#  * PYRAMIDE : si tu es plus haut qu'eux (mur, toit, échafaudage) et qu'ils sont au moins 4 serrés au pied, les morts
+#    montent les uns sur les autres pour t'atteindre.
+#  * MEUTE : quand un mort te frappe, ceux qui errent à 16 blocs se tournent vers toi.
+#  Le bruit (za_p24) et Zombie Awareness attirent déjà les morts vers les sons.
+# =====================================================================
+
+options:
+    coups_porte: 6
+
+function za_meute_porte(z: entity, p: player):
+    loop blocks in radius 1.8 around {_z}:
+        if loop-block is wooden door:
+            set {_k} to za_porte_cle(loop-block)
+            add 1 to {za::meute::coups::%{_k}%}
+            set {_l} to location of loop-block
+            execute console command "execute in %za_dim(world of {_l})% run playsound minecraft:entity.zombie.attack_wooden_door hostile @a %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% 1.2 0.9"
+            execute console command "execute in %za_dim(world of {_l})% run particle minecraft:block oak_planks %x-coordinate of {_l} + 0.5% %y-coordinate of {_l} + 1% %z-coordinate of {_l} + 0.5% 0.3 0.5 0.3 0.1 12"
+            if {za::meute::coups::%{_k}%} >= {@coups_porte}:
+                delete {za::meute::coups::%{_k}%}
+                if ({za::porte::%{_k}%} ? 0) > 0:
+                    remove 1 from {za::porte::%{_k}%}
+                    send action bar "&6La porte renforcée tremble... (%{za::porte::%{_k}%}%/15)" to {_p}
+                else:
+                    # la porte cède : les deux moitiés
+                    set {_b} to loop-block
+                    if block below {_b} is wooden door:
+                        set {_b} to block below {_b}
+                    set block above {_b} to air
+                    set block at {_b} to air
+                    execute console command "execute in %za_dim(world of {_l})% run playsound minecraft:entity.zombie.break_wooden_door hostile @a %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% 1.5 0.9"
+                    send title "" with subtitle "&cLa porte a cédé." to {_p} for 2 seconds
+            stop
+
+function za_meute_pyramide(z: entity, p: player):
+    set {_u} to "%uuid of {_z}%"
+    if {za::meute::pyr::%{_u}%} is set:
+        if difference between {za::meute::pyr::%{_u}%} and now < 4 seconds:
+            stop
+    set {_dy} to (y-coordinate of {_p}) - (y-coordinate of {_z})
+    if {_dy} < 2:
+        stop
+    if {_dy} > 7:
+        stop
+    set {_dx} to (x-coordinate of {_p}) - (x-coordinate of {_z})
+    set {_dz} to (z-coordinate of {_p}) - (z-coordinate of {_z})
+    if sqrt(({_dx} * {_dx}) + ({_dz} * {_dz})) > 5:
+        stop
+    if size of (all zombies in radius 2.5 around {_z}) < 4:
+        stop
+    set {za::meute::pyr::%{_u}%} to now
+    push {_z} upwards at speed 0.62
+    push {_z} horizontally towards {_p} at speed 0.25
+    execute console command "execute at %{_u}% run particle minecraft:block rooted_dirt ~ ~ ~ 0.3 0.2 0.3 0.1 6"
+
+every 5 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value-1
+        if za_pro({_p}) is false:
+            loop all zombies in radius 20 around {_p}:
+                if target of loop-value-2 is {_p}:
+                    za_meute_porte(loop-value-2, {_p})
+                    za_meute_pyramide(loop-value-2, {_p})
+
+# les compteurs oubliés (portes jamais revisitées, zombies morts) : ménage
+every 10 minutes:
+    delete {za::meute::coups::*}
+    delete {za::meute::pyr::*}
+
+on damage of player:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a zombie:
+        loop all zombies in radius 16 around victim:
+            if target of loop-zombie is not set:
+                set target of loop-zombie to victim
