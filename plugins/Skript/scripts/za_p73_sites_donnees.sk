@@ -7,6 +7,27 @@ function za_sites_base_ruines() :: text:
     return "-80;1;-80"
 
 function za_sites_donnees() :: texts:
+    add "val_des_pins_depanneur0|depanneur|Dépanneur de Val-des-Pins|-1919|77|-1161|8|8|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "val_des_pins_eglise1|eglise|Église de Val-des-Pins|-1932|77|-1102|13|9|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
+    add "val_des_pins_garage2|garage|Garage de Val-des-Pins|-1886|77|-1139|8|8|ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte" to {_r::*}
+    add "val_des_pins_clinique3|clinique|Clinique médicale de Val-des-Pins|-1970|77|-1164|9|9|ZA_Patient_Infecte,ZA_Patient_Infecte,ZA_Medecin_Infecte" to {_r::*}
+    add "val_des_pins_caserne4|caserne|Caserne de pompiers de Val-des-Pins|-1964|77|-1187|9|10|ZA_Pompier_Infecte,ZA_Pompier_Infecte,ZA_Ouvrier_Brule" to {_r::*}
+    add "val_des_pins_ecole5|ecole|École primaire de Val-des-Pins|-1964|77|-1119|9|10|ZA_Child,ZA_Child,ZA_Citoyen_Infecte" to {_r::*}
+    add "val_des_pins_depanneur6|depanneur|Casse-croûte de Val-des-Pins|-1962|77|-1069|7|8|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "riviere_blanche_caserne0|caserne|Caserne de pompiers de Rivière-Blanche|-281|71|1636|10|9|ZA_Pompier_Infecte,ZA_Pompier_Infecte,ZA_Ouvrier_Brule" to {_r::*}
+    add "riviere_blanche_depanneur1|depanneur|Dépanneur de Rivière-Blanche|-452|71|1662|8|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "riviere_blanche_eglise2|eglise|Église de Rivière-Blanche|-400|71|1632|9|13|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
+    add "riviere_blanche_clinique3|clinique|Clinique médicale de Rivière-Blanche|-336|71|1552|9|9|ZA_Patient_Infecte,ZA_Patient_Infecte,ZA_Medecin_Infecte" to {_r::*}
+    add "riviere_blanche_ecole4|ecole|École primaire de Rivière-Blanche|-383|71|1664|10|9|ZA_Child,ZA_Child,ZA_Citoyen_Infecte" to {_r::*}
+    add "riviere_blanche_garage5|garage|Garage de Rivière-Blanche|-338|71|1671|8|8|ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte" to {_r::*}
+    add "riviere_blanche_depanneur6|depanneur|Casse-croûte de Rivière-Blanche|-433|71|1637|8|8|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "sainte_brigitte_depanneur0|depanneur|Casse-croûte de Sainte-Brigitte|2337|71|2029|8|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "sainte_brigitte_eglise1|eglise|Église de Sainte-Brigitte|2368|71|2081|13|9|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
+    add "sainte_brigitte_clinique2|clinique|Clinique médicale de Sainte-Brigitte|2269|71|2064|9|9|ZA_Patient_Infecte,ZA_Patient_Infecte,ZA_Medecin_Infecte" to {_r::*}
+    add "sainte_brigitte_ecole3|ecole|École primaire de Sainte-Brigitte|2336|71|2098|9|10|ZA_Child,ZA_Child,ZA_Citoyen_Infecte" to {_r::*}
+    add "sainte_brigitte_depanneur4|depanneur|Dépanneur de Sainte-Brigitte|2338|71|1978|8|8|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "sainte_brigitte_caserne5|caserne|Caserne de pompiers de Sainte-Brigitte|2364|71|1996|9|10|ZA_Pompier_Infecte,ZA_Pompier_Infecte,ZA_Ouvrier_Brule" to {_r::*}
+    add "sainte_brigitte_garage6|garage|Garage de Sainte-Brigitte|2338|71|1961|8|8|ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte" to {_r::*}
     add "arrivee|arrivee|L'autobus du Jour 8|640|70|296|32|32|ZA_Soldat_Infecte,ZA_Citoyen_Infecte" to {_r::*}
     add "base_bravo|militaire|Base Bravo (Forces armées)|-2750|74|120|108|93|ZA_Soldat_Infecte,ZA_Soldat_Infecte,ZA_Armored,ZA_Shielded" to {_r::*}
     add "norda|norda|NORDA Biotech — campus de Saint-Aurèle|2650|71|-760|93|83|ZA_Medecin_Infecte,ZA_Patient_Infecte,ZA_Spitter,ZA_Observer" to {_r::*}

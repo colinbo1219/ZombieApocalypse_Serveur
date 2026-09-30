@@ -33,6 +33,7 @@ class Chantier:
         self.m = Monde(-(W // 2), 58, -(D // 2), W, H, D)
         self.ctx = Ctx(self.m, site.get('graine', 1250))
         self.coffres = []
+        self.lieux = []            # sous-lieux (type, nom, x, z, demi-largeur, demi-profondeur) en coordonnées locales
         m = self.m
         x0, z0, x1, z1 = m.x0, m.z0, m.x0 + W - 1, m.z0 + D - 1
         m.fill(x0, 58, z0, x1, 62, z1, S('dirt'))
@@ -45,6 +46,10 @@ class Chantier:
         v = VEC[front]
         u = {'south': (1, 0), 'north': (-1, 0), 'east': (0, -1), 'west': (0, 1)}[front]
         return Repere(self.ctx, ox, oz, u, v)
+
+    def lieu(self, R, L, P, genre, nom):
+        (xa, za), (xb, zb) = R.xz(0, 0), R.xz(L - 1, P - 1)
+        self.lieux.append((genre, nom, (xa + xb) // 2, (za + zb) // 2, abs(xb - xa) // 2 + 3, abs(zb - za) // 2 + 3))
 
     def coffre(self, R, a, y, b, regard, butin=SI.LOOT_MAISON, baril=False):
         if baril:
@@ -100,7 +105,9 @@ class Chantier:
         err = [e for e in m.verifier() if 'porte' in e or 'lit' in e or 'inconnu' in e]
         if err:
             print('  [%s] %d avertissements (%s)' % (self.site['id'], len(err), err[0]))
-        return SI.Structure.depuis_monde(self.site['id'], m, self.coffres)
+        st = SI.Structure.depuis_monde(self.site['id'], m, self.coffres)
+        st.lieux = list(self.lieux)
+        return st
 
 
 # ============================================================================ passe « apocalypse »
@@ -282,6 +289,82 @@ def garage(ch, R, L=12, P=12, nom='GARAGE'):
     ch.panneau(x, 68, z, ['', nom, 'Mécanique générale', ''], mur=R.d('south'))
 
 
+def ecole(ch, R, L=15, P=13, village=''):
+    R.fill(0, 59, 0, L - 1, 63, P - 1, S('stone'))
+    R.fill(0, 64, 0, L - 1, 69, P - 1, S('bricks'))
+    R.vide(1, 64, 1, L - 2, 68, P - 2)
+    R.fill(1, 63, 1, L - 2, 63, P - 2, S('white_terracotta'))
+    R.fill(0, 70, 0, L - 1, 70, P - 1, S('smooth_stone_slab', type='bottom'))
+    for a in range(2, L - 2, 2):
+        for b in (0, P - 1):
+            R.fill(a, 65, b, a, 67, b, S('glass_pane'))
+    ZM.porte_double(R, L // 2 - 1, 64, P - 1, 'north', 'oak')
+    # classe : pupitres en rangées face au tableau noir
+    R.fill(2, 65, 1, L - 3, 67, 1, S('black_concrete'))
+    for b in range(4, P - 3, 2):
+        for a in range(2, L - 2, 3):
+            ZM.table(R, a, 64, b, 'birch')
+            ZM.chaise(R, a, 64, b + 1, 'north', 'birch')
+    ch.coffre(R, L - 2, 64, 1, 'south', SI.LOOT_MAISON)
+    ch.coffre(R, 1, 64, 1, 'south', SI.LOOT_MAISON, baril=True)
+    # mât de drapeau (bleu et blanc) devant l'entrée
+    x, z = R.xz(1, P + 2)
+    ch.m.fill(x, 64, z, x, 72, z, S('iron_bars'))
+    ch.m.set(x, 71, z, S('white_wool')); ch.m.set(x, 72, z, S('blue_wool'))
+    x, z = R.xz(L // 2, P)
+    ch.panneau(x, 69, z, ['ÉCOLE', 'PRIMAIRE', village[:15], ''], mur=R.d('south'))
+    ch.lieu(R, L, P, 'ecole', 'École primaire de ' + village if village else 'École primaire')
+
+
+def clinique(ch, R, L=13, P=13, village=''):
+    R.fill(0, 59, 0, L - 1, 63, P - 1, S('stone'))
+    R.fill(0, 64, 0, L - 1, 68, P - 1, S('white_concrete'))
+    R.vide(1, 64, 1, L - 2, 67, P - 2)
+    R.fill(1, 63, 1, L - 2, 63, P - 2, S('light_gray_concrete'))
+    R.fill(0, 69, 0, L - 1, 69, P - 1, S('smooth_stone_slab', type='bottom'))
+    # croix rouge sur la façade
+    c = L // 2
+    for (a, y) in ((c, 68), (c, 67), (c, 66), (c - 1, 67), (c + 1, 67)):
+        R.set(a, y, P - 1, S('red_concrete'))
+    R.fill(2, 65, P - 1, c - 2, 66, P - 1, S('glass_pane'))
+    ZM.porte(R, c + 2, 64, P - 1, 'north', 'iron' if not MODERNE else 'oak')
+    # salle d'attente, lits, pharmacie
+    for a in range(1, L - 1, 3):
+        ZM.lit(R, a, 64, 2, 'north', 'white')
+    R.fill(1, 64, P - 4, 3, 64, P - 4, S('smooth_quartz'))
+    for b in range(5, P - 5, 2):
+        ch.coffre(R, L - 2, 64, b, 'west', SI.LOOT_VILLE, baril=True)
+    ch.coffre(R, L - 2, 64, P - 3, 'west', SI.LOOT_LABO)
+    x, z = R.xz(c, P)
+    ch.panneau(x, 69, z, ['CLINIQUE', 'MÉDICALE', village[:15], ''], mur=R.d('south'))
+    ch.lieu(R, L, P, 'clinique', 'Clinique médicale de ' + village if village else 'Clinique médicale')
+
+
+def caserne(ch, R, L=15, P=13, village=''):
+    R.fill(0, 59, 0, L - 1, 63, P - 1, S('stone'))
+    R.fill(0, 64, 0, L - 1, 70, P - 1, S('red_nether_bricks' if ch.rng.random() < 0.5 else 'bricks'))
+    R.vide(1, 64, 1, L - 2, 69, P - 2)
+    R.fill(1, 63, 1, L - 2, 63, P - 2, S('gray_concrete'))
+    R.fill(0, 71, 0, L - 1, 71, P - 1, S('smooth_stone_slab', type='bottom'))
+    # grande porte de garage (à moitié levée) et camion rouge
+    R.vide(2, 64, P - 1, 8, 68, P - 1)
+    R.fill(2, 68, P - 1, 8, 68, P - 1, S('iron_trapdoor', facing='north', half='top', open=False, powered=False, waterlogged=False))
+    x, z = R.xz(5, P // 2)
+    try:
+        RU.voiture(ch.R0, x, z, R.d('south'), 'red', 64, 'auto', portes=True)
+    except Exception:
+        pass
+    ZM.porte(R, L - 3, 64, P - 1, 'north', 'spruce')
+    # vestiaires : barils (équipement), tour de séchage des boyaux
+    for b in range(1, P - 2, 2):
+        ch.coffre(R, L - 2, 64, b, 'west', SI.LOOT_VILLE, baril=True)
+    R.fill(L - 4, 64, 0, L - 2, 78, 2, S('bricks'))
+    R.vide(L - 3, 72, 1, L - 3, 77, 1)
+    x, z = R.xz(5, P)
+    ch.panneau(x, 70, z, ['CASERNE', 'DE POMPIERS', village[:15], ''], mur=R.d('south'))
+    ch.lieu(R, L, P, 'caserne', 'Caserne de pompiers de ' + village if village else 'Caserne de pompiers')
+
+
 # ============================================================================ sites
 def village(site, plan):
     W, D = site['larg'], site['prof']
@@ -295,7 +378,7 @@ def village(site, plan):
     m.fill(ch.x0, 63, 5, ch.x1, 63, 6, S('smooth_stone'))
     m.fill(-6, 63, ch.z0, -5, 63, ch.z1, S('smooth_stone'))
     m.fill(5, 63, ch.z0, 6, 63, ch.z1, S('smooth_stone'))
-    speciaux = ['eglise', 'depanneur', 'garage', 'casse_croute']
+    speciaux = ['eglise', 'depanneur', 'garage', 'casse_croute', 'ecole', 'clinique', 'caserne']
     rng.shuffle(speciaux)
     lots = []
     for x in range(-hw + 12, hw - 12, 17):
@@ -311,7 +394,8 @@ def village(site, plan):
     rng.shuffle(lots)
     for i, (cote, c) in enumerate(lots):
         spec = speciaux[i] if i < len(speciaux) else None
-        L, P = (13, 21) if spec == 'eglise' else (rng.choice((9, 10, 11)), rng.choice((9, 10, 11)))
+        L, P = {'eglise': (13, 21), 'ecole': (15, 13), 'clinique': (13, 13), 'caserne': (15, 13)}.get(
+            spec, (rng.choice((9, 10, 11)), rng.choice((9, 10, 11))))
         if cote == 'rue_ew_n':
             R = ch.rep(c - L // 2, -8 - (P - 1), 'south')
         elif cote == 'rue_ew_s':
@@ -324,14 +408,25 @@ def village(site, plan):
         coins = [R.xz(0, 0), R.xz(L - 1, P - 1)]
         if any(not (ch.x0 + 2 <= x <= ch.x1 - 2 and ch.z0 + 2 <= z <= ch.z1 - 2) for x, z in coins):
             continue
+        vn = site['nom']
         if spec == 'eglise':
             eglise(ch, R, L, P)
+            ch.lieu(R, L, P, 'eglise', 'Église de ' + vn)
         elif spec == 'depanneur':
             commerce(ch, R, L + 2, P + 2, 'Dépanneur')
+            ch.lieu(R, L + 2, P + 2, 'depanneur', 'Dépanneur de ' + vn)
         elif spec == 'casse_croute':
             commerce(ch, R, L + 2, P, 'Casse-croûte')
+            ch.lieu(R, L + 2, P, 'depanneur', 'Casse-croûte de ' + vn)
         elif spec == 'garage':
             garage(ch, R)
+            ch.lieu(R, 12, 12, 'garage', 'Garage de ' + vn)
+        elif spec == 'ecole':
+            ecole(ch, R, L, P, vn)
+        elif spec == 'clinique':
+            clinique(ch, R, L, P, vn)
+        elif spec == 'caserne':
+            caserne(ch, R, L, P, vn)
         else:
             maison(ch, R, L, P, etages=2 if rng.random() < 0.3 else 1)
             # cour : clôture à piquets et arbre

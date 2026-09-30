@@ -90,6 +90,13 @@ ZOMBIES = {
     'chalet': 'ZA_Citoyen_Infecte,ZA_Stalker',
     'camp_chasse': 'ZA_Stalker,ZA_Crawler',
     'arrivee': 'ZA_Soldat_Infecte,ZA_Citoyen_Infecte',
+    # bâtiments des villages (sous-lieux)
+    'ecole': 'ZA_Child,ZA_Child,ZA_Citoyen_Infecte',
+    'clinique': 'ZA_Patient_Infecte,ZA_Patient_Infecte,ZA_Medecin_Infecte',
+    'caserne': 'ZA_Pompier_Infecte,ZA_Pompier_Infecte,ZA_Ouvrier_Brule',
+    'eglise': 'ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer',
+    'depanneur': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner',
+    'garage': 'ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte',
 }
 
 
@@ -98,6 +105,17 @@ def ecrire_skript(pl):
     import terrain as T
     import sites
     lignes = []
+    # sous-lieux d'abord (école, clinique... d'un village) : ils ont priorité sur le village qui les contient
+    for s in pl['sites']:
+        if s['type'] != 'village':
+            continue
+        st = sites.structure_de(s, pl)
+        bx, by, bz = sites.base_de(s, st)
+        y = T.y_site(s) + 1
+        for k, (genre, nom, lx, lz, dx, dz) in enumerate(getattr(st, 'lieux', [])):
+            nom = nom.replace('"', "'").replace('%', '%%').replace('|', '/')
+            lignes.append('%s_%s%d|%s|%s|%d|%d|%d|%d|%d|%s' % (s['id'], genre, k, genre, nom, bx + lx, y, bz + lz,
+                                                              dx, dz, ZOMBIES.get(genre, '')))
     for s in pl['sites']:
         if s['type'] == 'ruines':
             continue

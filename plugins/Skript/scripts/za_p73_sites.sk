@@ -94,6 +94,18 @@ function za_site_ambiance(t: text) :: text:
         return "Un chalet au bord de l'eau. Ils pensaient y être en sécurité."
     if {_t} is "camp_chasse":
         return "Un camp de chasse. Les chasseurs sont devenus le gibier."
+    if {_t} is "ecole":
+        return "Les dessins d'enfants sont encore au mur. Les pupitres, eux, sont renversés."
+    if {_t} is "clinique":
+        return "Salle d'attente. Numéro 47. Plus personne n'appellera les suivants."
+    if {_t} is "caserne":
+        return "Ils sont partis au premier appel. Ils ne sont jamais revenus."
+    if {_t} is "eglise":
+        return "Ils sont venus prier ici le Jour 7. La porte a été barricadée de l'intérieur."
+    if {_t} is "depanneur":
+        return "Les tablettes sont vides. Quelqu'un a pensé à tout prendre, sauf le courage."
+    if {_t} is "garage":
+        return "Outils, pièces, essence : si tu cherches à réparer quelque chose, c'est ici."
     if {_t} is "arrivee":
         return "L'autobus du Jour 8. C'est ici que tout a recommencé."
     return "Un lieu que la région a oublié."
