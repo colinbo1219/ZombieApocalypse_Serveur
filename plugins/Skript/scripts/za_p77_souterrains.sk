@@ -1,0 +1,58 @@
+# =====================================================================
+#  ZombieApocalypse - SOUTERRAINS : NORDA niveau -2, bunker de commandement Bravo, tunnels de Saint-Aurèle
+#  Creusés par le générateur (generateur_monde/souterrains.py). Les apparitions normales (za_p36) se font en surface :
+#  ici, les morts naissent DANS les couloirs, hors de vue (14 à 40 blocs), jusqu'à 6 autour de chaque joueur.
+#  Ambiance : bruits dans le noir (grattements, gouttes, un cri au loin), obscurité par moments.
+#  Accès : kiosques techniques à l'est de NORDA et de la base Bravo ; bouches d'égout (trappes en fer) dans les rues
+#  des ruines. Points d'apparition : za_sites_apparitions() (za_p73_sites_donnees.sk, généré).
+# =====================================================================
+
+options:
+    max_autour: 6
+
+function za_sout_charger():
+    delete {za::sout::ap::*}
+    loop za_sites_apparitions():
+        set {_c::*} to split loop-value at ";"
+        add "%{_c::2}%;%{_c::3}%;%{_c::4}%" to {za::sout::ap::%{_c::1}%::*}
+
+on load:
+    za_sout_charger()
+
+function za_sout_tick(p: player):
+    set {_k} to za_site_ici(location of {_p})
+    if {_k} is "":
+        stop
+    if {za::site::d::%{_k}%::type} does not start with "sous_":
+        stop
+    set {_l} to location of {_p}
+    # ambiance
+    if chance of 12%:
+        set {_s} to random element out of "minecraft:ambient.cave", "minecraft:entity.zombie.ambient", "minecraft:block.pointed_dripstone.drip_water", "minecraft:entity.warden.nearby_closer" and "minecraft:entity.zombie.attack_wooden_door"
+        execute console command "execute at %{_p}% run playsound %{_s}% hostile %{_p}% ^%random integer between -8 and 8% ^ ^%random integer between -14 and -6% 0.7 0.7"
+    if chance of 4%:
+        apply potion of darkness of tier 1 to {_p} for 3 seconds
+    # combien de morts autour ?
+    set {_n} to size of (all zombies in radius 28 around {_p})
+    if {_n} >= {@max_autour}:
+        stop
+    loop {za::sout::ap::%{_k}%::*}:
+        set {_c::*} to split loop-value at ";"
+        set {_a} to location(({_c::1} parsed as number) + 0.5, {_c::2} parsed as number, ({_c::3} parsed as number) + 0.5, world of {_l})
+        set {_d} to distance between {_a} and {_l}
+        if {_d} >= 14:
+            if {_d} <= 40:
+                add {_a} to {_cand::*}
+    if size of {_cand::*} is 0:
+        stop
+    set {_a} to random element out of {_cand::*}
+    set {_t} to za_site_zombie({_a})
+    if {_t} is "":
+        set {_t} to "ZA_Shambler"
+    execute console command "mm mobs spawn %{_t}% 1 %world of {_a}%,%x-coordinate of {_a}%,%y-coordinate of {_a}%,%z-coordinate of {_a}%"
+
+every 6 seconds:
+    loop za_monde_joueurs():
+        if za_pro(loop-value) is false:
+            if "%world of loop-value%" is "world":
+                za_sout_tick(loop-value)

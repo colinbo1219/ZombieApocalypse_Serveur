@@ -405,6 +405,8 @@ def generer(plan, rx, rz, dossier, sites=None, gab=None, panneaux=None, evts=Non
     reg.routes()
     if sites:
         sites.poser(reg)
+        import souterrains
+        souterrains.poser(reg)
     reg.vegetation(gab or flore.gabarits(plan['graine']))
     if evts:
         import epaves

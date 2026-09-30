@@ -51,7 +51,12 @@ function za_site_ici(l: location) :: text:
         set {_k} to loop-value
         if abs({_x} - {za::site::d::%{_k}%::x}) <= {za::site::d::%{_k}%::dx}:
             if abs({_z} - {za::site::d::%{_k}%::z}) <= {za::site::d::%{_k}%::dz}:
-                return {_k}
+                # souterrain : seulement à sa profondeur (sinon c'est le lieu de surface au-dessus)
+                if {za::site::d::%{_k}%::type} starts with "sous_":
+                    if abs((y-coordinate of {_l}) - {za::site::d::%{_k}%::y}) < 9:
+                        return {_k}
+                else:
+                    return {_k}
     return ""
 
 # type de zombie du lieu (appelé par za_type_lieu, za_p36) ; "" hors des lieux générés
@@ -112,6 +117,12 @@ function za_site_ambiance(t: text) :: text:
         return "Des kilomètres de voitures vers Montréal. Les clés sont encore sur le contact."
     if {_t} is "convoi":
         return "Un convoi de l'armée, portes ouvertes. Les soldats sont peut-être encore dans le coin."
+    if {_t} is "sous_norda":
+        return "Niveau -2. Les néons sont morts. Quelque chose gratte derrière les portes des cellules."
+    if {_t} is "sous_bunker":
+        return "Le bunker a été scellé de l'intérieur. Ceux qui l'ont fermé sont encore là."
+    if {_t} is "sous_egouts":
+        return "L'eau coule encore. Dans le noir, quelque chose rampe dans le même sens que toi."
     if {_t} is "arrivee":
         return "L'autobus du Jour 8. C'est ici que tout a recommencé."
     return "Un lieu que la région a oublié."

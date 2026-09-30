@@ -105,6 +105,10 @@ ZOMBIES = {
     'carambolage': 'ZA_Citoyen_Infecte,ZA_Crawler,ZA_Runner,ZA_Shambler',
     'exode': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Child,ZA_Runner,ZA_Crawler',
     'convoi': 'ZA_Soldat_Infecte,ZA_Soldat_Infecte,ZA_Armored',
+    # souterrains (reconnus seulement près de leur profondeur, voir za_p73)
+    'sous_norda': 'ZA_Patient_Infecte,ZA_Medecin_Infecte,ZA_Spitter,ZA_Stalker,ZA_Crawler',
+    'sous_bunker': 'ZA_Soldat_Infecte,ZA_Soldat_Infecte,ZA_Armored,ZA_Stalker',
+    'sous_egouts': 'ZA_Crawler,ZA_Crawler,ZA_Shambler,ZA_Stalker,ZA_Bloater',
 }
 
 
@@ -113,7 +117,13 @@ def ecrire_skript(pl):
     import terrain as T
     import sites
     lignes = []
-    # sous-lieux d'abord (école, clinique... d'un village) : ils ont priorité sur le village qui les contient
+    # souterrains d'abord (ils sont sous d'autres lieux)
+    import souterrains
+    apparitions = []
+    for (st, genre, nom, (x, y, z), (dx, dz), ap) in souterrains.tous(pl):
+        lignes.append('%s|%s|%s|%d|%d|%d|%d|%d|%s' % (st.nom, genre, nom, x, y, z, dx, dz, ZOMBIES.get(genre, '')))
+        apparitions += ['%s;%d;%d;%d' % (st.nom, a, b, c) for (a, b, c) in ap]
+    # sous-lieux ensuite (école, clinique... d'un village) : ils ont priorité sur le village qui les contient
     for s in pl['sites']:
         if s['type'] != 'village':
             continue
@@ -151,6 +161,9 @@ def ecrire_skript(pl):
            'function za_sites_donnees() :: texts:']
     for l in lignes:
         out.append('    add "%s" to {_r::*}' % l)
+    out.append('    return {_r::*}')
+    out += ['', 'function za_sites_apparitions() :: texts:']
+    out += ['    add "%s" to {_r::*}' % a for a in apparitions]
     out.append('    return {_r::*}')
     # points des grandes routes (tous les 64 blocs) : hordes de la nuit qui arrivent par la route (za_p76_routes)
     out += ['', 'function za_sites_routes() :: texts:']

@@ -151,10 +151,18 @@ def _estamper(reg, st, bx, by, bz):
         return
     vanille = M.VANILLE_SEULEMENT
     lut = np.array([reg.pal(p if not vanille or p.startswith('minecraft:') else 'minecraft:cobblestone') for p in st.pal], np.uint16)
-    bloc = lut[st.a[y1 - wy0:y2 - wy0, z1 - wz0:z2 - wz0, x1 - wx0:x2 - wx0]]
-    reg.b[y1 - M.Y0:y2 - M.Y0, z1 - reg.z0:z2 - reg.z0, x1 - reg.x0:x2 - reg.x0] = bloc
-    # au-dessus de la structure : dégagé (pas de terrain qui dépasse)
-    reg.b[y2 - M.Y0:, z1 - reg.z0:z2 - reg.z0, x1 - reg.x0:x2 - reg.x0] = 0
+    src = st.a[y1 - wy0:y2 - wy0, z1 - wz0:z2 - wz0, x1 - wx0:x2 - wx0]
+    bloc = lut[src]
+    cible = reg.b[y1 - M.Y0:y2 - M.Y0, z1 - reg.z0:z2 - reg.z0, x1 - reg.x0:x2 - reg.x0]
+    vide = [i for i, p in enumerate(st.pal) if p == 'minecraft:structure_void']
+    if vide:
+        # « vide de structure » : on garde ce qui est déjà là (roche des souterrains)
+        cible[...] = np.where(src == vide[0], cible, bloc)
+    else:
+        cible[...] = bloc
+    # au-dessus de la structure : dégagé (pas de terrain qui dépasse), sauf structures enterrées
+    if not getattr(st, 'garder', False):
+        reg.b[y2 - M.Y0:, z1 - reg.z0:z2 - reg.z0, x1 - reg.x0:x2 - reg.x0] = 0
     # entités de bloc
     for s in st.signs:
         x, y, z = bx + s['x'], by + s['y'], bz + s['z']

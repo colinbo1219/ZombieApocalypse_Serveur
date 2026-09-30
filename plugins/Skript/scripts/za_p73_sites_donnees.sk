@@ -7,6 +7,9 @@ function za_sites_base_ruines() :: text:
     return "-80;1;-80"
 
 function za_sites_donnees() :: texts:
+    add "norda_sous_sol|sous_norda|NORDA — niveau -2|2645|52|-760|50|16|ZA_Patient_Infecte,ZA_Medecin_Infecte,ZA_Spitter,ZA_Stalker,ZA_Crawler" to {_r::*}
+    add "bunker_bravo|sous_bunker|Bunker de commandement Bravo|-2750|59|120|32|16|ZA_Soldat_Infecte,ZA_Soldat_Infecte,ZA_Armored,ZA_Stalker" to {_r::*}
+    add "tunnels_sa|sous_egouts|Tunnels de service de Saint-Aurèle|0|41|0|140|140|ZA_Crawler,ZA_Crawler,ZA_Shambler,ZA_Stalker,ZA_Bloater" to {_r::*}
     add "val_des_pins_depanneur0|depanneur|Dépanneur de Val-des-Pins|-1919|77|-1161|8|8|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
     add "val_des_pins_eglise1|eglise|Église de Val-des-Pins|-1932|77|-1102|13|9|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
     add "val_des_pins_garage2|garage|Garage de Val-des-Pins|-1886|77|-1139|8|8|ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte" to {_r::*}
@@ -114,6 +117,40 @@ function za_sites_donnees() :: texts:
     add "camp_chasse_20|camp_chasse|Camp de chasse|-1604|72|-1044|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
     add "camp_chasse_21|camp_chasse|Camp de chasse|4277|73|-1175|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
     add "camp_chasse_22|camp_chasse|Camp de chasse|4651|141|-3281|18|17|ZA_Stalker,ZA_Crawler" to {_r::*}
+    return {_r::*}
+
+function za_sites_apparitions() :: texts:
+    add "norda_sous_sol;2620;52;-760" to {_r::*}
+    add "norda_sous_sol;2650;52;-760" to {_r::*}
+    add "norda_sous_sol;2680;52;-760" to {_r::*}
+    add "norda_sous_sol;2619;52;-768" to {_r::*}
+    add "norda_sous_sol;2619;52;-753" to {_r::*}
+    add "norda_sous_sol;2633;52;-768" to {_r::*}
+    add "norda_sous_sol;2633;52;-753" to {_r::*}
+    add "norda_sous_sol;2647;52;-768" to {_r::*}
+    add "norda_sous_sol;2647;52;-753" to {_r::*}
+    add "norda_sous_sol;2661;52;-768" to {_r::*}
+    add "norda_sous_sol;2661;52;-753" to {_r::*}
+    add "norda_sous_sol;2675;52;-768" to {_r::*}
+    add "norda_sous_sol;2675;52;-753" to {_r::*}
+    add "norda_sous_sol;2605;52;-760" to {_r::*}
+    add "bunker_bravo;-2770;59;120" to {_r::*}
+    add "bunker_bravo;-2741;59;111" to {_r::*}
+    add "bunker_bravo;-2744;59;127" to {_r::*}
+    add "bunker_bravo;-2732;59;126" to {_r::*}
+    add "tunnels_sa;0;41;0" to {_r::*}
+    add "tunnels_sa;37;41;0" to {_r::*}
+    add "tunnels_sa;74;41;13" to {_r::*}
+    add "tunnels_sa;13;41;0" to {_r::*}
+    add "tunnels_sa;26;41;38" to {_r::*}
+    add "tunnels_sa;-13;41;0" to {_r::*}
+    add "tunnels_sa;-26;41;23" to {_r::*}
+    add "tunnels_sa;-37;41;0" to {_r::*}
+    add "tunnels_sa;-74;41;-12" to {_r::*}
+    add "tunnels_sa;-4;41;0" to {_r::*}
+    add "tunnels_sa;-8;41;-39" to {_r::*}
+    add "tunnels_sa;27;41;0" to {_r::*}
+    add "tunnels_sa;54;41;-36" to {_r::*}
     return {_r::*}
 
 function za_sites_routes() :: texts:
