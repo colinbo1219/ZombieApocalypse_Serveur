@@ -44,9 +44,9 @@ git pull
 ## 3. Mettre à jour le pack des joueurs (CurseForge)
 
 1. Dans ton projet de modpack CurseForge, dossier `overrides/mods` : **remplace** l'ancien `za_modeles-1.x.jar` par
-   `pack_joueurs/za_modeles-1.4.0.jar` (dans le dépôt).
+   `pack_joueurs/za_modeles-1.5.0.jar` (dans le dépôt).
 2. Monte la version du pack (ex. 1.4), exporte, publie. Les joueurs mettent à jour leur pack.
-   Sans la 1.4.0, les nouveaux zombies ont l'apparence de base et les nouveaux sons sont muets (pas de plantage).
+   Sans la 1.5.0, les nouveaux zombies ont l'apparence de base et les nouveaux sons sont muets (pas de plantage).
 
 ## 4. Poser Saint-Aurèle en ruines (une seule fois)
 
@@ -67,7 +67,7 @@ git pull
 | Échos | `/zaecho lancer ginette <toi>` | indice radio, en t'approchant : Ginette te reconnaît |
 | Électricité | accumulateur CCA chargé → comparateur → fil → bloc ; regarder le bloc, `/electricite installer` ; attendre 15 s ; `/electricite` | sous-station qui produit 1 à 5 unités |
 | Réparation | `/zaelec panne <id>` puis `/electricite reparer` (2 Composants + 4 cuivre) | 20 s, des zombies arrivent, radio |
-| Zombies | `/mm mobs spawn ZA_Policier_Infecte` | uniforme, yeux qui luisent dans le noir (mod 1.4.0) |
+| Zombies | `/mm mobs spawn ZA_Policier_Infecte` | uniforme, yeux qui luisent dans le noir (mod 1.5.0) |
 | Scènes rares | `/zazv scene regard <toi>` | un zombie te fixe |
 | Ruines | marcher dans la ville | titre « Population : 0 », souvenirs, mot de Maman dans le coffre du 2A |
 | Lampes | `/zaville lampes hopital on` | les lampadaires de l'hôpital s'allument |
@@ -91,7 +91,7 @@ sont toutes présentes et Create Deco accepte ton Create 6.0.8. Liste exacte + S
 
 **Donc ces mods deviennent obligatoires, sur le serveur ET dans le pack des joueurs** :
 1. Copie les 16 jars dans `mods/` du serveur (tu les as déjà sur ton PC).
-2. Ajoute-les au modpack CurseForge (même versions), avec `za_modeles-1.4.0.jar`, puis publie.
+2. Ajoute-les au modpack CurseForge (même versions), avec `za_modeles-1.5.0.jar`, puis publie.
 3. Redémarre le serveur. Dans la console, cherche **« BlockData invalide »** (ZAMonde) : s'il y en a, copie-les moi.
 4. **Reconstruis la ville du prologue** (elle a été posée avant les mods) : `/zamonde construire` puis attends la fin
    (`/zamonde etat`). Les joueurs en plein prologue verront la nouvelle ville au chapitre suivant.
@@ -140,11 +140,14 @@ Create 6.0.8, Steam 'n' Rails 1.7.3, Create Crafts & Additions 1.3.3. ⚠️ Deu
 problème s'il y en a un. Create Big Cannons : dans `world/serverconfig/createbigcannons-server.toml` (créé au premier
 démarrage), pense à limiter la destruction de blocs si tu ne veux pas voir les ruines de Saint-Aurèle rasées.
 
-## 6 ter. Zombies plus effrayants (mod 1.4.0)
+## 6 ter. Zombies plus effrayants (mod 1.5.0)
 
 - **Apparence** : peau cadavérique marbrée, ecchymoses, veines, plaies ouvertes, sang séché qui coule vers le bas,
   crasse aux jambes, orbites creuses, bouches arrachées. Les 15 zombies humains (citoyens, soldats, policier...) ont
   des **pupilles laiteuses qui luisent dans le noir**, une larme de sang, une joue ouverte et une morsure au cou.
+- **Silhouettes (1.5.0)** : mâchoire qui pend et claque à l'attaque (citoyen, soldat, médecin, prisonnier, Dumas...),
+  côtes à l'air, colonne vertébrale qui sort du dos (patient, Dumas), bras gauche cassé qui pend à l'envers avec l'os
+  qui perce (citoyen, soldat, policier, pompier). Mme Gagnon reste reconnaissable.
 - **Animations** : le cou **craque d'un coup** sur le côté, la tête part en avant pour **mordre**, recul quand il
   prend un coup, bras qui s'agitent en mourant ; un humain immobile te **fixe** sans bouger la tête.
 - **Capacités** (`plugins/MythicMobs/Skills/ZA_Horreur.yml`) : des mains t'**agrippent** (shambler, citoyen,
@@ -152,7 +155,7 @@ démarrage), pense à limiter la destruction de blocs si tu ne veux pas voir les
   soldat et de la brute, **bond** du prisonnier, **sprint** du runner, **murmure** du stalker (+ obscurité),
   matraque du policier (sonné), **seringue** du médecin (poison + risque d'infection), clé à molette de l'ouvrier
   (projeté), hache du pompier (qui ne brûle plus).
-- À faire : `/mm reload` (ou redémarrage) et mettre `za_modeles-1.4.0.jar` dans le pack des joueurs (section 3).
+- À faire : `/mm reload` (ou redémarrage) et mettre `za_modeles-1.5.0.jar` dans le pack des joueurs (section 3).
 
 ## 6 quater. Le jour : les morts ne brûlent pas, ils rentrent au nid
 
@@ -187,7 +190,7 @@ branche (clés prévues : `voix.radio_j2`, `voix.radio_j4`, `voix.radio_j6`).
 ## 8. Ce qui n'a PAS été testé
 
 Tout ce qui est en jeu : chargement réel des 81 scripts par Skript, les commandes, la pose des ruines, les modèles
-et animations EMF du mod 1.4.0, les capacités MythicMobs de `Skills/ZA_Horreur.yml`, les sons, la lecture de la redstone des machines Create/CCA/IE par Skript sur
+et animations EMF du mod 1.5.0, les capacités MythicMobs de `Skills/ZA_Horreur.yml`, les sons, la lecture de la redstone des machines Create/CCA/IE par Skript sur
 Arclight. Le détail des risques est dans `docs/RAPPORTS_PHASES.md`, phase par phase.
 
 ## 9. Le nouveau monde : la région de Saint-Aurèle (10 000 × 10 000)

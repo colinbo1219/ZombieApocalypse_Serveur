@@ -59,8 +59,9 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
   `za_p65_zombies_vivants`, `za_p66_ruines` (+ `_donnees`, généré), `za_p67_diplomatie`, `za_p68_cours`,
   `za_p69_exploration` (dossier Arel), `za_p70_ondes` (bulletin de Léa, téléphone), `za_p71_chronique`, `za_p72_archives`, `za_p73_sites` (lieux du monde généré), `za_p74_aube` (retraite au nid à l'aube, réveil
   au crépuscule ; aucun monstre ne brûle : `za_p32_soleil`).
-- Mod client : `pack_joueurs/za_modeles-1.4.0.jar` = `build.py` (16 zombies de base, peintre `zagen_lib.py`) +
-  `extension_1_4.py` appliqué au jar 1.3.0 (git) : passe horreur des peaux humaines, animations, sons.
+- Mod client : `pack_joueurs/za_modeles-1.5.0.jar` = `extension_1_5.py` (silhouettes : mâchoire, côtes, vertèbres,
+  bras cassé ; peaux humaines 64x96) sur le jar 1.4.0 (git) = `build.py` (16 zombies de base, peintre `zagen_lib.py`) +
+  `extension_1_4.py` sur le jar 1.3.0 (passe horreur des peaux humaines, animations, sons).
   1.3.0 venait de `extension_1_3.py` sur le jar 1.2.0. Capacités « horreur » : `MythicMobs/Skills/ZA_Horreur.yml`.
 - Ruines de Saint-Aurèle : `ZA_sources/ville/gen_ruines.py` -> `plugins/ZAMonde/ruines.json.gz` + `za_p66_ruines_donnees.sk`.
 - Vérification statique : `python3 docs/outils/verif_skript.py plugins/Skript/scripts/*.sk` (à lancer après chaque modif).
