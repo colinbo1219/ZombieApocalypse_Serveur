@@ -13,7 +13,7 @@ Phase 1 = analyse seule, aucune modification.
 - Skript 2.9.5 : presque toute la logique de jeu (`plugins/Skript/scripts/za_*.sk`, 78 fichiers).
 - MythicMobs 5.7.2 : zombies et PNJ (`plugins/MythicMobs/Mobs|Skills|Items|RandomSpawns/`).
 - Plugin maison `plugins/ZAMonde.jar` : ville, PNJ, props, HUD, caméras (données dans `plugins/ZAMonde/`).
-- 37 mods Forge (liste et SHA-1 dans [JARS.txt](JARS.txt)), configs dans `config/`, `defaultconfigs/`, `world/serverconfig/`.
+- 53 mods Forge (liste et SHA-1 dans [JARS.txt](JARS.txt), dont 16 mods décoratifs Macaw's / Handcrafted / Supplementaries / Create Deco utilisés par la ville), configs dans `config/`, `defaultconfigs/`, `world/serverconfig/`.
 - Datapacks : `world/datapacks/za_*`.
 
 ## Ce que le dépôt ne contient pas
@@ -63,6 +63,10 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
 - Ruines de Saint-Aurèle : `ZA_sources/ville/gen_ruines.py` -> `plugins/ZAMonde/ruines.json.gz` + `za_p66_ruines_donnees.sk`.
 - Vérification statique : `python3 docs/outils/verif_skript.py plugins/Skript/scripts/*.sk` (à lancer après chaque modif).
 - Ce qu'il faut installer / tester : `docs/A_INSTALLER.md`.
+- Ville moddée : `ZA_sources/ville/blocs_mods.json.gz` (extrait des jars par `extraire_blocs_mods.py`) permet à
+  `za_blocs.S()` d'accepter les blocs moddés (propriétés partielles) ; `za_meubles.py` (meubles) et `za_moderne.py`
+  (toits, clôtures, grilles, pavés). `ZA_VANILLE=1` = ville vanilla d'origine. Après régénération : recopier dans
+  `plugins/ZAMonde/` puis relancer `gen_ruines.py`.
 
 ## Façon de travailler
 - Commits petits et clairs, en français, poussés sur GitHub pour que Colin puisse récupérer et tester.

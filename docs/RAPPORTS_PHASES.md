@@ -383,3 +383,29 @@ saison).
 **RISQUES** : la moitié des sous-stations tombe en panne à chaque nouvelle saison : voulu, à ajuster si trop dur.
 
 **TESTS** : statiques. En jeu : `/zasaison enregistrer`, puis `/chroniques <n> 2`.
+
+---
+
+## COMPLÉMENT PHASE 8 — Saint-Aurèle habillée avec les mods décoratifs (30 sept.)
+
+**MODIFICATIONS** : `plugins/ZAMonde/town.json.gz`, `layers.json`, `hall.json.gz`, `ruines.json.gz` (régénérés),
+`JARS.txt` (16 mods + SHA-1), `CLAUDE.md`, `docs/A_INSTALLER.md`, `ZA_sources_build.zip`.
+
+**NOUVEAUX FICHIERS (zip des sources)** : `ville/extraire_blocs_mods.py`, `ville/blocs_mods.json.gz` (3 909 blocs
+moddés et leurs propriétés, lus dans les jars), `ville/za_moderne.py`.
+
+**SYSTÈMES MODIFIÉS** : générateur de la ville (`za_blocs.py` accepte les blocs moddés ; `za_meubles.py` pose des
+meubles Handcrafted / Macaw's ; `za_rue.py` trottoirs en pavés ; `za_pois.py` aligné sur la caméra du blackout
+déployée, qui avait été ralentie à la main).
+
+**CHANGEMENTS VISIBLES** : 188 portes Macaw's, 82 lits, 58 chaises, 31 tables, 27 canapés, 12 commodes, 11 bureaux,
+6 tabourets, fours, éviers et armoires de cuisine ; 180 blocs de toit, 360 clôtures à piquets, 583 grilles
+industrielles, 395 dalles d'allée, tous les trottoirs en pavés carrés. Le frigo reste une porte en fer vanilla.
+
+**TESTS** : 0 erreur de validation (portes et lits appariés, états valides), 78 POIs accessibles à pied, palettes
+de la ville (531), des ruines (630) et du Hall (46) validées contre le rapport 1.20.1 + les blockstates des mods ;
+`ZA_VANILLE=1` redonne les anciens fichiers octet pour octet. Non testé : rendu en jeu, orientation des meubles de
+Macaw's (Handcrafted vérifié sur le modèle 3D de la chaise), acceptation des blocs moddés par Arclight.
+
+**RISQUES** : si Arclight refuse un bloc moddé, ZAMonde l'ignore (trou) et l'écrit dans la console. Les mods
+deviennent obligatoires côté serveur et côté joueurs.

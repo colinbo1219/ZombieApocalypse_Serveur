@@ -1,8 +1,7 @@
 # À faire demain matin — installation et tests
 
-Bonne nouvelle : **aucun nouveau plugin ni mod serveur n'est obligatoire** pour ce qui a été ajouté cette nuit.
-Tout passe par ce que tu as déjà (Skript, MythicMobs, ZAMonde, Create, CCA, IE, TaCZ). La seule chose à distribuer
-aux joueurs est la nouvelle version du mod client `za_modeles` (1.3.0).
+Aucun **plugin** à ajouter. Côté **mods** : les 16 mods décoratifs que tu m'as envoyés sont maintenant utilisés par la
+ville (section 6) : à mettre sur le serveur et dans le pack des joueurs, avec le mod client `za_modeles` 1.3.0.
 
 Rien n'a pu être testé en jeu (pas de serveur dans la session cloud) : tout a été vérifié « à la lecture » et par un
 petit vérificateur automatique. Il faut donc tester avant d'ouvrir aux joueurs.
@@ -72,28 +71,35 @@ git pull
 | Téléphone | `/zatel <toi> donner`, `/telephone` | menu, SMS, appels |
 | Chroniques | `/zasaison enregistrer`, `/chroniques <n> 2` | lignes Personnages / Réseau / Saint-Aurèle |
 
-## 6. Optionnel : pour une ville « full custom » (pas vanilla)
+## 6. Ville « full custom » : les 16 mods décoratifs (FAIT le 30 sept.)
 
-Ce qui suit n'est **pas nécessaire** au fonctionnement. Ce sont des mods Forge 1.20.1 qui donneraient à Saint-Aurèle
-un vrai look de ville moderne. **À installer sur le serveur ET dans le pack des joueurs**, et à tester d'abord sur une
-copie du serveur (Arclight n'est pas compatible avec tous les mods).
+Tu m'as envoyé 16 mods : Macaw's (Doors, Windows, Fences, Roofs, Furniture, Paths, Lights, Bridges, Stairs,
+Trapdoors, Paintings), Create Deco, Handcrafted (+ Resourceful Lib), Supplementaries (+ Moonlight). Les dépendances
+sont toutes présentes et Create Deco accepte ton Create 6.0.8. Liste exacte + SHA-1 : `JARS.txt`.
 
-| Mod | Pourquoi | Dépendance |
-|---|---|---|
-| Macaw's Roofs, Windows, Doors, Lights and Lamps, Fences and Walls, Furniture, Paths and Pavings, Bridges | toits, fenêtres, lampadaires, trottoirs, mobilier : l'essentiel d'une ville moderne | aucune |
-| Create: Deco | lampes industrielles, passerelles, grilles, parfait pour la centrale et les sous-stations | Create (déjà là) |
-| Supplementaries | panneaux indicateurs, tableaux d'affichage, bocaux, sacs : décor de ruines | Moonlight Lib |
-| Handcrafted | meubles de maison (appartements, dépanneur) | Resourceful Lib |
+**Saint-Aurèle utilise maintenant ces blocs** (prologue, ruines, Hall des survivants) :
+- intérieurs : chaises, tables, canapés, bureaux, commodes, lits, fours de **Handcrafted** ; éviers, armoires de
+  cuisine, tabourets de **Macaw's Furniture** ; portes modernes / vitrées / d'hôpital de **Macaw's Doors** ;
+- extérieur : toits **Macaw's Roofs**, clôtures à piquets **Macaw's Fences**, trottoirs en pavés et allées du parc en
+  dalles **Macaw's Paths**, grilles industrielles **Create Deco**.
 
-Côté joueurs seulement (ambiance, facultatif) : **Sound Physics Remastered** (échos, réverbération : génial pour
-l'horreur), **AmbientSounds** (ambiance sonore ; demande CreativeCore).
+**Donc ces mods deviennent obligatoires, sur le serveur ET dans le pack des joueurs** :
+1. Copie les 16 jars dans `mods/` du serveur (tu les as déjà sur ton PC).
+2. Ajoute-les au modpack CurseForge (même versions), avec `za_modeles-1.3.0.jar`, puis publie.
+3. Redémarre le serveur. Dans la console, cherche **« BlockData invalide »** (ZAMonde) : s'il y en a, copie-les moi.
+4. **Reconstruis la ville du prologue** (elle a été posée avant les mods) : `/zamonde construire` puis attends la fin
+   (`/zamonde etat`). Les joueurs en plein prologue verront la nouvelle ville au chapitre suivant.
+5. Le Hall des survivants et les ruines prennent la nouvelle version à leur prochaine pose (`/zaville installer`).
 
-À éviter : **Fresh Animations** (pack de ressources) : il remplace le modèle `zombie` et écraserait les modèles
-custom de `za_modeles`.
+**Retour arrière** si un mod pose problème avec Arclight : dans `ZA_sources/ville`, `ZA_VANILLE=1 python3
+gen_ville.py --sans-apercus` régénère la ville 100 % vanilla (identique à l'ancienne, vérifié octet pour octet),
+puis recopie `town.json.gz`, `layers.json` et `hall.json.gz` dans `plugins/ZAMonde/` — ou demande-le moi.
 
-Quand ces mods seront installés, dans une prochaine session je peux adapter le générateur de la ville
-(`ZA_sources/ville/`) pour utiliser leurs blocs (il faudra me donner la liste exacte des mods installés, pour valider
-les noms de blocs) et régénérer la ville du prologue **et** les ruines.
+Pas encore utilisés (disponibles pour la suite) : Macaw's Lights, Bridges, Stairs, Trapdoors, Paintings,
+Supplementaries. Les lampadaires restent vanilla car le blackout du prologue les éteint un par un.
+
+Côté joueurs seulement (ambiance, facultatif) : **Sound Physics Remastered**, **AmbientSounds** (+ CreativeCore).
+À éviter : **Fresh Animations** (écraserait les modèles de zombies de `za_modeles`).
 
 ## 7. Facultatif : voix
 
