@@ -126,3 +126,51 @@ admin `/zaelec etat | panne <id> | reparer <id> | supprimer <id> | ville <x> <y>
 `/electricite installer`, attendre 15 s, `/electricite`. Puis `/zaelec panne <id>` et `/electricite reparer`.
 
 **RESTE À FAIRE** : placer les sous-stations de ville quand les ruines seront posées (phase 8, commandes fournies).
+
+---
+
+## PHASES 6 et 7 — Zombies custom 2.0 : apparences, animations, sons
+
+**NOUVEAUX FICHIERS**
+- `pack_joueurs/za_modeles-1.3.0.jar` : **nouvelle version du mod client** (remplace 1.2.0 dans le pack des joueurs).
+- `ZA_sources/modeles_generateur/extension_1_3.py` (dans le zip des sources) : fabrique 1.3.0 à partir du jar 1.2.0 déployé.
+- `plugins/Skript/scripts/za_p65_zombies_vivants.sk` : scènes rares et butin par métier.
+
+**MODIFICATIONS**
+- `plugins/MythicMobs/Mobs/ZombieApocalypse.yml` : 6 nouveaux zombies + 1 son d'identité ajouté à 14 types existants
+  (lignes ajoutées seulement, les sons vanilla existants restent ; Stalker rendu presque silencieux : volume 0,25).
+- `plugins/Skript/scripts/za_p36_apparitions.sk` : zombies du lieu + forêt la nuit + zones contaminées.
+
+**SYSTÈMES AJOUTÉS**
+- **Apparence par métier** (MISSION §24) : `ZA_Policier_Infecte` (uniforme marine, insigne, casquette),
+  `ZA_Medecin_Infecte` (blouse blanche, stéthoscope, pantalon de bloc), `ZA_Ouvrier_Infecte` (dossard orange à bandes,
+  casque jaune), `ZA_Ouvrier_Brule` (carbonisé, braises, fumée, met le feu), `ZA_Pompier_Infecte` (tenue sombre à bandes
+  jaunes, casque noir), `ZA_Prisonnier_Infecte` (combinaison orange, rapide). Textures générées depuis les citoyens
+  infectés du pack (même visage, mêmes blessures).
+- **Zombies par environnement** (MISSION §25) près des bâtiments `za_p35` : hôpital → patients / médecins ;
+  labo → médecins, patients, spitters ; police → policiers, prisonniers, blindés ; caserne → soldats, blindés ;
+  centrale → ouvriers, ouvriers brûlés ; station-service → pompiers ; école → enfants ; forêt la nuit → stalkers /
+  crawlers ; chunk très contaminé (≥ 150) → brutes, screamers, spitters, bloaters. Le plafond par joueur est inchangé.
+- **Animations** (MISSION §26-27, mod client) : humains infectés (citoyens, patients, soldats, nouveaux métiers) :
+  regard qui balaie à l'arrêt, tic rare de la tête, boiterie (jambe droite raide), bras qui pendent.
+  Côté serveur (`za_p65`), scènes rares ≈ 5 % toutes les 20 s par joueur, max une toutes les 4 min : le mort qui te
+  **fixe**, le mort qui **mange** (particules, bruits de mastication), le mort qui **frappe une porte**, le mort **figé**.
+- **Identité sonore** (MISSION §28) : 15 sons `za_modeles:zombie.*` (respiration rapide du Runner, respiration lourde du
+  Bloater, hurlement du Screamer, Stalker quasi silencieux, grondement grave de l'Alpha, pas métalliques du blindé…),
+  construits sur des sons vanilla (aucun fichier audio ajouté), avec sous-titres. L'Overlord garde sa signature.
+- **Butin par métier** : munitions 9 mm TaCZ (policier), bandages / antibiotique (médecin), masque à gaz rare (pompier),
+  note de survivant (prisonnier).
+- Admin : `/zazv scene <regard|repas|porte|immobile> [joueur]`.
+
+**DÉPENDANCES** : aucune nouvelle côté serveur. Côté joueurs : mettre `za_modeles-1.3.0.jar` à la place de 1.2.0.
+
+**RISQUES**
+- Un joueur qui garde le mod 1.2.0 voit les nouveaux zombies avec la peau « Zombie » générique et n'entend pas les
+  nouveaux sons (pas de plantage).
+- Les animations sont écrites dans le même format que celles de 1.2.0 mais n'ont pas été vues en jeu (EMF).
+- Les scènes rares utilisent `tp … facing` vanilla sur l'entité : si un zombie « glisse », baisser `scene_chance`.
+
+**TESTS** : statiques + YAML MythicMobs relu par un parseur (38 mobs), properties vérifiées au même format que 1.2.0,
+planche des 6 textures contrôlée visuellement. En jeu : `/mm mobs spawn ZA_Policier_Infecte`, `/zazv scene regard`.
+
+**RESTE À FAIRE** : mettre le jar dans le pack CurseForge des joueurs (voir `docs/A_INSTALLER.md`).

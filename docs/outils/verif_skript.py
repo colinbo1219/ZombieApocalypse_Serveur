@@ -32,6 +32,7 @@ def verifier(fichiers):
     for f in fichiers:
         lignes = open(f, encoding='utf-8').read().split('\n')
         prec_bloc, prec_ind = False, 0
+        fonction_retour = False
         for n, l in enumerate(lignes, 1):
             if '\t' in l[:len(l) - len(l.lstrip())]:
                 erreurs.append(f'{f}:{n}: tabulation dans l\'indentation')
@@ -57,6 +58,11 @@ def verifier(fichiers):
             m = re.match(r'function (\w+)\(', s)
             if m:
                 defs.add(m.group(1))
+                fonction_retour = ind == 0 and '::' in s.split(')')[-1]
+            elif ind == 0:
+                fonction_retour = False
+            if fonction_retour and re.match(r'wait ', s):
+                erreurs.append(f'{f}:{n}: « wait » dans une fonction qui renvoie une valeur')
             for a in re.findall(r'\b(za_\w+)\(', code):
                 appels.setdefault(a, f'{f}:{n}')
     for a, ou in sorted(appels.items()):

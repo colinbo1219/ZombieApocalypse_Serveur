@@ -4,6 +4,8 @@
 !plugins/ZAMonde.jar
 !plugins/ZAPaperCompat.jar
 !mods/zombie_extreme-0.2.6.5-za2.jar
+# mod client des joueurs (généré par ZA_sources/modeles_generateur/extension_1_3.py)
+!pack_joueurs/*.jar
 
 # Sources extraites de ZA_sources_build.zip (le zip, lui, est versionne)
 ZA_sources/

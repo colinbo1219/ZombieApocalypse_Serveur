@@ -12,6 +12,7 @@ ZA_Shambler:
     PreventConversion: true
     Silent: true
   Skills:
+  - effect:sound{s=za_modeles:zombie.shambler.rale;v=0.9;p=1} @self ~onTimer:160 0.35
   - effect:sound{s=entity.zombie.ambient;v=1;p=0.65} @self ~onTimer:160 0.6
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
@@ -35,6 +36,8 @@ ZA_Runner:
     Silent: true
     KnockbackResistance: 0.1
   Skills:
+  - effect:sound{s=za_modeles:zombie.runner.souffle;v=0.8;p=1} @self ~onTimer:50 0.4
+  - effect:sound{s=za_modeles:zombie.runner.cri;v=1;p=1} @self ~onTimer:220 0.3
   - effect:sound{s=entity.zombie.ambient;v=1;p=1.15} @self ~onTimer:120 0.5
   - effect:sound{s=entity.zombie.hurt;v=1;p=1.2} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=1.1} @self ~onDeath
@@ -59,6 +62,7 @@ ZA_Crawler:
     Silent: true
     Baby: true
   Skills:
+  - effect:sound{s=za_modeles:zombie.crawler.rale;v=0.9;p=1} @self ~onTimer:180 0.4
   - effect:sound{s=entity.zombie.ambient;v=1;p=1.4} @self ~onTimer:140 0.5
   - effect:sound{s=entity.zombie.hurt;v=1;p=1.5} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=1.4} @self ~onDeath
@@ -82,6 +86,7 @@ ZA_Spitter:
     PreventConversion: true
     Silent: true
   Skills:
+  - effect:sound{s=za_modeles:zombie.spitter.gargouille;v=0.9;p=1} @self ~onTimer:140 0.4
   - effect:sound{s=entity.zombie.ambient;v=1;p=0.65} @self ~onTimer:160 0.6
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
@@ -105,6 +110,7 @@ ZA_Bloater:
     PreventConversion: true
     Silent: true
   Skills:
+  - effect:sound{s=za_modeles:zombie.bloater.souffle;v=1.0;p=1} @self ~onTimer:80 0.6
   - effect:sound{s=entity.zombie.ambient;v=1;p=0.45} @self ~onTimer:150 0.6
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.5} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=0.4} @self ~onDeath
@@ -128,6 +134,7 @@ ZA_Leaper:
     PreventConversion: true
     Silent: true
   Skills:
+  - effect:sound{s=za_modeles:zombie.leaper.cri;v=1.0;p=1} @self ~onTimer:160 0.4
   - effect:sound{s=entity.zombie.ambient;v=1;p=1.0} @self ~onTimer:130 0.5
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
@@ -154,6 +161,7 @@ ZA_Brute:
     Silent: true
     KnockbackResistance: 0.7
   Skills:
+  - effect:sound{s=za_modeles:zombie.brute.souffle;v=1.0;p=1} @self ~onTimer:120 0.5
   - effect:sound{s=entity.zombie.ambient;v=1;p=0.4} @self ~onTimer:170 0.6
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.4} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=0.35} @self ~onDeath
@@ -179,6 +187,7 @@ ZA_Screamer:
     PreventConversion: true
     Silent: true
   Skills:
+  - effect:sound{s=za_modeles:zombie.screamer.cri;v=1.6;p=1} @self ~onTimer:400 0.25
   - effect:sound{s=entity.zombie.ambient;v=1;p=1.3} @self ~onTimer:200 0.4
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
@@ -203,7 +212,8 @@ ZA_Stalker:
     PreventConversion: true
     Silent: true
   Skills:
-  - effect:sound{s=entity.zombie.ambient;v=1;p=0.8} @self ~onTimer:220 0.3
+  - effect:sound{s=za_modeles:zombie.stalker.souffle;v=0.4;p=1} @self ~onTimer:200 0.3
+  - effect:sound{s=entity.zombie.ambient;v=0.25;p=0.8} @self ~onTimer:220 0.3
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
   - potion{type=BLINDNESS;duration=60;level=0} @Target ~onAttack 0.5
@@ -301,6 +311,7 @@ ZA_Alpha:
     PreventConversion: true
     Silent: true
   Skills:
+  - effect:sound{s=za_modeles:zombie.alpha.grondement;v=1.5;p=1} @self ~onTimer:200 0.5
   - effect:sound{s=entity.zombie.ambient;v=1;p=0.5} @self ~onTimer:200 0.6
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
@@ -329,6 +340,7 @@ ZA_Armored:
     Silent: true
     KnockbackResistance: 0.3
   Skills:
+  - effect:sound{s=za_modeles:zombie.armored.pas;v=0.7;p=1} @self ~onTimer:40 0.5
   - effect:sound{s=entity.zombie.ambient;v=1;p=0.65} @self ~onTimer:160 0.6
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
@@ -582,6 +594,7 @@ ZA_Citoyen_Infecte:
     PreventItemPickup: true
     Silent: true
   Skills:
+  - effect:sound{s=za_modeles:zombie.civil.rale;v=0.8;p=1} @self ~onTimer:180 0.3
   - effect:sound{s=entity.zombie.ambient;v=1;p=0.7} @self ~onTimer:120 0.6
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.75} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=0.6} @self ~onDeath
@@ -598,6 +611,7 @@ ZA_Patient_Infecte:
     PreventConversion: true
     Silent: true
   Skills:
+  - effect:sound{s=za_modeles:zombie.civil.rale;v=0.8;p=1} @self ~onTimer:180 0.3
   - effect:sound{s=entity.zombie.ambient;v=1;p=0.8} @self ~onTimer:100 0.6
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.8} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=0.7} @self ~onDeath
@@ -622,6 +636,7 @@ ZA_Soldat_Infecte:
     Silent: true
     KnockbackResistance: 0.3
   Skills:
+  - effect:sound{s=za_modeles:zombie.civil.rale;v=0.9;p=1} @self ~onTimer:200 0.3
   - effect:sound{s=entity.zombie.ambient;v=1;p=0.55} @self ~onTimer:140 0.6
   - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
   - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
@@ -688,3 +703,153 @@ ZA_Coeur_Nid:
   - ZA_SangInfecte 2to3 1
   - ZA_Jeton 4to8 1
   - exp 80 1
+
+# ---------------------------------------------------------------- ZOMBIES PAR MÉTIER / PAR LIEU (za_modeles 1.3.0)
+# Le modèle et la texture sont choisis par le pack client d'après le nom affiché : ne pas renommer sans régénérer le mod.
+# Apparitions : za_p36_apparitions (près des bâtiments za_p35) et za_p65_zombies_vivants (butin, comportements rares).
+ZA_Policier_Infecte:
+  Type: ZOMBIE
+  Display: '&7Policier infecte'
+  Health: 24
+  Damage: 3.5
+  Armor: 4
+  Options:
+    MovementSpeed: 0.22
+    FollowRange: 32
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    PreventItemPickup: true
+    Silent: true
+    KnockbackResistance: 0.2
+  Skills:
+  - effect:sound{s=za_modeles:zombie.civil.rale;v=0.9;p=0.9} @self ~onTimer:180 0.3
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.7} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.6} @self ~onDeath
+  - command{c="zakill ZA_Policier_Infecte";sync=true} @self ~onDeath
+  - command{c="zacorps <target.l.w> <caster.l.x> <caster.l.y> <caster.l.z>";sync=true} @self ~onDeath 0.12
+  Drops:
+  - iron_nugget 1to2 0.5
+  - ZA_Essence 1 0.2
+  - ZA_Jeton 1 0.15
+  - exp 8 1
+ZA_Medecin_Infecte:
+  Type: ZOMBIE
+  Display: '&7Medecin infecte'
+  Health: 16
+  Damage: 2.5
+  Options:
+    MovementSpeed: 0.23
+    FollowRange: 28
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    PreventItemPickup: true
+    Silent: true
+  Skills:
+  - effect:sound{s=za_modeles:zombie.civil.rale;v=0.8;p=1.1} @self ~onTimer:180 0.3
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.85} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.75} @self ~onDeath
+  - command{c="zakill ZA_Medecin_Infecte";sync=true} @self ~onDeath
+  Drops:
+  - ZA_SangInfecte 1 0.3
+  - ZA_Antidote 1 0.03
+  - rotten_flesh 1 0.5
+  - exp 6 1
+ZA_Ouvrier_Infecte:
+  Type: ZOMBIE
+  Display: '&7Ouvrier infecte'
+  Health: 22
+  Damage: 3
+  Armor: 2
+  Options:
+    MovementSpeed: 0.21
+    FollowRange: 28
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    PreventItemPickup: true
+    Silent: true
+    KnockbackResistance: 0.2
+  Skills:
+  - effect:sound{s=za_modeles:zombie.civil.rale;v=0.9;p=0.75} @self ~onTimer:180 0.3
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.65} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.55} @self ~onDeath
+  - command{c="zakill ZA_Ouvrier_Infecte";sync=true} @self ~onDeath
+  Drops:
+  - ZA_Composant 1 0.12
+  - ZA_Carburant 1 0.12
+  - iron_nugget 1to3 0.4
+  - exp 7 1
+ZA_Ouvrier_Brule:
+  Type: ZOMBIE
+  Display: '&8Ouvrier brule'
+  Health: 26
+  Damage: 4
+  Options:
+    MovementSpeed: 0.24
+    FollowRange: 30
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    PreventItemPickup: true
+    Silent: true
+  Skills:
+  - effect:sound{s=za_modeles:zombie.shambler.rale;v=1;p=0.6} @self ~onTimer:160 0.35
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.5} @self ~onDamaged
+  - effect:sound{s=entity.blaze.death;v=0.6;p=0.5} @self ~onDeath
+  - effect:particles{p=smoke;a=3;hS=0.25;vS=0.5;s=0.01} @self ~onTimer:15
+  - effect:particles{p=flame;a=1;hS=0.2;vS=0.4;s=0.005} @self ~onTimer:30 0.5
+  - ignite{ticks=60} @target ~onAttack 0.3
+  - command{c="zakill ZA_Ouvrier_Brule";sync=true} @self ~onDeath
+  Drops:
+  - coal 1to2 0.6
+  - ZA_Composant 1 0.1
+  - ZA_Essence 1 0.25
+  - exp 9 1
+ZA_Pompier_Infecte:
+  Type: ZOMBIE
+  Display: '&7Pompier infecte'
+  Health: 30
+  Damage: 3
+  Armor: 5
+  Options:
+    MovementSpeed: 0.2
+    FollowRange: 30
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    PreventItemPickup: true
+    Silent: true
+    KnockbackResistance: 0.4
+  Skills:
+  - effect:sound{s=za_modeles:zombie.civil.rale;v=1;p=0.6} @self ~onTimer:180 0.3
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.6} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.5} @self ~onDeath
+  - command{c="zakill ZA_Pompier_Infecte";sync=true} @self ~onDeath
+  Drops:
+  - ZA_Carburant 1 0.15
+  - iron_nugget 1to2 0.4
+  - exp 10 1
+ZA_Prisonnier_Infecte:
+  Type: ZOMBIE
+  Display: '&7Prisonnier infecte'
+  Health: 18
+  Damage: 4
+  Options:
+    MovementSpeed: 0.27
+    FollowRange: 36
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    PreventItemPickup: true
+    Silent: true
+  Skills:
+  - effect:sound{s=za_modeles:zombie.leaper.cri;v=0.8;p=0.8} @self ~onTimer:160 0.35
+  - effect:sound{s=entity.zombie.hurt;v=1;p=0.9} @self ~onDamaged
+  - effect:sound{s=entity.zombie.death;v=1;p=0.8} @self ~onDeath
+  - command{c="zakill ZA_Prisonnier_Infecte";sync=true} @self ~onDeath
+  Drops:
+  - rotten_flesh 1 0.5
+  - ZA_Jeton 1 0.1
+  - exp 7 1

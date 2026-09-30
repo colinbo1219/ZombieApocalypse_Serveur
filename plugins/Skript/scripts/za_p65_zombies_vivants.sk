@@ -1,0 +1,158 @@
+# =====================================================================
+#  ZombieApocalypse - ZOMBIES VIVANTS : comportements rares et butin par métier (MISSION §24-28)
+#  Les animations de corps (regard qui balaie, tic de la tête, boiterie) sont dans le mod client za_modeles 1.3.0.
+#  Ici, côté serveur, des scènes RARES (≈ une toutes les 5 à 10 minutes par joueur), jamais sur un mort qui chasse :
+#    * LE REGARD   : un mort s'arrête net et te fixe, sans bouger, plusieurs secondes.
+#    * LE REPAS    : un mort penché au sol, qui mange. Il ne te voit pas... pas encore.
+#    * LA PORTE    : un mort frappe une porte, encore et encore.
+#    * L'IMMOBILE  : un mort figé, tourné vers rien.
+#  Butin par métier (en plus des Drops MythicMobs) : policier = munitions 9 mm, médecin = bandages / antibiotique,
+#  pompier = masque à gaz (rare), prisonnier = note de survivant.
+#  Admin : /zazv scene <regard|repas|porte|immobile> [joueur]
+# =====================================================================
+
+options:
+    # chance par joueur toutes les 20 s
+    scene_chance: 5
+
+# ---------------------------------------------------------------- outils
+
+function za_zv_son(l: location, cle: text, vol: number, pitch: number):
+    execute console command "execute in %za_dim(world of {_l})% run playsound za_modeles:%{_cle}% hostile @a[x=%x-coordinate of {_l}%,y=%y-coordinate of {_l}%,z=%z-coordinate of {_l}%,distance=..24] %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% %{_vol}% %{_pitch}%"
+
+function za_zv_figer(z: entity, secondes: number):
+    execute console command "effect give %uuid of {_z}% minecraft:slowness %{_secondes}% 10 true"
+
+# un mort qui ne chasse personne, entre 10 et 30 blocs du joueur
+function za_zv_choisir(p: player) :: entity:
+    loop all zombies in radius 30 around {_p}:
+        if distance between loop-entity and {_p} >= 10:
+            if target of loop-entity is not set:
+                add loop-entity to {_c::*}
+    if size of {_c::*} > 0:
+        return random element out of {_c::*}
+
+# ---------------------------------------------------------------- scènes
+
+function za_zv_regard(p: player, z: entity):
+    za_zv_figer({_z}, 7)
+    loop 6 times:
+        if {_z} is alive:
+            if {_p} is online:
+                execute console command "execute as %uuid of {_z}% at @s run tp @s ~ ~ ~ facing entity %{_p}% eyes"
+        wait 1 second
+    if {_p} is online:
+        if {_z} is alive:
+            za_zm("son %{_p}% za_modeles:sfx.coeur 0.35 1")
+
+function za_zv_repas(p: player, z: entity):
+    za_zv_figer({_z}, 10)
+    loop 5 times:
+        if {_z} is not alive:
+            stop
+        set {_l} to location of {_z}
+        execute console command "execute as %uuid of {_z}% at @s run tp @s ~ ~ ~ ~ 65"
+        execute console command "execute in %za_dim(world of {_l})% run particle minecraft:item minecraft:rotten_flesh %x-coordinate of {_l}% %(y-coordinate of {_l}) + 0.5% %z-coordinate of {_l}% 0.25 0.1 0.25 0.04 6 force"
+        execute console command "execute in %za_dim(world of {_l})% run particle minecraft:dust 0.45 0 0 1 %x-coordinate of {_l}% %(y-coordinate of {_l}) + 0.2% %z-coordinate of {_l}% 0.3 0.05 0.3 0 5 force"
+        za_zv_son({_l}, "zombie.mange", 0.8, 1)
+        wait 2 seconds
+
+# porte en bois à 6 blocs du mort (aucune = rien)
+function za_zv_porte_pres(z: entity) :: location:
+    set {_zl} to location of {_z}
+    loop blocks in radius 6 around {_zl}:
+        if "%type of loop-block%" contains "door":
+            if "%type of loop-block%" does not contain "trap":
+                return location of loop-block
+
+function za_zv_porte(p: player, z: entity, d: location):
+    za_zv_figer({_z}, 9)
+    loop 4 times:
+        if {_z} is not alive:
+            stop
+        execute console command "execute as %uuid of {_z}% at @s run tp @s ~ ~ ~ facing %x-coordinate of {_d}% %(y-coordinate of {_d}) + 1% %z-coordinate of {_d}%"
+        za_zv_son({_d}, "zombie.porte", 1, 1)
+        wait 2 seconds
+
+function za_zv_immobile(p: player, z: entity):
+    za_zv_figer({_z}, 12)
+    execute console command "execute as %uuid of {_z}% at @s run tp @s ~ ~ ~ %random integer between -180 and 180% 20"
+
+function za_zv_scene(p: player, s: text) :: boolean:
+    if za_pro({_p}) is true:
+        return false
+    set {_z} to za_zv_choisir({_p})
+    if {_z} is not set:
+        return false
+    if {_s} is "regard":
+        za_zv_regard({_p}, {_z})
+    else if {_s} is "repas":
+        za_zv_repas({_p}, {_z})
+    else if {_s} is "porte":
+        set {_d} to za_zv_porte_pres({_z})
+        if {_d} is not set:
+            return false
+        za_zv_porte({_p}, {_z}, {_d})
+    else:
+        za_zv_immobile({_p}, {_z})
+    return true
+
+every 20 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if gamemode of {_p} is survival or adventure:
+            if chance of {@scene_chance}%:
+                set {_u} to "%{_p}'s uuid%"
+                set {_ok} to true
+                if {za::zv::der::%{_u}%} is set:
+                    if difference between {za::zv::der::%{_u}%} and now < 4 minutes:
+                        set {_ok} to false
+                if {_ok} is true:
+                    set {_s} to random element out of "regard", "repas", "porte", "immobile" and "regard"
+                    if za_zv_scene({_p}, {_s}) is true:
+                        set {za::zv::der::%{_u}%} to now
+
+# ---------------------------------------------------------------- butin par métier
+
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    attacker is a player
+    set {_n} to uncolored name of victim
+    if {_n} is not set:
+        stop
+    set {_l} to location of victim
+    if {_n} starts with "Policier infect":
+        if chance of 30%:
+            execute console command "execute in %za_dim(world of {_l})% run summon item %x-coordinate of {_l}% %(y-coordinate of {_l}) + 0.5% %z-coordinate of {_l}% {Item:{id:""tacz:ammo"",Count:%random integer between 4 and 10%b,tag:{AmmoId:""tacz:9mm""}}}"
+    else if {_n} starts with "Medecin infect":
+        if chance of 30%:
+            drop za_item("paper", "Bandage", "&f", random integer between 1 and 2) at {_l}
+        else if chance of 8%:
+            drop za_item("honey bottle", "Antibiotique", "&b", 1) at {_l}
+    else if {_n} starts with "Pompier infect":
+        if chance of 6%:
+            drop za_item("leather helmet", "Masque a gaz", "&7", 1) at {_l}
+    else if {_n} starts with "Prisonnier infect":
+        if chance of 20%:
+            set {_it} to za_item("paper", "Note de survivant", "&f", 1)
+            set lore of {_it} to "&7Cellule 4, poste de Saint-Aurèle." and "&8« Ils ont ouvert les cellules le jour 6. Pas pour nous sauver. »"
+            drop {_it} at {_l}
+
+# ---------------------------------------------------------------- admin
+
+command /zazv <text> [<text>] [<player>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "scene":
+            set {_p} to arg-3 ? player
+            if {_p} is not set:
+                send "Joueur requis depuis la console." to sender
+                stop
+            set {_s} to arg-2 ? "regard"
+            if za_zv_scene({_p}, {_s}) is true:
+                send "&aScène « %{_s}% » lancée près de %{_p}%." to sender
+            else:
+                send "&cAucun mort disponible entre 10 et 30 blocs (ou pas de porte)." to sender
+        else:
+            send "/zazv scene <regard|repas|porte|immobile> [joueur]" to sender
