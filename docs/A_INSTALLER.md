@@ -44,7 +44,7 @@ git pull
 ## 3. Mettre à jour le pack des joueurs (CurseForge)
 
 1. Dans ton projet de modpack CurseForge, dossier `overrides/mods` : **remplace** l'ancien `za_modeles-1.x.jar` par
-   `pack_joueurs/za_modeles-1.6.0.jar` (dans le dépôt).
+   `pack_joueurs/za_modeles-1.7.0.jar` (dans le dépôt).
 2. Monte la version du pack (ex. 1.4), exporte, publie. Les joueurs mettent à jour leur pack.
    Sans la 1.6.0, les nouveaux zombies ont l'apparence de base et les nouveaux sons sont muets (pas de plantage).
 
@@ -91,7 +91,7 @@ sont toutes présentes et Create Deco accepte ton Create 6.0.8. Liste exacte + S
 
 **Donc ces mods deviennent obligatoires, sur le serveur ET dans le pack des joueurs** :
 1. Copie les 16 jars dans `mods/` du serveur (tu les as déjà sur ton PC).
-2. Ajoute-les au modpack CurseForge (même versions), avec `za_modeles-1.6.0.jar`, puis publie.
+2. Ajoute-les au modpack CurseForge (même versions), avec `za_modeles-1.7.0.jar`, puis publie.
 3. Redémarre le serveur. Dans la console, cherche **« BlockData invalide »** (ZAMonde) : s'il y en a, copie-les moi.
 4. **Reconstruis la ville du prologue** (elle a été posée avant les mods) : `/zamonde construire` puis attends la fin
    (`/zamonde etat`). Les joueurs en plein prologue verront la nouvelle ville au chapitre suivant.
@@ -155,7 +155,7 @@ démarrage), pense à limiter la destruction de blocs si tu ne veux pas voir les
   soldat et de la brute, **bond** du prisonnier, **sprint** du runner, **murmure** du stalker (+ obscurité),
   matraque du policier (sonné), **seringue** du médecin (poison + risque d'infection), clé à molette de l'ouvrier
   (projeté), hache du pompier (qui ne brûle plus).
-- À faire : `/mm reload` (ou redémarrage) et mettre `za_modeles-1.6.0.jar` dans le pack des joueurs (section 3).
+- À faire : `/mm reload` (ou redémarrage) et mettre `za_modeles-1.7.0.jar` dans le pack des joueurs (section 3).
 
 ## 6 quater. Le jour : les morts ne brûlent pas, ils rentrent au nid
 
