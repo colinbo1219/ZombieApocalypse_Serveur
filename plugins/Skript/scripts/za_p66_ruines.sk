@@ -141,7 +141,7 @@ function za_ruines_lampes_appliquer(q: text, on: boolean, forcer: boolean):
             else:
                 execute console command "execute in %{_wd}% run setblock %{_x}% %{_y}% %{_z}% %{_c::5}%"
 
-every 30 seconds:
+every 10 seconds:
     if za_ruines_ok() is false:
         stop
     # un joueur dans la ville ? (sinon les tronçons sont déchargés : on réessaiera)
@@ -153,7 +153,8 @@ every 30 seconds:
         stop
     loop za_reseau_quartiers():
         set {_q} to loop-value-1
-        set {_on} to za_reseau_actif({_q})
+        # courant ET quartier en état (za_p99 : pas de lumière dans un quartier infesté)
+        set {_on} to za_lum_quartier_on({_q})
         if {za::ruines::lum::%{_q}%} is not {_on}:
             set {za::ruines::lum::%{_q}%} to {_on}
             za_ruines_lampes_appliquer({_q}, {_on}, false)
