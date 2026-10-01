@@ -24,6 +24,7 @@ ZA_Boucher:
   - potion{type=WITHER;duration=60;level=0} @target ~onAttack 0.5
   - effect:sound{s=za_modeles:zombie.brute.souffle;v=1.5;p=0.5} @self ~onTimer:120 0.6
   - effect:sound{s=entity.ravager.hurt;v=1.2;p=0.6} @self ~onDamaged
+  - effect:particles{p=reddust;color=#6a0000;a=6;hS=0.35;vS=0.9;s=0} @self ~onTimer:10
   - command{c="zaregboss mort boucher";sync=true} @self ~onDeath
   Drops:
   - ZA_Couperet_Boucher 1 1
@@ -52,6 +53,8 @@ ZA_Matriarche:
   - heal{amount=15} @self ~onTimer:200
   - effect:sound{s=entity.warden.nearby_close;v=1.2;p=1.4} @self ~onTimer:100 0.5
   - effect:sound{s=entity.ghast.hurt;v=1;p=0.7} @self ~onDamaged 0.5
+  - effect:particles{p=spore_blossom_air;a=8;hS=1.2;vS=1.2;s=0} @self ~onTimer:10
+  - effect:particles{p=sculk_soul;a=1;hS=0.5;vS=0.8;s=0.01} @self ~onTimer:30
   - command{c="zaregboss mort matriarche";sync=true} @self ~onDeath
   Drops:
   - ZA_Medaillon_Matriarche 1 1
@@ -80,6 +83,8 @@ ZA_Gardien:
   - skill{s=ZA_Dumas_Appel} @self ~onDamaged <50%
   - effect:sound{s=za_modeles:zombie.armored.pas;v=1.2;p=0.7} @self ~onTimer:40 0.6
   - effect:sound{s=entity.iron_golem.hurt;v=1;p=0.6} @self ~onDamaged
+  - effect:particles{p=electric_spark;a=4;hS=0.5;vS=1;s=0.05} @self ~onTimer:10
+  - effect:particles{p=ash;a=10;hS=1.5;vS=1.5;s=0} @self ~onTimer:20
   - command{c="zaregboss mort gardien";sync=true} @self ~onDeath
   Drops:
   - ZA_Plaque_Gardien 1 1

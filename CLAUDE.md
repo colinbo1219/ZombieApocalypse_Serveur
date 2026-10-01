@@ -68,7 +68,7 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
   (`{za::tmort::*}`, pas `{za::terr::*}` qui est aux factions p45 ; nature qui reprend), `za_p88_cimetiere`,
   `za_p89_familles` (/monhistoire), `za_p90_infra` (/infra, /ligne, panne en cascade), `za_p91_ambiances`
   (particules régionales, cinématiques « première fois »).
-- Mod client : `pack_joueurs/za_modeles-1.7.0.jar` = `extension_1_7.py` (boss `zamodels_boss.py`, zombies mutés, états
+- Mod client : `pack_joueurs/za_modeles-1.8.0.jar` = `extension_1_7.py` (boss `zamodels_boss.py`, zombies mutés, états
   ETF des humains frais/décomposé/mutilé, voix `lea_evo_*`) sur le jar 1.6.0 = `extension_1_6.py` (voix de synthèse, `voix_generer.py` : Piper
   + filtre radio) sur le jar 1.5.0 = `extension_1_5.py` (silhouettes : mâchoire, côtes, vertèbres,
   bras cassé ; peaux humaines 64x96) sur le jar 1.4.0 (git) = `build.py` (16 zombies de base, peintre `zagen_lib.py`) +
