@@ -223,6 +223,29 @@ Après `/mm reload` (ou redémarrage) et la mise à jour du pack joueurs en **1.
 - **Apparences (1.7.0)** : 4 boss avec modèle et peau propres, zombies mutés aux veines qui luisent, et les zombies
   humains tirés au hasard entre 4 états (décomposé, frais, très décomposé, mutilé). Nécessite ETF (déjà requis par EMF).
 
+## 6 octies. Équipe, destins, enquêtes, ombre, carte, quartiers, époques, musée (scripts p92 à p102, mod 1.8.0)
+
+- **Équipe** (`za_p92`) : clic droit sur un survivant de ta base -> « Donner une tâche » / « Sa fiche ». `/equipe`
+  (liste), `/equipe tache <nom> bois|nourriture|plantes|materiaux|minerais|recon|recup|cherche|suivre|rentrer [zone]`,
+  `/equipe ou <nom>`, `/equipe zone <nom>`, `/equipe priorite <nom> bois nourriture`. Postes : scierie (scie mécanique
+  Create à 16 blocs du centre de la base), ferme, mine, entretien électrique, radio, patrouille, cuisine, intendance.
+  Admin : `/zaequipe liste|fin <id>|incident <id>`. Nouveaux métiers : bûcheron, mineur, policier.
+- **Destins** (`za_p93`) : `/destins`, `/destins accepter|refuser|payer`. Admin : `/zadestin lancer <frere|convoi|emilie|cache|dette> <joueur>`,
+  `/zadestin suite <joueur>` (fait arriver les conséquences tout de suite).
+- **Disparitions** (`za_p94`) : `/disparition`, `/disparition conclure <1-3>`. Admin : `/zadisp lancer <joueur> [fui|mort|enleve|norda|trahison]`.
+- **L'Ombre** (`za_p95`) : `/ombre`, `/ombre prendre <n>`, `designer <n>`, `infiltrer <faction>`, `sortir`, `forger <faction>`,
+  `enqueter`, `suspects`, `accuser <nom>`. Admin : `/zaombre offres <joueur>|taupe <id> <faction>`.
+- **Carte** (`za_p96`) : `/macarte`, `/macarte large|liste|livre`.
+- **Quartiers, incendies, éclairage** (`za_p97-99`) : `/quartiers`, `/incendies`, `/lumiere lier|delier`.
+  Admin : `/zaquartier etat|set <zone> <état>|pression <zone> <n>|jour`, `/zafeu allumer|eteindre <id>`.
+- **Apparences et sons** (`za_p100`) : `/sons off|on`. **Ajoute Sound Physics Remastered au pack des joueurs** : il donne
+  l'écho des tunnels, les sons étouffés derrière les murs et la réverbération des rues à tous les sons.
+- **Époques** (`za_p101`) : `/epoque`. Admin : `/zaepoque evenement|affiches|annonce`.
+- **Musée** (`za_p102`) : l'admin le pose avec `/zamusee installer` (là où il se tient ; 21 x 15 vers l'est et le sud,
+  terrain plat conseillé, par exemple près du parc de Saint-Aurèle). Joueurs : `/musee`, `/musee donner`.
+- **Mod 1.8.0** : variantes de peau (contaminé, brûlé, blessé sous 40 % de vie, givre avec tuque, boue, chemise à
+  carreaux à la campagne) et animations rares. Remplace la 1.7.0 dans le pack des joueurs.
+
 ## 7. Voix (FAIT : voix de synthèse)
 
 Les entractes des jours 2, 4 et 6, les annonces de l'hiver et des nids, et toute la fin de saison ont maintenant une
@@ -232,7 +255,7 @@ fichiers : `ZA_sources/modeles_generateur/extension_1_6.py` les remplace.
 
 ## 8. Ce qui n'a PAS été testé
 
-Tout ce qui est en jeu : chargement réel des 98 scripts par Skript, les commandes, la pose des ruines, les modèles
+Tout ce qui est en jeu : chargement réel des 109 scripts par Skript, les commandes, la pose des ruines, les modèles
 et animations EMF du mod 1.6.0, les capacités MythicMobs de `Skills/ZA_Horreur.yml`, les soldats (`Mobs/ZA_Defense.yml`, faction
 et sélecteur de cibles), les silhouettes 1.5.0 (sous-modèles mâchoire / avant-bras), la commande `season set` de Serene
 Seasons, les poussées de la pyramide et les portes qui cèdent, les sons, la lecture de la redstone des machines Create/CCA/IE par Skript sur

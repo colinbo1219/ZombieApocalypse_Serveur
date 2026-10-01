@@ -663,3 +663,29 @@ d'environnement, identité des saisons, événements historiques uniques, musée
 Tout le lot : chargement réel par Skript, MythicMobs (boss, mutés, objets), rendu EMF/ETF des boss et des états,
 particules `normal <joueur>`, potion `darkness` par Skript, `lightning rod` et `type of` des lits, commandes `fill` des
 refuges détruits, voix de l'évolution.
+
+## Lot « survivants, histoires et monde vivant » (scripts p92 à p102, mod 1.8.0)
+
+### Fait
+- Survivants commandables (p92) : fiches de compétences, santé, fatigue, trait, aversion ; refus et réactions ;
+  missions réelles sur le terrain (le survivant marche, travaille, revient ; hors champ quand personne n'est là) ;
+  incidents (combattre, fuir, se cacher, abandonner, appeler à l'aide), disparitions, morts ; postes à la base dont
+  la scierie Create et l'entretien électrique (moins de pannes p61) ; suivre le joueur ; priorités ; zones marquées.
+- Quêtes à conséquences (p93) : cinq histoires, conséquences de 1 à 7 jours plus tard, profil du joueur.
+- Disparitions (p94) : enquête en cinq temps, cinq vérités, fausses pistes, confrontation.
+- Espionnage (p95) : vol, sabotage, écoute, taupes, double jeu, faux contrats, traîtres dans la base.
+- Cartographie progressive (p96), quartiers à six états (p97), incendies qui se propagent (p98), éclairage branché
+  sur le réseau (p99), équipes ETF et sons positionnés (p100), époques des saisons (p101), musée (p102).
+- Mod 1.8.0 : 34 peaux avec variantes, 35 modèles animés (spasmes, renifler, piquer du nez, foulée propre).
+- MythicMobs : auras des boss Boucher, Matriarche, Gardien.
+
+### Tests
+- Vérificateur Skript : 109 scripts, aucune anomalie.
+- Mod 1.8.0 : jar valide, 42 modèles JEM valides, planche de contrôle des variantes vérifiée à l'œil.
+
+### Non testé en jeu
+- Tout le lot. Points à risque : déplacement des survivants par téléportations successives (fluidité, obstacles,
+  portes), `unix timestamp of`, `on lightning strike` (event-entity), `potion effects of`, `weather in`, `holder`
+  non utilisé ; propriétés ETF `teams` et `health` (et leur mise à jour en cours de partie), `biomes` ; NBT des
+  panneaux, pupitres, cadres et statues du musée ; `team join` sur les entités MythicMobs ; particule `reddust`
+  avec couleur dans MythicMobs 5.7.2.
