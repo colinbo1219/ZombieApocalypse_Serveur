@@ -1,0 +1,315 @@
+# =====================================================================
+#  ZombieApocalypse - LES ÉPOQUES : chaque saison a son visage
+#  Saison 1 LA CHUTE · 2 LA RECONSTRUCTION · 3 LA GUERRE · 4 L'ÉVOLUTION (puis le cycle recommence : « II », « III »)
+#  Elles s'ajoutent aux thèmes de za_p59 (règles de jeu), sans les remplacer. Chaque époque a :
+#    une COULEUR (titres, annonces), une MUSIQUE (jouée à l'ouverture et certains soirs), des AFFICHES (posées dans
+#    Saint-Aurèle et dans les camps, et une à garder pour soi), un ÉVÉNEMENT unique (une seule fois par saison),
+#    ses ENNEMIS (qui rôdent davantage la nuit), une DÉCORATION (bannières aux couleurs de l'époque), un OBJET (l'insigne
+#    de l'époque, un par joueur et par saison : il ira peut-être au musée, za_p102) et son HISTOIRE (Léa, à l'ouverture
+#    et à ta première connexion de la saison).
+#    LA CHUTE           — rouge.  Événement : « La dernière évacuation » (un hélicoptère, des caisses larguées, et pas
+#                         de place pour tout le monde). Ennemis : les citoyens infectés, en foule.
+#    LA RECONSTRUCTION  — vert.   Événement : « La foire des survivants » (camps qui grandissent, marchands généreux).
+#                         Ennemis : les pillards. Bonus : chaque survivant recruté rapporte un peu plus.
+#    LA GUERRE          — orange. Événement : « La bataille du pont » (deux factions s'affrontent ; les territoires
+#                         basculent). Ennemis : soldats infectés et tireurs pillards.
+#    L'ÉVOLUTION        — violet. Événement : « La nuit de la mue » (le virus fait un bond, les morts courent).
+#                         Ennemis : les mutés.
+#  Joueur : /epoque   Admin : /zaepoque evenement | affiches | annonce | ennemis
+# =====================================================================
+
+function za_ep_index(n: number) :: number:
+    return mod({_n} - 1, 4) + 1
+
+function za_ep_tour(n: number) :: text:
+    set {_t} to floor(({_n} - 1) / 4)
+    if {_t} is 0:
+        return ""
+    if {_t} is 1:
+        return " II"
+    if {_t} is 2:
+        return " III"
+    return " %{_t} + 1%"
+
+function za_ep_nom(n: number) :: text:
+    set {_i} to za_ep_index({_n})
+    if {_i} is 1:
+        return "La Chute%za_ep_tour({_n})%"
+    if {_i} is 2:
+        return "La Reconstruction%za_ep_tour({_n})%"
+    if {_i} is 3:
+        return "La Guerre%za_ep_tour({_n})%"
+    return "L'Évolution%za_ep_tour({_n})%"
+
+function za_ep_couleur(n: number) :: text:
+    set {_i} to za_ep_index({_n})
+    if {_i} is 1:
+        return "&c"
+    if {_i} is 2:
+        return "&a"
+    if {_i} is 3:
+        return "&6"
+    return "&5"
+
+function za_ep_banniere(n: number) :: text:
+    set {_i} to za_ep_index({_n})
+    if {_i} is 1:
+        return "red"
+    if {_i} is 2:
+        return "lime"
+    if {_i} is 3:
+        return "orange"
+    return "purple"
+
+function za_ep_musique(n: number) :: text:
+    set {_i} to za_ep_index({_n})
+    if {_i} is 1:
+        return "minecraft:music_disc.11"
+    if {_i} is 2:
+        return "minecraft:music.overworld.meadow"
+    if {_i} is 3:
+        return "minecraft:event.raid.horn"
+    return "minecraft:music_disc.13"
+
+function za_ep_histoire(n: number) :: text:
+    set {_i} to za_ep_index({_n})
+    if {_i} is 1:
+        return "Ça a commencé comme une grippe. Puis les hôpitaux ont fermé leurs portes. Puis plus personne n'a répondu au téléphone. On appelle ça la Chute, maintenant. Comme si on était tombés d'un coup. On est tombés lentement. Personne n'a rien fait."
+    if {_i} is 2:
+        return "On est encore là. Pas beaucoup, mais là. Des clôtures se lèvent, des génératrices démarrent, quelqu'un a planté des patates derrière l'école. Il paraît que c'est la Reconstruction. J'aimerais y croire. Les pillards, eux, y croient : ils ont enfin quelque chose à voler."
+    if {_i} is 3:
+        return "Il reste assez de vivants pour se battre entre eux. Milice, Pilleurs, Culte... chacun veut son morceau de Saint-Aurèle. Les morts, eux, attendent. Ils n'ont qu'à ramasser ce qui tombe. C'est la Guerre. La vraie bêtise humaine, en direct sur le 98,5."
+    return "Ils changent. Plus vite. Plus forts. Ils se souviennent des portes et des escaliers. NORDA appelait ça une « réponse adaptative ». Moi, j'appelle ça l'Évolution, et j'ai peur que ce soit nous, cette fois, qui restions derrière."
+
+# ---------------------------------------------------------------- ouverture d'une époque
+
+function za_ep_ouvrir(n: number):
+    set {za::ep::num} to {_n}
+    delete {za::ep::evt_fait}
+    delete {za::ep::affiches}
+    set {za::ep::evt_jour} to ({za::serveur::jours} ? 0) + (random integer between 4 and 12)
+    set {_c} to za_ep_couleur({_n})
+    loop za_monde_joueurs():
+        send title "%{_c}%&l%za_ep_nom({_n})%" with subtitle "&7Saison %{_n}%" to loop-value for 6 seconds
+        za_ep_musique_jouer(loop-value, {_n})
+        za_ep_insigne(loop-value, {_n})
+        set {za::ep::vu::%loop-value's uuid%} to {_n}
+    za_radio("&bLéa", za_ep_histoire({_n}))
+    za_ep_affiches({_n})
+    za_journal("Une nouvelle époque commence : %za_ep_nom({_n})%.")
+
+function za_ep_musique_jouer(p: player, n: number):
+    execute console command "execute as %{_p}% at @s run playsound %za_ep_musique({_n})% record @s ~ ~ ~ 0.6 1"
+
+# l'insigne de l'époque : un par joueur et par saison
+function za_ep_insigne(p: player, n: number):
+    set {_u} to "%{_p}'s uuid%"
+    if {za::ep::insigne::%{_u}%::%{_n}%} is set:
+        stop
+    set {za::ep::insigne::%{_u}%::%{_n}%} to true
+    set {_i} to za_ep_index({_n})
+    set {_m} to "red dye"
+    if {_i} is 2:
+        set {_m} to "lime dye"
+    else if {_i} is 3:
+        set {_m} to "orange dye"
+    else if {_i} is 4:
+        set {_m} to "purple dye"
+    set {_it} to za_item({_m}, "Insigne : %za_ep_nom({_n})%", za_ep_couleur({_n}), 1)
+    set lore of {_it} to "&7Saison %{_n}% — porté par %{_p}%" and "&8Le musée de Saint-Aurèle le conservera (/musee donner)."
+    give {_it} to {_p}
+
+# les affiches : dans Saint-Aurèle et dans les camps (une fois par époque, quand le tronçon est chargé)
+function za_ep_texte_affiche(n: number) :: texts:
+    set {_i} to za_ep_index({_n})
+    if {_i} is 1:
+        return "ÉVACUATION", "Rendez-vous au", "pont, 6 h" and "Armée canadienne"
+    if {_i} is 2:
+        return "RECONSTRUISONS", "Saint-Aurèle", "ensemble" and "CKZA 98,5"
+    if {_i} is 3:
+        return "ENRÔLEZ-VOUS", "La Milice", "vous protège" and "Saint-Aurèle"
+    return "NE LES LAISSEZ", "PAS ENTRER", "Ils apprennent" and "— NORDA"
+
+function za_ep_poser_affiche(l: location, n: number):
+    set {_t::*} to za_ep_texte_affiche({_n})
+    set {_b} to za_ep_banniere({_n})
+    if block at {_l} is not air:
+        stop
+    execute console command "execute in %za_dim(world of {_l})% run setblock %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% minecraft:oak_sign[rotation=%random integer between 0 and 15%]{front_text:{color:""%{_b}%"",has_glowing_text:1b,messages:['""%{_t::1}%""','""%{_t::2}%""','""%{_t::3}%""','""%{_t::4}%""']}}"
+    set {_l2} to location((x-coordinate of {_l}) + 1, y-coordinate of {_l}, z-coordinate of {_l}, world of {_l})
+    if block at {_l2} is air:
+        execute console command "execute in %za_dim(world of {_l2})% run setblock %floor(x-coordinate of {_l2})% %floor(y-coordinate of {_l2})% %floor(z-coordinate of {_l2})% minecraft:%{_b}%_banner[rotation=%random integer between 0 and 15%]"
+
+function za_ep_affiches(n: number):
+    set {za::ep::affiches_a_poser} to true
+
+every 30 seconds:
+    if {za::ep::affiches_a_poser} is not true:
+        stop
+    set {_n} to {za::ep::num} ? ({za::saison::num} ? 1)
+    set {_tout} to true
+    # Saint-Aurèle
+    if za_ruines_ok() is true:
+        if {za::ep::aff::sa::%{_n}%} is not set:
+            set {_tout} to false
+            set {_c} to za_ruines_poi("parc_kiosque")
+            if {_c} is set:
+                if chunk at {_c} is loaded:
+                    loop "parc_kiosque", "abribus", "depanneur_porte" and "entree_immeuble":
+                        set {_l} to za_ruines_poi(loop-value)
+                        if {_l} is set:
+                            add 2 to x-coordinate of {_l}
+                            za_ep_poser_affiche(za_eq_sol({_l}), {_n})
+                    set {za::ep::aff::sa::%{_n}%} to true
+    # les camps
+    loop {za::camp::liste::*}:
+        if {za::camp::%loop-value%::etat} is "vivant":
+            if {za::ep::aff::camp::%loop-value%::%{_n}%} is not set:
+                set {_tout} to false
+                set {_c} to {za::camp::%loop-value%::loc}
+                if chunk at {_c} is loaded:
+                    za_ep_poser_affiche(za_eq_sol(location((x-coordinate of {_c}) + 3, (y-coordinate of {_c}) + 2, (z-coordinate of {_c}) + 3, world of {_c})), {_n})
+                    set {za::ep::aff::camp::%loop-value%::%{_n}%} to true
+    if {_tout} is true:
+        delete {za::ep::affiches_a_poser}
+
+# nouvelle saison (za_p22/za_p59) : on la détecte ici, sans toucher aux autres modules
+every 1 minute:
+    set {_n} to {za::saison::num} ? 1
+    if {za::ep::num} is not {_n}:
+        za_ep_ouvrir({_n})
+
+on join:
+    if za_pro(player) is true:
+        stop
+    wait 8 seconds
+    if player is not online:
+        stop
+    set {_n} to {za::ep::num} ? 1
+    if {za::ep::vu::%player's uuid%} is not {_n}:
+        set {za::ep::vu::%player's uuid%} to {_n}
+        send title "%za_ep_couleur({_n})%&l%za_ep_nom({_n})%" with subtitle "&7Saison %{_n}%" to player for 5 seconds
+        send "&bLéa &8» &f%za_ep_histoire({_n})%" to player
+        za_ep_musique_jouer(player, {_n})
+    za_ep_insigne(player, {_n})
+
+# ---------------------------------------------------------------- l'événement unique de l'époque
+
+every 1 minute:
+    if {za::ep::evt_fait} is set:
+        stop
+    if ({za::serveur::jours} ? 0) < ({za::ep::evt_jour} ? 99999):
+        stop
+    if size of za_monde_joueurs() is 0:
+        stop
+    za_ep_evenement()
+
+function za_ep_evenement():
+    set {za::ep::evt_fait} to true
+    set {_n} to {za::ep::num} ? 1
+    set {_i} to za_ep_index({_n})
+    if {_i} is 1:
+        # la dernière évacuation : des caisses larguées près des joueurs, et le bruit d'un hélicoptère qui ne revient pas
+        za_radio("&4Armée canadienne", "Dernier passage d'évacuation au-dessus du secteur. Nous larguons des vivres. Nous ne pouvons PAS atterrir. Bonne chance.")
+        loop za_monde_joueurs():
+            if za_pro(loop-value) is false:
+                execute console command "execute as %loop-value% at @s run playsound minecraft:entity.ender_dragon.flap master @s ~ ~30 ~ 3 0.4"
+                set {_l} to za_dest_pres(loop-value, 25)
+                execute console command "execute in %za_dim(world of {_l})% run setblock %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% minecraft:barrel{CustomName:'""Largage militaire""',Items:[{Slot:0b,id:""minecraft:bread"",Count:8b},{Slot:1b,id:""minecraft:cooked_beef"",Count:6b},{Slot:2b,id:""minecraft:arrow"",Count:24b}]}"
+                send "&7Une caisse s'écrase non loin, attachée à un parachute déchiré. &8(X %floor(x-coordinate of {_l})%, Z %floor(z-coordinate of {_l})%)" to loop-value
+                za_spawn_at({_l}, "ZA_Citoyen_Infecte", 10, 18)
+                za_spawn_at({_l}, "ZA_Citoyen_Infecte", 10, 18)
+        za_monde_legende("La dernière évacuation est passée au-dessus de Saint-Aurèle sans se poser.")
+    else if {_i} is 2:
+        za_radio("&aCKZA", "La foire des survivants ! Les camps ouvrent leurs portes, les marchands baissent leurs prix. Venez troquer, venez vous compter. On est plus nombreux qu'on pense.")
+        loop {za::camp::liste::*}:
+            if {za::camp::%loop-value%::etat} is "vivant":
+                za_cmp_pop_ajouter(loop-value, 2)
+                za_cmp_champ(loop-value, "moral", 15)
+        set {za::ep::foire_fin} to now
+        add 1 hour to {za::ep::foire_fin}
+        za_monde_legende("La foire des survivants a réuni les camps de la région, le temps d'une journée.")
+    else if {_i} is 3:
+        # la bataille du pont : deux territoires de factions rivales basculent
+        set {_cles::*} to za_terr_cles()
+        if size of {_cles::*} > 0:
+            loop 2 times:
+                set {_k} to random element out of {_cles::*}
+                set {za::terr::%{_k}%::ctrl} to max(5, za_terr_ctrl({_k}) - 35)
+                add {_k} to {_touches::*}
+        za_radio("&6Rumeur", "La bataille du pont a commencé : Milice et Pilleurs s'entretuent au-dessus de la rivière. Deux territoires vacillent. Les morts arrivent par la route, attirés par les tirs.")
+        loop za_monde_joueurs():
+            if za_pro(loop-value) is false:
+                loop 3 times:
+                    za_spawn_near(loop-value-1, "ZA_Soldat_Infecte", 18, 28)
+                za_spawn_near(loop-value, "ZA_Pillard_Tireur", 20, 30)
+        za_monde_legende("La bataille du pont : une guerre de vivants, regardée par les morts.")
+    else:
+        za_radio("&5NORDA (fréquence volée)", "Phase de mue détectée. Réponse adaptative généralisée. Recommandation : confinement total. Il n'y a plus personne pour confiner.")
+        execute console command "zaevo niveau %min(5, za_evo_niveau() + 1)%"
+        loop za_monde_joueurs():
+            if za_pro(loop-value) is false:
+                send title "&5LA NUIT DE LA MUE" with subtitle "&7Ils changent. Cette nuit, ils courent." to loop-value for 4 seconds
+                loop all zombies in radius 64 around loop-value:
+                    apply potion of speed of tier 2 to loop-value-2 for 5 minutes
+        za_monde_legende("La nuit de la mue : le virus a fait un bond, et toute la région l'a entendu.")
+    za_journal("Événement de l'époque : %za_ep_nom({_n})%.")
+    add "%za_ep_nom({_n})% — jour %{za::serveur::jours} ? 0%" to {za::ep::historique::*}
+
+# la foire : les marchands baissent leurs prix (lu par za_remise si besoin) — ici, un rappel
+every 10 minutes:
+    if {za::ep::foire_fin} is set:
+        if now > {za::ep::foire_fin}:
+            delete {za::ep::foire_fin}
+            za_radio("&aCKZA", "La foire est finie. Rentrez avant la nuit.")
+
+# ---------------------------------------------------------------- les ennemis de l'époque (la nuit)
+
+every 3 minutes:
+    set {_n} to {za::ep::num} ? 1
+    set {_i} to za_ep_index({_n})
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if za_pro({_p}) is false:
+            if za_eq_nuit(location of {_p}) is true:
+                if chance of 35%:
+                    if {_i} is 1:
+                        loop 3 times:
+                            za_spawn_near({_p}, "ZA_Citoyen_Infecte", 20, 32)
+                    else if {_i} is 2:
+                        za_spawn_near({_p}, "ZA_Pillard", 22, 34)
+                    else if {_i} is 3:
+                        za_spawn_near({_p}, "ZA_Soldat_Infecte", 20, 32)
+                        za_spawn_near({_p}, "ZA_Pillard_Tireur", 24, 36)
+                    else:
+                        set {_t} to random element out of "ZA_Shambler_Mute", "ZA_Runner_Mute", "ZA_Spitter_Mute" and "ZA_Leaper"
+                        za_spawn_near({_p}, {_t}, 20, 32)
+
+# ---------------------------------------------------------------- commandes
+
+command /epoque:
+    aliases: /époque
+    trigger:
+        set {_n} to {za::ep::num} ? 1
+        send "%za_ep_couleur({_n})%&l%za_ep_nom({_n})% &7— saison %{_n}%" to sender
+        send "&f%za_ep_histoire({_n})%" to sender
+        if {za::ep::evt_fait} is set:
+            send "&8L'événement de l'époque a eu lieu." to sender
+        else:
+            send "&8Quelque chose se prépare. Écoutez la radio." to sender
+        loop {za::ep::historique::*}:
+            send "&8 • %loop-value%" to sender
+
+command /zaepoque [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "evenement":
+            za_ep_evenement()
+        else if arg-1 is "affiches":
+            delete {za::ep::aff::*}
+            za_ep_affiches({za::ep::num} ? 1)
+            send "&7Affiches à reposer (quand les tronçons seront chargés)." to sender
+        else if arg-1 is "annonce":
+            za_ep_ouvrir({za::saison::num} ? 1)
+        else:
+            send "&7/zaepoque evenement | affiches | annonce" to sender
