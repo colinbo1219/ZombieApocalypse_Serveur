@@ -146,6 +146,10 @@ command /monhistoire [<number>]:
             set {_t::*} to {za::titres::%{_u}%::*}
             if size of {_t::*} > 0:
                 send "&7Titres : &e%{_t::*}%" to player
+            send "&7Ce qu'on dit de toi : &f%za_dest_reputation({_u})%" to player
+            set {_ms} to za_stat({_u}, "missions_survivants")
+            set {_mk} to za_stat({_u}, "morts_par_survivants")
+            send "&7Missions de ton équipe : &f%{_ms}% &8· &7morts abattus par tes survivants : &f%{_mk}%" to player
             send "&8/monhistoire 2 : tes souvenirs" to player
         else:
             set {_s::*} to {za::souv::%{_u}%::*}
