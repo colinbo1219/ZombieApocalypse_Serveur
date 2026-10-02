@@ -1,0 +1,17 @@
+name: ZAMoteur
+version: 1.0.0
+main: za.moteur.ZAMoteur
+api-version: '1.20'
+author: Colin
+description: Moteur du monde ZombieApocalypse (Chronique, hordes, Directeur, NORDA, Léa)
+softdepend: [MythicMobs, Skript, ZAMonde]
+commands:
+  zam:
+    description: Interne (Skript -> moteur)
+    permission: za.admin
+  zaadmin:
+    description: Outils du moteur ZA
+    permission: za.admin
+permissions:
+  za.admin:
+    default: op

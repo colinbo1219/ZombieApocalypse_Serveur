@@ -1,0 +1,27 @@
+# ZAMoteur — réglages (bible F1, F5). Les changements se font aussi en jeu : /zaadmin systeme <nom> on|off
+systemes:
+  hordes: true          # simulation des hordes virtuelles, contamination, nids
+  directeur: true       # le metteur en scène (intensité, calme / montée / pic / relâche)
+  cerveaux: true        # sens et machine à états des zombies proches des joueurs
+  nemesis: true         # le zombie qui tue devient un vétéran nommé
+  norda: true           # dossiers, drones, barrages, capture
+  lea: true             # Léa choisit les nouvelles à partir de la Chronique
+  ecosysteme: true      # oiseaux, silence, corbeaux, échos lointains
+  telemetrie: true      # rapport quotidien (plugins/ZAMoteur/rapports)
+  materialisation: true # les hordes virtuelles deviennent de vrais zombies près des joueurs
+  omega: false          # narrateur par IA (facultatif, demande une clé)
+
+budget:
+  apparitions_par_tick: 6
+  blocs_par_tick: 200
+
+plafonds:
+  zombies_reels_serveur: 350
+  zombies_reels_joueur: 40
+
+# Ω (bible IA-15) : facultatif. Laisser vide pour ne rien envoyer à l'extérieur.
+omega:
+  cle: ""
+  modele: claude-opus-5-5
+  quota_jour: 4
+  url: https://api.anthropic.com/v1/messages

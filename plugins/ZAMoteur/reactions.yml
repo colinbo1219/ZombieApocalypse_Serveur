@@ -1,0 +1,240 @@
+# =====================================================================
+#  ZAMoteur — RÈGLES DE RÉACTION (bible F2 et point 20)
+#  « Si tel événement arrive (à tel endroit), alors telle conséquence, avec telle probabilité, après tel délai. »
+#  Colin peut ajouter ses propres chaînes ici sans programmer. Recharger : /zaadmin reactions recharger
+#
+#  Champs :
+#    nom        : un nom court (sert au plafond par jour)
+#    si         : le type d'événement de la Chronique (ou * pour tous)
+#    lieu       : (facultatif) types du lieu le plus proche, ex. "village camp refuge"
+#    condition  : (facultatif) « champ opérateur valeur » sur la région : contamination, panique, moral, securite,
+#                 etat (0 stable … 4 perdue), population, nids, cadavres, gravite
+#    proba      : chance en %
+#    delai      : minutes réelles avant l'effet, « 0 » ou « 30-90 »
+#    plafond    : nombre maximum de déclenchements par jour serveur
+#    alors      : une action ou une liste d'actions
+#
+#  Actions du monde : contamination +N [aval] · panique +N · moral -N · securite -N · population -N · eau -N
+#    attentionZ +N · attentionN +N · cadavres +N · nid +1 · quarantaine <jours> · calme <jours> · plaque <texte>
+#    horde attirer · horde creer · evenement <type> [gravité]
+#  Actions du serveur : radio <station> <texte> (stations : lea, bravo, pirate, norda) · skript <commande>
+#    norda soupcon <N> (contre les acteurs de l'événement) · sms <texte> (aux joueurs acteurs) · son <son>
+#    pluie_toxique · signes (oiseaux, silence) · graffiti <texte>
+#  Dans les textes : {lieu} = nom du lieu ou de la région, {texte} = texte de l'événement source
+# =====================================================================
+
+reactions:
+  # ---------------------------------------------------------------- Chaîne 1 — le coup de feu de trop
+  - nom: tir_attire_horde
+    si: tir
+    proba: 25
+    delai: 0-2
+    plafond: 20
+    alors: horde attirer
+  - nom: horde_sur_camp
+    si: horde_attaque_lieu
+    lieu: "camp village refuge"
+    proba: 100
+    delai: 0
+    alors:
+      - panique +30
+      - moral -20
+      - securite -15
+      - skript zaevt lieu_attaque {acteurs}
+  - nom: panique_depart
+    si: horde_attaque_lieu
+    condition: panique > 50
+    proba: 60
+    delai: 10-30
+    plafond: 3
+    alors:
+      - population -6
+      - evenement colonne_refugies 3
+  - nom: refugies_pillards
+    si: colonne_refugies
+    proba: 35
+    delai: 5-20
+    plafond: 4
+    alors: evenement pillards_sur_colonne 3
+  - nom: lea_soir
+    si: horde_attaque_lieu
+    proba: 100
+    delai: 15-40
+    plafond: 4
+    alors: radio lea Des nouvelles de {lieu} : une horde a frappé. On ne sait pas encore combien sont restés.
+  - nom: rival_s_installe
+    si: horde_attaque_lieu
+    condition: moral < 30
+    proba: 40
+    delai: 60-180
+    plafond: 2
+    alors:
+      - evenement convoi_faction 3
+      - skript zaevt faction_opportuniste {lieu}
+
+  # ---------------------------------------------------------------- Chaîne 2 — le labo
+  - nom: labo_pluie
+    si: labo_detruit
+    proba: 60
+    delai: 60-180
+    plafond: 2
+    alors:
+      - pluie_toxique
+      - contamination +20 aval
+  - nom: labo_quarantaine
+    si: labo_detruit
+    proba: 80
+    delai: 120-360
+    plafond: 1
+    alors:
+      - quarantaine 3
+      - radio bravo Secteur {lieu} : périmètre de quarantaine établi. Toute personne qui en sort sera contrôlée.
+  - nom: labo_norda
+    si: labo_detruit
+    proba: 100
+    delai: 30-90
+    alors:
+      - evenement operation_nettoyage 4
+      - radio norda Incident mineur sur un site de recherche. Aucun danger pour la population. Restez chez vous.
+  - nom: aval_malade
+    si: labo_detruit
+    proba: 50
+    delai: 240-600
+    plafond: 1
+    alors:
+      - skript zaevt maladie_aval {region}
+      - radio lea Bulletin sanitaire : l'eau de la rivière Blanche rend malade, en aval. Faites bouillir. Tout.
+
+  # ---------------------------------------------------------------- Chaîne 3 — la Némésis
+  - nom: nemesis_lea
+    si: nemesis_nee
+    proba: 100
+    delai: 10-40
+    alors: radio lea Un mort « armé » dans le secteur de {lieu}. Il porte un casque, une arme. Celui de quelqu'un qu'on connaissait.
+
+  # ---------------------------------------------------------------- Chaîne 4 — le traître du camp (agent NORDA)
+  - nom: agent_rapporte
+    si: visite_camp
+    proba: 30
+    delai: 20-120
+    plafond: 6
+    alors: norda soupcon 6
+
+  # ---------------------------------------------------------------- Chaîne 5 — la ville reprise
+  - nom: lumiere_attire
+    si: courant_retabli
+    proba: 70
+    delai: 5-30
+    plafond: 3
+    alors:
+      - horde attirer
+      - attentionN +15
+  - nom: reprise_fete
+    si: region_reprise
+    proba: 100
+    delai: 5-20
+    alors:
+      - moral +30
+      - calme 3
+      - radio lea {lieu} est repris ! Il y a de la lumière, là-bas, et des rires. Je ne pensais plus entendre ça.
+      - skript zaevt fete {region}
+
+  # ---------------------------------------------------------------- Chaîne 6 — le barrage
+  - nom: barrage_fissure
+    si: barrage_fissure
+    proba: 100
+    delai: 0
+    alors: radio lea L'ingénieur du barrage dit que les fissures grandissent. Si personne n'y va, la vallée en aval va boire.
+  - nom: barrage_cede
+    si: barrage_cede
+    proba: 100
+    delai: 0
+    alors:
+      - population -30
+      - evenement colonne_refugies 4
+      - radio lea Le barrage a cédé. L'eau descend la vallée. Montez. Montez tout de suite.
+      - skript zaevt inondation {region}
+
+  # ---------------------------------------------------------------- Chaîne 7 — le cellulaire
+  - nom: cel_trace
+    si: cel_ping
+    condition: gravite >= 3
+    proba: 100
+    delai: 0-5
+    alors: sms Nous savons où tu es.
+
+  # ---------------------------------------------------------------- Chaîne 8 — l'infecté caché
+  - nom: infecte_bascule
+    si: infecte_bascule
+    proba: 100
+    delai: 0
+    alors:
+      - panique +50
+      - nid +1
+      - skript zaevt epidemie_camp {acteurs}
+  - nom: infecte_quarantaine
+    si: infecte_bascule
+    proba: 70
+    delai: 60-240
+    plafond: 1
+    alors:
+      - quarantaine 2
+      - skript zaevt science_echantillon {region}
+
+  # ---------------------------------------------------------------- monde vivant (18, 25, 33, 69, 80, 105, 111)
+  - nom: nid_contamine
+    si: nid_ne
+    proba: 100
+    delai: 0
+    alors:
+      - contamination +8
+      - graffiti ILS SONT LÀ-DEDANS
+  - nom: matrice_alerte
+    si: matrice
+    proba: 100
+    delai: 0-10
+    alors: radio lea Quelque chose grandit dans {lieu}. Les scientifiques appellent ça une matrice. Moi, j'appelle ça la fin du coin.
+  - nom: region_perdue_radio
+    si: region_perdue
+    proba: 100
+    delai: 0-15
+    alors:
+      - radio lea On a perdu le contact avec {lieu}. Plus de lumière, plus de radio. Rien.
+      - graffiti {lieu} EST TOMBÉ
+  - nom: megahorde_alerte
+    si: megahorde
+    proba: 100
+    delai: 0
+    alors:
+      - radio lea Tous les postes : {texte} est en mouvement. Je répète, une MÉGAHORDE. Barricadez tout.
+      - signes
+  - nom: frappe_radio
+    si: frappe_incendiaire
+    proba: 100
+    delai: 0
+    alors:
+      - radio bravo Frappe incendiaire autorisée sur {lieu}. Évacuez le secteur.
+      - radio pirate Ils brûlent {lieu} ! Avec qui dedans ? Ça, ils ne le disent pas.
+  - nom: mutation_radio
+    si: mutation
+    proba: 100
+    delai: 10-60
+    alors: radio lea Des survivants décrivent des morts... différents, vers {lieu}. Ça grimpe. Ça attend. Faites attention.
+  - nom: quarantaine_panneaux
+    si: quarantaine
+    proba: 100
+    delai: 0
+    alors: skript zaevt quarantaine {region}
+  - nom: explosion_panique
+    si: explosion
+    proba: 100
+    delai: 0
+    alors:
+      - attentionZ +20
+      - horde attirer
+  - nom: courant_coupe_alarme
+    si: courant_coupe
+    proba: 30
+    delai: 0-5
+    plafond: 4
+    alors: skript zaevt alarme_frigo {region}

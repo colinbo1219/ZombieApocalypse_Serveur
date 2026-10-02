@@ -2,6 +2,7 @@
 *.jar
 # ...sauf les jars faits maison ou modifies, introuvables ailleurs
 !plugins/ZAMonde.jar
+!plugins/ZAMoteur.jar
 !plugins/ZAPaperCompat.jar
 !mods/zombie_extreme-0.2.6.5-za2.jar
 # mod client des joueurs (généré par ZA_sources/modeles_generateur/extension_1_3.py)
@@ -33,3 +34,4 @@ plugins/LuckPerms/luckperms-h2*
 plugins/spark/tmp/
 plugins/*/logs/
 __pycache__/
+moteur/build/
