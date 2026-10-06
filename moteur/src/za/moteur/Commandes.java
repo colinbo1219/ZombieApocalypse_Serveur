@@ -196,6 +196,12 @@ final class Commandes {
             case "basemin":
                 z.vivantes.minimum(a[1], a[2], i(a[3]));
                 return true;
+            case "fac":
+                z.societe.decrire(a);
+                return true;
+            case "rel":
+                z.societe.relation(a);
+                return true;
             case "basesorties":
                 z.vivantes.interdire(a[1], a[2].equals("off"));
                 return true;
@@ -415,6 +421,17 @@ final class Commandes {
                 s.sendMessage("§6[Cerveau] §f" + t.getName() + " : " + z.cerveaux.etatDe(t) + " — tags " + t.getScoreboardTags());
                 return true;
             }
+            case "factions":
+                z.societe.admin(s, a);
+                return true;
+            case "prix": {
+                Region r;
+                synchronized (z.monde) {
+                    r = a.length > 1 ? z.monde.graphe.regions.get(a[1]) : p == null ? null : z.monde.graphe.region(p.getLocation().getX(), p.getLocation().getZ());
+                }
+                if (r != null) z.societe.prix(s, r);
+                return true;
+            }
             case "base":
             case "survivant":
                 z.vivantes.admin(s, a);
@@ -446,7 +463,7 @@ final class Commandes {
         s.sendMessage("§6/zaadmin §7directeur [joueur] · region [id|ici] · carte · hordes [creer N|attirer] · norda [joueur] · nemesis");
         s.sendMessage("§7simuler <jours> [fantômes] · chaine <1-8> · evt <type> [grav] [texte] · rapport · systeme <nom> on|off");
         s.sendMessage("§7reactions recharger · chronique [n] · sauver · cerveau · omega");
-        s.sendMessage("§7base <joueur> · survivant <id>");
+        s.sendMessage("§7base <joueur> · survivant <id> · factions [cycle|rompre] · prix [région]");
         s.sendMessage("§7memoire <clé> · relation <de> <envers> · savoir <clé> · legendes  §8(clé : pseudo, region:r_3_4, faction:milice, pnj:12)");
     }
 
@@ -503,12 +520,49 @@ final class Commandes {
                 type = "infecte_bascule";
                 g = 4;
                 break;
+            case 9:
+                type = "generatrice_panne";
+                g = 2;
+                break;
+            case 10: {
+                // le bûcheron (IA-8) : la réserve de bois tombe, la base décide seule
+                za.moteur.coeur.Bases.Base b = z.vivantes.cerveau.base(u);
+                b.stocks.put("bois", 0);
+                b.derniereSortie = 0;
+                z.vivantes.forcer();
+                p.sendMessage("§6[Chaîne 10] §7Bois de ta base mis à 0. Le cerveau de la base décide maintenant (/zaadmin base " + p.getName() + ").");
+                return;
+            }
+            case 11:
+                type = "inondation_printemps";
+                g = 3;
+                break;
+            case 12:
+                z.pont.zaevt("chaine12 " + u);
+                p.sendMessage("§6[Chaîne 12] §7Sac lourd, jambe blessée, froid, fatigue : à toi de rentrer. Un tir attirera la horde.");
+                return;
+            case 13: {
+                za.moteur.coeur.Factions f = z.societe.cerveau;
+                f.faction("milice").stocks.put("carburant", 0);
+                f.faction("milice").territoires = Math.max(1, f.faction("milice").territoires);
+                f.faction("marchands").stocks.put("carburant", 60);
+                f.relations.put(za.moteur.coeur.Factions.cle("milice", "marchands"), -30);
+                z.societe.admin(p, new String[]{"factions", "cycle"});
+                p.sendMessage("§6[Chaîne 13] §7La milice n'a plus de carburant ; les marchands tiennent le dépôt. Voir /zaadmin factions.");
+                return;
+            }
+            case 14:
+                type = "vol";
+                g = 3;
+                texte = p.getName() + " a pris les médicaments du coffre commun";
+                break;
             default:
-                p.sendMessage("§cChaînes 1 à 8.");
+                p.sendMessage("§cChaînes 1 à 14.");
                 return;
         }
         Evenement e = new Evenement(type).a(x, zz).grav(g).acteur(u).dit(texte);
         e.source = "test";
+        if (n == 14) e.temoin("pnj:temoin").imp(30);
         // chaîne 1 : le coup de feu attire une vraie horde
         if (n == 1) {
             synchronized (z.monde) {

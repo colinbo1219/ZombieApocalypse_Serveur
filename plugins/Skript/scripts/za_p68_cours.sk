@@ -86,6 +86,9 @@ function za_cours_cible(c: text) :: number:
     if {za::cata::type} is set:
         if {_c} is "vivres" or "carburant":
             add 0.2 to {_t}
+    # blocus d'une faction sur la route (ZAMoteur, IA-10) : la ressource se fait rare
+    if {za::mot::blocus::%{_r}%} is "1":
+        add 0.3 to {_t}
     if {_c} is "carburant":
         if za_courant() is false:
             set {_q} to false

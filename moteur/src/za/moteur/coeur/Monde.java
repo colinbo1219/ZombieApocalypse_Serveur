@@ -539,6 +539,15 @@ public final class Monde {
         memoire.jour(jour);
         info.oublier(maintenant);
         int rouges = 0;
+        // printemps : la débâcle et les crues (9, chaîne 11) ; une région de rivière à la fois
+        if ("printemps".equals(saison) && rng.nextDouble() < 0.25) {
+            List<Region> riv = new ArrayList<>();
+            for (Region r : graphe.regions.values()) if (r.riviere) riv.add(r);
+            if (!riv.isEmpty()) {
+                Region r = riv.get(rng.nextInt(riv.size()));
+                publier(new Evenement("inondation_printemps").a(r.cx, r.cz).grav(3).dit(r.nom));
+            }
+        }
         for (Region r : graphe.regions.values()) {
             // cadavres -> nid (1, 25)
             r.cadavres *= 0.85;

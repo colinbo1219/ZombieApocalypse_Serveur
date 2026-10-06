@@ -52,6 +52,12 @@ public final class BasesVivantes {
         executer(ordres);
     }
 
+    /** /zaadmin chaine 10 : décider tout de suite */
+    void forcer() {
+        dernier = 0;
+        tick1s();
+    }
+
     void jour() {
         executer(cerveau.jour(z.jour(), BasesVivantes::enLigne));
         for (Bases.Base b : cerveau.bases.values()) {

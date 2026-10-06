@@ -277,6 +277,17 @@ public final class Information {
                 return "Quelqu'un est mort " + ou + ".";
             case "signalement":
                 return quoi;
+            case "vol":
+            case "promesse_tenue":
+            case "conflit_camp":
+            case "depart_survivant":
+                return quoi.isEmpty() ? null : quoi + " (" + ou + ").";
+            case "faction_blocus":
+            case "traite_signe":
+            case "faction_raid":
+            case "convoi_detruit":
+            case "convoi_parti":
+                return quoi;
             default:
                 if (e.type.startsWith("monde_") && !quoi.isEmpty()) return quoi;
                 if (e.gravite >= 3 && !quoi.isEmpty()) return quoi + " (" + ou + ")";

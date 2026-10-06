@@ -64,9 +64,16 @@ every 30 seconds:
     loop {za::gen::liste::*}:
         set {_k} to loop-value
         set {_l} to {za::gen::%{_k}%::loc}
+        # panne sèche : la base perd son courant (chaîne 9 de la bible : frigo, médicaments, pénurie)
+        if {za::gen::%{_k}%::actif} is true:
+            if {za::gen::%{_k}%::fin} is not greater than now:
+                set {za::gen::%{_k}%::actif} to false
+                za_mot_evt("generatrice_panne", {_l}, 2, {za::gen::%{_k}%::proprio} ? "-", "")
+                za_surv_avis({za::gen::%{_k}%::proprio} ? "", "&e[Base] La génératrice s'est arrêtée : plus d'essence. Le frigo ne tiendra pas longtemps.")
         if block at {_l} is not blast furnace:
             za_gen_retirer({_k})
         else if {za::gen::%{_k}%::fin} is greater than now:
+            set {za::gen::%{_k}%::actif} to true
             set {_near} to false
             loop all players:
                 if za_pro(loop-player) is false:

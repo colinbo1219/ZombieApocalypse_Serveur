@@ -385,6 +385,15 @@ command /reputation [<player>]:
 function za_prix_marchand(p: player, m: text, nom: text, base: number) :: number:
     # cours du marché par catégorie (za_p68_cours)
     set {_pr} to ceil(za_prix({_p}, {_base}) * za_cours_facteur({_nom}))
+    # prix de la région où l'on achète (ZAMoteur, S-3) : abondante ici, rare là-bas
+    set {_cat} to za_cours_categorie({_nom})
+    if {_cat} is not "":
+        set {_rl} to {za::mot::prix::%{_p}'s uuid%::%za_cours_ressource({_cat})%} parsed as number
+        if {_rl} is set:
+            set {_pr} to ceil({_pr} * {_rl})
+    # une rumeur de vol te précède (chaîne 14) : les marchands montent leurs prix
+    if ({za::mot::mefiance::%{_p}'s uuid%} ? 0) > unix timestamp of now:
+        set {_pr} to ceil({_pr} * 1.15)
     if {_m} is "mecano":
         if any:
             {_nom} contains "Piege"

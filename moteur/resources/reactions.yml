@@ -238,3 +238,69 @@ reactions:
     delai: 0-5
     plafond: 4
     alors: skript zaevt alarme_frigo {region}
+
+  # ---------------------------------------------------------------- Chaîne 9 — la panne (IA-15)
+  - nom: panne_frigo
+    si: generatrice_panne
+    proba: 100
+    delai: 5-15
+    alors:
+      - skript zaevt alarme_frigo {region}
+      - evenement frigo_perdu 2
+  - nom: frigo_perdu_penurie
+    si: frigo_perdu
+    proba: 100
+    delai: 0
+    alors:
+      - moral -10
+      - skript zaevt frigo_perdu {acteurs}
+
+  # ---------------------------------------------------------------- Chaîne 11 — l'inondation (S-3)
+  - nom: crue_ferme
+    si: inondation_printemps
+    proba: 100
+    delai: 0
+    alors:
+      - skript zaevt inondation {region}
+      - evenement ferme_detruite 3
+  - nom: ferme_detruite_economie
+    si: ferme_detruite
+    proba: 100
+    delai: 0-10
+    alors:
+      - skript zaevt fac_stock survivants vivres -15
+      - radio lea Une ferme a été emportée par la crue, du côté de {lieu}. La nourriture va manquer par là. Les prix vont monter.
+  - nom: penurie_marche_noir
+    si: ferme_detruite
+    proba: 60
+    delai: 60-180
+    plafond: 1
+    alors: radio pirate Il paraît que le Trafiquant a de la farine. Le prix ? Demandez-lui. Et apportez beaucoup de jetons.
+
+  # ---------------------------------------------------------------- Chaîne 13 — le blocus (IA-10)
+  - nom: blocus_propagande
+    si: traite_signe
+    proba: 70
+    delai: 30-120
+    plafond: 1
+    alors: radio pirate Un traité ? Ils se partagent la route sur notre dos. Demain, ce sera la guerre, retenez bien ça.
+  - nom: rumeur_attaque
+    si: faction_blocus
+    proba: 50
+    delai: 60-240
+    plafond: 1
+    alors: evenement rumeur_attaque 2
+
+  # ---------------------------------------------------------------- Chaîne 14 — la rumeur (F9, S-4)
+  - nom: vol_rumeur
+    si: vol
+    proba: 100
+    delai: 0-5
+    alors: skript zaevt rumeur_mefiance {acteurs}
+  - nom: vol_pirate
+    si: vol
+    condition: gravite >= 3
+    proba: 50
+    delai: 60-240
+    plafond: 2
+    alors: radio pirate Un pilleur de coffres court les camps. On ne dit pas de nom. Mais tout le monde le connaît déjà.

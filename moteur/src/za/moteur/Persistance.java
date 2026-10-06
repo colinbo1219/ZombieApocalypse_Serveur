@@ -135,6 +135,7 @@ public final class Persistance {
         z.directeur.charger(y.getConfigurationSection("directeur"));
         z.lea.charger(y.getConfigurationSection("lea"));
         z.vivantes.cerveau.importer(lire("bases.txt"));
+        z.societe.cerveau.importer(lire("factions.txt"));
     }
 
     private static void lireCarte(ConfigurationSection s, Map<String, Double> m) {
@@ -224,6 +225,7 @@ public final class Persistance {
         ecrire("informations.txt", infos);
         ecrire("memoire.txt", mem);
         ecrire("bases.txt", z.vivantes.cerveau.exporter());
+        ecrire("factions.txt", z.societe.cerveau.exporter());
         try {
             File tmp = new File(z.getDataFolder(), "etat.yml.tmp");
             o.save(tmp);

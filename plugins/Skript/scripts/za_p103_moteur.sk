@@ -249,6 +249,36 @@ function za_mot_evt_serveur(t: text, ligne: text):
                 send "&8Quelqu'un, quelque part, vient d'avaler ta fausse piste." to {_p}
             else:
                 send "&8Ta fausse piste n'a pas pris. NORDA vérifie davantage." to {_p}
+    else if {_t} is "fac_rel":
+        za_diplo_ajouter({_a::2}, {_a::3}, {_a::4} parsed as number)
+    else if {_t} is "fac_stock":
+        set {_v} to ({za::facres::%{_a::2}%::%{_a::3}%} ? 0) + ({_a::4} parsed as number)
+        set {za::facres::%{_a::2}%::%{_a::3}%} to max(0, min(200, {_v}))
+    else if {_t} is "convoi_proche":
+        set {_p} to za_mot_joueur({_a::2})
+        if {_p} is set:
+            send "&7Un convoi passe au loin : des charrettes, des hommes armés. &8(%uncolored za_faction_nom({_a::3})%, chargé de %{_a::4}%)" to {_p}
+            za_zm("son %{_p}% minecraft:entity.horse.ambient 0.6 0.8")
+    else if {_t} is "convoi_epave":
+        add "%{_a::2}%|%{_a::3}%|%{_a::4}%|%{_a::5}%|%{_a::6}%" to {za::mot::epave::*}
+    else if {_t} is "frigo_perdu":
+        set {_us::*} to split {_a::2} at ","
+        loop {_us::*}:
+            if length of loop-value is 36:
+                za_surv_avis(loop-value, "&c[Base] Le frigo est chaud. Les médicaments et une partie de la viande sont perdus.")
+    else if {_t} is "rumeur_mefiance":
+        set {_us::*} to split {_a::2} at ","
+        loop {_us::*}:
+            if length of loop-value is 36:
+                set {za::mot::mefiance::%loop-value%} to (unix timestamp of now) + 259200
+    else if {_t} is "chaine12":
+        set {_p} to za_mot_joueur({_a::2})
+        if {_p} is set:
+            za_effet({_p}, "slowness", 300, 1)
+            za_effet({_p}, "hunger", 300, 1)
+            za_effet({_p}, "mining_fatigue", 300, 0)
+            set {_p}'s freeze time to 10 seconds
+            send "&7Ta jambe te lance, ton sac te scie les épaules, le froid te mord. &8(chaîne 12 : FATIGUÉ → BLESSÉ → MALADE)" to {_p}
     else if {_t} starts with "base_":
         za_bv_evt({_t}, {_ligne})
     else if {_t} is "legende":
@@ -588,10 +618,15 @@ command /norda [<text>]:
 every 30 seconds:
     if za_mot_actif() is true:
         za_mot("jour %{za::serveur::jours} ? 0%")
-        if za_hiver() is true:
-            za_mot("saison hiver")
-        else:
+        set {_i} to za_hiver_index()
+        if {_i} < 3:
+            za_mot("saison printemps")
+        else if {_i} < 6:
             za_mot("saison ete")
+        else if {_i} < 9:
+            za_mot("saison automne")
+        else:
+            za_mot("saison hiver")
 
 # toutes les 5 minutes : bases, camps, factions des joueurs
 every 5 minutes:
@@ -622,6 +657,58 @@ every 5 minutes:
 # un appel ou un SMS envoyé : le cellulaire accroche le réseau (82)
 function za_mot_cellulaire(p: player):
     za_mot("preuve %{_p}'s uuid% cel 4 %floor(x-coordinate of {_p})% %floor(z-coordinate of {_p})%")
+
+# les factions décrivent leur état au moteur (za_p67) : il décide pour elles (IA-10)
+every 5 minutes:
+    if za_mot_actif() is false:
+        stop
+    loop za_diplo_facs():
+        set {_f} to loop-value-1
+        set {_n} to 0
+        loop za_terr_cles():
+            if za_terr_fac(loop-value-2) is {_f}:
+                add 1 to {_n}
+        set {_l} to "terr:%{_n}%"
+        loop za_diplo_ress():
+            set {_l} to "%{_l}% %loop-value-2%:%floor({za::facres::%{_f}%::%loop-value-2%} ? 0)%"
+        za_mot("fac %{_f}% %{_l}%")
+        loop za_diplo_facs():
+            if za_diplo_rang(loop-value-1) < za_diplo_rang(loop-value-2):
+                za_mot("rel %loop-value-1% %loop-value-2% %za_diplo(loop-value-1, loop-value-2)%")
+
+# ce qui reste d'un convoi attaqué (S-3) : posé quand quelqu'un passe à côté
+every 30 seconds:
+    loop {za::mot::epave::*}:
+        set {_c::*} to split loop-value-1 at "|"
+        set {_x} to {_c::1} parsed as number
+        set {_z} to {_c::2} parsed as number
+        loop za_mot_pres({_x}, {_z}, 64):
+            set {_l} to location({_x}, 64, {_z}, world of loop-value-2)
+            if chunk at {_l} is loaded:
+                set {_l} to location of (highest block at {_l})
+                add 1 to y-coordinate of {_l}
+                set block at {_l} to chest
+                set {_b} to block at {_l}
+                set {_q} to max(1, min(27, {_c::5} parsed as number))
+                set {_it} to za_mot_convoi_objet({_c::4}, {_q})
+                if {_it} is set:
+                    add {_it} to inventory of {_b}
+                send "&7Une charrette renversée, des corps, des caisses éventrées. &8(le convoi de %uncolored za_faction_nom({_c::3})%)" to loop-value-2
+                za_spawn_at({_l}, "ZA_Shambler", 6, 14)
+                za_spawn_at({_l}, "ZA_Shambler", 6, 14)
+                delete {za::mot::epave::%loop-index-1%}
+                stop loop
+
+function za_mot_convoi_objet(r: text, n: number) :: itemtype:
+    if {_r} is "vivres":
+        return {_n} of bread
+    if {_r} is "medicaments":
+        return za_item("paper", "Bandage", "&f", {_n})
+    if {_r} is "munitions":
+        return {_n} of iron ingot
+    if {_r} is "carburant":
+        return {_n} of coal
+    return za_item("redstone", "Composant electronique", "&f", {_n})
 
 # ---------------------------------------------------------------- /monde : ce que le joueur voit de sa région
 
@@ -664,3 +751,18 @@ command /zamfeu <text> <number> <number> <number>:
         set {_w} to world arg-1
         if {_w} is set:
             set {_n} to za_feu_allumer(location(arg-2, arg-3, arg-4, {_w}), "brule")
+
+# régler une affaire (S-4, chaîne 14) : rembourser, s'excuser ; le registre la marque réglée
+command /regler:
+    trigger:
+        set {_u} to "%player's uuid%"
+        if ({za::mot::mefiance::%{_u}%} ? 0) < unix timestamp of now:
+            send "&7Aucune affaire en cours contre toi." to player
+            stop
+        if za_jetons(player) < 10:
+            send "&7Il faut 10 jetons pour rembourser." to player
+            stop
+        za_jetons_ajouter(player, -10)
+        delete {za::mot::mefiance::%{_u}%}
+        za_mot_evt("promesse_tenue", location of player, 2, {_u}, "a remboursé ce qu'il avait pris")
+        send "&7Tu rembourses. L'affaire est marquée réglée. &8(La rumeur, elle, mettra du temps à mourir, région par région.)" to player

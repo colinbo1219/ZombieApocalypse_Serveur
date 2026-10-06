@@ -56,6 +56,7 @@ public final class ZAMoteur extends JavaPlugin {
     public Omega omega;
     public InfoJoueurs infoJoueurs;
     public BasesVivantes vivantes;
+    public Societe societe;
 
     /** bases enregistrées (/base, p8) : jamais envahies automatiquement (règle 2) */
     public final Map<UUID, Location> bases = new ConcurrentHashMap<>();
@@ -87,7 +88,7 @@ public final class ZAMoteur extends JavaPlugin {
         copierDefaut("reactions.yml");
         copierDefaut("config.yml");
         reloadConfig();
-        for (String s : new String[]{"hordes", "directeur", "cerveaux", "nemesis", "norda", "lea", "ecosysteme", "telemetrie", "materialisation", "bases", "omega"})
+        for (String s : new String[]{"hordes", "directeur", "cerveaux", "nemesis", "norda", "lea", "ecosysteme", "telemetrie", "materialisation", "bases", "factions", "omega"})
             systemes.put(s, getConfig().getBoolean("systemes." + s, !s.equals("omega")));
         budgetSpawnsTick = getConfig().getInt("budget.apparitions_par_tick", 6);
         budgetBlocsTick = getConfig().getInt("budget.blocs_par_tick", 200);
@@ -122,6 +123,7 @@ public final class ZAMoteur extends JavaPlugin {
         omega = new Omega(this);
         infoJoueurs = new InfoJoueurs(this);
         vivantes = new BasesVivantes(this);
+        societe = new Societe(this);
         monde.memoire.annonce = t -> pont.zaevt("legende " + t);
         persistance.chargerModules();
 
@@ -175,6 +177,7 @@ public final class ZAMoteur extends JavaPlugin {
                 if (actif("ecosysteme")) ecosysteme.tick30s();
                 if (actif("lea")) lea.tick30s();
                 infoJoueurs.tick30s();
+                if (actif("factions")) societe.tick30s();
             }
         }.runTaskTimer(this, 300L, 600L);
         // sauvegarde toutes les 5 minutes
@@ -240,6 +243,7 @@ public final class ZAMoteur extends JavaPlugin {
                 directeur.jour();
                 omega.jour();
                 if (actif("bases")) vivantes.jour();
+                if (actif("factions")) societe.jour();
                 pont.set("monde::jour_moteur", String.valueOf(j));
             });
         }
