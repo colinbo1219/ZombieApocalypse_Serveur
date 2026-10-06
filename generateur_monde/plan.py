@@ -50,8 +50,8 @@ LACS = [
 
 
 def _route(nom, genre, pts, rng=None, ondule=0.0):
-    """genre : autoroute (14 de large), route (7), rang (5, gravier). Densifie tous les ~24 blocs."""
-    larg = {'autoroute': 14, 'route': 7, 'rang': 5}[genre]
+    """genre : autoroute (14 de large), route (7), rang (5, gravier), rail (3, ballast). Densifie tous les ~24 blocs."""
+    larg = {'autoroute': 14, 'route': 7, 'rang': 5, 'rail': 3}[genre]
     dense = []
     for i in range(len(pts) - 1):
         (x1, z1), (x2, z2) = pts[i], pts[i + 1]
@@ -157,6 +157,46 @@ def construire(graine=GRAINE):
     # cimetière de Saint-Aurèle (les tombes des joueurs y sont gravées : za_p88)
     site('cimetiere', 'cimetiere', 'Cimetière de Saint-Aurèle', 190, -260, 46, 46)
 
+    # ---------------------------------------------------------------- grands lieux de la bible (Partie 3, points 28-31, 36)
+    # Positions voulues, déplacées en spirale (sans hasard) si la place est prise : rien d'autre ne bouge sur la carte.
+    def loin_eau(x, z, larg, prof):
+        for dx in (-larg / 2, 0, larg / 2):
+            for dz in (-prof / 2, 0, prof / 2):
+                if abs(z + dz - z_riviere(x + dx, riv)) < 70:
+                    return False
+        for (_, lx, lz, lr) in LACS:
+            if math.hypot(x - lx, z - lz) < lr + max(larg, prof) / 2 + 30:
+                return False
+        return True
+
+    def poser_libre(ident, genre, nom, x, z, larg, prof, eau=False, **kw):
+        r = max(larg, prof) / 2 + 30
+        for k in range(60):
+            a = k * 0.9
+            d = 0 if k == 0 else 40 + 22 * k
+            xx, zz = int(x + math.cos(a) * d), int(z + math.sin(a) * d)
+            if abs(xx) > LIMITE - larg or abs(zz) > LIMITE - prof:
+                continue
+            if eau:
+                ok = all(abs(s_['x'] - xx) >= s_['larg'] / 2 + r or abs(s_['z'] - zz) >= s_['prof'] / 2 + r for s_ in sites)
+            else:
+                ok = libre(xx, zz, r) and loin_eau(xx, zz, larg, prof)
+            if ok:
+                # « bible » : ajoutés après coup ; les tirages des épaves les ignorent pour ne rien déplacer
+                return site(ident, genre, nom, xx, zz, larg, prof, bible=True, **kw)
+        return None
+
+    poser_libre('aeroport', 'aeroport', 'Aéroport régional des Laurentides', 3900, 1550, 340, 150)
+    poser_libre('centre_achat', 'centre_achat', "Carrefour Laurentides", 1050, 500, 120, 90)
+    poser_libre('arena', 'arena', 'Aréna Gilles-Tremblay', -480, -500, 90, 70)
+    poser_libre('prison', 'prison', 'Établissement de détention de Saint-Aurèle', -3700, -900, 150, 150)
+    poser_libre('universite', 'universite', 'Université du Québec — campus des Laurentides', 1350, -1350, 170, 120)
+    poser_libre('hotel', 'hotel', 'Hôtel des Laurentides', -1750, -2300, 50, 40)
+    poser_libre('port', 'port', 'Port de Saint-Aurèle', 760, int(z_riviere(760, riv)) - 48, 60, 40, eau=True)
+    gares = [poser_libre('gare_val', 'gare', 'Gare de Val-des-Pins', -1950, -980, 70, 30),
+             poser_libre('gare_sa', 'gare', 'Gare de Saint-Aurèle', -330, -300, 70, 30),
+             poser_libre('gare_brigitte', 'gare', 'Gare de Sainte-Brigitte', 2350, 1880, 70, 30)]
+
     # ---------------------------------------------------------------- routes
     routes = []
     a40 = [(-LIMITE - 100, 300)]
@@ -192,6 +232,18 @@ def construire(graine=GRAINE):
         elif s['id'] == 'checkpoint_nord':
             s['x'] = int(sur_route(routes[1]['points'], s['z'], 1))
 
+    # ---------------------------------------------------------------- la ligne de train (36) : segments droits nord-sud
+    # et est-ouest (les rails de Minecraft ne font pas de diagonale), à travers les trois gares
+    g = [x for x in gares if x]
+    if len(g) >= 2:
+        rail = [(g[0]['x'] - 45, g[0]['z']), (g[0]['x'] + 45, g[0]['z'])]
+        coudes = {0: -1140, 1: 500}
+        for i in range(1, len(g)):
+            mx = coudes.get(i - 1, (rail[-1][0] + g[i]['x']) // 2)
+            rail += [(mx, rail[-1][1]), (mx, g[i]['z']), (g[i]['x'] - 45, g[i]['z']), (g[i]['x'] + 45, g[i]['z'])]
+        r = _route('Ligne Laurentienne', 'rail', rail)
+        routes.append(r)
+
     principaux = routes[0]['points'] + routes[1]['points']
     for s in sites:
         if s['type'] in ('ruines', 'arrivee', 'station', 'checkpoint', 'motel'):
@@ -200,7 +252,27 @@ def construire(graine=GRAINE):
         if s['type'] in ('camp_chasse', 'refuge'):
             continue
         relier(s, principaux + sum((r['points'] for r in routes[2:4]), []), genre)
-    return {'graine': graine, 'limite': LIMITE, 'mer': MER, 'riviere': riv, 'lacs': LACS, 'routes': routes, 'sites': sites}
+    return {'graine': graine, 'limite': LIMITE, 'mer': MER, 'riviere': riv, 'lacs': LACS, 'routes': routes, 'sites': sites,
+            'breches': breches(routes, riv)}
+
+
+def breches(routes, riv):
+    """Ponts détruits (86) : là où la route 117, la voie ferrée et un chemin sur trois franchissent la rivière, le tablier
+    est arraché sur ~16 blocs. Passages obligés : les hordes (graphe) et les convois doivent faire le détour."""
+    out = []
+    for r in routes:
+        nom = r['nom']
+        detruit = nom in ('Route 117', 'Ligne Laurentienne') or (nom.startswith('Chemin') and sum(map(ord, nom)) % 3 == 0)
+        if not detruit:
+            continue
+        pts = r['points']
+        for (x1, z1), (x2, z2) in zip(pts, pts[1:]):
+            f1, f2 = z1 - z_riviere(x1, riv), z2 - z_riviere(x2, riv)
+            if f1 == f2 or (f1 > 0) == (f2 > 0):
+                continue
+            t = f1 / (f1 - f2)
+            out.append({'x': int(x1 + (x2 - x1) * t), 'z': int(z1 + (z2 - z1) * t), 'r': 8, 'route': nom})
+    return out
 
 
 if __name__ == '__main__':

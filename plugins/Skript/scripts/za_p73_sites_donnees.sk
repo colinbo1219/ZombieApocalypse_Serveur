@@ -31,6 +31,30 @@ function za_sites_donnees() :: texts:
     add "sainte_brigitte_depanneur4|depanneur|Dépanneur de Sainte-Brigitte|2338|71|1978|8|8|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
     add "sainte_brigitte_caserne5|caserne|Caserne de pompiers de Sainte-Brigitte|2364|71|1996|9|10|ZA_Pompier_Infecte,ZA_Pompier_Infecte,ZA_Ouvrier_Brule" to {_r::*}
     add "sainte_brigitte_garage6|garage|Garage de Sainte-Brigitte|2338|71|1961|8|8|ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte" to {_r::*}
+    add "aeroport_terminal0|terminal|Terminal de l'aéroport|3867|76|1491|30|13|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Crawler" to {_r::*}
+    add "aeroport_tour_controle1|tour_controle|Tour de contrôle (radio longue portée)|3907|76|1486|6|6|ZA_Ouvrier_Infecte,ZA_Screamer" to {_r::*}
+    add "aeroport_hangar2|hangar|Hangar (pièces de drones)|3946|76|1490|19|14|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "aeroport_depot_carburant3|depot_carburant|Dépôt de carburant|3754|76|1609|18|8|ZA_Ouvrier_Brule,ZA_Bloater" to {_r::*}
+    add "aeroport_avion4|avion|Avion écrasé|4041|76|1582|16|8|ZA_Citoyen_Infecte,ZA_Crawler,ZA_FakeDead" to {_r::*}
+    add "aeroport_piste5|piste|Piste (zone d'extraction)|3899|76|1582|163|12|ZA_Runner,ZA_Shambler" to {_r::*}
+    add "centre_achat_pharmacie0|pharmacie|Pharmacie du centre|1005|72|464|7|6|ZA_Medecin_Infecte,ZA_Citoyen_Infecte" to {_r::*}
+    add "centre_achat_cinema1|cinema|Cinéma du centre (il y a du monde dans le noir)|1010|72|492|15|36|ZA_FakeDead,ZA_Shambler,ZA_Shambler,ZA_Stalker" to {_r::*}
+    add "centre_achat_centre_achat2|centre_achat|Carrefour Laurentides (centre d'achat)|1049|72|492|54|36|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Shambler,ZA_Child" to {_r::*}
+    add "arena_arena0|arena|Aréna Gilles-Tremblay|-480|70|-500|41|31|ZA_Citoyen_Infecte,ZA_Brute,ZA_Shambler" to {_r::*}
+    add "arena_patinoire1|patinoire|La patinoire (il y a des formes sous la glace)|-480|70|-500|27|19|ZA_Givre,ZA_Citoyen_Infecte" to {_r::*}
+    add "prison_cellules0|cellules|Bloc cellulaire A|-3743|75|-949|22|14|ZA_Prisonnier_Infecte,ZA_Prisonnier_Infecte,ZA_Brute" to {_r::*}
+    add "prison_cellules1|cellules|Bloc cellulaire B|-3669|75|-949|22|14|ZA_Prisonnier_Infecte,ZA_Prisonnier_Infecte,ZA_Brute" to {_r::*}
+    add "prison_controle_prison2|controle_prison|Salle de contrôle et armurerie|-3701|75|-847|12|9|ZA_Policier_Infecte,ZA_Armored" to {_r::*}
+    add "prison_prison3|prison|Établissement de détention|-3700|75|-900|75|75|ZA_Prisonnier_Infecte,ZA_Prisonnier_Infecte,ZA_Policier_Infecte" to {_r::*}
+    add "universite_labo_civil0|labo_civil|Laboratoire de biologie (université)|1206|71|-1344|25|13|ZA_Medecin_Infecte,ZA_Spitter,ZA_Patient_Infecte" to {_r::*}
+    add "universite_bibliotheque1|bibliotheque|Bibliothèque universitaire|1263|71|-1344|22|13|ZA_Stalker,ZA_Citoyen_Infecte" to {_r::*}
+    add "universite_residences2|residences|Résidences étudiantes|1203|71|-1295|22|12|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "universite_universite3|universite|Université du Québec — campus des Laurentides|1254|71|-1304|85|60|ZA_Citoyen_Infecte,ZA_Runner,ZA_Shambler" to {_r::*}
+    add "hotel_hotel0|hotel|Hôtel des Laurentides|-1751|118|-2303|22|16|ZA_Citoyen_Infecte,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "port_port0|port|Port de Saint-Aurèle|760|72|973|30|20|ZA_Noye,ZA_Ouvrier_Infecte,ZA_Citoyen_Infecte" to {_r::*}
+    add "gare_val_gare0|gare|Gare de Val-des-Pins|-1950|77|-976|35|8|ZA_Citoyen_Infecte,ZA_Runner,ZA_Ouvrier_Infecte" to {_r::*}
+    add "gare_sa_gare0|gare|Gare de Saint-Aurèle|-330|67|-296|35|8|ZA_Citoyen_Infecte,ZA_Runner,ZA_Ouvrier_Infecte" to {_r::*}
+    add "gare_brigitte_gare0|gare|Gare de Sainte-Brigitte|2350|71|1884|35|8|ZA_Citoyen_Infecte,ZA_Runner,ZA_Ouvrier_Infecte" to {_r::*}
     add "route_exode0|exode|L'exode — bouchon de l'autoroute 40|-1124|79|274|110|25|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Child,ZA_Runner,ZA_Crawler" to {_r::*}
     add "route_carambolage1|carambolage|Carambolage de l'autoroute 40|948|72|356|40|40|ZA_Citoyen_Infecte,ZA_Crawler,ZA_Runner,ZA_Shambler" to {_r::*}
     add "route_carambolage2|carambolage|Carambolage de l'autoroute 40|-101|67|300|40|40|ZA_Citoyen_Infecte,ZA_Crawler,ZA_Runner,ZA_Shambler" to {_r::*}
@@ -138,6 +162,16 @@ function za_sites_donnees() :: texts:
     add "refuge_19|refuge|Refuge 79|1626|68|4115|15|15|" to {_r::*}
     add "refuge_20|refuge|Refuge 20|3719|69|1989|15|15|" to {_r::*}
     add "cimetiere|cimetiere|Cimetière de Saint-Aurèle|190|67|-260|31|31|" to {_r::*}
+    add "aeroport|aeroport|Aéroport régional des Laurentides|3900|76|1550|178|83|ZA_Citoyen_Infecte,ZA_Soldat_Infecte,ZA_Runner" to {_r::*}
+    add "centre_achat|centre_achat|Carrefour Laurentides|1050|72|500|68|53|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Shambler,ZA_Child" to {_r::*}
+    add "arena|arena|Aréna Gilles-Tremblay|-480|70|-500|53|43|ZA_Citoyen_Infecte,ZA_Brute,ZA_Shambler" to {_r::*}
+    add "prison|prison|Établissement de détention de Saint-Aurèle|-3700|75|-900|83|83|ZA_Prisonnier_Infecte,ZA_Prisonnier_Infecte,ZA_Policier_Infecte" to {_r::*}
+    add "universite|universite|Université du Québec — campus des Laurentides|1254|71|-1304|93|68|ZA_Citoyen_Infecte,ZA_Runner,ZA_Shambler" to {_r::*}
+    add "hotel|hotel|Hôtel des Laurentides|-1750|118|-2300|33|28|ZA_Citoyen_Infecte,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "port|port|Port de Saint-Aurèle|760|72|973|38|28|ZA_Noye,ZA_Ouvrier_Infecte,ZA_Citoyen_Infecte" to {_r::*}
+    add "gare_val|gare|Gare de Val-des-Pins|-1950|77|-980|43|23|ZA_Citoyen_Infecte,ZA_Runner,ZA_Ouvrier_Infecte" to {_r::*}
+    add "gare_sa|gare|Gare de Saint-Aurèle|-330|67|-300|43|23|ZA_Citoyen_Infecte,ZA_Runner,ZA_Ouvrier_Infecte" to {_r::*}
+    add "gare_brigitte|gare|Gare de Sainte-Brigitte|2350|71|1880|43|23|ZA_Citoyen_Infecte,ZA_Runner,ZA_Ouvrier_Infecte" to {_r::*}
     return {_r::*}
 
 function za_sites_apparitions() :: texts:

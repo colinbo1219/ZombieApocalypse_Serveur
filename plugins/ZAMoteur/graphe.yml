@@ -142,11 +142,11 @@ regions:
     riviere: false
     routes: ["-2949;-2233;rang", "-2871;-2107;rang", "-2763;-2010;rang"]
   r_3_2:
-    nom: "Chalet du Lac-aux-Loups"
+    nom: "Hôtel des Laurentides"
     x: -1500
     z: -2500
     riviere: false
-    routes: ["-1091;-2389;rang", "-1030;-2861;rang"]
+    routes: ["-1091;-2389;rang", "-1030;-2861;rang", "-1750;-2300;rang", "-1755;-2155;rang", "-1783;-2012;rang"]
   r_4_2:
     nom: "Terres du nord"
     x: -500
@@ -206,7 +206,7 @@ regions:
     x: -1500
     z: -1500
     riviere: false
-    routes: ["-1950;-1150;route", "-1953;-1112;rang", "-1971;-1129;rang", "-1850;-1050;rang", "-1967;-1170;rang", "-1866;-1067;rang", "-1943;-1126;rang"]
+    routes: ["-1950;-1150;route", "-1953;-1112;rang", "-1971;-1129;rang", "-1850;-1050;rang", "-1967;-1170;rang", "-1866;-1067;rang", "-1943;-1126;rang", "-1785;-1867;rang", "-1780;-1721;rang", "-1822;-1580;rang", "-1820;-1434;rang", "-1821;-1289;rang"]
   r_4_3:
     nom: "Camp de chasse"
     x: -500
@@ -218,13 +218,13 @@ regions:
     x: 500
     z: -1500
     riviere: false
-    routes: []
+    routes: ["941;-1005;rang"]
   r_6_3:
-    nom: "Camp de chasse"
+    nom: "Université du Québec — campus des Laurentides"
     x: 1500
     z: -1500
     riviere: false
-    routes: []
+    routes: ["1254;-1304;rang", "1154;-1199;rang", "1037;-1113;rang"]
   r_7_3:
     nom: "Refuge 25"
     x: 2500
@@ -250,11 +250,11 @@ regions:
     riviere: false
     routes: []
   r_1_4:
-    nom: "Terres du centre ouest"
+    nom: "Établissement de détention de Saint-Aurèle"
     x: -3500
     z: -500
     riviere: false
-    routes: []
+    routes: ["-3700;-900;rang", "-3677;-755;rang", "-3676;-609;rang", "-3650;-465;rang", "-3617;-323;rang", "-3630;-174;rang", "-3600;-31;rang"]
   r_2_4:
     nom: "Terres du centre ouest"
     x: -2500
@@ -262,23 +262,23 @@ regions:
     riviere: false
     routes: []
   r_3_4:
-    nom: "Camp de chasse"
+    nom: "Gare de Val-des-Pins"
     x: -1500
     z: -500
     riviere: false
-    routes: ["-1078;-248;route", "-1200;-329;route", "-1314;-419;route", "-1403;-535;route", "-1521;-626;route", "-1591;-759;route", "-1683;-871;route", "-1793;-970;route"]
+    routes: ["-1078;-248;route", "-1200;-329;route", "-1314;-419;route", "-1403;-535;route", "-1521;-626;route", "-1591;-759;route", "-1683;-871;route", "-1793;-970;route", "-1995;-980;rail", "-1830;-980;rail", "-1682;-980;rail", "-1534;-980;rail"]
   r_4_4:
-    nom: "Camp de chasse"
+    nom: "Aréna Gilles-Tremblay"
     x: -500
     z: -500
     riviere: false
-    routes: ["-11;-979;route", "-27;-545;route", "-1;-110;route", "-851;-63;route", "-985;-128;route"]
+    routes: ["-11;-979;route", "-27;-545;route", "-1;-110;route", "-851;-63;route", "-985;-128;route", "-893;-300;rail", "-745;-300;rail", "-597;-300;rail", "-449;-300;rail", "-285;-300;rail", "-137;-300;rail", "-480;-500;rang"]
   r_5_4:
     nom: "Cimetière de Saint-Aurèle"
     x: 500
     z: -500
     riviere: false
-    routes: ["17;-834;route", "5;-690;route", "16;-401;route", "2;-256;route", "250;-117;route", "360;-219;route", "441;-344;route", "498;-479;route", "548;-618;route", "190;-260;rang"]
+    routes: ["17;-834;route", "5;-690;route", "16;-401;route", "2;-256;route", "250;-117;route", "360;-219;route", "441;-344;route", "498;-479;route", "548;-618;route", "9;-300;rail", "156;-300;rail", "303;-300;rail"]
   r_6_4:
     nom: "Terres du centre"
     x: 1500
@@ -340,11 +340,11 @@ regions:
     riviere: true
     routes: ["6;300;autoroute", "151;300;autoroute", "296;307;autoroute", "442;318;autoroute", "587;329;autoroute", "733;340;autoroute", "878;350;autoroute", "25;36;route", "0;184;route", "37;329;route", "7;480;route", "29;626;route"]
   r_6_5:
-    nom: "Parc industriel Laurentien"
+    nom: "Carrefour Laurentides"
     x: 1500
     z: 500
     riviere: false
-    routes: ["1024;356;autoroute", "1169;338;autoroute", "1315;320;autoroute", "1460;302;autoroute", "1606;284;autoroute", "1751;266;autoroute", "1896;272;autoroute", "1650;470;route", "1626;308;route"]
+    routes: ["1024;356;autoroute", "1169;338;autoroute", "1315;320;autoroute", "1460;302;autoroute", "1606;284;autoroute", "1751;266;autoroute", "1896;272;autoroute", "1650;470;route", "1626;308;route", "1050;500;rang", "1024;356;rang"]
   r_7_5:
     nom: "Terres du centre est"
     x: 2500
@@ -362,7 +362,7 @@ regions:
     x: 4500
     z: 500
     riviere: true
-    routes: ["4078;344;autoroute", "4224;358;autoroute", "4370;348;autoroute", "4516;338;autoroute", "4662;329;autoroute", "4808;319;autoroute", "4954;309;autoroute", "5100;300;autoroute"]
+    routes: ["4078;344;autoroute", "4224;358;autoroute", "4370;348;autoroute", "4516;338;autoroute", "4662;329;autoroute", "4808;319;autoroute", "4954;309;autoroute", "5100;300;autoroute", "4006;826;rang", "4012;680;rang", "4022;534;rang", "4050;390;rang"]
   r_0_6:
     nom: "Terres du centre ouest"
     x: -4500
@@ -398,25 +398,25 @@ regions:
     x: 500
     z: 1500
     riviere: true
-    routes: ["7;1064;route", "676;1586;rang", "530;1601;rang", "383;1584;rang", "237;1605;rang", "92;1621;rang", "909;1868;rang", "763;1880;rang", "619;1845;rang", "473;1854;rang", "327;1863;rang", "182;1839;rang"]
+    routes: ["7;1064;route", "500;1104;rail", "500;1250;rail", "500;1395;rail", "500;1540;rail", "500;1686;rail", "500;1831;rail", "596;1880;rail", "740;1880;rail", "885;1880;rail", "676;1586;rang", "530;1601;rang"]
   r_6_6:
     nom: "Ferme Côté"
     x: 1500
     z: 1500
     riviere: true
-    routes: ["1346;1883;rang", "1200;1883;rang", "1055;1864;rang"]
+    routes: ["1029;1880;rail", "1173;1880;rail", "1318;1880;rail", "1462;1880;rail", "1607;1880;rail", "1751;1880;rail", "1895;1880;rail", "1346;1883;rang", "1200;1883;rang", "1055;1864;rang"]
   r_7_6:
-    nom: "Terres du centre est"
+    nom: "Gare de Sainte-Brigitte"
     x: 2500
     z: 1500
     riviere: true
-    routes: ["2362;1906;route", "2391;1764;route", "2401;1620;route", "2404;1475;route", "2449;1335;route", "2453;1190;route", "2453;1044;route", "2993;1038;rang"]
+    routes: ["2040;1880;rail", "2184;1880;rail", "2335;1880;rail", "2362;1906;route", "2391;1764;route", "2401;1620;route", "2404;1475;route", "2449;1335;route", "2453;1190;route", "2453;1044;route", "2993;1038;rang", "2350;1880;rang"]
   r_8_6:
-    nom: "Ferme Fortin"
+    nom: "Aéroport régional des Laurentides"
     x: 3500
     z: 1500
     riviere: false
-    routes: ["3084;1609;rang", "3059;1466;rang", "3056;1321;rang", "3028;1179;rang"]
+    routes: ["3084;1609;rang", "3059;1466;rang", "3056;1321;rang", "3028;1179;rang", "3900;1550;rang", "3912;1404;rang", "3947;1261;rang", "3956;1115;rang"]
   r_9_6:
     nom: "Refuge 32"
     x: 4500
@@ -1174,6 +1174,66 @@ lieux:
     x: 190
     z: -260
     region: r_5_4
+  aeroport:
+    type: aeroport
+    nom: "Aéroport régional des Laurentides"
+    x: 3900
+    z: 1550
+    region: r_8_6
+  centre_achat:
+    type: centre_achat
+    nom: "Carrefour Laurentides"
+    x: 1050
+    z: 500
+    region: r_6_5
+  arena:
+    type: arena
+    nom: "Aréna Gilles-Tremblay"
+    x: -480
+    z: -500
+    region: r_4_4
+  prison:
+    type: prison
+    nom: "Établissement de détention de Saint-Aurèle"
+    x: -3700
+    z: -900
+    region: r_1_4
+  universite:
+    type: universite
+    nom: "Université du Québec — campus des Laurentides"
+    x: 1254
+    z: -1304
+    region: r_6_3
+  hotel:
+    type: hotel
+    nom: "Hôtel des Laurentides"
+    x: -1750
+    z: -2300
+    region: r_3_2
+  port:
+    type: port
+    nom: "Port de Saint-Aurèle"
+    x: 760
+    z: 973
+    region: r_5_5
+  gare_val:
+    type: gare
+    nom: "Gare de Val-des-Pins"
+    x: -1950
+    z: -980
+    region: r_3_4
+  gare_sa:
+    type: gare
+    nom: "Gare de Saint-Aurèle"
+    x: -330
+    z: -300
+    region: r_4_4
+  gare_brigitte:
+    type: gare
+    nom: "Gare de Sainte-Brigitte"
+    x: 2350
+    z: 1880
+    region: r_7_6
 liens:
   - "r_0_0;r_1_0;3;terre"
   - "r_0_0;r_0_1;3;terre"
@@ -1235,15 +1295,15 @@ liens:
   - "r_0_3;r_1_3;3;terre"
   - "r_0_3;r_0_4;3;terre"
   - "r_1_3;r_2_3;1;route"
-  - "r_1_3;r_1_4;3;terre"
+  - "r_1_3;r_1_4;1;route"
   - "r_2_3;r_3_3;1;route"
   - "r_2_3;r_2_4;3;terre"
   - "r_3_3;r_4_3;1;route"
   - "r_3_3;r_3_4;1;route"
-  - "r_4_3;r_5_3;3;terre"
+  - "r_4_3;r_5_3;1;route"
   - "r_4_3;r_4_4;1;route"
-  - "r_5_3;r_6_3;3;terre"
-  - "r_5_3;r_5_4;3;terre"
+  - "r_5_3;r_6_3;1;route"
+  - "r_5_3;r_5_4;1;route"
   - "r_6_3;r_7_3;3;terre"
   - "r_6_3;r_6_4;3;terre"
   - "r_7_3;r_8_3;3;terre"
@@ -1254,13 +1314,13 @@ liens:
   - "r_0_4;r_1_4;3;terre"
   - "r_0_4;r_0_5;3;terre"
   - "r_1_4;r_2_4;3;terre"
-  - "r_1_4;r_1_5;3;terre"
+  - "r_1_4;r_1_5;4;pont_detruit"
   - "r_2_4;r_3_4;3;terre"
   - "r_2_4;r_2_5;3;terre"
   - "r_3_4;r_4_4;1;route"
   - "r_3_4;r_3_5;1;route"
   - "r_4_4;r_5_4;1;route"
-  - "r_4_4;r_4_5;1;route"
+  - "r_4_4;r_4_5;4;pont_detruit"
   - "r_5_4;r_6_4;3;terre"
   - "r_5_4;r_5_5;1;route"
   - "r_6_4;r_7_4;3;terre"
@@ -1273,15 +1333,15 @@ liens:
   - "r_0_5;r_1_5;1;route"
   - "r_0_5;r_0_6;1;route"
   - "r_1_5;r_2_5;1;route"
-  - "r_1_5;r_1_6;1;route"
+  - "r_1_5;r_1_6;4;pont_detruit"
   - "r_2_5;r_3_5;1;route"
   - "r_2_5;r_2_6;1;route"
   - "r_3_5;r_4_5;1;route"
   - "r_3_5;r_3_6;3;terre"
   - "r_4_5;r_5_5;1;route"
-  - "r_4_5;r_4_6;1;route"
+  - "r_4_5;r_4_6;4;pont_detruit"
   - "r_5_5;r_6_5;1;route"
-  - "r_5_5;r_5_6;1;route"
+  - "r_5_5;r_5_6;4;pont_detruit"
   - "r_6_5;r_7_5;1;route"
   - "r_6_5;r_6_6;1;route"
   - "r_7_5;r_8_5;1;route"
@@ -1300,7 +1360,7 @@ liens:
   - "r_4_6;r_5_6;1;route"
   - "r_4_6;r_4_7;1;route"
   - "r_5_6;r_6_6;1;route"
-  - "r_5_6;r_5_7;1;route"
+  - "r_5_6;r_5_7;4;pont_detruit"
   - "r_6_6;r_7_6;1;route"
   - "r_6_6;r_6_7;3;terre"
   - "r_7_6;r_8_6;1;route"

@@ -390,3 +390,26 @@ vérificateur Skript (111 scripts). À surveiller en premier :
 - `ProjectileLaunch`/`EntitySpawn` des balles TaCZ comme bruit ; la capture NORDA ;
 - les performances : `/zaadmin rapport`, et `spark` si le serveur ralentit (`/zaadmin systeme cerveaux off` pour couper
   le plus gourmand).
+
+## 11. Nouveaux lieux de la bible (points 28 à 31, 36, 86)
+
+Le générateur ajoute **sans rien déplacer** (vérifié : les anciens lieux, routes et épaves sont identiques) :
+l'**aéroport régional** (terminal où des survivants ont tenu, tour de contrôle avec sa radio, hangar à pièces de drones,
+dépôt de carburant, avion écrasé au bout d'une traînée de débris, piste d'extraction), le **centre d'achat** Carrefour
+Laurentides (boutiques, pharmacie, aire de restauration, cinéma plein de morts endormis, poste de sécurité, camp perdu),
+l'**aréna** Gilles-Tremblay (patinoire avec des formes sous la glace, gradins), la **prison** (miradors, deux blocs
+cellulaires, armurerie, levier qui ouvre toutes les cellules, traces de l'émeute des pillards), l'**université**
+(labo de biologie civil, bibliothèque, résidences), le **port**, l'**hôtel**, trois **gares** reliées par la
+**Ligne Laurentienne** (rails, tronçons arrachés), et des **ponts détruits** (route 117, voie ferrée, un chemin sur la
+rivière) : passages obligés, aussi pour les hordes du moteur (`graphe.yml`, liens « pont_detruit »).
+Chaque sous-lieu a son nom à l'entrée, sa phrase et ses zombies (za_p73 ; noyés au port, givrés sur la patinoire).
+
+**À faire (serveur ARRÊTÉ, avant que les joueurs construisent dans ces zones)** : régénérer seulement les 47 régions
+touchées (≈ 5 minutes) :
+```
+python3 generateur_monde/generer.py --forcer --regions=-8,-2/-8,-1/-8,0/-8,1/-7,-1/-7,0/-4,-5/-4,-4/-4,-3/-4,-2/-3,-2/-3,-1/-2,-2/-2,-1/-1,-2/-1,-1/-1,0/-1,1/0,-2/0,-1/0,0/0,1/0,2/0,3/1,-3/1,-2/1,-1/1,0/1,1/1,2/1,3/2,-3/2,-2/2,0/2,1/2,3/3,3/4,0/4,1/4,2/4,3/5,0/5,1/7,0/7,1/7,2/7,3
+```
+⚠️ Une région régénérée perd ce que les joueurs y ont construit. Ensuite, en jeu : `/zasites installer` (les nouveaux
+lieux rejoignent la mémoire du monde). **Testé** : les dix structures se construisent sans erreur, deux régions
+(gare de Saint-Aurèle + rails, pont détruit de la voie ferrée) générées sans erreur. **Pas testé** : le rendu en jeu, la
+forme des rails dans les virages et les pentes, l'accès aux étages (échafaudages).

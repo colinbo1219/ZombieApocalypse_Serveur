@@ -58,7 +58,8 @@ def main():
     # nom de région : le lieu le plus important qui s'y trouve, sinon une description
     poids = {'ruines': 100, 'norda': 90, 'barrage': 85, 'militaire': 80, 'village': 70, 'industriel': 60,
              'carriere': 55, 'emetteur': 50, 'cimetiere': 45, 'arrivee': 40, 'ferme': 20, 'motel': 20,
-             'station': 20, 'checkpoint': 25, 'refuge': 5, 'chalet': 5, 'camp_chasse': 5}
+             'station': 20, 'checkpoint': 25, 'refuge': 5, 'chalet': 5, 'camp_chasse': 5,
+             'aeroport': 75, 'prison': 72, 'centre_achat': 65, 'universite': 62, 'arena': 50, 'gare': 35, 'hotel': 30, 'port': 30}
     noms = {}
     for s in sites:
         i, j = reg(s['x'], s['z'])
@@ -104,7 +105,11 @@ def main():
                 k1, k2 = rid(i, j), rid(a, b)
                 route = bool(routes.get(k1)) and bool(routes.get(k2))
                 cout = 1 if route else 3
-                lignes.append('  - %s' % yq('%s;%s;%d;%s' % (k1, k2, cout, 'route' if route else 'terre')))
+                genre = 'route' if route else 'terre'
+                # pont détruit (86) : le passage nord-sud de cette région devient un détour
+                if dj == 1 and any(reg(br['x'], br['z']) in ((i, j), (a, b)) for br in pl.get('breches', [])):
+                    cout, genre = 4, 'pont_detruit'
+                lignes.append('  - %s' % yq('%s;%s;%d;%s' % (k1, k2, cout, genre)))
     # liens d'eau, vers l'aval seulement
     for a, b in zip(riv_regs, riv_regs[1:]):
         lignes.append('  - %s' % yq('%s;%s;1;riviere' % (rid(*a), rid(*b))))

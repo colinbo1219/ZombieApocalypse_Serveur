@@ -260,6 +260,7 @@ class Region:
         surf = np.where(route == 2, gris, surf)
         surf = np.where(route == 3, np.where(r < 0.5, P('minecraft:dirt_path'), np.where(r < 0.8, P('minecraft:gravel'), P('minecraft:coarse_dirt'))), surf)
         surf = np.where(route == 4, P('minecraft:gravel'), surf)
+        surf = np.where(route == 5, P('minecraft:gravel'), surf)              # ballast de la voie ferrée (36)
         # marquage : autoroute (lignes de voies pointillées, bords blancs, terre-plein jaune), route (ligne jaune)
         auto = route == 1
         surf = np.where(auto & (rd < 0.7), jaune, surf)
@@ -290,6 +291,62 @@ class Region:
         for (z1, x1, y1) in zip(zp[pil], xp[pil], yp[pil]):
             fond = self.h[z1, x1] - Y0
             self.b[fond:y1 - 1, z1, x1] = P('minecraft:stone_bricks')
+        self.rails()
+        # ponts détruits (86) : le tablier est arraché au milieu de la rivière
+        for br in self.plan.get('breches', []):
+            if not (self.x0 - 20 <= br['x'] < self.x0 + N + 20 and self.z0 - 20 <= br['z'] < self.z0 + N + 20):
+                continue
+            d = np.hypot(X[zp, xp] - br['x'], Z[zp, xp] - br['z'])
+            k = d < br['r']
+            for dy in (-1, 0, 1, 2):
+                self.b[yp[k] + dy, zp[k], xp[k]] = 0
+
+    def rails(self):
+        """Les rails sur l'axe de la voie (code 5) : droits, courbes aux coudes, en pente d'un bloc. Des tronçons arrachés."""
+        P = self.pal
+        c = self.c
+        axe = (c['route'] == 5) & (c['route_d'] < 0.5)
+        if not axe[MARGE:MARGE + N, MARGE:MARGE + N].any():
+            return
+        ry = c['route_y']
+        rs = c['route_s']
+        g = self.plan['graine']
+        zz, xx = np.nonzero(axe[MARGE:MARGE + N, MARGE:MARGE + N])
+        for z, x in zip(zz, xx):
+            Zc, Xc = z + MARGE, x + MARGE
+            # tronçons arrachés : ~18 blocs tous les ~700 (et le pont détruit fait le reste)
+            if (int(rs[Zc, Xc]) + g) % 700 < 18:
+                continue
+            y = ry[Zc, Xc]
+            n = axe[Zc - 1, Xc]
+            s_ = axe[Zc + 1, Xc]
+            e = axe[Zc, Xc + 1]
+            w = axe[Zc, Xc - 1]
+            forme = 'north_south'
+            if (e or w) and not (n or s_):
+                forme = 'east_west'
+            elif n and e and not (s_ or w):
+                forme = 'north_east'
+            elif n and w and not (s_ or e):
+                forme = 'north_west'
+            elif s_ and e and not (n or w):
+                forme = 'south_east'
+            elif s_ and w and not (n or e):
+                forme = 'south_west'
+            # pente : le voisin dans l'axe est un bloc plus haut
+            if forme == 'east_west':
+                if e and ry[Zc, Xc + 1] > y:
+                    forme = 'ascending_east'
+                elif w and ry[Zc, Xc - 1] > y:
+                    forme = 'ascending_west'
+            elif forme == 'north_south':
+                if n and ry[Zc - 1, Xc] > y:
+                    forme = 'ascending_north'
+                elif s_ and ry[Zc + 1, Xc] > y:
+                    forme = 'ascending_south'
+            ly = y + 1 - Y0
+            if 1 <= ly < HY - 2:
+                self.b[ly, z, x] = P('minecraft:rail[shape=%s,waterlogged=false]' % forme)
 
     # ------------------------------------------------------------------ végétation
     def vegetation(self, gab):

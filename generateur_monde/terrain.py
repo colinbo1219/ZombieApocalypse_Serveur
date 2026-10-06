@@ -176,7 +176,7 @@ def champ(plan, X, Z, routes=True):
     route_l = np.zeros(X.shape)       # demi-largeur de la route
     pont = np.zeros(X.shape, bool)
     if routes:
-        code = {'autoroute': 1, 'route': 2, 'rang': 3}
+        code = {'autoroute': 1, 'route': 2, 'rang': 3, 'rail': 5}
         best = np.full(X.shape, 1e9)
         for r in plan['routes']:
             dr, sr, _ = distance_polyligne(X, Z, r['points'], 80)

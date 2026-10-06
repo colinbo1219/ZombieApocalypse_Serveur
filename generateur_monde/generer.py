@@ -105,6 +105,29 @@ ZOMBIES = {
     'carambolage': 'ZA_Citoyen_Infecte,ZA_Crawler,ZA_Runner,ZA_Shambler',
     'exode': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Child,ZA_Runner,ZA_Crawler',
     'convoi': 'ZA_Soldat_Infecte,ZA_Soldat_Infecte,ZA_Armored',
+    # grands lieux de la bible (Partie 3) et leurs sous-lieux
+    'aeroport': 'ZA_Citoyen_Infecte,ZA_Soldat_Infecte,ZA_Runner',
+    'terminal': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Crawler',
+    'tour_controle': 'ZA_Ouvrier_Infecte,ZA_Screamer',
+    'hangar': 'ZA_Ouvrier_Infecte,ZA_Brute',
+    'depot_carburant': 'ZA_Ouvrier_Brule,ZA_Bloater',
+    'avion': 'ZA_Citoyen_Infecte,ZA_Crawler,ZA_FakeDead',
+    'piste': 'ZA_Runner,ZA_Shambler',
+    'centre_achat': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Shambler,ZA_Child',
+    'pharmacie': 'ZA_Medecin_Infecte,ZA_Citoyen_Infecte',
+    'cinema': 'ZA_FakeDead,ZA_Shambler,ZA_Shambler,ZA_Stalker',
+    'arena': 'ZA_Citoyen_Infecte,ZA_Brute,ZA_Shambler',
+    'patinoire': 'ZA_Givre,ZA_Citoyen_Infecte',
+    'prison': 'ZA_Prisonnier_Infecte,ZA_Prisonnier_Infecte,ZA_Policier_Infecte',
+    'cellules': 'ZA_Prisonnier_Infecte,ZA_Prisonnier_Infecte,ZA_Brute',
+    'controle_prison': 'ZA_Policier_Infecte,ZA_Armored',
+    'gare': 'ZA_Citoyen_Infecte,ZA_Runner,ZA_Ouvrier_Infecte',
+    'universite': 'ZA_Citoyen_Infecte,ZA_Runner,ZA_Shambler',
+    'labo_civil': 'ZA_Medecin_Infecte,ZA_Spitter,ZA_Patient_Infecte',
+    'bibliotheque': 'ZA_Stalker,ZA_Citoyen_Infecte',
+    'residences': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner',
+    'port': 'ZA_Noye,ZA_Ouvrier_Infecte,ZA_Citoyen_Infecte',
+    'hotel': 'ZA_Citoyen_Infecte,ZA_Stalker,ZA_FakeDead',
     # souterrains (reconnus seulement près de leur profondeur, voir za_p73)
     'sous_norda': 'ZA_Patient_Infecte,ZA_Medecin_Infecte,ZA_Spitter,ZA_Stalker,ZA_Crawler',
     'sous_bunker': 'ZA_Soldat_Infecte,ZA_Soldat_Infecte,ZA_Armored,ZA_Stalker',
@@ -125,7 +148,7 @@ def ecrire_skript(pl):
         apparitions += ['%s;%d;%d;%d' % (st.nom, a, b, c) for (a, b, c) in ap]
     # sous-lieux ensuite (école, clinique... d'un village) : ils ont priorité sur le village qui les contient
     for s in pl['sites']:
-        if s['type'] != 'village':
+        if s['type'] != 'village' and not s.get('bible'):
             continue
         st = sites.structure_de(s, pl)
         bx, by, bz = sites.base_de(s, st)

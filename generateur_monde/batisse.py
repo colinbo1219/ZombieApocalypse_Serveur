@@ -898,3 +898,7 @@ def cimetiere(site, plan):
         m.fill(x - 1, 67, z - 1, x + 1, 70, z + 1, S('spruce_leaves', distance=1, persistent=True, waterlogged=False))
     return ch.terminer(0.25)
 
+
+
+# ============================================================================ grands lieux de la bible (Partie 3)
+from grands_lieux import aeroport, centre_achat, arena, prison, gare, universite, port, hotel  # noqa: E402,F401

@@ -47,6 +47,8 @@ def _cardinal(dx, dz):
 
 def _loin_des_sites(plan, x, z, marge=120):
     for s in plan['sites']:
+        if s.get('bible'):
+            continue
         if abs(s['x'] - x) < s['larg'] / 2 + marge and abs(s['z'] - z) < s['prof'] / 2 + marge:
             return False
     return abs(x) < plan['limite'] - 150 and abs(z) < plan['limite'] - 150

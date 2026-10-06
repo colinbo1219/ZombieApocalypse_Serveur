@@ -125,6 +125,51 @@ function za_site_ambiance(t: text) :: text:
         return "L'eau coule encore. Dans le noir, quelque chose rampe dans le même sens que toi."
     if {_t} is "arrivee":
         return "L'autobus du Jour 8. C'est ici que tout a recommencé."
+    # grands lieux de la bible (Partie 3)
+    if {_t} is "aeroport":
+        return "Le dernier vol est parti le Jour 6. Le suivant ne s'est jamais posé."
+    if {_t} is "terminal":
+        return "Des lits de camp entre les sièges. Des survivants ont tenu ici, des semaines."
+    if {_t} is "tour_controle":
+        return "La radio de la tour porte loin. Très loin. Si quelqu'un la réparait..."
+    if {_t} is "hangar":
+        return "Des caisses marquées NORDA. Des pièces de drones."
+    if {_t} is "depot_carburant":
+        return "Kérosène. Une étincelle, et tout le secteur s'en souviendra."
+    if {_t} is "avion":
+        return "Une traînée de débris, puis le fuselage brisé. Les ceintures sont encore bouclées."
+    if {_t} is "piste":
+        return "Une piste dégagée. Assez longue pour un hélicoptère. Ou une évacuation."
+    if {_t} is "centre_achat":
+        return "Les escaliers mécaniques se sont arrêtés au milieu d'un samedi."
+    if {_t} is "pharmacie":
+        return "Les tablettes de la pharmacie. Quelqu'un est passé avant toi. Pas tout le monde."
+    if {_t} is "cinema":
+        return "Une salle noire. Des rangées de sièges. Et des formes assises qui ne bougent pas."
+    if {_t} is "arena":
+        return "Le tableau indique encore 2 à 1. Troisième période."
+    if {_t} is "patinoire":
+        return "Sous la glace, des formes figées. Certaines ont les yeux ouverts."
+    if {_t} is "prison":
+        return "L'émeute a commencé le Jour 5. Les pillards sont nés ici."
+    if {_t} is "cellules":
+        return "Toutes les portes sont ouvertes. Sauf celles qui tiennent encore quelque chose."
+    if {_t} is "controle_prison":
+        return "Un seul levier ouvre toutes les cellules. Il est encore en position fermée."
+    if {_t} is "gare":
+        return "Le prochain train : annulé. Les rails, eux, mènent encore quelque part."
+    if {_t} is "universite":
+        return "Un campus vide. Les affiches parlent encore des examens de décembre."
+    if {_t} is "labo_civil":
+        return "Un labo de biologie. Pas NORDA, mais assez pour analyser un échantillon."
+    if {_t} is "bibliotheque":
+        return "Des milliers de livres, et un silence qui n'est pas vide."
+    if {_t} is "residences":
+        return "Des valises à moitié faites devant chaque porte."
+    if {_t} is "port":
+        return "Les bateaux ont tous été pris. Il reste le quai, et ce qui flotte dessous."
+    if {_t} is "hotel":
+        return "Complet. Les clients ne sont jamais partis."
     return "Un lieu que la région a oublié."
 
 # ---------------------------------------------------------------- entrée dans un lieu
