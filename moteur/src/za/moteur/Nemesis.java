@@ -302,6 +302,34 @@ public final class Nemesis {
     void jour() {
     }
 
+    /** autopsie (19) : la tête d'un vétéran apprend la faiblesse d'un autre — celui qui te traque d'abord */
+    public Fiche pourAutopsie(UUID joueur) {
+        Fiche autre = null;
+        for (Fiche f : fiches.values()) {
+            if (f.faiblesseConnue) continue;
+            if (joueur.equals(f.victime)) return f;
+            autre = f;
+        }
+        return autre;
+    }
+
+    public static String faiblesseMots(String c) {
+        switch (c) {
+            case "melee":
+                return "les coups portés de près";
+            case "fleche":
+                return "les flèches";
+            case "balle":
+                return "les balles";
+            case "feu":
+                return "le feu";
+            case "explosion":
+                return "les explosions";
+            default:
+                return "quelque chose qu'on ignore encore";
+        }
+    }
+
     public String faiblesse(String id) {
         Fiche f = fiches.get(id);
         if (f == null) return "";

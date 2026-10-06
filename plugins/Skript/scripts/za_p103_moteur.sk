@@ -512,6 +512,8 @@ function za_mot_crash(p: player, type: text):
     add 2 of golden apple to inventory of {_blk}
     if {_type} is "crash":
         add za_item("book", "Boîte noire (enregistrement)", "&8", 1) to inventory of {_blk}
+    # un morceau de plan rare (114)
+    add za_plan_fragment() to inventory of {_blk}
     set {_wd} to za_dim(world of {_l})
     execute console command "execute in %{_wd}% run particle minecraft:campfire_signal_smoke %x-coordinate of {_l}% %y-coordinate of {_l} + 2% %z-coordinate of {_l}% 0.5 4 0.5 0.01 80 force"
     za_mot_evt("crash", {_l}, 3, "%{_p}'s uuid%", "")
@@ -712,6 +714,8 @@ every 30 seconds:
                 set {_it} to za_mot_convoi_objet({_c::4}, {_q})
                 if {_it} is set:
                     add {_it} to inventory of {_b}
+                if chance of 50%:
+                    add za_plan_fragment() to inventory of {_b}
                 send "&7Une charrette renversée, des corps, des caisses éventrées. &8(le convoi de %uncolored za_faction_nom({_c::3})%)" to loop-value-2
                 za_spawn_at({_l}, "ZA_Shambler", 6, 14)
                 za_spawn_at({_l}, "ZA_Shambler", 6, 14)

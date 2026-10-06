@@ -199,6 +199,52 @@ final class Commandes {
             case "fac":
                 z.societe.decrire(a);
                 return true;
+            // la science (19) : autopsie, prévisions, décontamination
+            case "autopsie": {
+                Nemesis.Fiche f = z.nemesis.pourAutopsie(UUID.fromString(a[1]));
+                if (f == null) {
+                    z.pont.zaevt("msg " + a[1] + " L'autopsie ne révèle rien qu'on ne sache déjà.");
+                    return true;
+                }
+                z.nemesis.faiblesse(f.id);
+                z.pont.zaevt("msg " + a[1] + " Autopsie : les tissus réagissent mal à " + Nemesis.faiblesseMots(f.faiblesse) + ". " + f.nom + " a la même souche. Le bestiaire le note.");
+                z.pont.zaevt("bestiaire_avis " + f.nom + " (craint " + Nemesis.faiblesseMots(f.faiblesse) + ")");
+                return true;
+            }
+            case "prevoir":
+                prevoir(z, a[1]);
+                return true;
+            case "brouiller": {
+                Player bp = Bukkit.getPlayer(UUID.fromString(a[1]));
+                if (bp != null) {
+                    int n = z.nordaReel.brouiller(bp);
+                    z.pont.zaevt("msg " + a[1] + " " + (n == 0 ? "Le brouilleur grésille. Aucun drone à portée." : n + " drone(s) tombe(nt) comme des pierres."));
+                }
+                return true;
+            }
+            case "decontaminer":
+                synchronized (z.monde) {
+                    Region r = z.monde.graphe.region(d(a[1]), d(a[2]));
+                    if (r != null) {
+                        r.contamination = Math.max(0, r.contamination - d(a[3]));
+                        r.eau = Math.min(100, r.eau + d(a[3]) / 2);
+                    }
+                }
+                z.publier(new Evenement("decontamination").a(d(a[1]), d(a[2])).grav(3).dit("une équipe a décontaminé le secteur"));
+                return true;
+            case "infodonner": {
+                // zam infodonner <vendeur> <acheteur> <n°> : une information vendue (F9, 91)
+                synchronized (z.monde) {
+                    List<za.moteur.coeur.Information.Connue> l = z.monde.info.savoir("joueur:" + a[1]);
+                    int n = i(a[3]) - 1;
+                    if (n >= 0 && n < l.size()) {
+                        za.moteur.coeur.Information.Connue c = l.get(n);
+                        z.monde.info.apprendre("joueur:" + a[2], c.info, c.texte, Math.min(c.fiabilite, 75), "achat", c.sauts + 1);
+                        z.pont.zaevt("msg " + a[2] + " Tu as acheté : « " + z.monde.info.vu(c) + " » (" + za.moteur.coeur.Information.age(System.currentTimeMillis() - c.info.cree) + ")");
+                    }
+                }
+                return true;
+            }
             // le mensonge lisible (IA-9)
             case "demander":
                 z.mensonges.demander(a[1], i(a[2]));
@@ -610,5 +656,44 @@ final class Commandes {
             l = z.monde.graphe.lieuProche(x, zz, 400);
         }
         if (l != null) p.sendMessage("§7Lieu le plus proche : " + l.nom + " (" + l.type + ")");
+    }
+
+    /** prévisions des scientifiques (19) : où vont les hordes proches, quelle mutation monte dans la région */
+    private static void prevoir(ZAMoteur z, String u) {
+        Player p = Bukkit.getPlayer(UUID.fromString(u));
+        if (p == null) return;
+        double x = p.getLocation().getX(), zz = p.getLocation().getZ();
+        List<String> l = new ArrayList<>();
+        synchronized (z.monde) {
+            List<Horde> hs = new ArrayList<>(z.monde.hordes);
+            hs.sort((h1, h2) -> Double.compare(Math.hypot(h1.x - x, h1.z - zz), Math.hypot(h2.x - x, h2.z - zz)));
+            for (int k = 0; k < Math.min(2, hs.size()); k++) {
+                Horde h = hs.get(k);
+                double d = Math.hypot(h.x - x, h.z - zz);
+                String dir = direction(h.x - x, h.z - zz);
+                String va = Math.hypot(h.cx - x, h.cz - zz) < d - 50 ? "elle se rapproche" : "elle s'éloigne ou tourne";
+                l.add("Une horde d'environ " + (h.taille / 10 * 10 + 10) + " morts, à " + (int) (d / 100) * 100 + " m au " + dir + " : " + va + ".");
+            }
+            Region r = z.monde.graphe.region(x, zz);
+            if (r != null) {
+                String trait = null;
+                double best = 0.15;
+                for (Map.Entry<String, Double> t : r.traits.entrySet())
+                    if (t.getValue() > best) {
+                        best = t.getValue();
+                        trait = t.getKey();
+                    }
+                l.add(trait == null ? "Pas de mutation qui se dessine ici pour l'instant." : "La prochaine adaptation du secteur : « " + trait + " » (" + (int) (best * 100) + " %).");
+                l.add("Contamination mesurée : " + (int) r.contamination + " %, eau saine : " + (int) r.eau + " %.");
+            }
+        }
+        for (String s : l) z.pont.zaevt("msg " + u + " " + s);
+    }
+
+    private static String direction(double dx, double dz) {
+        double a = Math.toDegrees(Math.atan2(dz, dx));
+        String[] n = {"est", "sud-est", "sud", "sud-ouest", "ouest", "nord-ouest", "nord", "nord-est"};
+        int k = (int) Math.round(((a + 360) % 360) / 45.0) % 8;
+        return n[k];
     }
 }

@@ -129,6 +129,7 @@ command /zaregboss <text> [<text>]:
                 loop all players in radius 40 around {_l}:
                     if za_pro(loop-player) is false:
                         set {za::titres::%loop-player's uuid%::rb_%{_id}%} to "Tombeur de %za_rb_nom({_id})%"
+                        give za_plan_fragment() to loop-player
                         za_souvenir_ajouter("%loop-player's uuid%", "rboss:%{_id}%", "legende", "J'étais là quand %za_rb_nom({_id})% est tombé.")
                         send title "&6%za_rb_nom({_id})% est tombé" with subtitle "&7Titre : Tombeur de %za_rb_nom({_id})%" to loop-player for 4 seconds
                         set {_noms} to "%{_noms}% %loop-player%"

@@ -200,6 +200,22 @@ public final class NordaReel {
         }
     }
 
+    /** brouilleur de drone ou EMP (114, p34) : les drones à 64 blocs tombent, sans preuve contre le joueur */
+    public int brouiller(Player p) {
+        int n = 0;
+        Iterator<Drone> it = drones.iterator();
+        while (it.hasNext()) {
+            Drone d = it.next();
+            Entity e = d.entite == null ? null : Bukkit.getEntity(d.entite);
+            if (e == null || e.getWorld() != p.getWorld() || e.getLocation().distance(p.getLocation()) > 64) continue;
+            e.getWorld().spawnParticle(org.bukkit.Particle.SMOKE_LARGE, e.getLocation(), 20, 0.3, 0.3, 0.3, 0.02);
+            e.remove();
+            it.remove();
+            n++;
+        }
+        return n;
+    }
+
     public void droneAbattu(Entity e, Player tueur) {
         drones.removeIf(d -> e.getUniqueId().equals(d.entite));
         Location l = e.getLocation();
