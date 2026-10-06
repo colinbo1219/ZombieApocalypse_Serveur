@@ -19,9 +19,13 @@ plafonds:
   zombies_reels_serveur: 350
   zombies_reels_joueur: 40
 
-# Ω (bible IA-15) : facultatif. Laisser vide pour ne rien envoyer à l'extérieur.
+# Ω (bible IA-16) : facultatif et PAYANT (API à l'usage, séparée de tout abonnement). Laisser la clé vide pour ne rien
+# envoyer à l'extérieur. Fournisseur : anthropic (modèle Haiku, ~10 $/mois à 5 joueurs) ou gemini (version gratuite :
+# Google utilise les échanges, serveur privé seulement). Seuls les pseudos et les événements du jeu sont envoyés.
 omega:
+  fournisseur: anthropic
   cle: ""
-  modele: claude-opus-5-5
-  quota_jour: 4
+  modele: claude-haiku-4-5
+  quota_jour: 40
+  quota_joueur: 8
   url: https://api.anthropic.com/v1/messages

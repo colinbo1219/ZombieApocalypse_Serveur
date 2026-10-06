@@ -133,6 +133,8 @@ function za_lieu_evt(k: text, texte: text, poids: number, cat: text):
 function za_monde_evt(texte: text, l: location, poids: number, cat: text):
     if "%world of {_l}%" is "za_prologue":
         stop
+    # la Chronique du moteur l'apprend aussi (bible F2)
+    za_mot_evt("monde_%{_cat}%", {_l}, max(1, min(5, {_poids})), "-", uncolored {_texte})
     set {_k} to za_lieu_zone({_l})
     za_lieu_evt({_k}, {_texte}, {_poids}, {_cat})
 

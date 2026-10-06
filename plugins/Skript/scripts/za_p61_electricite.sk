@@ -244,6 +244,12 @@ function za_elec_tick():
 
 function za_elec_annonce(q: text, avant: text, e: text):
     set {_n} to za_reseau_nom({_q})
+    set {_cq} to za_elec_centre_q({_q})
+    if {_cq} is set:
+        if {_e} is "ALIMENTE":
+            za_mot("courant %floor(x-coordinate of {_cq})% %floor(z-coordinate of {_cq})% on")
+        else if {_e} is "BLACKOUT" or "PANNE":
+            za_mot("courant %floor(x-coordinate of {_cq})% %floor(z-coordinate of {_cq})% off")
     if {_e} is "ALIMENTE":
         if {_avant} is "BLACKOUT" or "PANNE" or "PARTIEL":
             za_radio("&6CKZA", "%{_n}% : le courant revient. Les lampadaires se rallument un par un.")

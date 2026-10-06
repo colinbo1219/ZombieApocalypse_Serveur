@@ -163,6 +163,8 @@ public final class ZAMoteur extends JavaPlugin {
         new BukkitRunnable() {
             @Override
             public void run() {
+                // signe de vie pour Skript (za_mot_actif)
+                pont.set("pret", String.valueOf(System.currentTimeMillis() / 1000));
                 publierEtatsJoueurs();
                 if (actif("ecosysteme")) ecosysteme.tick30s();
                 if (actif("lea")) lea.tick30s();

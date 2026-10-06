@@ -153,7 +153,8 @@ public final class Ecouteurs implements Listener {
                 }
             }
             // capture par NORDA au palier 5 (100) : ses agents capturent au lieu de tuer
-            if (src.getScoreboardTags().contains("za_norda") && z.nordaReel.capturables.contains(p.getUniqueId())
+            if ((src.getScoreboardTags().contains("za_norda") || (src.getCustomName() != null && src.getCustomName().contains("NORDA")))
+                    && z.nordaReel.capturables.contains(p.getUniqueId())
                     && p.getHealth() - ev.getFinalDamage() <= 1) {
                 ev.setCancelled(true);
                 p.setHealth(Math.max(1, p.getHealth()));

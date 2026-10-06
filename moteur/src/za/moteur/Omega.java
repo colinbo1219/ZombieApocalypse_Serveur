@@ -17,9 +17,10 @@ import java.util.function.Consumer;
 
 /**
  * Ω — le narrateur facultatif (bible IA-15). DÉSACTIVÉ par défaut ; il faut une clé d'API dans config.yml
- * (omega.cle) et « systemes.omega: true ». Quelques appels par jour au plus (omega.quota_jour) : Léa écrit sa chronique
- * du soir à partir des vrais événements de la Chronique. Si l'appel échoue, rien ne casse : Léa garde ses textes fixes.
- * Appel HTTP direct à l'API Messages (pas de dépendance à embarquer dans le plugin).
+ * (omega.cle) et « systemes.omega: true ». Fournisseur au choix (omega.fournisseur : anthropic ou gemini), quota par jour
+ * et par joueur, réponses en cache. Léa écrit sa chronique du soir à partir des vrais événements ; les PNJ importants
+ * peuvent parler librement (/parler). Si l'appel échoue, rien ne casse : on retombe sur les textes écrits.
+ * Appel HTTP direct (pas de dépendance à embarquer dans le plugin).
  */
 public final class Omega {
     private final ZAMoteur z;
@@ -28,6 +29,8 @@ public final class Omega {
     private int appelsJour;
     private String derniereErreur = "";
     private String dernierTexte = "";
+    private final Map<String, Integer> parJoueur = new java.util.HashMap<>();
+    private final Map<String, String> cache = new LinkedHashMap<>();
 
     Omega(ZAMoteur z) {
         this.z = z;
@@ -62,28 +65,64 @@ public final class Omega {
 
     /** un appel ; le rappel s'exécute sur le fil principal */
     public void demander(String consigne, Consumer<String> rappel) {
+        demander(null, systemeLea(), consigne, rappel);
+    }
+
+    private static String systemeLea() {
+        return "Tu es Léa, animatrice d'une petite radio communautaire qui survit dans le Québec rural pendant une épidémie. "
+                + "Ton ton est humain, fatigué, courageux. Jamais de gore gratuit, jamais de méta, pas de listes.";
+    }
+
+    /**
+     * Un appel au modèle (IA-16). Le cerveau a déjà décidé QUOI dire ; le modèle ne fait que le formuler.
+     * joueur : uuid pour le quota par joueur (null = système). Réponse mise en cache : même demande, même réponse.
+     */
+    public void demander(String joueur, String systeme, String consigne, Consumer<String> rappel) {
         if (!pret()) return;
         if (jourQuota != z.jour()) {
             jourQuota = z.jour();
             appelsJour = 0;
+            parJoueur.clear();
         }
-        if (appelsJour >= z.getConfig().getInt("omega.quota_jour", 4)) return;
+        String cle = Integer.toHexString((systeme + "\u0000" + consigne).hashCode());
+        String deja = cache.get(cle);
+        if (deja != null) {
+            Bukkit.getScheduler().runTask(z, () -> rappel.accept(deja));
+            return;
+        }
+        if (appelsJour >= z.getConfig().getInt("omega.quota_jour", 40)) return;
+        if (joueur != null && parJoueur.merge(joueur, 1, Integer::sum) > z.getConfig().getInt("omega.quota_joueur", 8)) return;
         appelsJour++;
-        String modele = z.getConfig().getString("omega.modele", "claude-opus-5-5");
-        String systeme = "Tu es Léa, animatrice d'une petite radio communautaire qui survit dans le Québec rural pendant une épidémie. "
-                + "Ton ton est humain, fatigué, courageux. Jamais de gore gratuit, jamais de méta, pas de listes.";
-        String corps = "{\"model\":" + json(modele) + ",\"max_tokens\":1024"
-                + ",\"output_config\":{\"effort\":\"low\"},\"fallbacks\":\"default\""
-                + ",\"system\":" + json(systeme)
-                + ",\"messages\":[{\"role\":\"user\",\"content\":" + json(consigne) + "}]}";
-        HttpRequest req = HttpRequest.newBuilder(URI.create(z.getConfig().getString("omega.url", "https://api.anthropic.com/v1/messages")))
-                .timeout(Duration.ofSeconds(120))
-                .header("content-type", "application/json")
-                .header("x-api-key", cle())
-                .header("anthropic-version", "2023-06-01")
-                .header("anthropic-beta", "server-side-fallback-2026-07-01")
-                .POST(HttpRequest.BodyPublishers.ofString(corps, StandardCharsets.UTF_8))
-                .build();
+        String fournisseur = z.getConfig().getString("omega.fournisseur", "anthropic");
+        String modele = z.getConfig().getString("omega.modele", "claude-haiku-4-5");
+        if (fournisseur.equals("gemini") && modele.startsWith("claude")) modele = "gemini-2.0-flash";
+        String sys = systeme + " Réponds en français québécois, deux phrases au maximum, sans rien d'autre que la réplique.";
+        HttpRequest req;
+        if (fournisseur.equals("gemini")) {
+            String corps = "{\"systemInstruction\":{\"parts\":[{\"text\":" + json(sys) + "}]}"
+                    + ",\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":" + json(consigne) + "}]}]"
+                    + ",\"generationConfig\":{\"maxOutputTokens\":300}}";
+            req = HttpRequest.newBuilder(URI.create("https://generativelanguage.googleapis.com/v1beta/models/" + modele + ":generateContent"))
+                    .timeout(Duration.ofSeconds(60))
+                    .header("content-type", "application/json")
+                    .header("x-goog-api-key", cle())
+                    .POST(HttpRequest.BodyPublishers.ofString(corps, StandardCharsets.UTF_8))
+                    .build();
+        } else {
+            // Haiku 4.5 ne prend ni « effort » ni repli serveur : on ne les envoie qu'aux modèles qui les acceptent
+            boolean recent = !modele.contains("haiku");
+            String corps = "{\"model\":" + json(modele) + ",\"max_tokens\":1024"
+                    + (recent ? ",\"output_config\":{\"effort\":\"low\"},\"fallbacks\":\"default\"" : "")
+                    + ",\"system\":" + json(sys)
+                    + ",\"messages\":[{\"role\":\"user\",\"content\":" + json(consigne) + "}]}";
+            HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(z.getConfig().getString("omega.url", "https://api.anthropic.com/v1/messages")))
+                    .timeout(Duration.ofSeconds(120))
+                    .header("content-type", "application/json")
+                    .header("x-api-key", cle())
+                    .header("anthropic-version", "2023-06-01");
+            if (recent) b.header("anthropic-beta", "server-side-fallback-2026-07-01");
+            req = b.POST(HttpRequest.BodyPublishers.ofString(corps, StandardCharsets.UTF_8)).build();
+        }
         http.sendAsync(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).whenComplete((rep, err) -> {
             if (err != null) {
                 derniereErreur = err.getClass().getSimpleName() + " : " + err.getMessage();
@@ -95,31 +134,53 @@ public final class Omega {
                     derniereErreur = "HTTP " + rep.statusCode() + " " + rep.body().substring(0, Math.min(200, rep.body().length()));
                     return;
                 }
-                Map<?, ?> m = (Map<?, ?>) o;
-                if ("refusal".equals(m.get("stop_reason"))) {
-                    derniereErreur = "refus du modèle";
-                    return;
-                }
-                StringBuilder t = new StringBuilder();
-                Object c = m.get("content");
-                if (c instanceof List) for (Object bloc : (List<?>) c) {
-                    if (bloc instanceof Map && "text".equals(((Map<?, ?>) bloc).get("type"))) t.append(((Map<?, ?>) bloc).get("text"));
-                }
-                String texte = t.toString().trim();
-                if (texte.isEmpty()) return;
-                dernierTexte = texte;
+                String texte = fournisseur.equals("gemini") ? texteGemini((Map<?, ?>) o) : texteClaude((Map<?, ?>) o);
+                if (texte == null || texte.isEmpty()) return;
+                // garde-fous : deux lignes, longueur bornée
+                texte = texte.replace('\n', ' ').trim();
+                if (texte.length() > 400) texte = texte.substring(0, 400);
+                String fin = texte;
+                cache.put(cle, fin);
+                if (cache.size() > 300) cache.remove(cache.keySet().iterator().next());
+                dernierTexte = fin;
                 derniereErreur = "";
-                Bukkit.getScheduler().runTask(z, () -> rappel.accept(texte));
+                Bukkit.getScheduler().runTask(z, () -> rappel.accept(fin));
             } catch (RuntimeException e) {
                 derniereErreur = "réponse illisible : " + e.getMessage();
             }
         });
     }
 
+    private String texteClaude(Map<?, ?> m) {
+        if ("refusal".equals(m.get("stop_reason"))) {
+            derniereErreur = "refus du modèle";
+            return null;
+        }
+        StringBuilder t = new StringBuilder();
+        Object c = m.get("content");
+        if (c instanceof List) for (Object bloc : (List<?>) c) {
+            if (bloc instanceof Map && "text".equals(((Map<?, ?>) bloc).get("type"))) t.append(((Map<?, ?>) bloc).get("text"));
+        }
+        return t.toString().trim();
+    }
+
+    private static String texteGemini(Map<?, ?> m) {
+        Object c = m.get("candidates");
+        if (!(c instanceof List) || ((List<?>) c).isEmpty()) return null;
+        Object cand = ((List<?>) c).get(0);
+        if (!(cand instanceof Map)) return null;
+        Object contenu = ((Map<?, ?>) cand).get("content");
+        if (!(contenu instanceof Map)) return null;
+        Object parts = ((Map<?, ?>) contenu).get("parts");
+        StringBuilder t = new StringBuilder();
+        if (parts instanceof List) for (Object p : (List<?>) parts) if (p instanceof Map && ((Map<?, ?>) p).get("text") != null) t.append(((Map<?, ?>) p).get("text"));
+        return t.toString().trim();
+    }
+
     public List<String> etat() {
         List<String> r = new ArrayList<>();
         r.add("Ω : " + (z.actif("omega") ? "activé" : "désactivé") + (cle().isEmpty() ? ", sans clé" : ", clé présente")
-                + ", appels aujourd'hui " + appelsJour + "/" + z.getConfig().getInt("omega.quota_jour", 4));
+                + ", " + z.getConfig().getString("omega.fournisseur", "anthropic") + ", appels aujourd'hui " + appelsJour + "/" + z.getConfig().getInt("omega.quota_jour", 40));
         if (!derniereErreur.isEmpty()) r.add("Dernière erreur : " + derniereErreur);
         if (!dernierTexte.isEmpty()) r.add("Dernier texte : " + dernierTexte);
         return r;

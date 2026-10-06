@@ -1,0 +1,661 @@
+# =====================================================================
+#  ZombieApocalypse - PONT AVEC LE MOTEUR DU MONDE (plugin ZAMoteur, bible F1)
+#  Le moteur Java simule le monde (régions, hordes, NORDA, Léa, Directeur...) hors du fil principal.
+#  Il parle à Skript par la console : « zaevt <type> ... » (commande /zaevt ci-dessous).
+#  Skript lui parle par « zam ... » (jour, saison, bases, camps, courant, téléphone...).
+#  Sans le plugin, rien ne part : {za::mot::pret} n'est mis à jour que par le moteur.
+#  Variables : {za::mot::<clé>} (écrites par « zaevt set »), {za::mot::reg::<uuid>} = id|nom|état|contamination|eau|
+#  danger|nids|population|courant|attentionZ|végétation|tours|quarantaine, {za::mot::palier::<uuid>},
+#  {za::mot::relache::<uuid>}, {za::mot::chron::*}, {za::mot::graffiti::*}, {za::mot::capt::<uuid>::*}
+#  Joueur : /monde (état de ta région, ce que le moteur sait)   Admin : /zaadmin (dans le plugin)
+# =====================================================================
+
+options:
+    rayon_region: 900
+
+# ---------------------------------------------------------------- outils
+
+# le moteur répond-il ? (il écrit {za::mot::pret} toutes les 30 s)
+function za_mot_actif() :: boolean:
+    if {za::mot::pret} is not set:
+        return false
+    set {_t} to {za::mot::pret} parsed as number
+    if {_t} is not set:
+        return false
+    if {_t} < (unix timestamp of now) - 120:
+        return false
+    return true
+
+# envoi d'une commande au moteur (seulement s'il est là)
+function za_mot(c: text):
+    if za_mot_actif() is false:
+        stop
+    execute console command "zam %{_c}%"
+
+# publier un événement dans la Chronique : type, lieu, gravité 1-5, acteurs (uuid séparés par des virgules ou "-"), texte
+function za_mot_evt(t: text, l: location, g: number, acteurs: text, texte: text):
+    if "%world of {_l}%" is "za_prologue":
+        stop
+    set {_x} to floor(x-coordinate of {_l})
+    set {_z} to floor(z-coordinate of {_l})
+    set {_a} to {_acteurs}
+    if {_a} is "":
+        set {_a} to "-"
+    za_mot("evt %{_t}% %{_x}% %{_z}% %{_g}% %{_a}% %{_texte}%")
+
+# le texte après les n premiers mots
+function za_mot_mots(t: text, n: number) :: text:
+    set {_r} to {_t}
+    loop {_n} times:
+        set {_i} to index of " " in {_r}
+        if {_i} < 1:
+            return ""
+        set {_d} to {_i} + 1
+        set {_f} to length of {_r}
+        if {_d} > {_f}:
+            return ""
+        set {_r} to subtext of {_r} from characters {_d} to {_f}
+    return {_r}
+
+# un champ de l'état de région publié par le moteur pour ce joueur (1 = id, 2 = nom, 3 = état...)
+function za_mot_reg(p: player, n: number) :: text:
+    set {_v} to {za::mot::reg::%{_p}'s uuid%}
+    if {_v} is not set:
+        return ""
+    set {_c::*} to split {_v} at "|"
+    return {_c::%{_n}%} ? ""
+
+function za_mot_etat_nom(e: text) :: text:
+    if {_e} is "0":
+        return "&aStable"
+    if {_e} is "1":
+        return "&eContaminée"
+    if {_e} is "2":
+        return "&6Dangereuse"
+    if {_e} is "3":
+        return "&cCritique"
+    if {_e} is "4":
+        return "&4Perdue"
+    return "&7Inconnue"
+
+# joueurs dont le moteur dit qu'ils sont dans cette région
+function za_mot_dans_region(r: text) :: players:
+    loop za_monde_joueurs():
+        if za_mot_reg(loop-value, 1) is {_r}:
+            add loop-value to {_l::*}
+    return {_l::*}
+
+# joueurs à moins de d blocs d'un point (monde principal)
+function za_mot_pres(x: number, z: number, d: number) :: players:
+    loop za_monde_joueurs():
+        if "%world of loop-value%" is "world":
+            set {_dx} to x-coordinate of loop-value - {_x}
+            set {_dz} to z-coordinate of loop-value - {_z}
+            if sqrt(({_dx} * {_dx}) + ({_dz} * {_dz})) <= {_d}:
+                add loop-value to {_l::*}
+    return {_l::*}
+
+# un joueur à partir de son uuid (s'il est en ligne)
+function za_mot_joueur(u: text) :: player:
+    loop all players:
+        if "%loop-player's uuid%" is {_u}:
+            return loop-player
+
+# ---------------------------------------------------------------- les stations (IA-12)
+
+function za_mot_radio(st: text, texte: text):
+    if {_st} is "lea":
+        za_radio("&bLéa &8(CKZA 98,5)", {_texte})
+    else if {_st} is "pirate":
+        za_radio("&cRadio Libre Saint-Aurèle", {_texte})
+    else if {_st} is "norda":
+        za_radio("&4Avis officiel NORDA", {_texte})
+    else if {_st} is "bravo":
+        # Bravo parle en code, sur la fréquence militaire : seuls ceux qui l'écoutent l'entendent
+        loop za_monde_joueurs():
+            if {za::freq::ecoute::%loop-value's uuid%} is "104.2":
+                if za_sans_signal(loop-value) is false:
+                    send "&8[&2📻 104.2 Bravo&8] &7%{_texte}%" to loop-value
+        za_journal("Radio Bravo : %{_texte}%")
+    else:
+        za_radio("&7%{_st}%", {_texte})
+
+# ---------------------------------------------------------------- ce que le moteur demande (zaevt)
+
+command /zaevt <text>:
+    executable by: console
+    trigger:
+        set {_a::*} to split arg-1 at " "
+        set {_t} to {_a::1}
+        if {_t} is "set":
+            set {za::mot::%{_a::2}%} to za_mot_mots(arg-1, 2)
+        else if {_t} is "sms":
+            set {_de} to {_a::3}
+            replace all "_" with " " in {_de}
+            za_tel_sms({_a::2}, {_de}, za_mot_mots(arg-1, 3))
+        else if {_t} is "radio":
+            za_mot_radio({_a::2}, za_mot_mots(arg-1, 2))
+        else if {_t} is "journal":
+            za_journal(za_mot_mots(arg-1, 1))
+        else if {_t} is "chron":
+            add za_mot_mots(arg-1, 2) to {za::mot::chron::*}
+            while size of {za::mot::chron::*} > 60:
+                set {_ks::*} to indices of {za::mot::chron::*}
+                delete {za::mot::chron::%{_ks::1}%}
+        else if {_t} is "relache":
+            set {za::mot::relache::%{_a::2}%} to (unix timestamp of now) + 600
+            za_mot_relache({_a::2})
+        else:
+            za_mot_evt_serveur({_t}, arg-1)
+
+# les événements qui touchent le monde (séparés pour garder /zaevt lisible)
+function za_mot_evt_serveur(t: text, ligne: text):
+    set {_a::*} to split {_ligne} at " "
+    if {_t} is "lieu_attaque" or "epidemie_camp":
+        set {_us::*} to split {_a::2} at ","
+        loop {_us::*}:
+            if length of loop-value is 36:
+                if {_t} is "lieu_attaque":
+                    za_tel_sms(loop-value, "Inconnu", "Ils sont aux barricades. Si tu entends ça, viens. Vite.")
+                else:
+                    za_tel_sms(loop-value, "Inconnu", "Ça tousse partout au camp. Quelqu'un est malade. Ne viens pas sans masque.")
+    else if {_t} is "faction_opportuniste":
+        za_mot_radio("pirate", "Les vautours sont déjà là : une faction s'installe sur les ruines de %za_mot_mots({_ligne}, 1)%. Personne n'a rien vu, bien sûr.")
+    else if {_t} is "maladie_aval":
+        set {za::mot::eau_sale::%{_a::2}%} to (unix timestamp of now) + 86400
+        loop za_mot_dans_region({_a::2}):
+            send "&2L'eau a un drôle de goût, par ici. Une odeur de produit chimique remonte de la rivière." to loop-value
+    else if {_t} is "fete":
+        loop za_mot_dans_region({_a::2}):
+            send "&6On entend rire, au loin. Une fête. Ça faisait longtemps." to loop-value
+            za_effet(loop-value, "regeneration", 60, 0)
+    else if {_t} is "quarantaine":
+        loop za_mot_dans_region({_a::2}):
+            send "&cDes soldats déroulent des barbelés. Des panneaux : « QUARANTAINE — ZONE CONTRÔLÉE ». On ne passe plus." to loop-value
+            za_zm("son %loop-value% minecraft:block.chain.place 0.8 0.6")
+    else if {_t} is "inondation":
+        loop za_mot_dans_region({_a::2}):
+            send "&9L'eau monte. Les fossés débordent, la route disparaît sous la boue." to loop-value
+            za_effet(loop-value, "slowness", 60, 0)
+    else if {_t} is "science_echantillon":
+        loop za_monde_joueurs():
+            if {za::freq::ecoute::%loop-value's uuid%} is "88.3":
+                send "&8[&3📻 88.3 Scientifiques&8] &7« Nous cherchons des échantillons frais du nouveau foyer. Bien payés. Dans une glacière. »" to loop-value
+    else if {_t} is "alarme_frigo":
+        loop za_mot_dans_region({_a::2}):
+            send "&eUne alarme aiguë, quelque part : un frigo médical qui n'a plus de courant." to loop-value
+            za_zm("son %loop-value% minecraft:block.note_block.bit 0.7 1.8")
+    else if {_t} is "pluie_toxique":
+        za_mot_pluie({_a::2} parsed as number, {_a::3} parsed as number)
+    else if {_t} is "graffiti":
+        za_mot_graffiti({_a::2} parsed as number, {_a::3} parsed as number, za_mot_mots({_ligne}, 3))
+    else if {_t} is "son_loin":
+        za_mot_son_loin({_a::2} parsed as number, {_a::3} parsed as number, {_a::4})
+    else if {_t} is "nemesis_nee":
+        za_mot_nemesis_nee({_a::2}, za_mot_mots({_ligne}, 2))
+    else if {_t} is "nemesis_tue":
+        za_mot_nemesis_tue({_a::2}, {_a::3}, za_mot_mots({_ligne}, 3))
+    else if {_t} is "nemesis_revient":
+        set {_p} to za_mot_joueur({_a::2})
+        if {_p} is set:
+            send "&8&oUn casque qui brille dans le noir. Une démarche que tu connais. Il est revenu." to {_p}
+            za_zm("son %{_p}% minecraft:ambient.cave 1 0.5")
+    else if {_t} is "bestiaire_avis":
+        add "%{za::serveur::jours}%|%za_mot_mots({_ligne}, 1)%" to {za::mot::bestiaire::*}
+        za_journal("Un mort qu'on appelle %za_mot_mots({_ligne}, 1)% hante la région.")
+    else if {_t} is "capture":
+        za_mot_capture({_a::2})
+    else if {_t} is "chance":
+        za_mot_chance({_a::2})
+    else if {_t} is "imitateur":
+        za_mot_imitateur({_a::2})
+    else if {_t} is "ambiance":
+        set {_p} to za_mot_joueur({_a::2})
+        if {_p} is set:
+            set {_l} to za_son_point({_p}, 8, 14, 0)
+            if {_l} is set:
+                za_son_pos({_p}, {_l}, "minecraft:block.wooden_door.open", 0.6, 0.6)
+    else if {_t} is "evenement":
+        za_mot_evenement({_a::2}, {_a::3})
+    else if {_t} is "grande_nuit":
+        za_diffuser("&4&lCette nuit, tout bouge en même temps. &7Les morts de toute la région sont en marche.")
+        loop za_monde_joueurs():
+            za_zm("son %loop-value% minecraft:entity.wither.spawn 0.4 0.5")
+    else if {_t} is "norda_patrouille":
+        za_mot_norda_patrouille({_a::2}, {_a::3} parsed as number, {_a::4} parsed as number)
+    else if {_t} is "norda_chasse":
+        set {_p} to za_mot_joueur({_a::2})
+        if {_p} is set:
+            za_tel_sms({_a::2}, "Numéro masqué", "Une équipe est en route. Tu peux encore te rendre.")
+    else if {_t} is "norda_marche":
+        za_tel_sms({_a::2}, "NORDA Biotech", "Proposition : livrez-nous ce que vous avez pris au laboratoire. En échange, votre dossier sera classé. Répondez par /norda accepter.")
+        set {za::mot::marche::%{_a::2}%} to (unix timestamp of now) + 86400
+    else if {_t} is "norda_controle":
+        za_mot_controle({_a::2})
+    else if {_t} is "norda_barrage":
+        za_journal("Un point de contrôle NORDA a été vu sur une route (X %{_a::2}% Z %{_a::3}%).")
+    else if {_t} is "drone_abattu":
+        set {_p} to za_mot_joueur({_a::2})
+        if {_p} is set:
+            send "&7Le drone s'écrase. Dans les débris : une carte mémoire. &8(Les données de NORDA : /norda dossier)" to {_p}
+            give za_item("paper", "Carte mémoire de drone", "&b", 1) to {_p}
+    else if {_t} is "lea_silence":
+        set {za::mot::lea_silence} to true
+        za_diffuser("&8La fréquence 98,5 ne donne plus que du souffle. Léa s'est tue.")
+    else if {_t} is "faux_resultat":
+        set {_p} to za_mot_joueur({_a::2})
+        if {_p} is set:
+            if {_a::3} is "1":
+                send "&8Quelqu'un, quelque part, vient d'avaler ta fausse piste." to {_p}
+            else:
+                send "&8Ta fausse piste n'a pas pris. NORDA vérifie davantage." to {_p}
+    else if {_t} is "region_nettoyee":
+        set {_n} to {_a::3}
+        replace all "_" with " " in {_n}
+        za_mot_radio("lea", "%{_n}% : plus de nids, plus de corps. Quelqu'un a nettoyé. On pourrait presque y vivre.")
+
+# ---------------------------------------------------------------- détails des événements
+
+# relâche (IA-1) : SMS, radio, PNJ, découvertes ; pas de grosse menace pendant 10 minutes
+function za_mot_relache(u: text):
+    set {_p} to za_mot_joueur({_u})
+    if {_p} is not set:
+        stop
+    if za_pro({_p}) is true:
+        stop
+    set {_c} to random integer between 1 and 3
+    if {_c} is 1:
+        za_tel_sms({_u}, "Léa", "Tu tiens le coup ? Ici ça va. Il y a du café, si tu passes un jour.")
+    else if {_c} is 2:
+        send "&7&oLe vent tombe. Un oiseau chante, quelque part. Pour l'instant, rien ne te cherche." to {_p}
+
+# pluie toxique (chaîne 2) : trois averses, seulement à ciel ouvert
+function za_mot_pluie(x: number, z: number):
+    loop za_mot_pres({_x}, {_z}, 500):
+        send "&2Une pluie jaunâtre commence à tomber. Elle pique la peau. Mets-toi à l'abri." to loop-value
+    loop 3 times:
+        wait 20 seconds
+        loop za_mot_pres({_x}, {_z}, 500):
+            set {_l} to location of loop-value-2
+            if y-coordinate of {_l} >= y-coordinate of (location of (highest block at {_l})):
+                za_effet(loop-value-2, "poison", 4, 0)
+                za_zm("son %loop-value-2% minecraft:weather.rain 1 0.6")
+
+# graffiti (111) : un panneau peint, jamais près d'une base
+function za_mot_graffiti(x: number, z: number, texte: text):
+    add "%{za::serveur::jours}%|%{_x}%|%{_z}%|%{_texte}%" to {za::mot::graffiti::*}
+    set {_w} to world "world"
+    if {_w} is not set:
+        stop
+    set {_l} to location({_x} + 0.5, 64, {_z} + 0.5, {_w})
+    if chunk at {_l} is not loaded:
+        stop
+    loop {za::base::liste::*}:
+        set {_b} to {za::base::%loop-value%}
+        if {_b} is set:
+            if world of {_b} is {_w}:
+                if distance between {_b} and {_l} < 64:
+                    stop
+    set {_l} to location of (highest block at {_l})
+    add 1 to y-coordinate of {_l}
+    if block at {_l} is not air:
+        stop
+    set {_t} to {_texte}
+    replace all "'" with " " in {_t}
+    replace all "\" with " " in {_t}
+    set {_l1} to {_t}
+    set {_l2} to ""
+    if length of {_t} > 15:
+        set {_l1} to subtext of {_t} from characters 1 to 15
+        set {_f} to length of {_t}
+        set {_l2} to subtext of {_t} from characters 16 to min({_f}, 30)
+    execute console command "setblock %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% minecraft:oak_sign{front_text:{color:""red"",messages:['""%{_l1}%""','""%{_l2}%""','""""','""""']}}"
+
+# un son lointain, dans la bonne direction (113)
+function za_mot_son_loin(x: number, z: number, s: text):
+    set {_son} to "minecraft:entity.zombie.ambient"
+    if {_s} is "cloche":
+        set {_son} to "minecraft:block.bell.use"
+    else if {_s} is "explosion":
+        set {_son} to "minecraft:entity.generic.explode"
+    else if {_s} is "cris":
+        set {_son} to "minecraft:entity.villager.hurt"
+    else if {_s} is "tirs":
+        set {_son} to "minecraft:entity.firework_rocket.blast_far"
+    else if {_s} is "sirene":
+        set {_son} to "minecraft:item.goat_horn.sound.6"
+    loop za_mot_pres({_x}, {_z}, 800):
+        set {_dx} to {_x} - x-coordinate of loop-value
+        set {_dz} to {_z} - z-coordinate of loop-value
+        set {_d} to sqrt(({_dx} * {_dx}) + ({_dz} * {_dz}))
+        if {_d} > 1:
+            set {_l} to location of loop-value
+            add ({_dx} / {_d}) * 40 to x-coordinate of {_l}
+            add ({_dz} / {_d}) * 40 to z-coordinate of {_l}
+            add 8 to y-coordinate of {_l}
+            za_son_pos(loop-value, {_l}, {_son}, 0.6, 0.6)
+
+# ---------------------------------------------------------------- Némésis (chaîne 3)
+
+function za_mot_nemesis_nee(u: text, nom: text):
+    za_souvenir_ajouter({_u}, "nemesis", "mort", "Tué par %{_nom}%. Il porte maintenant ton casque.")
+    add "%{za::serveur::jours}%|%{_u}%|%{_nom}%" to {za::mot::nemesis::*}
+    set {_p} to za_mot_joueur({_u})
+    if {_p} is set:
+        wait 5 seconds
+        send "&4&lIl t'a eu. &7Il s'appelle maintenant &c%{_nom}%&7. Il a pris ce que tu portais. Il s'en souviendra. Toi aussi." to {_p}
+
+function za_mot_nemesis_tue(tueur: text, victime: text, nom: text):
+    set {_p} to za_mot_joueur({_tueur})
+    if {_p} is not set:
+        stop
+    za_souvenir_ajouter({_tueur}, "nemesis", "victoire", "A abattu %{_nom}%.")
+    za_jetons_ajouter({_p}, 25)
+    if {_tueur} is {_victime}:
+        send "&6&lLE REVENANT. &7Tu as abattu celui qui t'avait tué. Ton équipement est à terre, avec sa tête." to {_p}
+        set {za::mot::surnom::%{_tueur}%} to "Le Revenant"
+    else:
+        send "&6Tu as abattu &c%{_nom}%&6. Sa tête vaudra quelque chose au musée." to {_p}
+
+# ---------------------------------------------------------------- Directeur : petites et grandes choses
+
+# un coup de chance plausible après trois morts (IA-1, règle 8)
+function za_mot_chance(u: text):
+    set {_p} to za_mot_joueur({_u})
+    if {_p} is not set:
+        stop
+    if za_pro({_p}) is true:
+        stop
+    set {_l} to za_point_loin({_p}, 12, 20)
+    if {_l} is not set:
+        stop
+    set {_l} to location of (highest block at {_l})
+    add 1 to y-coordinate of {_l}
+    drop za_item("paper", "Bandage", "&f", 2) at {_l}
+    drop 3 of bread at {_l}
+    drop za_item("honey bottle", "Antidote", "&a", 1) at {_l}
+    send "&7&oUn sac abandonné, pas loin. Quelqu'un l'a laissé tomber en courant." to {_p}
+
+# l'imitateur (22) : une voix connue, derrière, qui appelle
+function za_mot_imitateur(u: text):
+    set {_p} to za_mot_joueur({_u})
+    if {_p} is not set:
+        stop
+    if za_pro({_p}) is true:
+        stop
+    set {_l} to za_son_point({_p}, 10, 16, 0)
+    if {_l} is not set:
+        stop
+    za_son_pos({_p}, {_l}, "minecraft:entity.villager.ambient", 0.8, 0.7)
+    send "&7&o« ...hé... par ici... aide-moi... »" to {_p}
+
+# événements sans annonce (2, 14) choisis par le Directeur
+function za_mot_evenement(type: text, u: text):
+    set {_p} to za_mot_joueur({_u})
+    if {_p} is not set:
+        stop
+    if za_pro({_p}) is true:
+        stop
+    if {_type} is "siege":
+        za_siege_base({_u})
+    else if {_type} is "crash" or "largage":
+        za_mot_crash({_p}, {_type})
+    else if {_type} is "convoi_attaque":
+        za_convoi()
+    else if {_type} is "survivant_poursuivi":
+        set {_l} to za_point_loin({_p}, 30, 45)
+        if {_l} is set:
+            za_surv_creer_rec("", "", {_l}, "blesse")
+            send "&e« À L'AIDE ! » &7Quelqu'un court vers toi. Derrière lui, des silhouettes." to {_p}
+            loop 5 times:
+                za_spawn_at({_l}, "ZA_Runner", 10, 18)
+    else if {_type} is "alarme":
+        set {_l} to za_son_point({_p}, 60, 90, 0)
+        if {_l} is set:
+            loop 6 times:
+                za_son_pos({_p}, {_l}, "minecraft:block.note_block.bell", 1.5, 1.6)
+                wait 1 second
+            send "&eUne vieille alarme s'est déclenchée, pas loin. Elle va attirer tout le quartier, à moins que quelqu'un la coupe." to {_p}
+            za_mot("bruit %floor(x-coordinate of {_l})% %floor(z-coordinate of {_l})% 120")
+    else if {_type} is "chien_guide":
+        set {_l} to za_point_loin({_p}, 10, 16)
+        if {_l} is set:
+            spawn a wolf at {_l}
+            set name of last spawned entity to "Chien perdu"
+            send "&7Un chien maigre aboie, recule, revient. Il veut que tu le suives." to {_p}
+    else if {_type} is "patrouille_norda":
+        za_mot_norda_patrouille({_u}, x-coordinate of {_p}, z-coordinate of {_p})
+    else if {_type} is "fausse_alerte":
+        za_tel_sms({_u}, "Inconnu", "HORDE AU NORD. 200 MORTS. FUYEZ.")
+    else if {_type} is "signal_inconnu":
+        set {_l} to za_point_loin({_p}, 300, 500)
+        if {_l} is set:
+            send "&8[&7📻 ???&8] &7« ...—·· ·· ··· ... X %floor(x-coordinate of {_l})% ... Z %floor(z-coordinate of {_l})% ... »" to {_p}
+    else if {_type} is "decouverte":
+        za_cargaison()
+    else if {_type} is "moment_fort":
+        za_mot_crash({_p}, "crash")
+
+# crash (2) : on l'entend avant de le voir, puis une colonne de fumée, puis la horde arrive
+function za_mot_crash(p: player, type: text):
+    set {_l} to za_point_loin({_p}, 140, 220)
+    if {_l} is not set:
+        stop
+    set {_l} to location of (highest block at {_l})
+    if {_type} is "crash":
+        za_zm("son %{_p}% minecraft:entity.phantom.flap 1 0.3")
+        send "&7Un bruit de rotor, bas, qui toussote..." to {_p}
+        wait 4 seconds
+        za_son_pos({_p}, {_l}, "minecraft:entity.generic.explode", 3, 0.5)
+        send "&cUn hélicoptère vient de s'écraser. &7Une colonne de fumée monte au loin." to {_p}
+    else:
+        send "&7Un parachute, au loin. Le colis dérive vers la zone contaminée." to {_p}
+    add 1 to y-coordinate of {_l}
+    set block at {_l} to chest
+    set {_blk} to block at {_l}
+    add za_item("paper", "Bandage", "&f", 4) to inventory of {_blk}
+    add za_item("gold nugget", "Jeton de Survie", "&6", 10) to inventory of {_blk}
+    add 2 of golden apple to inventory of {_blk}
+    if {_type} is "crash":
+        add za_item("book", "Boîte noire (enregistrement)", "&8", 1) to inventory of {_blk}
+    set {_wd} to za_dim(world of {_l})
+    execute console command "execute in %{_wd}% run particle minecraft:campfire_signal_smoke %x-coordinate of {_l}% %y-coordinate of {_l} + 2% %z-coordinate of {_l}% 0.5 4 0.5 0.01 80 force"
+    za_mot_evt("crash", {_l}, 3, "%{_p}'s uuid%", "")
+    za_mot("bruit %floor(x-coordinate of {_l})% %floor(z-coordinate of {_l})% 160")
+    za_monde_evt("Un %{_type}% près d'ici.", {_l}, 2, "evenement")
+
+# ---------------------------------------------------------------- NORDA dans le monde (79, 100, 109)
+
+function za_mot_norda_patrouille(u: text, x: number, z: number):
+    set {_p} to za_mot_joueur({_u})
+    if {_p} is not set:
+        stop
+    if za_pro({_p}) is true:
+        stop
+    set {_dx} to x-coordinate of {_p} - {_x}
+    set {_dz} to z-coordinate of {_p} - {_z}
+    if sqrt(({_dx} * {_dx}) + ({_dz} * {_dz})) > 250:
+        stop
+    set {_l} to za_point_loin({_p}, 70, 100)
+    if {_l} is set:
+        za_spawn_at({_l}, "ZA_Agent_NORDA", 0, 4)
+        za_spawn_at({_l}, "ZA_Agent_NORDA", 0, 4)
+        send "&8Des pas réguliers, des lampes blanches. Une patrouille en combinaison passe à quelques rues." to {_p}
+
+# au point de contrôle : papiers, réputation, fouille (109)
+function za_mot_controle(u: text):
+    set {_p} to za_mot_joueur({_u})
+    if {_p} is not set:
+        stop
+    send "&4« Halte. Contrôle sanitaire. Papiers. »" to {_p}
+    if {za::mot::papiers::%{_u}%} is set:
+        send "&7Tu tends les faux papiers. Le soldat les regarde longtemps... &a« Circulez. »" to {_p}
+        za_mot("preuve %{_u}% controle 1 %floor(x-coordinate of {_p})% %floor(z-coordinate of {_p})%")
+    else:
+        send "&7Il te prend en photo. &c« Vous êtes dans nos fichiers, maintenant. »" to {_p}
+        za_mot("preuve %{_u}% controle 12 %floor(x-coordinate of {_p})% %floor(z-coordinate of {_p})%")
+
+# capture (100) : jamais de mort, une cellule au niveau -2, l'équipement au casier
+function za_mot_capture(u: text):
+    set {_p} to za_mot_joueur({_u})
+    if {_p} is not set:
+        stop
+    set {_w} to world "world"
+    if {_w} is not set:
+        stop
+    za_zm("noir %{_p}% 4")
+    za_effet({_p}, "blindness", 6, 0)
+    wait 2 seconds
+    set {_cel} to location(2620.5, 53, -759.5, {_w})
+    set {_cas} to location(2626.5, 53, -759.5, {_w})
+    if block at {_cas} is air:
+        set block at {_cas} to chest
+        set {_b} to block at {_cas}
+        loop items in inventory of {_p}:
+            add loop-item to inventory of {_b}
+        clear inventory of {_p}
+        set {za::mot::capt::%{_u}%::casier} to {_cas}
+    teleport {_p} to {_cel}
+    set {za::mot::capt::%{_u}%::jour} to {za::serveur::jours}
+    za_souvenir_ajouter({_u}, "norda", "capture", "Capturé par NORDA. Réveillé dans une cellule du niveau -2.")
+    wait 5 seconds
+    send "&8Une pièce blanche. Une porte sans poignée. Une caméra." to {_p}
+    send "&4« Bonjour. Nous avons quelques questions. Répondez honnêtement et tout ira bien. »" to {_p}
+    send "&7/interrogatoire verite · /interrogatoire mentir · /interrogatoire negocier" to {_p}
+
+command /interrogatoire <text>:
+    trigger:
+        set {_u} to "%player's uuid%"
+        if {za::mot::capt::%{_u}%::jour} is not set:
+            send "&7Personne ne t'interroge." to player
+            stop
+        if {za::mot::capt::%{_u}%::rep} is set:
+            send "&7Ils ont eu leur réponse. Maintenant, il faut sortir." to player
+            stop
+        set {za::mot::capt::%{_u}%::rep} to arg-1
+        if arg-1 is "verite":
+            send "&7Tu dis ce que tu sais. Ils notent tout. &8(NORDA est plus sûr de toi, mais te juge moins menaçant.)" to player
+            za_mot("effacer %{_u}% -20 10")
+        else if arg-1 is "mentir":
+            if chance of 50%:
+                send "&7Tu inventes une histoire. L'homme hoche la tête. &a(Ça a l'air de passer.)" to player
+                za_mot("effacer %{_u}% 25 0")
+            else:
+                send "&7Tu inventes une histoire. L'homme sourit. &c« Mauvaise réponse. »" to player
+                za_mot("effacer %{_u}% -30 -10")
+        else if arg-1 is "negocier":
+            send "&7« Nous pourrions vous être utiles l'un à l'autre. » Un marché est noté dans ton dossier." to player
+            set {za::mot::marche::%{_u}%} to (unix timestamp of now) + 86400
+        else:
+            send "&7verite, mentir ou negocier." to player
+            delete {za::mot::capt::%{_u}%::rep}
+            stop
+        wait 60 seconds
+        send "&eUne coupure de courant. Les serrures magnétiques claquent. La porte est ouverte. &7(Ton équipement est dans un casier, à côté.)" to player
+        delete {za::mot::capt::%{_u}%::*}
+
+command /norda [<text>]:
+    trigger:
+        set {_u} to "%player's uuid%"
+        if arg-1 is "accepter":
+            if ({za::mot::marche::%{_u}%} ? 0) < unix timestamp of now:
+                send "&7Aucune offre en cours." to player
+                stop
+            delete {za::mot::marche::%{_u}%}
+            za_mot("effacer %{_u}% 0 -35")
+            za_mot_evt("norda_marche_accepte", location of player, 3, {_u}, "")
+            send "&8Marché conclu. NORDA se fait plus discret... pour l'instant. Il se souviendra de ce que tu lui dois." to player
+        else:
+            set {_pal} to {za::mot::palier::%{_u}%} ? "0"
+            send "&8&l━━ CE QUE TU SAIS DE NORDA ━━" to player
+            if {_pal} is "0" or "1":
+                send "&7Rien d'anormal. Personne ne semble s'intéresser à toi." to player
+            else if {_pal} is "2":
+                send "&7Des drones, parfois. Des questions bizarres dans les camps. On te surveille peut-être." to player
+            else if {_pal} is "3":
+                send "&eIls savent qui tu es. Le téléphone allumé leur dit où tu es." to player
+            else:
+                send "&cTu es une cible. Évite tes routes habituelles, éteins ton cellulaire, change de papiers." to player
+
+# ---------------------------------------------------------------- ce que Skript dit au moteur
+
+# toutes les 30 s : jour, saison
+every 30 seconds:
+    if za_mot_actif() is true:
+        za_mot("jour %{za::serveur::jours} ? 0%")
+        if za_hiver() is true:
+            za_mot("saison hiver")
+        else:
+            za_mot("saison ete")
+
+# toutes les 5 minutes : bases, camps, factions des joueurs
+every 5 minutes:
+    if za_mot_actif() is false:
+        stop
+    loop {za::base::liste::*}:
+        set {_b} to {za::base::%loop-value%}
+        if {_b} is set:
+            za_mot("base %loop-value% %floor(x-coordinate of {_b})% %floor(y-coordinate of {_b})% %floor(z-coordinate of {_b})% %world of {_b}%")
+    loop {za::camp::liste::*}:
+        set {_c} to {za::camp::%loop-value%::loc}
+        if {_c} is set:
+            if "%world of {_c}%" is "world":
+                za_mot("camp %loop-value% %floor(x-coordinate of {_c})% %floor(z-coordinate of {_c})% %{za::camp::%loop-value%::nom} ? loop-value%")
+    loop za_monde_joueurs():
+        set {_u} to "%loop-value's uuid%"
+        set {_best} to "-"
+        set {_bv} to 49
+        loop "milice", "scientifiques", "pilleurs", "marchands", "survivants" and "culte":
+            if ({za::fac::%loop-value-2%::%{_u}%} ? 0) > {_bv}:
+                set {_bv} to {za::fac::%loop-value-2%::%{_u}%}
+                set {_best} to loop-value-2
+        za_mot("faction %{_u}% %{_best}%")
+
+# les zombies tués et les joueurs morts passent déjà par le plugin (écouteurs Java).
+# Ici : ce que seul Skript sait.
+
+# un appel ou un SMS envoyé : le cellulaire accroche le réseau (82)
+function za_mot_cellulaire(p: player):
+    za_mot("preuve %{_p}'s uuid% cel 4 %floor(x-coordinate of {_p})% %floor(z-coordinate of {_p})%")
+
+# ---------------------------------------------------------------- /monde : ce que le joueur voit de sa région
+
+command /monde:
+    aliases: /region
+    trigger:
+        if za_pro(player) is true:
+            stop
+        if za_mot_reg(player, 1) is "":
+            send "&7Le monde ne te dit rien d'autre pour l'instant." to player
+            stop
+        set {_c::*} to split {za::mot::reg::%player's uuid%} at "|"
+        send "&3&l━━ %{_c::2}% ━━ &r%za_mot_etat_nom({_c::3})%" to player
+        set {_cont} to {_c::4} parsed as number
+        set {_eau} to {_c::5} parsed as number
+        if {_cont} >= 60:
+            send "&7L'air sent la pourriture. &cLa contamination est forte." to player
+        else if {_cont} >= 30:
+            send "&7Une odeur douceâtre flotte. &eContamination modérée." to player
+        else:
+            send "&7L'air est respirable. &aPeu de contamination." to player
+        if {_eau} < 40:
+            send "&2L'eau d'ici rend malade. Fais-la bouillir, ou filtre-la." to player
+        if {_c::7} is not "0":
+            send "&4Les survivants parlent d'un nid, dans le coin." to player
+        if {_c::9} is "1":
+            send "&6Il y a du courant dans la région. &8(Et ça se voit de loin.)" to player
+        if {_c::13} is "1":
+            send "&cZone sous quarantaine militaire." to player
+        set {_tours} to {_c::12} parsed as number
+        if {_tours} > 0:
+            send "&7Réseau cellulaire : &f%{_tours}% tour(s) &8(plus il y en a, plus on te trouve vite)" to player
+        if ({za::mot::palier::%player's uuid%} ? "0") is not "0":
+            send "&8Tu as l'impression d'être observé." to player
+
+# un mort brûlé qui tombe dans l'herbe sèche (13) : départ de feu (za_p98)
+command /zamfeu <text> <number> <number> <number>:
+    executable by: console
+    trigger:
+        set {_w} to world arg-1
+        if {_w} is set:
+            set {_n} to za_feu_allumer(location(arg-2, arg-3, arg-4, {_w}), "brule")

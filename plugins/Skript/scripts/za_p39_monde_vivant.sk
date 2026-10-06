@@ -119,6 +119,8 @@ function za_zone_info(p: player):
     if {_a} is not set:
         set {_a} to 0
     send "&7Contamination : &f%floor({_c})% &8| &7Activité récente : &f%floor({_a})% &8| &7Souche : &f%za_souche_nom(za_souche_id({_p}))%" to {_p}
+    if za_mot_reg({_p}, 1) is not "":
+        send "&7Région : &f%za_mot_reg({_p}, 2)% &8— %za_mot_etat_nom(za_mot_reg({_p}, 3))% &8(/monde)" to {_p}
     if za_nid_proche({_l}, 72) is not 0:
         send "&4Un NID est tout proche. Les morts y naissent. Détruis son cœur." to {_p}
     if {_n} is 0:
@@ -254,6 +256,7 @@ function za_nid_detruit(id: number):
     set {_z} to floor(z-coordinate of {_c})
     set {_wd} to za_dim(world of {_c})
     za_monde_evt("Un nid est détruit. Le secteur respire enfin.", {_c}, 2, "defense")
+    za_mot_evt("nid_detruit", {_c}, 3, "-", "")
     # trace permanente : terre brûlée, un feu d'âmes, une stèle
     execute console command "execute in %{_wd}% run fill %{_x} - 5% %{_y} - 1% %{_z} - 5% %{_x} + 5% %{_y} - 1% %{_z} + 5% minecraft:blackstone replace minecraft:sculk"
     execute console command "execute in %{_wd}% run fill %{_x} - 5% %{_y} - 1% %{_z} - 5% %{_x} + 5% %{_y} - 1% %{_z} + 5% minecraft:basalt replace minecraft:crimson_nylium"

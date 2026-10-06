@@ -149,6 +149,7 @@ function za_tel_messages(p: player):
 
 function za_tel_appel(p: player, qui: text):
     set {_u} to "%{_p}'s uuid%"
+    za_mot_cellulaire({_p})
     if {za::tel::appel::%{_u}%::%{_qui}%} is set:
         if difference between {za::tel::appel::%{_u}%::%{_qui}%} and now < 10 minutes:
             send "&8&o(Ça sonne dans le vide. Rappelle plus tard.)" to {_p}

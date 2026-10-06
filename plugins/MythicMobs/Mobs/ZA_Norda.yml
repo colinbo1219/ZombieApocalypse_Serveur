@@ -1,0 +1,168 @@
+# ZombieApocalypse - NORDA dans le monde (bible IA-11, points 79, 100, 101) et zombies de saison (13, 23, 27)
+# Les agents portent le tag za_norda : au palier 5, le plugin ZAMoteur capture au lieu de laisser mourir (100).
+# Les patrouilles sont posées par za_p103_moteur (za_mot_norda_patrouille), hors de vue.
+ZA_Agent_NORDA:
+  Type: PILLAGER
+  Display: '&fAgent NORDA'
+  Health: 36
+  Damage: 5
+  Armor: 6
+  Faction: ZA_Norda
+  Options:
+    MovementSpeed: 0.28
+    FollowRange: 36
+    Despawn: true
+    PreventOtherDrops: true
+    PreventItemPickup: true
+    KnockbackResistance: 0.2
+  AITargetSelectors:
+  - 0 clear
+  - 1 attacker
+  - 2 players
+  - 3 otherfactionmonsters
+  Equipment:
+  - CROSSBOW:0
+  - LEATHER_CHESTPLATE:2
+  - IRON_HELMET:4
+  Skills:
+  - addscoreboardtag{tag=za_norda} @self ~onSpawn
+  - effect:sound{s=block.beacon.ambient;v=0.4;p=1.8} @self ~onTimer:200 0.4
+  - message{m="&4« Contrôle sanitaire. Ne bougez plus. »"} @PlayersInRadius{r=16} ~onTarget
+  Drops:
+  - iron_nugget 1to3 0.6
+  - paper 1 0.3
+ZA_Chasseur_NORDA:
+  Type: VINDICATOR
+  Display: '&fÉquipe de récupération NORDA'
+  Health: 50
+  Damage: 6
+  Armor: 8
+  Faction: ZA_Norda
+  Options:
+    MovementSpeed: 0.3
+    FollowRange: 40
+    Despawn: true
+    PreventOtherDrops: true
+    PreventItemPickup: true
+    KnockbackResistance: 0.3
+  AITargetSelectors:
+  - 0 clear
+  - 1 attacker
+  - 2 players
+  Equipment:
+  - IRON_AXE:0
+  - IRON_CHESTPLATE:2
+  - IRON_HELMET:4
+  Skills:
+  - addscoreboardtag{tag=za_norda} @self ~onSpawn
+  - potion{type=SLOW;duration=40;level=1} @target ~onAttack 0.4
+  Drops:
+  - iron_ingot 1 0.4
+
+# ---------------------------------------------------------------- zombies de saison (13)
+ZA_Noye:
+  Type: DROWNED
+  Display: '&3Noyé'
+  Health: 30
+  Damage: 5
+  Options:
+    MovementSpeed: 0.24
+    FollowRange: 28
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+  Skills:
+  - potion{type=SLOW;duration=60;level=2} @target ~onAttack
+  - effect:sound{s=entity.drowned.ambient_water;v=1;p=0.6} @self ~onTimer:160 0.5
+  Drops:
+  - ZA_Essence 1 0.2
+  - kelp 1to3 0.6
+ZA_Saison_Brule:
+  Type: ZOMBIE
+  Display: '&6Brûlé'
+  Health: 28
+  Damage: 5
+  Options:
+    MovementSpeed: 0.25
+    FollowRange: 32
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+  Skills:
+  - ignite{ticks=60} @target ~onAttack 0.6
+  - effect:particles{p=flame;a=6;hs=0.3;vs=0.6;s=0.02} @self ~onTimer:20
+  - command{c="zamfeu <caster.l.w> <caster.l.x> <caster.l.y> <caster.l.z>";sync=true} @self ~onDeath 0.2
+  Drops:
+  - charcoal 1to2 0.6
+ZA_Moisi:
+  Type: ZOMBIE
+  Display: '&2Moisi'
+  Health: 26
+  Damage: 4
+  Options:
+    MovementSpeed: 0.21
+    FollowRange: 28
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+  Skills:
+  - effect:particles{p=spore_blossom_air;a=20;hs=1.5;vs=1;s=0} @self ~onTimer:20
+  - potion{type=BLINDNESS;duration=60;level=0} @PlayersInRadius{r=4} ~onTimer:80 0.5
+  - potion{type=CONFUSION;duration=100;level=0} @target ~onAttack 0.4
+  Drops:
+  - brown_mushroom 1 0.5
+ZA_Givre:
+  Type: ZOMBIE
+  Display: '&bGivré'
+  Health: 44
+  Damage: 5
+  Armor: 6
+  Options:
+    MovementSpeed: 0.17
+    FollowRange: 28
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    KnockbackResistance: 0.6
+  DamageModifiers:
+  - FIRE 3
+  - FIRE_TICK 3
+  - ENTITY_ATTACK 0.7
+  Skills:
+  - effect:particles{p=snowflake;a=8;hs=0.4;vs=0.8;s=0} @self ~onTimer:20
+  - potion{type=SLOW;duration=40;level=0} @target ~onAttack
+  Drops:
+  - ice 1 0.4
+
+# ---------------------------------------------------------------- chiens infectés (23)
+ZA_Chien_Infecte:
+  Type: WOLF
+  Display: '&8Chien infecté'
+  Health: 18
+  Damage: 4
+  Options:
+    MovementSpeed: 0.38
+    FollowRange: 36
+    Angry: true
+    PreventOtherDrops: true
+  Skills:
+  - addscoreboardtag{tag=za_chien_infecte} @self ~onSpawn
+  - effect:sound{s=entity.wolf.growl;v=1;p=0.6} @self ~onTimer:120 0.5
+  Drops:
+  - bone 1to2 0.7
+ZA_Chien_Dominant:
+  Type: WOLF
+  Display: '&4Chien dominant'
+  Health: 30
+  Damage: 6
+  Options:
+    MovementSpeed: 0.38
+    FollowRange: 40
+    Angry: true
+    PreventOtherDrops: true
+  Skills:
+  - addscoreboardtag{tag=za_chien_dominant} @self ~onSpawn
+  - effect:sound{s=entity.wolf.howl;v=3;p=0.5} @self ~onTimer:400 0.6
+  - command{c="zam bruit <caster.l.x> <caster.l.z> 48";sync=true} @self ~onTimer:400 0.3
+  Drops:
+  - bone 2to3 1

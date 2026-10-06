@@ -53,6 +53,8 @@ function za_type_lieu(l: location) :: text:
 
 # un essai d'apparition pres du joueur (priorites : lieu > Bloater > Runner/Spitter/Leaper > Shambler)
 function za_apparition(p: player):
+    if ({za::mot::relache::%{_p}'s uuid%} ? 0) > unix timestamp of now:
+        stop
     set {_b} to "%biome at {_p}%"
     if {_b} contains "ocean":
         stop

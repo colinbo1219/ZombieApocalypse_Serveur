@@ -133,6 +133,8 @@ command /zaregboss <text> [<text>]:
                         send title "&6%za_rb_nom({_id})% est tombé" with subtitle "&7Titre : Tombeur de %za_rb_nom({_id})%" to loop-player for 4 seconds
                         set {_noms} to "%{_noms}% %loop-player%"
             za_journal("%za_rb_nom({_id})% est tombé à %za_rb_lieu_nom({_id})%. Par :%{_noms}%.")
+            if {_l} is set:
+                za_mot_evt("boss_tue", {_l}, 4, "-", uncolored za_rb_nom({_id}))
             za_monde_legende("Saison %{_n}% : %za_rb_nom({_id})% est tombé à %za_rb_lieu_nom({_id})%.")
             za_diffuser("&8[Radio] &bLéa &8» &7%za_rb_nom({_id})% ne rôde plus à %za_rb_lieu_nom({_id})%. Merci à ceux qui y sont allés.")
             # les quatre lieutenants tombés
