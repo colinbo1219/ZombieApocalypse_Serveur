@@ -33,6 +33,9 @@ function za_radio_nom(f: text) :: text:
         return "Fréquence inconnue"
     if {_f} is "91.7":
         return "Musique"
+    # stations des joueurs (za_p107)
+    if {za::station::%{_f}%::nom} is set:
+        return {za::station::%{_f}%::nom}
     return "Souffle"
 
 # ---------------------------------------------------------------- silence radio
@@ -142,6 +145,9 @@ function za_freq_emettre(p: player, f: text):
         execute console command "execute at %{_p}% run playsound minecraft:music_disc.far record %{_p}% ~ ~ ~ 0.5 1"
         # la musique apaise (za_p86_stress)
         set {za::freq::musique::%{_u}%} to now
+    else:
+        # une station tenue par un joueur (za_p107)
+        set {_ok} to za_station_emettre({_p}, {_f})
 
 every 3 minutes:
     loop za_monde_joueurs():

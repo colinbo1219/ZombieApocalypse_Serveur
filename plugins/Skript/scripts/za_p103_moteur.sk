@@ -407,6 +407,7 @@ function za_mot_nemesis_tue(tueur: text, victime: text, nom: text):
     if {_tueur} is {_victime}:
         send "&6&lLE REVENANT. &7Tu as abattu celui qui t'avait tué. Ton équipement est à terre, avec sa tête." to {_p}
         set {za::mot::surnom::%{_tueur}%} to "Le Revenant"
+        set {za::titres::%{_tueur}%::revenant} to "Le Revenant"
     else:
         send "&6Tu as abattu &c%{_nom}%&6. Sa tête vaudra quelque chose au musée." to {_p}
 

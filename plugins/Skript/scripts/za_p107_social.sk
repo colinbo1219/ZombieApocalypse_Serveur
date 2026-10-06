@@ -1,0 +1,346 @@
+# =====================================================================
+#  ZombieApocalypse - LE SOCIAL ENTRE JOUEURS (bible S-4) et LES STATIONS DES JOUEURS (S-5)
+#  Règle 12 : le serveur garde des FAITS (promesses, accords, dettes, témoins), jamais ce qu'un joueur pense d'un autre.
+#  * PROMESSES : /promesse <joueur> <jours> <texte> — « 50 de carburant d'ici le jour 27 ». Celui qui la reçoit dit si
+#    elle est tenue (/promesse tenue <n°>). Tenue : réputation +5. Échue sans être tenue : réputation -10, rumeur.
+#  * ACCORDS À DÉPÔT GARANTI : /accord proposer <joueur> <jetons> <jours> <texte> : le serveur garde le paiement.
+#    L'autre accepte (/accord accepter), fait le travail, puis /accord fait <n°>. Le payeur a un jour pour contester
+#    (/accord conteste <n°>) ; sinon le dépôt est versé tout seul. Avant acceptation : /accord annuler <n°> rembourse.
+#  * AVIS DE RECHERCHE : /avis — les primes (za_p29) avec la DERNIÈRE POSITION CONNUE (la région, jamais les coordonnées)
+#    et l'âge de l'information.
+#  * SURNOMS (16) venus du comportement réel : Le Sauveur, Le Médecin, Le Courtier, Le Rempart, Le Nettoyeur,
+#    Le Fouineur, Le Chasseur de pillards, Le Chef d'équipe, L'Électricien. Ils rejoignent les titres (/titre).
+#  * STATIONS DE JOUEURS (S-5) : /station creer <fréquence> <nom> (près d'une base sous tension) ; /station message
+#    <texte> (diffusé en boucle toutes les 3 minutes à ceux qui l'écoutent, /frequence) ; /station annoncer (Léa donne
+#    la fréquence une fois). Chaque émission laisse une trace pour NORDA (108).
+# =====================================================================
+
+options:
+    rep_tenue: 5
+    rep_brisee: 10
+
+# ---------------------------------------------------------------- promesses
+
+command /promesse [<text>] [<text>] [<text>]:
+    aliases: /promesses
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        set {_a} to arg-1 ? "liste"
+        if {_a} is "liste":
+            send "&6&l━━ PROMESSES ━━" to player
+            loop {za::prom::liste::*}:
+                set {_i} to loop-value
+                if any:
+                    {za::prom::%{_i}%::de} is {_u}
+                    {za::prom::%{_i}%::a} is {_u}
+                then:
+                    send "&7n°%{_i}% &f%{za::prom::%{_i}%::denom}% &7→ &f%{za::prom::%{_i}%::anom}% &7: « %{za::prom::%{_i}%::texte}% » &8(jour %{za::prom::%{_i}%::jour}%)" to player
+            send "&8/promesse <joueur> <jours> <texte> · /promesse tenue <n°>" to player
+            stop
+        if {_a} is "tenue":
+            set {_i} to arg-2 parsed as number
+            if {za::prom::%{_i}%::a} is not {_u}:
+                send "&7Seul celui à qui la promesse a été faite peut dire qu'elle est tenue." to player
+                stop
+            set {_d} to {za::prom::%{_i}%::de}
+            add {@rep_tenue} to {za::rep::%{_d}%}
+            za_mot_evt("promesse_tenue", location of player, 2, "%{_d}%,%{_u}%", "%{za::prom::%{_i}%::denom}% a tenu parole : %{za::prom::%{_i}%::texte}%")
+            send "&aPromesse tenue, c'est noté." to player
+            set {_p} to za_mot_joueur({_d})
+            if {_p} is set:
+                send "&a%player% confirme : tu as tenu parole. &8(réputation +{@rep_tenue})" to {_p}
+            za_prom_effacer({_i})
+            stop
+        # nouvelle promesse : /promesse <joueur> <jours> <texte>
+        set {_cible} to arg-1 parsed as player
+        set {_j} to arg-2 parsed as number
+        if {_cible} is not set:
+            send "&7/promesse <joueur> <jours> <ce que tu promets>" to player
+            stop
+        if {_j} is not set:
+            send "&7/promesse <joueur> <jours> <ce que tu promets>" to player
+            stop
+        if arg-3 is not set:
+            send "&7Dis ce que tu promets." to player
+            stop
+        add 1 to {za::prom::next}
+        set {_i} to {za::prom::next}
+        set {za::prom::%{_i}%::de} to {_u}
+        set {za::prom::%{_i}%::denom} to "%player%"
+        set {za::prom::%{_i}%::a} to "%{_cible}'s uuid%"
+        set {za::prom::%{_i}%::anom} to "%{_cible}%"
+        set {za::prom::%{_i}%::texte} to arg-3
+        set {za::prom::%{_i}%::jour} to ({za::serveur::jours} ? 0) + {_j}
+        add {_i} to {za::prom::liste::*}
+        send "&7Promesse enregistrée (n°%{_i}%) : « %arg-3% », d'ici le jour %{za::prom::%{_i}%::jour}%." to player
+        send "&e%player% te promet : &f« %arg-3% » &7d'ici le jour %{za::prom::%{_i}%::jour}%. &8(/promesse tenue %{_i}% quand c'est fait)" to {_cible}
+
+function za_prom_effacer(i: number):
+    remove {_i} from {za::prom::liste::*}
+    delete {za::prom::%{_i}%::*}
+
+every 1 minute:
+    loop {za::prom::liste::*}:
+        set {_i} to loop-value
+        if ({za::serveur::jours} ? 0) > {za::prom::%{_i}%::jour}:
+            set {_d} to {za::prom::%{_i}%::de}
+            remove {@rep_brisee} from {za::rep::%{_d}%}
+            za_journal("%{za::prom::%{_i}%::denom}% n'a pas tenu sa promesse à %{za::prom::%{_i}%::anom}%.")
+            set {_w} to world "world"
+            if {_w} is set:
+                za_mot_evt("promesse_brisee", spawn of {_w}, 2, {_d}, "%{za::prom::%{_i}%::denom}% n'a pas tenu parole envers %{za::prom::%{_i}%::anom}%")
+            set {_p} to za_mot_joueur({_d})
+            if {_p} is set:
+                send "&cTa promesse à %{za::prom::%{_i}%::anom}% est échue. &8(réputation -{@rep_brisee} ; ça se saura)" to {_p}
+            za_prom_effacer({_i})
+
+# ---------------------------------------------------------------- accords à dépôt garanti
+
+command /accord [<text>] [<text>] [<number>] [<number>] [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        set {_a} to arg-1 ? "liste"
+        if {_a} is "proposer":
+            set {_c} to arg-2 parsed as player
+            if {_c} is not set:
+                send "&7/accord proposer <joueur> <jetons> <jours> <ce qu'il doit faire>" to player
+                stop
+            if arg-3 is not set:
+                send "&7/accord proposer <joueur> <jetons> <jours> <ce qu'il doit faire>" to player
+                stop
+            if arg-5 is not set:
+                send "&7Dis ce qu'il doit faire." to player
+                stop
+            if arg-3 < 1:
+                stop
+            if za_jetons(player) < arg-3:
+                send "&cIl faut avoir le dépôt : %arg-3% jetons." to player
+                stop
+            za_jetons_ajouter(player, 0 - arg-3)
+            add 1 to {za::acc::next}
+            set {_i} to {za::acc::next}
+            set {za::acc::%{_i}%::payeur} to {_u}
+            set {za::acc::%{_i}%::pnom} to "%player%"
+            set {za::acc::%{_i}%::pour} to "%{_c}'s uuid%"
+            set {za::acc::%{_i}%::cnom} to "%{_c}%"
+            set {za::acc::%{_i}%::montant} to arg-3
+            set {za::acc::%{_i}%::fin} to ({za::serveur::jours} ? 0) + (arg-4 ? 3)
+            set {za::acc::%{_i}%::texte} to arg-5
+            set {za::acc::%{_i}%::etat} to "propose"
+            add {_i} to {za::acc::liste::*}
+            za_audit("ACCORD %player% -> %{_c}% : %arg-3% en dépôt", arg-3)
+            send "&7Accord n°%{_i}% proposé. Le serveur garde tes &e%arg-3% jetons &7jusqu'à la livraison." to player
+            send "&e%player% te propose un accord : &f« %arg-5% » &7pour &e%arg-3% jetons &7(gardés par le serveur). &8/accord accepter %{_i}%" to {_c}
+            stop
+        set {_i} to arg-2 parsed as number
+        if any:
+            {_a} is "liste"
+            {_i} is not set
+        then:
+            send "&6&l━━ ACCORDS ━━" to player
+            loop {za::acc::liste::*}:
+                set {_k} to loop-value
+                if any:
+                    {za::acc::%{_k}%::payeur} is {_u}
+                    {za::acc::%{_k}%::pour} is {_u}
+                then:
+                    send "&7n°%{_k}% &f%{za::acc::%{_k}%::pnom}% → %{za::acc::%{_k}%::cnom}% &7: « %{za::acc::%{_k}%::texte}% » &e%{za::acc::%{_k}%::montant}% j. &8(%{za::acc::%{_k}%::etat}%, jour %{za::acc::%{_k}%::fin}%)" to player
+            send "&8/accord proposer · accepter · fait · conteste · annuler <n°>" to player
+            stop
+        set {_e} to {za::acc::%{_i}%::etat}
+        if {_e} is not set:
+            send "&7Accord inconnu." to player
+            stop
+        if {_a} is "accepter":
+            if {za::acc::%{_i}%::pour} is not {_u}:
+                stop
+            if {_e} is not "propose":
+                stop
+            set {za::acc::%{_i}%::etat} to "en_cours"
+            send "&aAccord accepté. Fais le travail, puis /accord fait %{_i}%." to player
+            za_acc_avertir({za::acc::%{_i}%::payeur}, "&a%player% a accepté l'accord n°%{_i}%.")
+        else if {_a} is "annuler":
+            if {za::acc::%{_i}%::payeur} is not {_u}:
+                stop
+            if {_e} is not "propose":
+                send "&7Trop tard : il a déjà accepté. S'il ne livre pas, conteste quand il dira l'avoir fait." to player
+                stop
+            za_jetons_ajouter(player, {za::acc::%{_i}%::montant})
+            send "&7Accord annulé, dépôt rendu." to player
+            za_acc_effacer({_i})
+        else if {_a} is "fait":
+            if {za::acc::%{_i}%::pour} is not {_u}:
+                stop
+            if {_e} is not "en_cours":
+                stop
+            set {za::acc::%{_i}%::etat} to "livre"
+            set {za::acc::%{_i}%::livre_ts} to unix timestamp of now
+            send "&7C'est noté. Le dépôt te sera versé dans un jour, sauf contestation." to player
+            za_acc_avertir({za::acc::%{_i}%::payeur}, "&e%player% dit avoir rempli l'accord n°%{_i}%. &8(/accord conteste %{_i}% si c'est faux, sous un jour)")
+        else if {_a} is "conteste":
+            if {za::acc::%{_i}%::payeur} is not {_u}:
+                stop
+            if {_e} is not "livre":
+                stop
+            set {za::acc::%{_i}%::etat} to "conteste"
+            za_mot_evt("accord_conteste", location of player, 2, "%{_u}%,%{za::acc::%{_i}%::pour}%", "Accord contesté : %{za::acc::%{_i}%::texte}%")
+            send "&7Contesté. Le dépôt reste bloqué : réglez ça entre vous (/accord liberer %{_i}% le verse, /accord rendre %{_i}% te le rend s'il est d'accord)." to player
+            za_acc_avertir({za::acc::%{_i}%::pour}, "&c%player% conteste l'accord n°%{_i}%. Le dépôt reste bloqué.")
+        else if {_a} is "liberer":
+            if {za::acc::%{_i}%::payeur} is not {_u}:
+                stop
+            za_acc_verser({_i})
+        else if {_a} is "rendre":
+            if {za::acc::%{_i}%::pour} is not {_u}:
+                stop
+            set {_p} to za_mot_joueur({za::acc::%{_i}%::payeur})
+            if {_p} is set:
+                za_jetons_ajouter({_p}, {za::acc::%{_i}%::montant})
+                send "&7Le dépôt de l'accord n°%{_i}% t'a été rendu." to {_p}
+                za_acc_effacer({_i})
+            else:
+                send "&7Il faut que le payeur soit connecté." to player
+
+function za_acc_avertir(u: text, m: text):
+    set {_p} to za_mot_joueur({_u})
+    if {_p} is set:
+        send "%{_m}%" to {_p}
+
+function za_acc_effacer(i: number):
+    remove {_i} from {za::acc::liste::*}
+    delete {za::acc::%{_i}%::*}
+
+function za_acc_verser(i: number):
+    set {_c} to za_mot_joueur({za::acc::%{_i}%::pour})
+    if {_c} is not set:
+        stop
+    za_jetons_ajouter({_c}, {za::acc::%{_i}%::montant})
+    add 3 to {za::rep::%{za::acc::%{_i}%::pour}%}
+    send "&aL'accord n°%{_i}% est rempli : &e+%{za::acc::%{_i}%::montant}% jetons&a." to {_c}
+    za_mot_evt("livraison", location of {_c}, 2, "%{za::acc::%{_i}%::pour}%,%{za::acc::%{_i}%::payeur}%", "Accord rempli : %{za::acc::%{_i}%::texte}%")
+    za_acc_effacer({_i})
+
+every 5 minutes:
+    loop {za::acc::liste::*}:
+        set {_i} to loop-value
+        if {za::acc::%{_i}%::etat} is "livre":
+            if (unix timestamp of now) - ({za::acc::%{_i}%::livre_ts} ? 0) > 1200:
+                za_acc_verser({_i})
+
+# ---------------------------------------------------------------- avis de recherche
+
+command /avis:
+    trigger:
+        if size of {za::prime::liste::*} is 0:
+            send "&7Aucun avis de recherche." to player
+            stop
+        send "&4&l━━ AVIS DE RECHERCHE ━━" to player
+        loop {za::prime::liste::*}:
+            set {_c} to {za::prime::%loop-value%::cible}
+            set {_n} to {za::prime::%loop-value%::nom}
+            set {_reg} to "inconnue"
+            set {_v} to {za::mot::reg::%{_c}%}
+            if {_v} is set:
+                set {_r::*} to split {_v} at "|"
+                set {_reg} to {_r::2}
+            send "&c%{_n}% &7— &e%{za::prime::%loop-value%::montant}% jetons &8— dernière position connue : &f%{_reg}% &8(rumeur, fiabilité moyenne)" to player
+
+# ---------------------------------------------------------------- surnoms venus du comportement (16)
+
+function za_surnom_calcul(u: text) :: text:
+    if za_stat({_u}, "survivants_sauves") >= 10:
+        return "Le Sauveur"
+    if za_stat({_u}, "blessures_soignees") >= 60:
+        return "Le Médecin"
+    if za_stat({_u}, "ventes_marche") + za_stat({_u}, "achats_marche") >= 50:
+        return "Le Courtier"
+    if za_stat({_u}, "territoires_defendus") >= 10:
+        return "Le Rempart"
+    if za_stat({_u}, "nids_seul") >= 3:
+        return "Le Nettoyeur"
+    if za_stat({_u}, "enigmes") >= 5:
+        return "Le Fouineur"
+    if za_stat({_u}, "pillards_tues") >= 30:
+        return "Le Chasseur de pillards"
+    if za_stat({_u}, "missions_survivants") >= 30:
+        return "Le Chef d'équipe"
+    if za_stat({_u}, "reparations_reseau") >= 10:
+        return "L'Électricien"
+    return ""
+
+every 5 minutes:
+    loop za_monde_joueurs():
+        set {_u} to "%loop-value's uuid%"
+        set {_s} to za_surnom_calcul({_u})
+        if {_s} is not "":
+            if {za::titres::%{_u}%::surnom} is not {_s}:
+                set {za::titres::%{_u}%::surnom} to {_s}
+                send "&6On t'appelle maintenant &e%{_s}%&6. &8(ça se dit dans les camps ; /titre)" to loop-value
+                za_mot_radio("lea", "Dans les camps, on parle de quelqu'un qu'on appelle %{_s}%. Si c'est toi qui écoutes : merci.")
+
+# ---------------------------------------------------------------- stations des joueurs (S-5)
+
+command /station [<text>] [<text>] [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        set {_a} to arg-1 ? "aide"
+        if {_a} is "creer":
+            if arg-2 is not set:
+                send "&7/station creer <fréquence, ex. 96.3> <nom>" to player
+                stop
+            if za_elec_base({_u}) is false:
+                send "&cUne station a besoin de courant : une base sous tension (sous-station ou génératrice)." to player
+                stop
+            if {za::station::%arg-2%::proprio} is set:
+                send "&cCette fréquence est déjà prise." to player
+                stop
+            if {za::station::de::%{_u}%} is set:
+                delete {za::station::%{za::station::de::%{_u}%}%::*}
+            set {za::station::%arg-2%::proprio} to {_u}
+            set {za::station::%arg-2%::nom} to arg-3 ? "Station de %player%"
+            set {za::station::%arg-2%::loc} to location of player
+            set {za::station::de::%{_u}%} to arg-2
+            set {za::freq::connue::%{_u}%::%arg-2%} to true
+            send "&3📻 Station « %{za::station::%arg-2%::nom}% » sur le &b%arg-2%&3. &7/station message <texte> · /station annoncer" to player
+        else if {_a} is "message":
+            set {_f} to {za::station::de::%{_u}%}
+            if {_f} is not set:
+                send "&7Tu n'as pas de station (/station creer)." to player
+                stop
+            set {_t} to arg-2 ? ""
+            if arg-3 is set:
+                set {_t} to "%{_t}% %arg-3%"
+            set {za::station::%{_f}%::message} to {_t}
+            send "&7Message en boucle : &f%{_t}%" to player
+        else if {_a} is "annoncer":
+            set {_f} to {za::station::de::%{_u}%}
+            if {_f} is not set:
+                stop
+            if {za::station::%{_f}%::annonce} is set:
+                send "&7Léa en a déjà parlé." to player
+                stop
+            set {za::station::%{_f}%::annonce} to true
+            za_mot_radio("lea", "Une nouvelle voix sur les ondes : %{za::station::%{_f}%::nom}%, sur le %{_f}%. Allez l'écouter.")
+            loop za_monde_joueurs():
+                set {za::freq::connue::%loop-value's uuid%::%{_f}%} to true
+        else:
+            send "&3&l━━ STATIONS ━━ &7/station creer <fréquence> <nom> · message <texte> · annoncer" to player
+            send "&8Ce que tu émets, d'autres l'entendent. NORDA aussi écoute." to player
+
+# appelé par za_p85 pour une fréquence de joueur
+function za_station_emettre(p: player, f: text) :: boolean:
+    if {za::station::%{_f}%::proprio} is not set:
+        return false
+    set {_m} to {za::station::%{_f}%::message} ? "... souffle ... quelqu'un respire près du micro ..."
+    send "&8[&b📻 %{_f}% %{za::station::%{_f}%::nom}%&8] &7%{_m}%" to {_p}
+    # une émission se capte : NORDA triangule (108), les morts entendent un peu le haut-parleur
+    set {_l} to {za::station::%{_f}%::loc}
+    if {_l} is set:
+        za_mot("preuve %{za::station::%{_f}%::proprio}% radio 2 %floor(x-coordinate of {_l})% %floor(z-coordinate of {_l})%")
+    return true
