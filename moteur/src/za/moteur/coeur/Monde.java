@@ -21,12 +21,17 @@ public final class Monde {
     public final Reactions reactions;
     public final List<Horde> hordes = new ArrayList<>();
     public final Random rng;
+    public final Information info;
+    public final Memoire memoire;
+    private int ticks;
     public int jour;
     public String saison = "ete";
     public boolean nuit;
     public Pont pont = (a, e) -> { };
     private int prochainId = 1;
     public long maintenant = System.currentTimeMillis();
+    /** simulateur accéléré (F6) : l'horloge avance par pas de 30 s au lieu de suivre la vraie heure */
+    public boolean horlogeSimulee;
 
     // plafonds de départ (à régler avec la télémétrie, F5)
     public int maxHordes = 40;
@@ -40,7 +45,15 @@ public final class Monde {
         this.graphe = g;
         this.rng = new Random(graine);
         this.reactions = new Reactions(rng);
+        this.info = new Information(rng);
+        this.memoire = new Memoire(rng);
+        info.horloge = () -> maintenant;
         chronique.ecouter(e -> reactions.sur(e, this, maintenant));
+        // F9 et F10 : chaque événement devient une information qui voyage, et des souvenirs
+        chronique.ecouter(e -> {
+            Information.Info i = info.depuisEvenement(e, graphe);
+            memoire.sur(e, i == null ? null : i.texte);
+        });
     }
 
     // ================================================================ Chronique
@@ -333,7 +346,9 @@ public final class Monde {
 
     /** toutes les 30 secondes */
     public void tick30s() {
-        maintenant = System.currentTimeMillis();
+        if (!horlogeSimulee) maintenant = System.currentTimeMillis();
+        // l'information voyage toutes les 5 minutes (F1 : cadence 5 min)
+        if (++ticks % 10 == 0) info.voyager(graphe, maintenant);
         for (Region r : graphe.regions.values()) {
             synchronized (r.traces) {
                 r.traces.removeIf(t -> t[3] < maintenant);
@@ -521,6 +536,8 @@ public final class Monde {
 
     public void tickJour() {
         jour++;
+        memoire.jour(jour);
+        info.oublier(maintenant);
         int rouges = 0;
         for (Region r : graphe.regions.values()) {
             // cadavres -> nid (1, 25)

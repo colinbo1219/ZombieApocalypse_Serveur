@@ -166,6 +166,10 @@ public final class Lea {
                 return "Le camp de " + lieu + " est attaqué en ce moment. S'il y a quelqu'un dans le coin...";
             case "grande_nuit":
                 return "Cette nuit, tout bouge en même temps. Je n'ai jamais vu ça. Restez ensemble.";
+            case "signalement":
+                return "Un auditeur nous écrit : « " + e.texte + " ». Je n'ai pas pu vérifier.";
+            case "crash":
+                return "Des gens ont vu de la fumée près de " + lieu + ". Un appareil, peut-être. Si vous y allez, vous ne serez pas seuls.";
             case "explosion":
                 return "Une explosion entendue près de " + lieu + ". Quelqu'un, ou quelque chose ?";
             default:

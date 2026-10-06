@@ -23,6 +23,7 @@ public final class Simulateur {
         List<double[]> f = new ArrayList<>();
         for (int i = 0; i < fantomes; i++) f.add(new double[]{(rng.nextDouble() - 0.5) * 3000, (rng.nextDouble() - 0.5) * 3000});
         int megas = 0, frappes = 0;
+        m.horlogeSimulee = true;
         for (int j = 1; j <= jours; j++) {
             for (int t = 0; t < 40; t++) {        // un jour serveur = 20 minutes = 40 fois 30 s
                 m.maintenant += 30_000;
@@ -66,6 +67,15 @@ public final class Simulateur {
                 // rien : déjà compté
             }
         }
+        // F9 / F10 : jusqu'où les nouvelles voyagent, ce dont le monde se souvient
+        int regionsSavent = 0, n = 0;
+        for (Information.Info i : m.info.infos.values()) {
+            if (i.importance < 30) continue;
+            n++;
+            for (String d : m.info.savoirs.keySet()) if (d.startsWith("region:") && m.info.sait(d, i.id)) regionsSavent++;
+        }
+        r.add(String.format("Information : %d infos vivantes ; une nouvelle importante atteint en moyenne %.1f régions. Légendes : %d.",
+                m.info.infos.size(), n == 0 ? 0.0 : regionsSavent / (double) n, m.memoire.legendes.size()));
         int[] c = m.compteEtats();
         r.add("Carte finale (S stable, C contaminée, D dangereuse, R critique, P perdue) :");
         for (String l : m.carteEtats().split("\n")) r.add("  " + l);

@@ -112,6 +112,9 @@ public final class Persistance {
                 if (ro != null) for (String rk : ro.getKeys(false)) d.routes.put(rk, ro.getInt(rk));
             }
         }
+        z.monde.chronique.importer(lire("chronique.txt"));
+        z.monde.info.importer(lire("informations.txt"));
+        z.monde.memoire.importer(lire("memoire.txt"));
         // au premier démarrage : quelques hordes et Saint-Aurèle contaminée
         if (z.monde.hordes.isEmpty() && !y.contains("jour")) {
             Region sa = z.monde.graphe.region(0, 0);
@@ -209,6 +212,16 @@ public final class Persistance {
         z.telemetrie.sauver(o.createSection("telemetrie"));
         z.directeur.sauver(o.createSection("directeur"));
         z.lea.sauver(o.createSection("lea"));
+        // Chronique historique, informations et mémoire : fichiers texte à part (F2, F9, F10)
+        List<String> chron, infos, mem;
+        synchronized (z.monde) {
+            chron = z.monde.chronique.exporter();
+            infos = z.monde.info.exporter();
+            mem = z.monde.memoire.exporter();
+        }
+        ecrire("chronique.txt", chron);
+        ecrire("informations.txt", infos);
+        ecrire("memoire.txt", mem);
         try {
             File tmp = new File(z.getDataFolder(), "etat.yml.tmp");
             o.save(tmp);
@@ -220,6 +233,27 @@ public final class Persistance {
             y = o;
         } catch (Exception e) {
             ZAMoteur.log().warning("Sauvegarde impossible : " + e.getMessage());
+        }
+    }
+
+    private void ecrire(String nom, List<String> l) {
+        try {
+            File tmp = new File(z.getDataFolder(), nom + ".tmp");
+            Files.write(tmp.toPath(), l, java.nio.charset.StandardCharsets.UTF_8);
+            Files.move(tmp.toPath(), new File(z.getDataFolder(), nom).toPath(), StandardCopyOption.REPLACE_EXISTING);
+        } catch (Exception e) {
+            ZAMoteur.log().warning("Sauvegarde de " + nom + " impossible : " + e.getMessage());
+        }
+    }
+
+    private List<String> lire(String nom) {
+        File f = new File(z.getDataFolder(), nom);
+        if (!f.exists()) return new ArrayList<>();
+        try {
+            return Files.readAllLines(f.toPath(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            ZAMoteur.log().warning("Lecture de " + nom + " impossible : " + e.getMessage());
+            return new ArrayList<>();
         }
     }
 

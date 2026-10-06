@@ -20,8 +20,17 @@ public final class Evenement {
     public long quand = System.currentTimeMillis();
     public String texte = "";
     public boolean diffuse;
+    /** importance 0-100 (F2) : -1 = calculée par la Chronique selon le type et la gravité */
+    public int importance = -1;
+    /** public | prive | faction | secret (F2) ; ceux qui savent : savent */
+    public String visibilite = "public";
+    public final List<String> savent = new ArrayList<>();
+    /** la partie cachée d'un événement (F10) : connue seulement de « savent » */
+    public String secret = "";
+    /** certitude de la source, en % (F2, F9) */
+    public int fiabilite = 100;
 
-    private static long suivant = 1;
+    private static long suivant = System.currentTimeMillis();
 
     public Evenement(String type) {
         synchronized (Evenement.class) {
@@ -48,6 +57,22 @@ public final class Evenement {
 
     public Evenement dit(String t) {
         this.texte = t == null ? "" : t;
+        return this;
+    }
+
+    public Evenement imp(int i) {
+        this.importance = Math.max(0, Math.min(100, i));
+        return this;
+    }
+
+    public Evenement temoin(String t) {
+        if (t != null && !t.isEmpty() && !temoins.contains(t)) temoins.add(t);
+        return this;
+    }
+
+    public Evenement cache(String secretTexte, String... qui) {
+        this.secret = secretTexte;
+        for (String q : qui) savent.add(q);
         return this;
     }
 

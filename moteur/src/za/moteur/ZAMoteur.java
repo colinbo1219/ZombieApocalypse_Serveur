@@ -54,6 +54,7 @@ public final class ZAMoteur extends JavaPlugin {
     public Telemetrie telemetrie;
     public Ecosysteme ecosysteme;
     public Omega omega;
+    public InfoJoueurs infoJoueurs;
 
     /** bases enregistrées (/base, p8) : jamais envahies automatiquement (règle 2) */
     public final Map<UUID, Location> bases = new ConcurrentHashMap<>();
@@ -118,6 +119,8 @@ public final class ZAMoteur extends JavaPlugin {
         lea = new Lea(this);
         ecosysteme = new Ecosysteme(this);
         omega = new Omega(this);
+        infoJoueurs = new InfoJoueurs(this);
+        monde.memoire.annonce = t -> pont.zaevt("legende " + t);
         persistance.chargerModules();
 
         monde.pont = this::actionServeur;
@@ -168,6 +171,7 @@ public final class ZAMoteur extends JavaPlugin {
                 publierEtatsJoueurs();
                 if (actif("ecosysteme")) ecosysteme.tick30s();
                 if (actif("lea")) lea.tick30s();
+                infoJoueurs.tick30s();
             }
         }.runTaskTimer(this, 300L, 600L);
         // sauvegarde toutes les 5 minutes
@@ -327,6 +331,8 @@ public final class ZAMoteur extends JavaPlugin {
         try {
             if (n.equals("zam")) return Commandes.zam(this, s, a);
             if (n.equals("zaadmin")) return Commandes.zaadmin(this, s, a);
+            if (n.equals("infos")) return infoJoueurs.infos(this, s, a);
+            if (n.equals("signaler")) return infoJoueurs.signaler(this, s, a);
         } catch (RuntimeException e) {
             s.sendMessage("§c[ZAMoteur] erreur : " + e.getMessage());
             log().warning("Commande " + n + " " + Arrays.toString(a) + " : " + e);

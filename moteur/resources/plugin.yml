@@ -12,6 +12,11 @@ commands:
   zaadmin:
     description: Outils du moteur ZA
     permission: za.admin
+  infos:
+    description: Ce que tu sais (nouvelles, rumeurs, avec leur âge et leur fiabilité)
+    aliases: [rumeurs]
+  signaler:
+    description: Faire passer le mot sur ce que tu as vu
 permissions:
   za.admin:
     default: op

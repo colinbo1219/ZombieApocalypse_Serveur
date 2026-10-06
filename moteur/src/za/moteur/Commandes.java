@@ -399,6 +399,20 @@ final class Commandes {
                 s.sendMessage("§6[Cerveau] §f" + t.getName() + " : " + z.cerveaux.etatDe(t) + " — tags " + t.getScoreboardTags());
                 return true;
             }
+            case "memoire":
+            case "relation":
+            case "savoir":
+                z.infoJoueurs.admin(s, a);
+                return true;
+            case "legendes":
+                synchronized (z.monde) {
+                    for (za.moteur.coeur.Memoire.Legende l : z.monde.memoire.legendes) {
+                        s.sendMessage("§6" + l.nom + " §8(J" + l.jour + ")");
+                        for (Map.Entry<String, String> v : l.versions.entrySet()) s.sendMessage("§8  " + v.getKey() + " : §7" + v.getValue());
+                    }
+                    for (String r : z.monde.chronique.resumes(null, 8)) s.sendMessage("§8" + r);
+                }
+                return true;
             case "omega":
                 for (String l : z.omega.etat()) s.sendMessage("§7" + l);
                 return true;
@@ -412,6 +426,7 @@ final class Commandes {
         s.sendMessage("§6/zaadmin §7directeur [joueur] · region [id|ici] · carte · hordes [creer N|attirer] · norda [joueur] · nemesis");
         s.sendMessage("§7simuler <jours> [fantômes] · chaine <1-8> · evt <type> [grav] [texte] · rapport · systeme <nom> on|off");
         s.sendMessage("§7reactions recharger · chronique [n] · sauver · cerveau · omega");
+        s.sendMessage("§7memoire <clé> · relation <de> <envers> · savoir <clé> · legendes  §8(clé : pseudo, region:r_3_4, faction:milice, pnj:12)");
     }
 
     private static String top(Map<String, Double> m, int n) {
