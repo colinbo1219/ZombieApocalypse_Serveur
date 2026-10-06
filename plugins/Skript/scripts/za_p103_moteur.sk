@@ -261,6 +261,10 @@ function za_mot_evt_serveur(t: text, ligne: text):
             za_zm("son %{_p}% minecraft:entity.horse.ambient 0.6 0.8")
     else if {_t} is "convoi_epave":
         add "%{_a::2}%|%{_a::3}%|%{_a::4}%|%{_a::5}%|%{_a::6}%" to {za::mot::epave::*}
+    else if {_t} is "msg":
+        set {_p} to za_mot_joueur({_a::2})
+        if {_p} is set:
+            send "&3» &7%za_mot_mots({_ligne}, 2)%" to {_p}
     else if {_t} is "pnj_dit":
         set {_p} to za_mot_joueur({_a::2})
         if {_p} is set:
