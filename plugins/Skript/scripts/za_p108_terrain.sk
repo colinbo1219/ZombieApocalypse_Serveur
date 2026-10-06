@@ -1,0 +1,260 @@
+# =====================================================================
+#  ZombieApocalypse - CE QUI SE JOUE SUR LE TERRAIN (bible, points 44, 81, 83, 85, 116, 117)
+#  * BESTIAIRE (116) : /bestiaire. Chaque type abattu s'inscrit (combien, ce qu'on sait) ; la page de ta région dit
+#    ce que les morts y ont appris (ZAMoteur, IA-6) ; les vétérans et les Némésis connus y figurent.
+#  * LE FAUSSAIRE (81, 83) : /faussaire papiers (20 jetons, 3 papiers) → « Faux papiers » ; /faussaire piste (25 jetons,
+#    3 papiers) → « Fausse piste ». Clic droit : les papiers brouillent ton identité aux yeux de NORDA ; la fausse piste
+#    accuse une faction (ou un joueur) — si NORDA la démasque, c'est toi qu'il soupçonne davantage.
+#  * L'EAU CONTAMINÉE (85) : boire de l'eau non purifiée dans une région dont l'eau est sale (le moteur le sait) rend
+#    malade. Les labos détruits en amont empoisonnent l'aval.
+#  * CHIENS DE GARDE (44) : un loup apprivoisé à moins de 40 blocs de ta base aboie quand des morts approchent, et
+#    grogne contre un infecté qui se cache (110, chaîne 8). Les chiens te prennent pour un mort si tu es couvert de sang.
+#  * LEURRES SONORES (117) : « Leurre sonore » (un réveil bricolé, 6 jetons : /faussaire leurre) : clic droit vers un
+#    point à 30 blocs : le bruit y attire les morts. Mais une région qui en voit trop apprend à les ignorer (IA-6).
+# =====================================================================
+
+# ---------------------------------------------------------------- bestiaire (116)
+
+function za_best_cle(n: text) :: text:
+    set {_k} to {_n}
+    replace all "Vétéran " with "" in {_k}
+    if {_k} contains "«":
+        set {_i} to index of "«" in {_k}
+        set {_k} to subtext of {_k} from characters 1 to ({_i} - 1)
+    return {_k}
+
+function za_best_desc(n: text) :: text:
+    set {_l} to "%{_n}%"
+    if {_l} contains "Shambler":
+        return "Lent, en meute. Suit le bruit. Ne le laisse pas t'encercler."
+    if {_l} contains "Runner":
+        return "Il court. Il souffle fort : tu l'entends avant de le voir."
+    if {_l} contains "Crawler":
+        return "Il rampe sous les barricades et attrape les chevilles. Regarde par terre."
+    if {_l} contains "Spitter":
+        return "Il crache de l'acide pour déloger ceux qui campent en hauteur."
+    if {_l} contains "Bloater":
+        return "Ne le crève pas de près : sa nappe toxique bouche un passage."
+    if {_l} contains "Leaper":
+        return "Il saute sur les toits. Ta hauteur ne te protège plus."
+    if {_l} contains "Brute":
+        return "Il frappe les murs. Une barricade ne tient pas longtemps."
+    if {_l} contains "Screamer":
+        return "Son cri porte à 48 blocs. Abats-le en premier."
+    if {_l} contains "Stalker":
+        return "Presque silencieux. Il prend à revers dans le noir."
+    if {_l} contains "lind":
+        return "Les coups glissent. Vise la tête, ou frappe fort."
+    if {_l} contains "ouclier":
+        return "Un bouclier de police. Contourne-le."
+    if {_l} contains "Faux mort":
+        return "Il attend sur les routes que tu prends souvent. Les cadavres ne sont pas tous morts."
+    if {_l} contains "Observ":
+        return "Il regarde de loin et guide la horde. Tant qu'il te voit, ils savent où tu es."
+    if {_l} contains "Alpha":
+        return "Le chef. Tue-le et la meute se disperse."
+    if {_l} contains "Noy":
+        return "Caché dans la rivière. Il agrippe les nageurs et les tire au fond."
+    if {_l} contains "Givr":
+        return "Lent, dur à frapper. Le feu le fait éclater."
+    if {_l} contains "Moisi":
+        return "Ses spores brouillent la vue dans le brouillard."
+    if {_l} contains "Brûl":
+        return "Il met le feu à ce qu'il touche. Pas dans l'herbe sèche."
+    if {_l} contains "Chien":
+        return "En meute, rapides, ils suivent le sang. Tue le dominant."
+    if {_l} contains "Agent NORDA" or "récupération NORDA":
+        return "Pas un mort. Pire : quelqu'un qui sait qui tu es."
+    if {_l} contains "infect":
+        return "Quelqu'un, avant. Son métier se voit encore : ce qu'il porte, ce qu'il fait."
+    return "On en sait encore peu. Observe-le."
+
+function za_best_adapt(t: text) :: text:
+    if {_t} is "grimpeur":
+        return "les morts grimpent davantage"
+    if {_t} is "carbonise":
+        return "le feu leur fait moins peur"
+    if {_t} is "blinde":
+        return "ils encaissent mieux les coups"
+    if {_t} is "sourd_aux_leurres":
+        return "ils ignorent les leurres bon marché"
+    if {_t} is "evite_pieges":
+        return "ils évitent les pièges"
+    if {_t} is "obstine":
+        return "ils ne lâchent plus une piste"
+    if {_t} is "aveugle":
+        return "beaucoup sont aveugles : ils écoutent"
+    if {_t} is "boiteux":
+        return "beaucoup boitent"
+    if {_t} is "affame":
+        return "ils ont faim, et ça se voit"
+    if {_t} is "craintif":
+        return "ils fuient le feu plus longtemps"
+    return ""
+
+on death:
+    if attacker is a player:
+        if za_pro(attacker) is false:
+            if victim is not a player:
+                set {_n} to uncolored name of victim ? ""
+                if {_n} is not "":
+                    set {_k} to za_best_cle({_n})
+                    set {_u} to "%attacker's uuid%"
+                    if {za::best::%{_u}%::%{_k}%} is not set:
+                        send "&8📖 Nouvelle page du bestiaire : &f%{_k}% &8(/bestiaire)" to attacker
+                    add 1 to {za::best::%{_u}%::%{_k}%}
+
+command /bestiaire:
+    trigger:
+        set {_u} to "%player's uuid%"
+        send "&6&l━━ BESTIAIRE ━━" to player
+        set {_n} to 0
+        loop {za::best::%{_u}%::*}:
+            add 1 to {_n}
+            send "&f%loop-index% &8(%loop-value% abattus) &7— %za_best_desc(loop-index)%" to player
+        if {_n} is 0:
+            send "&7Rien encore. Chaque mort que tu abats t'apprend quelque chose." to player
+        set {_a} to za_best_adapt({za::mot::adapt::%{_u}%} ? "-")
+        if {_a} is not "":
+            send "&6Ta région &7(%za_mot_reg(player, 2)%) : &e%{_a}%&7." to player
+        loop {za::mot::bestiaire::*}:
+            set {_c::*} to split loop-value at "|"
+            send "&4Légende locale &7(jour %{_c::1}%) : &c%{_c::2}%" to player
+        loop {za::mot::nemesis::*}:
+            set {_c::*} to split loop-value at "|"
+            send "&4Némésis &7(jour %{_c::1}%) : &c%{_c::3}%" to player
+
+# ---------------------------------------------------------------- le faussaire (81, 83) et les leurres (117)
+
+command /faussaire [<text>] [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_a} to arg-1 ? "aide"
+        if {_a} is "papiers" or "piste":
+            set {_c} to 20
+            if {_a} is "piste":
+                set {_c} to 25
+            if za_jetons(player) < {_c}:
+                send "&cIl faut %{_c}% jetons." to player
+                stop
+            if player does not have 3 paper:
+                send "&cIl faut 3 papiers vierges." to player
+                stop
+            remove 3 paper from player
+            za_jetons_ajouter(player, 0 - {_c})
+            if {_a} is "papiers":
+                give player za_item("paper", "Faux papiers", "&e", 1)
+                send "&7Des papiers presque parfaits. Clic droit pour les « porter » : NORDA aura du mal à savoir qui tu es." to player
+            else:
+                give player za_item("paper", "Fausse piste", "&c", 1)
+                send "&7Un faux dossier, des fausses traces. &8/faussaire cible <faction|joueur> puis clic droit." to player
+        else if {_a} is "cible":
+            if arg-2 is not set:
+                send "&7/faussaire cible <milice|scientifiques|marchands|pilleurs|survivants|culte|joueur>" to player
+                stop
+            set {za::faux::cible::%player's uuid%} to arg-2
+            send "&7La fausse piste accusera : &f%arg-2%" to player
+        else if {_a} is "leurre":
+            if za_jetons(player) < 6:
+                send "&cIl faut 6 jetons." to player
+                stop
+            za_jetons_ajouter(player, -6)
+            give player za_item("clock", "Leurre sonore", "&e", 1)
+            send "&7Un réveil bricolé. Clic droit vers un point : il sonnera là-bas." to player
+        else:
+            send "&6&l━━ LE FAUSSAIRE ━━" to player
+            send "&e/faussaire papiers &7(20 jetons + 3 papiers) · &e/faussaire piste &7(25 jetons + 3 papiers) · &e/faussaire cible <qui>" to player
+            send "&e/faussaire leurre &7(6 jetons) : un leurre sonore" to player
+            send "&8NORDA apprend de ses erreurs : une fausse piste démasquée te retombe dessus." to player
+
+on right click:
+    if za_pro(player) is true:
+        stop
+    set {_n} to uncolored name of player's tool ? ""
+    if {_n} is "Faux papiers":
+        cancel event
+        remove 1 of player's tool from player's tool
+        set {za::mot::papiers::%player's uuid%} to true
+        za_mot("papiers %player's uuid% 60")
+        send "&7Tu as une nouvelle identité. Pour NORDA, tu es quelqu'un d'autre... jusqu'à preuve du contraire." to player
+    else if {_n} is "Fausse piste":
+        cancel event
+        set {_c} to {za::faux::cible::%player's uuid%}
+        if {_c} is not set:
+            send "&7Choisis d'abord qui accuser : /faussaire cible <faction|joueur>" to player
+            stop
+        set {_cp} to {_c} parsed as offline player
+        set {_cle} to "faction:%{_c}%"
+        if {_cp} is set:
+            set {_cle} to "%{_cp}'s uuid%"
+        remove 1 of player's tool from player's tool
+        za_mot("faux %player's uuid% %{_cle}% 55")
+        send "&7Tu laisses la fausse piste là où NORDA la trouvera." to player
+    else if {_n} is "Leurre sonore":
+        cancel event
+        set {_b} to target block of player
+        if {_b} is not set:
+            stop
+        if distance between {_b} and player > 32:
+            send "&7Trop loin : 30 blocs au plus." to player
+            stop
+        remove 1 of player's tool from player's tool
+        set {_l} to location of {_b}
+        play sound "block.bell.use" with volume 3 at {_l}
+        za_mot("bruit %floor(x-coordinate of {_l})% %floor(z-coordinate of {_l})% 60")
+        za_mot("habitude %floor(x-coordinate of {_l})% %floor(z-coordinate of {_l})% leurres 1")
+        send "&7Driiiing. Là-bas. &8(Une région qui en voit trop apprend à les ignorer.)" to player
+
+# ---------------------------------------------------------------- l'eau contaminée (85)
+
+on consume:
+    if za_pro(player) is true:
+        stop
+    if event-item is not water bottle:
+        stop
+    if (uncolored name of event-item ? "") is "Eau purifiee":
+        stop
+    set {_eau} to (za_mot_reg(player, 5) parsed as number) ? 100
+    if {_eau} < 40:
+        if chance of 50%:
+            za_effet(player, "nausea", 20, 0)
+            za_effet(player, "hunger", 30, 1)
+            send "&2L'eau d'ici a un goût de rouille et de produits chimiques. Ton ventre se tord." to player
+            add 1 to {za::eau::malade::%player's uuid%}
+
+# ---------------------------------------------------------------- chiens de garde (44)
+
+every 10 seconds:
+    # seulement autour des bases dont le propriétaire est là (jamais de boucle sur toutes les entités)
+    loop za_monde_joueurs():
+        za_chien_veille(loop-value)
+
+function za_chien_veille(p: player):
+    set {_o} to "%{_p}'s uuid%"
+    set {_b} to {za::base::%{_o}%}
+    if {_b} is not set:
+        stop
+    if chunk at {_b} is not loaded:
+        stop
+    loop all wolves in radius 40 around {_b}:
+        if loop-entity is tamed:
+            if "%owner of loop-entity's uuid%" is {_o}:
+                za_chien_sentir({_p}, location of loop-entity)
+
+function za_chien_sentir(p: player, l: location):
+    set {_o} to "%{_p}'s uuid%"
+    set {_n} to 0
+    loop all monsters in radius 24 around {_l}:
+        add 1 to {_n}
+    if {_n} > 0:
+        play sound "entity.wolf.growl" with volume 2 at {_l}
+        if ({za::chien::avis::%{_o}%} ? 0) < (unix timestamp of now) - 60:
+            set {za::chien::avis::%{_o}%} to unix timestamp of now
+            send "&6[Base] &eLe chien gronde vers l'extérieur. &7(%{_n}% mort(s) approchent)" to {_p}
+    # un infecté qui se cache (110) : le chien le sent
+    loop all players in radius 8 around {_l}:
+        if {za::infection::%loop-player's uuid%} is set:
+            play sound "entity.wolf.growl" with volume 1 and pitch 0.6 at {_l}
+            if chance of 30%:
+                send "&8Le chien grogne en te fixant. Il sent quelque chose." to loop-player

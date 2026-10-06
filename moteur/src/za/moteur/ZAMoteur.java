@@ -331,6 +331,17 @@ public final class ZAMoteur extends JavaPlugin {
                     + "|" + (int) r.danger() + "|" + r.nids + "|" + (int) r.population + "|" + (r.courant ? 1 : 0) + "|" + (int) r.attentionZ
                     + "|" + (int) r.vegetation + "|" + r.tours + "|" + (r.quarantaineJusqua >= monde.jour ? 1 : 0));
             pont.set("palier::" + u, d == null ? "0" : String.valueOf(d.palier));
+            // ce que la région a appris (IA-6), pour le bestiaire : le trait le plus fort, en mots
+            String adapt = "";
+            double best = 0.25;
+            synchronized (monde) {
+                for (Map.Entry<String, Double> t : r.traits.entrySet())
+                    if (t.getValue() > best) {
+                        best = t.getValue();
+                        adapt = t.getKey();
+                    }
+            }
+            pont.set("adapt::" + u, adapt.isEmpty() ? "-" : adapt);
         }
     }
 

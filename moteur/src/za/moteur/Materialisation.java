@@ -108,9 +108,14 @@ public final class Materialisation {
                     int voulu = Math.min(h.taille, front) - h.reels;
                     Region r = z.monde.graphe.regions.get(h.region);
                     for (int i = 0; i < Math.min(voulu, 8); i++) {
-                        String t = r != null ? r.tirerType(z.monde.rng) : "ZA_Shambler";
+                        String t = r != null ? saisonnier(r, r.tirerType(z.monde.rng)) : "ZA_Shambler";
                         if (h.alpha && h.reels == 0 && i == 0) t = "ZA_Alpha";
                         nouvelles.add(new Demande(h.id, t, cible.u));
+                    }
+                    // la nuit, une meute de chiens infectés suit parfois la horde (23) : tuer le dominant la disperse
+                    if (z.monde.nuit && voulu > 0 && z.monde.rng.nextDouble() < 0.05) {
+                        nouvelles.add(new Demande(h.id, "ZA_Chien_Dominant", cible.u));
+                        for (int i = 0; i < 2 + z.monde.rng.nextInt(3); i++) nouvelles.add(new Demande(h.id, "ZA_Chien_Infecte", cible.u));
                     }
                 }
             }
@@ -358,6 +363,23 @@ public final class Materialisation {
                 if (en != null) en.remove();
                 it.remove();
             }
+        }
+    }
+
+    /** zombies de saison (13) : une part des morts change avec la saison ; les noyés, seulement près de la rivière */
+    private String saisonnier(Region r, String t) {
+        if (z.monde.rng.nextDouble() > 0.12) return t;
+        switch (z.monde.saison) {
+            case "printemps":
+                return r.riviere ? "ZA_Noye" : t;
+            case "ete":
+                return "ZA_Saison_Brule";
+            case "automne":
+                return "ZA_Moisi";
+            case "hiver":
+                return "ZA_Givre";
+            default:
+                return t;
         }
     }
 }

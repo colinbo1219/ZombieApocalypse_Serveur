@@ -193,6 +193,14 @@ command /infra [<text>] [<text>]:
             za_jetons_ajouter(player, 0 - {_c})
             za_take_named(player, "Composant electronique", 1)
             set {za::infra::%{_u}%::%{_t}%} to location of {_b}
+            # le moteur en tient compte (106) : une tour aide le réseau... et NORDA ; une antenne est une signature (96)
+            set {_bx} to floor(x-coordinate of {_b})
+            set {_bz} to floor(z-coordinate of {_b})
+            if {_t} is "tour":
+                za_mot("infra %{_bx}% %{_bz}% tour on")
+            else if {_t} is "antenne":
+                za_mot("infra %{_bx}% %{_bz}% repeteur on")
+                za_mot("preuve %{_u}% antenne 6 %{_bx}% %{_bz}%")
             send "&a%{_t}% en service." to player
             za_journal("%player% a construit un(e) %{_t}%.")
         else:
