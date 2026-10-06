@@ -35,3 +35,9 @@ plugins/spark/tmp/
 plugins/*/logs/
 __pycache__/
 moteur/build/
+# données vivantes du moteur ZAMoteur (créées par le serveur)
+plugins/ZAMoteur/etat*.yml
+plugins/ZAMoteur/*.txt
+plugins/ZAMoteur/*.tmp
+plugins/ZAMoteur/rapports/
+plugins/ZAMoteur/config.yml

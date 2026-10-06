@@ -689,3 +689,41 @@ refuges détruits, voix de l'évolution.
   non utilisé ; propriétés ETF `teams` et `health` (et leur mise à jour en cours de partie), `biomes` ; NBT des
   panneaux, pupitres, cadres et statues du musée ; `team join` sur les entités MythicMobs ; particule `reddust`
   avec couleur dans MythicMobs 5.7.2.
+
+---
+
+## COMPLÉMENT — La bible de conception : le moteur du monde ZAMoteur (2 au 6 oct.)
+
+Demande de Colin : « réfère-toi à la bible et construis-moi ça » (`docs/ZA_BIBLE_CONCEPTION.md`, v1 puis v2).
+
+**NOUVEAU**
+- `moteur/` (sources Java) → `plugins/ZAMoteur.jar` ; `plugins/ZAMoteur/graphe.yml` (100 régions, 95 lieux, routes,
+  rivière à sens unique) et `reactions.yml` (37 règles, chaînes 1 à 14) ; `generateur_monde/exporter_graphe.py`.
+- `za_p103_moteur.sk` (pont : stations radio, Némésis, NORDA, capture, crash, imitateur, chance, pluie toxique,
+  graffitis, sons lointains, convois, rumeurs de vol, /monde, /norda, /interrogatoire, /regler).
+- `za_p104_bases_vivantes.sk` (Réserve comptée, survivants décrits au moteur, ordres exécutés, /communaute).
+- `MythicMobs/Mobs/ZA_Norda.yml`.
+
+**MODIFIÉ** (une à quelques lignes chacun) : p7 (prix régionaux et méfiance), p14 (panne sèche de la génératrice →
+Chronique), p36 (pas d'apparition aléatoire pendant la « relâche » du Directeur), p39 (`/zone` lit la région du
+moteur, nid détruit → Chronique), p61 (courant par quartier → moteur), p62 (`za_monde_evt` publie dans la Chronique),
+p68 (blocus → cours), p70 (chaque appel accroche le réseau cellulaire), p83 (boss tombé → Chronique), p92 (résultat
+de chaque sortie → mémoire du survivant).
+
+**SYSTÈMES** (numéros de la bible) : F1 moteur hors du fil principal avec budgets ; F2 Chronique (importance 0-100,
+résumés, légendaires) ; F3 graphe et état des régions ; F4 hordes virtuelles matérialisées hors de vue (96-128 blocs,
+350 zombies réels max, 40 par joueur) ; F5 télémétrie et rapport quotidien ; F6 simulateur ; F9 information (source,
+fiabilité, âge, voyage, déformation, morceaux) ; F10 mémoire (souvenirs, relations avec raisons, légendes) ; IA-1
+Directeur (intensité, calme → montée → pic → relâche, quota de moment fort, anti-frustration) ; IA-2/3/5 sens, états
+et tactique des zombies proches ; IA-4 vétérans et Némésis ; IA-6 génome régional ; IA-7 hordes-agents ; IA-8/IA-15
+cerveau des survivants et bases vivantes ; IA-10 factions ; IA-11 NORDA qui croit des choses (drones, barrages,
+capture) ; IA-12 Léa ; IA-13 écosystème (oiseaux, silence, corbeaux, échos réels) ; IA-16 Ω facultatif ; S-3 économie.
+
+**TESTS** : compilation contre l'API Spigot 1.20.1 ; simulateur 60 jours avec 4 joueurs fantômes (la carte se stabilise,
+freins OK) ; vérificateur Skript (111 scripts, aucune anomalie).
+
+**NON TESTÉ** : tout ce qui est en jeu (voir A_INSTALLER §10, « Pas testé »).
+
+**RESTE À FAIRE (bible)** : S-1 corps du joueur (`/etat`), IA-9 mensonges lisibles des PNJ, IA-14 ordres élargis des
+compagnons, S-2 combat (dépend de TaCZ 🔍), S-4 social (promesses, contrats à dépôt), S-5 réseau radio complet, S-7
+campagne, nouveaux lieux du générateur (aéroport, centre d'achat, aréna, prison, gare...), mod `za_modeles` 2.0.

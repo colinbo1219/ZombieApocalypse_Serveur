@@ -10,11 +10,27 @@ Phase 1 = analyse seule, aucune modification.
 
 ## Pile technique
 - `arclight-5dc8683.jar` : Forge 1.20.1 + API Bukkit/Spigot dans le même serveur.
-- Skript 2.9.5 : presque toute la logique de jeu (`plugins/Skript/scripts/za_*.sk`, 109 fichiers).
+- Skript 2.9.5 : presque toute la logique de jeu (`plugins/Skript/scripts/za_*.sk`, 111 fichiers).
 - MythicMobs 5.7.2 : zombies et PNJ (`plugins/MythicMobs/Mobs|Skills|Items|RandomSpawns/`).
 - Plugin maison `plugins/ZAMonde.jar` : ville, PNJ, props, HUD, caméras (données dans `plugins/ZAMonde/`).
 - ~64 mods Forge (liste et SHA-1 dans [JARS.txt](JARS.txt), dont 16 mods décoratifs Macaw's / Handcrafted / Supplementaries / Create Deco utilisés par la ville, et des add-ons Create : voir docs/A_INSTALLER.md §6 bis ; Design Decor 0.4.0b et Create D&D 0.1b sont INCOMPATIBLES avec Create 6), configs dans `config/`, `defaultconfigs/`, `world/serverconfig/`.
 - Datapacks : `world/datapacks/za_*`.
+
+## Moteur du monde ZAMoteur (bible `docs/ZA_BIBLE_CONCEPTION.md`, v2)
+- Plugin Java séparé (ZAMonde ne peut pas être recompilé ici) : sources `moteur/src/za/moteur/`, jar versionné
+  `plugins/ZAMoteur.jar`, données `plugins/ZAMoteur/` (`graphe.yml` généré par `generateur_monde/exporter_graphe.py`,
+  `reactions.yml` = règles de réaction lisibles). Compilation : `sh moteur/build.sh <spigot-api-1.20.1.jar>`
+  (javac --release 17, aucune autre dépendance). Paquet `za.moteur.coeur` sans Bukkit : simulateur hors ligne
+  `java -cp moteur/build/classes za.moteur.coeur.Simulateur plugins/ZAMoteur/graphe.yml 60 4 plugins/ZAMoteur/reactions.yml`.
+- Pont : Skript → moteur par `zam ...` (console), moteur → Skript par `zaevt ...` (`za_p103_moteur.sk`) ; le moteur écrit
+  `{za::mot::<clé>}` par `zaevt set`. `za_mot_actif()` avant tout envoi. `za_mot_evt(type, lieu, grav, acteurs, texte)`
+  publie dans la Chronique (`za_monde_evt` de p62 le fait déjà).
+- Contenu : Chronique (F2, importance 0-100), graphe et régions (F3), hordes virtuelles + matérialisation (F4),
+  télémétrie (F5), simulateur (F6), information (F9 : /infos, /signaler), mémoire et relations (F10), Directeur (IA-1),
+  cerveaux des zombies (IA-2/3/5), Némésis (IA-4), génome régional (IA-6), NORDA (IA-11), Léa (IA-12), écosystème (IA-13),
+  bases vivantes + cerveau des survivants (IA-15/IA-8, `za_p104_bases_vivantes.sk`, /communaute), factions + économie
+  (IA-10/S-3), Ω facultatif (IA-16, désactivé, clé d'API). Admin : `/zaadmin`.
+- MythicMobs `Mobs/ZA_Norda.yml` : agents NORDA (tag `za_norda`), zombies de saison, chiens infectés.
 
 ## Ce que le dépôt ne contient pas
 - **Les jars publics** : exclus par `.gitignore`, voir JARS.txt. Seuls `ZAMonde.jar`, `ZAPaperCompat.jar` et
@@ -51,7 +67,7 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
 
 ## Pièges connus
 - Numéros en double : `za_p7_economie` / `za_p7_progression`, `za_p38_lieux` / `za_p38_prologue`.
-- LISEZMOI.txt annonce 41 scripts : il y en a 109.
+- LISEZMOI.txt annonce 41 scripts : il y en a 111.
 - Colin utilise Java 25 en local, alors que le serveur exige Java 17 ou 21.
 
 ## Travail des phases 2 à 15 (voir docs/RAPPORTS_PHASES.md)

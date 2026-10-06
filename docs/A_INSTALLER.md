@@ -324,3 +324,69 @@ réenregistrées sans erreur, panneaux et coffres avec butin conservés), mais *
 blocs moddés (Macaw's, Handcrafted, Create, IE) sont écrits avec des identifiants que je n'ai pas pu tous vérifier
 dans les jars (surtout les minerais d'IE). Un identifiant inconnu devient de l'air, sans planter. Regarde la console
 au premier démarrage : des lignes « Unknown block » m'indiqueraient quoi corriger.
+
+## 10. Le moteur du monde : ZAMoteur (bible de conception, F1 à F10, IA-1 à IA-16, S-3)
+
+`docs/ZA_BIBLE_CONCEPTION.md` (version 2) décrit le serveur « extrême ». Sa fondation est un **plugin Java à part**,
+`plugins/ZAMoteur.jar` (versionné dans le dépôt, sources dans `moteur/`). Il simule le monde **hors du fil principal**
+(régions, hordes virtuelles, contamination, NORDA, factions, économie, informations, mémoire) et ne fait sur le fil
+principal que les actions visibles, avec un budget par tick. Skript garde le contenu : les deux se parlent par la
+console (`zam ...` vers le moteur, `zaevt ...` vers Skript, script `za_p103_moteur.sk`).
+
+### Installation
+1. `plugins/ZAMoteur.jar`, `plugins/ZAMoteur/graphe.yml` et `plugins/ZAMoteur/reactions.yml` arrivent avec le `git pull`.
+   Rien à télécharger. Il faut MythicMobs (déjà là) ; Skript reste en 2.9.5.
+2. Redémarre le serveur. Console : `ZAMoteur prêt : 100 régions, 95 lieux, 37 règles de réaction, 8 hordes.`
+   Le plugin crée `plugins/ZAMoteur/config.yml` (systèmes on/off, budgets, plafonds, option Ω) et, toutes les
+   5 minutes, `etat.yml`, `chronique.txt`, `informations.txt`, `memoire.txt`, `bases.txt`, `factions.txt`
+   (copie de `etat.yml` chaque jour, sur 7 jours : `etat-jour0.yml` à `etat-jour6.yml`).
+3. MythicMobs : `/mm reload` (nouveau fichier `Mobs/ZA_Norda.yml` : agents NORDA, zombies de saison, chiens infectés).
+4. Si tu régénères le monde : `python3 generateur_monde/exporter_graphe.py` refait `plugins/ZAMoteur/graphe.yml`.
+5. Pour recompiler le plugin (seulement si on modifie `moteur/src`) : `sh moteur/build.sh <chemin du spigot-api 1.20.1>`.
+
+### Ce que les joueurs voient
+- `/monde` : l'état de ta région (stable → perdue), l'eau, les nids, le courant, la quarantaine. `/zone` l'affiche aussi.
+- **Rumeurs** : « [On dit] Une horde a attaqué près de Val-des-Pins (de bouche à oreille, il y a 40 min, 52 %) ».
+  `/infos` (ce que tu sais, avec l'âge et la fiabilité), `/infos dire <joueur> <n°>`, `/signaler <ce que tu as vu>`.
+- **Léa** choisit ses nouvelles dans la Chronique ; Bravo (104.2), la radio pirate et NORDA donnent leur version.
+- **Némésis** : le zombie qui te tue prend ton casque, ton arme et un nom (« Shambler « le Faucheur de Val-des-Pins » »),
+  et reviendra plus tard, ailleurs. L'abattre rend l'équipement et donne sa tête (titre « Le Revenant »).
+- **NORDA** : `/norda` (ce que tu sens), drones qui tournent là où NORDA CROIT que tu es, barrages sur tes routes
+  habituelles, contrôles, capture au palier 5 (cellule au niveau -2, `/interrogatoire verite|mentir|negocier`).
+- **Bases vivantes** : `/communaute` (stocks, minimums, sorties, journal). Les survivants partent seuls quand un stock
+  baisse (« J'irai demain matin »). À la connexion : « PENDANT TON ABSENCE ».
+- **Factions** : convois sur les routes (qu'une horde peut attaquer : l'épave reste avec son chargement), blocus,
+  traités, prix différents selon la région chez les marchands. `/regler` règle une affaire de vol (chaîne 14).
+
+### Outils de Colin (`/zaadmin`, permission `za.admin`)
+`directeur [joueur]` · `region [id|ici]` · `carte` · `hordes [creer N|attirer]` · `norda [joueur]` · `nemesis` ·
+`simuler <jours> [fantômes]` (60 jours de monde en quelques secondes, test des freins) · `chaine <1-14>` (les chaînes
+de la Partie 5) · `evt <type> [grav] [texte]` · `rapport` (télémétrie du jour) · `systeme <nom> on|off` ·
+`reactions recharger` · `chronique [n]` · `sauver` · `cerveau` (regarde un zombie) · `memoire <clé>` ·
+`relation <de> <envers>` · `savoir <clé>` · `legendes` · `base <joueur>` · `survivant <id>` ·
+`factions [cycle|rompre <traître> <victime>]` · `prix [région]` · `omega`.
+
+**Tester les chaînes** : place-toi quelque part et tape `/zaadmin chaine 1` (coup de feu → horde), puis suis avec
+`/zaadmin chronique` et `/zaadmin region ici`. Les chaînes 9 à 14 : panne de génératrice, bûcheron (il faut une base,
+une Réserve et des survivants), inondation, expédition d'hiver, blocus, rumeur.
+
+**Régler sans programmer** : `plugins/ZAMoteur/reactions.yml` (« si tel événement, alors telle conséquence, avec telle
+probabilité, après tel délai ») puis `/zaadmin reactions recharger`.
+
+### Ω (facultatif, désactivé)
+Léa peut écrire sa chronique du soir avec un vrai modèle de langage (bible IA-16). **Payant à l'usage**, séparé de tout
+abonnement : il faut une clé d'API dans `plugins/ZAMoteur/config.yml` (`omega.cle`), puis `/zaadmin systeme omega on`.
+Par défaut : Claude Haiku (`claude-haiku-4-5`), 40 appels par jour, 8 par joueur, réponses en cache. Option Gemini
+(`omega.fournisseur: gemini`, version gratuite : Google utilise les échanges, serveur privé seulement). Seuls les
+pseudos et les événements du jeu partent. Sans clé, rien ne sort du serveur.
+
+### Pas testé
+Rien de tout ça n'a tourné sur un vrai serveur (pas de serveur dans la session). Vérifié : compilation du plugin contre
+l'API Spigot 1.20.1, simulateur hors ligne (60 jours, la carte se stabilise autour de 55 % de régions vertes), et le
+vérificateur Skript (111 scripts). À surveiller en premier :
+- que `/zaevt` et `/zam` passent bien par la console d'Arclight (s'il y a « Unknown command », me le dire) ;
+- la matérialisation des hordes (`mm mobs spawn`) et le marquage des zombies apparus (tags `za_horde`) ;
+- les leurres invisibles qui guident les zombies, les drones (Allay immobile, lumineux) ;
+- `ProjectileLaunch`/`EntitySpawn` des balles TaCZ comme bruit ; la capture NORDA ;
+- les performances : `/zaadmin rapport`, et `spark` si le serveur ralentit (`/zaadmin systeme cerveaux off` pour couper
+  le plus gourmand).
