@@ -1,0 +1,353 @@
+# =====================================================================
+#  ZombieApocalypse - DÉFENSE QUI S'USE ET SOINS À TROIS NIVEAUX (bible, points 41, 42, 72, 73)
+#  * BARRICADES (41) : à moins de 40 blocs de ta base, les planches, les barreaux de fer et les toiles (BARBELÉS) que tu
+#    poses deviennent des barricades avec des points de vie. Les morts collés à une barricade la cognent (les Brutes,
+#    trois fois plus fort). À zéro, elle cède. /barricade : état · /barricade reparer : les barricades à 5 blocs
+#    reprennent leurs points (1 planche chacune). Barbelés : les morts qui passent dedans saignent ; ÉLECTRIFIÉS si la
+#    base a du courant (plus de dégâts, mais une signature pour NORDA).
+#  * PROJECTEURS (42) : une lanterne de mer ou une lampe de redstone allumée dans une base SOUS TENSION éblouit les morts
+#    à 12 blocs (lents, faibles) ; les Phototropes, eux, adorent la lumière. Ça se voit de loin (règle 3).
+#  * GROUPE SANGUIN ET TRANSFUSION (72) : chacun a un groupe (/sang). /donsang <joueur> : une poche de ton sang
+#    (2 cœurs, faiblesse). Clic droit avec la poche sur un blessé (compatible !) : il récupère et arrête de saigner.
+#  * CHIRURGIE (72) : /chirurgie <joueur>, rôle Médecin, dans une région qui a du courant, à côté d'un lit :
+#    trois étapes de 5 s sans bouger ; une blessure GRAVE devient légère. Sans courant ou sans médecin : impossible.
+#  * BRÛLURES (73) : feu, lave, explosions laissent une brûlure (degrés 1 à 3) : douleur, lenteur, et l'infection
+#    guette (za_p27). Se plonger dans l'eau calme un degré ; une Pommade (/pommade : 2 Bandages + 1 miel) l'efface.
+# =====================================================================
+
+options:
+    rayon: 40
+
+# ---------------------------------------------------------------- barricades (41)
+
+function za_barr_pv(t: text) :: number:
+    if {_t} contains "iron bars":
+        return 12
+    if {_t} contains "cobweb":
+        return 4
+    return 6
+
+on place:
+    if za_pro(player) is true:
+        stop
+    set {_t} to "%type of event-block%"
+    if {_t} does not contain "planks" or "iron bars" or "cobweb":
+        stop
+    set {_u} to "%player's uuid%"
+    set {_b} to {za::base::%{_u}%}
+    if {_b} is not set:
+        stop
+    if world of event-block is not world of {_b}:
+        stop
+    if distance between event-block and {_b} > {@rayon}:
+        stop
+    set {_k} to za_lkey(location of event-block)
+    set {za::barr::%{_k}%} to za_barr_pv({_t})
+    set {za::barr::%{_k}%::u} to {_u}
+
+on break:
+    set {_k} to za_lkey(location of event-block)
+    if {za::barr::%{_k}%} is set:
+        delete {za::barr::%{_k}%::*}
+        delete {za::barr::%{_k}%}
+
+every 5 seconds:
+    loop za_monde_joueurs():
+        za_barr_tick(loop-value)
+
+function za_barr_tick(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_b} to {za::base::%{_u}%}
+    if {_b} is not set:
+        stop
+    if world of {_b} is not world of {_p}:
+        stop
+    if chunk at {_b} is not loaded:
+        stop
+    set {_elec} to za_elec_base({_u})
+    loop all monsters in radius {@rayon} around {_b}:
+        za_barr_coup(loop-entity, {_p}, {_elec})
+
+function za_barr_coup(z: entity, p: player, elec: boolean):
+    set {_brute} to false
+    if uncolored name of {_z} ? "" contains "Brute":
+        set {_brute} to true
+    loop blocks in radius 1.6 around {_z}:
+        set {_k} to za_lkey(location of loop-block)
+        if {za::barr::%{_k}%} is set:
+            if "%type of loop-block%" contains "cobweb":
+                # barbelés : ils blessent, et plus encore électrifiés
+                if {_elec} is true:
+                    damage {_z} by 2
+                    play sound "block.redstone_torch.burnout" with volume 0.6 at {_z}
+                else:
+                    damage {_z} by 1
+            set {_d} to 1
+            if {_brute} is true:
+                set {_d} to 3
+            remove {_d} from {za::barr::%{_k}%}
+            if {za::barr::%{_k}%} <= 0:
+                set {_l} to location of loop-block
+                set block at {_l} to air
+                play sound "entity.zombie.break_wooden_door" with volume 1.2 at {_l}
+                delete {za::barr::%{_k}%::*}
+                delete {za::barr::%{_k}%}
+                add 1 to {za::barr::cede::%{_p}'s uuid%}
+                if ({za::barr::avis::%{_p}'s uuid%} ? 0) < (unix timestamp of now) - 20:
+                    set {za::barr::avis::%{_p}'s uuid%} to unix timestamp of now
+                    send "&c[Base] Une barricade a cédé ! &7(%floor(x-coordinate of {_l})%, %floor(y-coordinate of {_l})%, %floor(z-coordinate of {_l})%)" to {_p}
+            stop loop
+
+command /barricade [<text>]:
+    aliases: /barricades
+    trigger:
+        set {_u} to "%player's uuid%"
+        if arg-1 is "reparer":
+            set {_n} to 0
+            loop blocks in radius 5 around player:
+                set {_k} to za_lkey(location of loop-block)
+                if {za::barr::%{_k}%} is set:
+                    set {_max} to za_barr_pv("%type of loop-block%")
+                    if {za::barr::%{_k}%} < {_max}:
+                        if player has oak planks:
+                            remove 1 oak planks from player
+                            set {za::barr::%{_k}%} to {_max}
+                            add 1 to {_n}
+            send "&7%{_n}% barricade(s) réparée(s). &8(1 planche de chêne chacune)" to player
+            stop
+        set {_n} to 0
+        set {_abime} to 0
+        loop blocks in radius 12 around player:
+            set {_k} to za_lkey(location of loop-block)
+            if {za::barr::%{_k}%} is set:
+                add 1 to {_n}
+                if {za::barr::%{_k}%} < za_barr_pv("%type of loop-block%"):
+                    add 1 to {_abime}
+        send "&6Barricades à 12 blocs : &f%{_n}% &7dont &c%{_abime}% &7abîmées. &8/barricade reparer" to player
+
+# ---------------------------------------------------------------- projecteurs (42)
+
+every 10 seconds:
+    if za_nuit_serveur() is false:
+        stop
+    loop za_monde_joueurs():
+        za_proj_tick(loop-value)
+
+function za_nuit_serveur() :: boolean:
+    set {_w} to world "world"
+    if {_w} is not set:
+        return false
+    set {_t} to time in {_w}
+    if {_t} is between 19:00 and 23:59:
+        return true
+    if {_t} is between 0:00 and 5:00:
+        return true
+    return false
+
+function za_proj_tick(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_b} to {za::base::%{_u}%}
+    if {_b} is not set:
+        stop
+    if za_elec_base({_u}) is false:
+        stop
+    set {_n} to 0
+    loop {za::proj::%{_u}%::*}:
+        if block at loop-value is sea lantern or redstone lamp:
+            if chunk at loop-value is loaded:
+                add 1 to {_n}
+                za_proj_eblouir(loop-value)
+        else:
+            delete {za::proj::%{_u}%::%loop-index%}
+    if {_n} > 0:
+        za_mot("habitude %floor(x-coordinate of {_b})% %floor(z-coordinate of {_b})% lumiere 0.5")
+
+# un projecteur posé dans sa base (4 au plus)
+on place of sea lantern or redstone lamp:
+    if za_pro(player) is true:
+        stop
+    set {_u} to "%player's uuid%"
+    set {_b} to {za::base::%{_u}%}
+    if {_b} is not set:
+        stop
+    if world of event-block is not world of {_b}:
+        stop
+    if distance between event-block and {_b} > {@rayon}:
+        stop
+    if size of {za::proj::%{_u}%::*} >= 4:
+        send "&7Ta base a déjà 4 projecteurs actifs (le réseau n'en supporte pas plus)." to player
+        stop
+    add location of event-block to {za::proj::%{_u}%::*}
+    send "&e[Base] Projecteur installé. &7La nuit, avec du courant, il éblouit les morts. &8(Et il se voit de loin.)" to player
+
+function za_proj_eblouir(l: location):
+    loop all monsters in radius 12 around {_l}:
+        if uncolored name of loop-entity ? "" contains "Phototrope":
+            apply speed 2 to loop-entity for 10 seconds
+        else:
+            apply slowness 2 to loop-entity for 10 seconds
+            apply weakness 1 to loop-entity for 10 seconds
+
+# ---------------------------------------------------------------- groupe sanguin, don, transfusion (72)
+
+function za_sang_groupe(u: text) :: text:
+    if {za::groupe::%{_u}%} is not set:
+        set {_r} to random integer between 1 and 100
+        set {_g} to "O+"
+        if {_r} > 39:
+            set {_g} to "A+"
+        if {_r} > 75:
+            set {_g} to "B+"
+        if {_r} > 84:
+            set {_g} to "O-"
+        if {_r} > 91:
+            set {_g} to "A-"
+        if {_r} > 97:
+            set {_g} to "AB+"
+        set {za::groupe::%{_u}%} to {_g}
+    return {za::groupe::%{_u}%}
+
+# donneur compatible avec receveur ?
+function za_sang_compatible(d: text, r: text) :: boolean:
+    if {_d} is "O-":
+        return true
+    if {_r} is "AB+":
+        return true
+    if {_d} is {_r}:
+        return true
+    if {_d} is "O+":
+        if {_r} ends with "+":
+            return true
+    if {_d} ends with "-":
+        set {_dd} to subtext of {_d} from characters 1 to (length of {_d} - 1)
+        if {_r} starts with {_dd}:
+            return true
+    return false
+
+command /sang:
+    trigger:
+        set {_g} to za_sang_groupe("%player's uuid%")
+        send "&4Ton groupe sanguin : &f%{_g}%" to player
+
+command /donsang <player>:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        if health of player < 8:
+            send "&7Tu es trop faible pour donner." to player
+            stop
+        if distance between arg-1 and player > 6:
+            send "&7Il faut être à côté de la personne." to player
+            stop
+        set {_g} to za_sang_groupe("%player's uuid%")
+        damage player by 4
+        za_effet(player, "weakness", 120, 0)
+        give arg-1 za_item("redstone", "Poche de sang (%{_g}%)", "&4", 1)
+        send "&7Tu donnes ton sang (%{_g}%). La tête tourne un peu." to player
+        send "&4%player% te donne une poche de sang (%{_g}%). &8Clic droit sur un blessé compatible (/sang)." to arg-1
+
+on right click on player:
+    set {_n} to uncolored name of player's tool ? ""
+    if {_n} does not start with "Poche de sang (":
+        stop
+    cancel event
+    set {_g} to subtext of {_n} from characters 16 to (length of {_n} - 1)
+    set {_r} to za_sang_groupe("%clicked player's uuid%")
+    remove 1 of player's tool from player's tool
+    if za_sang_compatible({_g}, {_r}) is false:
+        damage clicked player by 4
+        za_effet(clicked player, "nausea", 20, 0)
+        send "&cRéaction ! &7Le sang %{_g}% n'est pas compatible avec %{_r}%." to player
+        send "&cTon corps rejette ce sang. Fièvre, frissons." to clicked player
+        stop
+    heal clicked player by 10
+    delete {za::sang::%clicked player's uuid%}
+    za_stat_ajouter("%player's uuid%", "blessures_soignees", 1)
+    za_mot_evt("soin", location of player, 2, "%player's uuid%,%clicked player's uuid%", "transfusion")
+    send "&aTransfusion réussie." to player
+    send "&aLe sang de quelqu'un d'autre te remet debout." to clicked player
+
+# ---------------------------------------------------------------- chirurgie (72)
+
+command /chirurgie <player>:
+    trigger:
+        if za_role(player) is not "medecin":
+            send "&7Seul un Médecin sait opérer (/role)." to player
+            stop
+        if za_mot_reg(player, 9) is not "1":
+            send "&7Pas de courant dans la région : pas de bloc opératoire. &8(sous-station, centrale ou barrage réparé)" to player
+            stop
+        set {_lit} to false
+        loop blocks in radius 3 around arg-1:
+            if "%type of loop-block%" contains "bed":
+                set {_lit} to true
+        if {_lit} is false:
+            send "&7Il faut allonger le patient : un lit à côté." to player
+            stop
+        set {_u} to "%arg-1's uuid%"
+        set {_part} to ""
+        loop "torse", "tete", "jambe" and "bras":
+            if ({za::bless::%loop-value%::%{_u}%} ? 0) >= 2:
+                if {_part} is "":
+                    set {_part} to loop-value
+        if {_part} is "":
+            send "&7Aucune blessure grave à opérer." to player
+            stop
+        set {_l} to location of arg-1
+        send "&7Chirurgie (%{_part}%) : ne bougez plus." to player and arg-1
+        set {_e} to 0
+        loop 3 times:
+            wait 5 seconds
+            add 1 to {_e}
+            if distance between arg-1 and {_l} > 1:
+                send "&cLe patient a bougé : l'opération est ratée." to player and arg-1
+                damage arg-1 by 4
+                stop
+            send "&8Étape %{_e}%/3..." to player and arg-1
+        set {za::bless::%{_part}%::%{_u}%} to 1
+        za_stat_ajouter("%player's uuid%", "blessures_soignees", 1)
+        za_mot_evt("soin", location of player, 2, "%player's uuid%,%{_u}%", "chirurgie")
+        send "&aOpération réussie : la blessure grave devient légère." to player and arg-1
+
+# ---------------------------------------------------------------- brûlures (73)
+
+on damage of player:
+    if za_pro(victim) is true:
+        stop
+    if damage cause is fire or burning or lava or block explosion or entity explosion:
+        set {_u} to "%victim's uuid%"
+        set {_d} to {za::brulure::%{_u}%} ? 0
+        if {_d} < 3:
+            if chance of 35%:
+                add 1 to {za::brulure::%{_u}%}
+                send "&6Brûlure (degré %{za::brulure::%{_u}%}%). &7Ça brûle encore quand tu bouges. &8(eau, ou /pommade)" to victim
+
+every 20 seconds:
+    loop za_monde_joueurs():
+        set {_u} to "%loop-value's uuid%"
+        set {_d} to {za::brulure::%{_u}%} ? 0
+        if {_d} > 0:
+            if block at loop-value is water:
+                remove 1 from {za::brulure::%{_u}%}
+                send "&bL'eau froide calme la brûlure." to loop-value
+            else:
+                za_effet(loop-value, "slowness", 20, {_d} - 1)
+                if {_d} >= 2:
+                    if chance of 10%:
+                        set {za::mal::plaie::%{_u}%} to now
+                        send "&6La brûlure suinte. Elle s'infecte." to loop-value
+            if ({za::brulure::%{_u}%} ? 0) <= 0:
+                delete {za::brulure::%{_u}%}
+
+command /pommade:
+    trigger:
+        if za_count_named(player, "Bandage") < 2:
+            send "&7Il faut 2 Bandages et 1 bouteille de miel." to player
+            stop
+        if player does not have honey bottle:
+            send "&7Il faut 2 Bandages et 1 bouteille de miel." to player
+            stop
+        za_take_named(player, "Bandage", 2)
+        remove 1 honey bottle from player
+        delete {za::brulure::%player's uuid%}
+        send "&aLa pommade apaise la brûlure. Elle partira." to player

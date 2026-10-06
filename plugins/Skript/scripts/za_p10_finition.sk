@@ -33,7 +33,9 @@ function za_aide_categorie(p: player, cat: text):
     send "&4&l== %{_cat}% ==" to {_p}
     if {_cat} is "Personnage":
         send "&e/rang &7progression | &e/recompense &7| &e/objectif &7| &e/competences &7et &e/role &7(medecin, soldat, eclaireur, ingenieur) | &e/traiter <joueur>" to {_p}
+        send "&e/etat &7ton corps en un coup d'œil | &e/bestiaire &7ce que tu sais des morts | &e/sang &7ton groupe sanguin" to {_p}
     else if {_cat} is "Monde":
+        send "&e/monde &7l'état de ta région | &e/infos &7ce que tu sais (source, âge, fiabilité) | &e/signaler &7faire passer le mot | &e/norda &7ce que tu sens d'eux" to {_p}
         send "&e/zone &7danger ici (🟢🟡🟠🔴☠) | &e/virus &7souche et resistance | &e/contamination &7| &e/journal &7| &e/saison &7objectifs | &e/histoire &7chapitres | &e/treve &7zone neutre | &e/hall &7Hall des survivants" to {_p}
     else if {_cat} is "Infection":
         send "&7Une morsure infecte. Bois un &aAntidote &7avant 10 minutes, sinon il faut un &dSerum &7(80 pourcent de reussite, sinon ca s'aggrave)." to {_p}
@@ -43,9 +45,11 @@ function za_aide_categorie(p: player, cat: text):
         send "&e/jetons &7solde | &e/payer &7| &e/troc &7| &e/valeur &7raretes | &e/contrat &7| &e/dette &7| &e/reputation" to {_p}
     else if {_cat} is "Base":
         send "&e/base &7(definir, info, entretien) | &e/avantposte &7| &e/reparer &7pres du Mecano" to {_p}
+        send "&e/communaute &7tes survivants décident seuls (stocks, minimums, journal) | &e/garde &7suivre, patrouille, solde | &e/barricade &7état et réparation | un chien apprivoisé garde la base" to {_p}
         send "&7Cadavres : clic droit = fouiller, briquet = bruler, pelle = enterrer. Generateur (Mecano) et grande base : bruyants." to {_p}
     else if {_cat} is "Squad et social":
         send "&e/squad &7equipe | &e/bruit &7discretion | &e/faction &7groupes de survivants | &e/sos &7appel a l'aide | &e/extraction &7(Fusee de detresse) | &e/prime &e/primes | &e/negociation &e/trahir | &e/testament &e/maudire &e/heritier | &e/sacrifice &e/camp &e/radio" to {_p}
+        send "&e/promesse &7| &e/accord &7(le serveur garde le dépôt) | &e/avis &7avis de recherche | &e/regler &7| &e/station &7ta propre radio | &e/vendreinfo" to {_p}
     else if {_cat} is "Quetes":
         send "&e/quetes &7Dr Lefort (7 parties), Sergent Vega (escouade Bravo-3), Lea (frequences) | &e/plaques | &e/legende &7reliques | &e/tombes | &e/volonte <message> | &e/prologue &7les 8 jours avant" to {_p}
         send "&7Les marchands nomades apparaissent au hasard : cherche-les (clic droit)." to {_p}
@@ -61,9 +65,11 @@ function za_aide_categorie(p: player, cat: text):
         send "&e/marche &7marché entre joueurs (Marché de la Trêve ou un camp) | &e/marche vendre <prix> | &e/marche prix &7| &e/ressource &7ressource stratégique de la saison" to {_p}
         send "&e/arme &7niveau, état, histoire de l'arme en main | &e/arme reparer &7(Mécano ou Atelier mécanique) | &e/arme demonter" to {_p}
     else if {_cat} is "Exploration":
+        send "&e/faussaire &7faux papiers, fausses pistes, leurres | &e/marchenoir <mot> &7(radio pirate) | &e/plans &7plans rares en morceaux" to {_p}
         send "&e/lieux &7ce qu'on trouve dans chaque bâtiment | &e/enigme &7coffres scellés NORDA | &e/code <####> | &e/carte &7fragments A-B-C et bunker | &e/enquete &7ton carnet d'indices" to {_p}
     else if {_cat} is "Soins et ateliers":
         send "&e/blessures &7bras, jambe, torse, tête (Bandage, Attelle, Médecin) | &e/atelier &7créer un atelier à ta base (médical, militaire, mécanique, labo, électronique) | &e/reseau &7quartiers alimentés par la centrale | &e/electricite &7sous-stations Create / CCA / IE | &e/telephone &7SMS, appels, alertes | &e/cours &7prix des marchands" to {_p}
+        send "&e/recherche &7science collective (échantillons, autopsie, vaccin) | &e/detecteur &7| &e/chirurgie &7| &e/donsang &7| &e/pommade" to {_p}
     else if {_cat} is "Mémoire et saisons":
         send "&e/succes &7succès secrets et titres | &e/disparus &7stèles et Rue des disparus | &e/chroniques &7l'histoire des saisons | &e/meteo &7catastrophes | &e/adaptation &7ce que les morts ont appris | &e/hall" to {_p}
         send "&e/lieu &7l'histoire datée du lieu où tu es | &e/souvenirs &7ce que tu as vécu | &e/legendes &7les grands moments du serveur | &e/relique &7le Carnet de Samuel Arel (un seul exemplaire)" to {_p}
