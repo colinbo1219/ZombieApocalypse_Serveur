@@ -57,6 +57,7 @@ public final class ZAMoteur extends JavaPlugin {
     public InfoJoueurs infoJoueurs;
     public BasesVivantes vivantes;
     public Societe societe;
+    public Mensonges mensonges;
 
     /** bases enregistrées (/base, p8) : jamais envahies automatiquement (règle 2) */
     public final Map<UUID, Location> bases = new ConcurrentHashMap<>();
@@ -124,6 +125,7 @@ public final class ZAMoteur extends JavaPlugin {
         infoJoueurs = new InfoJoueurs(this);
         vivantes = new BasesVivantes(this);
         societe = new Societe(this);
+        mensonges = new Mensonges(this);
         monde.memoire.annonce = t -> pont.zaevt("legende " + t);
         persistance.chargerModules();
 
@@ -244,6 +246,7 @@ public final class ZAMoteur extends JavaPlugin {
                 omega.jour();
                 if (actif("bases")) vivantes.jour();
                 if (actif("factions")) societe.jour();
+                if (actif("bases")) mensonges.jour();
                 pont.set("monde::jour_moteur", String.valueOf(j));
             });
         }

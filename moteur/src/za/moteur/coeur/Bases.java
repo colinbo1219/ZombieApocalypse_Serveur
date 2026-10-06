@@ -42,6 +42,8 @@ public final class Bases {
         public int missions, reussites;
         public String derniereMission = "";
         public long vu;                      // dernière mise à jour par Skript
+        /** secret (IA-8, IA-9) : informateur (NORDA), voleur, ancien_pillard, agent_double ; "" = aucun */
+        public String secret = "";
         boolean personnaliteFaite;
 
         public double comp(String k) {
@@ -159,6 +161,11 @@ public final class Bases {
             default:
                 break;
         }
+        // un secret, parfois : il décidera de mentir pour le protéger (IA-9)
+        double t = r.nextDouble();
+        if (t < 0.06 && s.honnetete < 55) s.secret = "informateur";
+        else if (t < 0.13 && s.avidite > 35) s.secret = "voleur";
+        else if (t < 0.22) s.secret = "ancien_pillard";
     }
 
     // ================================================================ la décision (IA-8) : un score, des raisons
@@ -442,6 +449,7 @@ public final class Bases {
             for (Map.Entry<String, Integer> e : v.xp.entrySet()) s.append("\tx:").append(e.getKey()).append('=').append(e.getValue());
             l.add(s.toString());
             for (String j : v.journal) l.add("J\t" + v.id + "\t" + j);
+            l.add("S\t" + v.id + "\t" + v.secret);
         }
         return l;
     }
@@ -499,6 +507,9 @@ public final class Bases {
                     }
                     case "J":
                         survivant(Integer.parseInt(c[1])).journal.add(c[2]);
+                        break;
+                    case "S":
+                        survivant(Integer.parseInt(c[1])).secret = c[2];
                         break;
                     default:
                         break;

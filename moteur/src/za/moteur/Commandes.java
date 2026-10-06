@@ -199,6 +199,16 @@ final class Commandes {
             case "fac":
                 z.societe.decrire(a);
                 return true;
+            // le mensonge lisible (IA-9)
+            case "demander":
+                z.mensonges.demander(a[1], i(a[2]));
+                return true;
+            case "accuser":
+                z.mensonges.accuser(a[1], i(a[2]));
+                return true;
+            case "retourner":
+                z.mensonges.retourner(a[1], i(a[2]));
+                return true;
             case "rel":
                 z.societe.relation(a);
                 return true;

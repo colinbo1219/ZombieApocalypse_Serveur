@@ -143,18 +143,22 @@ command /garde [<text>] [<number>]:
                 stop
             set {za::garde::%{_id}%::renvoi} to true
             execute console command "kill %{za::garde::%{_id}%::uuid}%"
+        else if arg-1 is "suivre" or "patrouille" or "replier" or "solde":
+            za_garde_ordre(player, arg-1, arg-2 ? 0)
         else if arg-1 is "liste":
             send "&6&l━━ TES SOLDATS &7(%za_garde_n({_u})%/{@max_gardes}) ━━" to player
             set {_i} to 0
             loop {za::garde::de::%{_u}%::*}:
                 add 1 to {_i}
                 set {_pl} to {za::garde::%loop-value%::poste}
-                send "&7%{_i}%. &f%{za::garde::%loop-value%::nom}% &8— poste %floor(x-coordinate of {_pl})% %floor(y-coordinate of {_pl})% %floor(z-coordinate of {_pl})%, depuis le jour %{za::garde::%loop-value%::jour}%" to player
+                send "&7%{_i}%. &f%{za::garde::%loop-value%::nom}% &8— %za_garde_moral_txt(loop-value)% &8— %{za::garde::%loop-value%::tues} ? 0% morts abattus — poste %floor(x-coordinate of {_pl})% %floor(y-coordinate of {_pl})% %floor(z-coordinate of {_pl})%, depuis le jour %{za::garde::%loop-value%::jour}%" to player
         else:
             send "&6&l━━ SOLDATS DE LA MILICE ━━" to player
             send "&e/garde recruter &7[arbalete|hache] : à ta base, {@prix_arbalete} ou {@prix_hache} jetons ({@max_gardes} max)" to player
             send "&e/garde poste &7: tes soldats se postent là où tu es" to player
             send "&e/garde liste &7| &e/garde renvoyer <n°>" to player
+            send "&e/garde suivre <n°> &7| &e/garde patrouille &7(entre le poste et ici) | &e/garde replier &7| &e/garde solde &7(5 jetons chacun)" to player
+            send "&8Mal payés, mal nourris ou envoyés à la mort, ils finissent par désobéir, puis par déserter." to player
             send "&8Ils tirent sur tous les morts et tiennent leur poste. Des tourelles au courant les aident (/tourelle)." to player
 
 # ---------------------------------------------------------------- poste de garde (retour s'ils s'éloignent)
@@ -162,7 +166,8 @@ command /garde [<text>] [<number>]:
 every 10 seconds:
     loop {za::garde::liste::*}:
         set {_id} to loop-value
-        set {_pl} to {za::garde::%{_id}%::poste}
+        # le point à tenir dépend de l'ordre (za_p106 : poste, suivre, patrouille)
+        set {_pl} to za_garde_cible({_id})
         set {_uid} to {za::garde::%{_id}%::uuid}
         if {_pl} is set:
             if chunk at {_pl} is loaded:

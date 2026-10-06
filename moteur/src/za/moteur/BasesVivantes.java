@@ -182,7 +182,7 @@ public final class BasesVivantes {
             s.sendMessage("§6" + v.nom + " §7(" + v.metier + ", " + v.etat + (v.blesse ? ", blessé" : "") + ") fatigue " + (int) v.fatigue + ", moral " + (int) v.moral);
             s.sendMessage("§7courage " + (int) v.courage + ", honnêteté " + (int) v.honnetete + ", loyauté " + (int) v.loyaute + ", avidité " + (int) v.avidite
                     + ", empathie " + (int) v.empathie + ", paranoïa " + (int) v.paranoia + ", sociabilité " + (int) v.sociabilite);
-            s.sendMessage("§7compétences " + v.competences + (v.intention.isEmpty() ? "" : " — intention : " + v.intention));
+            s.sendMessage("§7compétences " + v.competences + (v.intention.isEmpty() ? "" : " — intention : " + v.intention) + (v.secret.isEmpty() ? "" : " — §csecret : " + v.secret));
             for (String j : v.journal) s.sendMessage("§8  " + j);
             return;
         }

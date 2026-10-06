@@ -261,6 +261,24 @@ function za_mot_evt_serveur(t: text, ligne: text):
             za_zm("son %{_p}% minecraft:entity.horse.ambient 0.6 0.8")
     else if {_t} is "convoi_epave":
         add "%{_a::2}%|%{_a::3}%|%{_a::4}%|%{_a::5}%|%{_a::6}%" to {za::mot::epave::*}
+    else if {_t} is "pnj_dit":
+        set {_p} to za_mot_joueur({_a::2})
+        if {_p} is set:
+            set {_nom} to {za::surv::%{_a::3}%::nom} ? "Le survivant"
+            za_surv_dit({_p}, {_nom}, za_mot_mots({_ligne}, 3))
+    else if {_t} is "pnj_demasque":
+        set {_p} to za_mot_joueur({_a::2})
+        if {_p} is set:
+            set {_nom} to {za::surv::%{_a::3}%::nom} ? "Le survivant"
+            send "&c%{_nom}% baisse les yeux. Les autres se sont tus." to {_p}
+            if {_a::4} is "informateur":
+                send "&7« C'est NORDA. Ils m'ont promis des médicaments pour ma sœur. Je... je leur disais où tu étais. »" to {_p}
+                send "&8Tu peux le livrer au camp, ou le RETOURNER : &f/retourner &8(il leur donnera une fausse piste)." to {_p}
+                set {za::mot::retourner::%{_a::2}%} to {_a::3}
+            else if {_a::4} is "voleur":
+                send "&7« J'avais faim. Tout le monde a faim. » &8(Le camp lui fera moins confiance.)" to {_p}
+            else:
+                send "&7« Avant, j'étais avec les pillards. J'ai changé. Je te jure que j'ai changé. »" to {_p}
     else if {_t} is "frigo_perdu":
         set {_us::*} to split {_a::2} at ","
         loop {_us::*}:
@@ -766,3 +784,13 @@ command /regler:
         delete {za::mot::mefiance::%{_u}%}
         za_mot_evt("promesse_tenue", location of player, 2, {_u}, "a remboursé ce qu'il avait pris")
         send "&7Tu rembourses. L'affaire est marquée réglée. &8(La rumeur, elle, mettra du temps à mourir, région par région.)" to player
+
+# retourner un informateur démasqué (IA-11, chaîne 4) : NORDA croira une fausse piste
+command /retourner:
+    trigger:
+        set {_u} to "%player's uuid%"
+        if {za::mot::retourner::%{_u}%} is not set:
+            send "&7Personne à retourner." to player
+            stop
+        za_mot("retourner %{_u}% %{za::mot::retourner::%{_u}%}%")
+        delete {za::mot::retourner::%{_u}%}

@@ -1,0 +1,147 @@
+# =====================================================================
+#  ZombieApocalypse - LES COMPAGNONS ET LES SOLDATS (bible IA-14), complète za_p75 (milice) sans le remplacer
+#  ORDRES : /garde suivre <n°> (il t'accompagne) · /garde patrouille (il va et vient entre son poste et l'endroit où tu
+#  es) · /garde replier (tous au poste) · /garde solde (5 jetons chacun : le moral remonte).
+#  MORAL ET LOYAUTÉ (0-100) : chaque jour, non payé depuis 3 jours → -15 ; Réserve vide → -10 ; nourris et payés → +5.
+#  Sous 30 : il refuse les ordres (« Pas question. »). Sous 10 : il DÉSERTE (la nuit, sans bruit).
+#  COMPORTEMENT : sous 35 %% de vie, il recule vers son poste et souffle ; il protège le propriétaire blessé (il vient).
+#  EXPÉRIENCE : 25 morts abattus → VÉTÉRAN (nom, plus de vie). Sa mort est gravée dans la Chronique (ZAMoteur).
+#  Variables : {za::garde::<id>::mode|patrouille|moral|paye|tues|veteran}
+# =====================================================================
+
+function za_garde_moral(id: number) :: number:
+    return {za::garde::%{_id}%::moral} ? 70
+
+function za_garde_moral_txt(id: number) :: text:
+    set {_m} to za_garde_moral({_id})
+    if {_m} >= 70:
+        return "&adéterminé"
+    if {_m} >= 40:
+        return "&eça tient"
+    if {_m} >= 20:
+        return "&6grogne"
+    return "&cau bord de la désertion"
+
+# le point que le soldat doit tenir, selon son ordre
+function za_garde_cible(id: number) :: location:
+    set {_m} to {za::garde::%{_id}%::mode} ? "poste"
+    if {_m} is "suivre":
+        set {_p} to za_garde_joueur({za::garde::%{_id}%::proprio})
+        if {_p} is set:
+            if za_pro({_p}) is false:
+                return location of {_p}
+    if {_m} is "patrouille":
+        if {za::garde::%{_id}%::patrouille} is set:
+            if mod(floor((unix timestamp of now) / 40), 2) is 1:
+                return {za::garde::%{_id}%::patrouille}
+    return {za::garde::%{_id}%::poste}
+
+function za_garde_ordre(p: player, o: text, n: number):
+    set {_u} to "%{_p}'s uuid%"
+    if za_garde_n({_u}) is 0:
+        send "&7Tu n'as aucun soldat." to {_p}
+        stop
+    if {_o} is "solde":
+        set {_c} to 5 * za_garde_n({_u})
+        if za_jetons({_p}) < {_c}:
+            send "&cIl faut %{_c}% jetons pour la solde." to {_p}
+            stop
+        za_jetons_ajouter({_p}, 0 - {_c})
+        loop {za::garde::de::%{_u}%::*}:
+            set {za::garde::%loop-value%::paye} to {za::serveur::jours} ? 0
+            set {za::garde::%loop-value%::moral} to min(100, za_garde_moral(loop-value) + 15)
+        send "&aTu paies la solde. &7« Merci, chef. » &8(-%{_c}% jetons)" to {_p}
+        stop
+    if {_o} is "replier":
+        loop {za::garde::de::%{_u}%::*}:
+            delete {za::garde::%loop-value%::mode}
+        send "&7« Repli ! » Tes soldats regagnent leur poste." to {_p}
+        stop
+    set {_ids::*} to {za::garde::de::%{_u}%::*}
+    if {_o} is "suivre":
+        set {_id} to {_ids::%{_n}%}
+        if {_id} is not set:
+            send "&c/garde suivre <n°> (voir /garde liste)" to {_p}
+            stop
+        if za_garde_moral({_id}) < 30:
+            send "&f%{za::garde::%{_id}%::nom}% &7: « Pas question. On n'est pas payés pour mourir dehors. »" to {_p}
+            stop
+        set {za::garde::%{_id}%::mode} to "suivre"
+        send "&f%{za::garde::%{_id}%::nom}% &7: « Je te couvre. » &8(/garde replier pour le renvoyer au poste)" to {_p}
+        stop
+    if {_o} is "patrouille":
+        set {_b} to {za::base::%{_u}%}
+        if {_b} is not set:
+            stop
+        if world of {_b} is not world of {_p}:
+            stop
+        if distance between {_b} and {_p} > 80:
+            send "&cLa patrouille doit rester à moins de 80 blocs de la base." to {_p}
+            stop
+        loop {za::garde::de::%{_u}%::*}:
+            if za_garde_moral(loop-value) >= 30:
+                set {za::garde::%loop-value%::patrouille} to location of {_p}
+                set {za::garde::%loop-value%::mode} to "patrouille"
+        send "&7Tes soldats patrouillent entre leur poste et ici." to {_p}
+
+# un mort abattu par un soldat : l'expérience (vétéran à 25)
+on death:
+    attacker is set
+    if attacker has scoreboard tag "za_garde":
+        set {_id} to {za::garde::uuid::%attacker's uuid%}
+        if {_id} is set:
+            add 1 to {za::garde::%{_id}%::tues}
+            if {za::garde::%{_id}%::tues} is 25:
+                if {za::garde::%{_id}%::veteran} is not set:
+                    set {za::garde::%{_id}%::veteran} to true
+                    set {_nom} to "Vétéran %{za::garde::%{_id}%::nom}%"
+                    set {za::garde::%{_id}%::nom} to {_nom}
+                    execute console command "data merge entity %attacker's uuid% {CustomName:'{""text"":""%{_nom}%"",""color"":""gold""}'}"
+                    execute console command "attribute %attacker's uuid% minecraft:generic.max_health base set 60"
+                    set {_p} to za_garde_joueur({za::garde::%{_id}%::proprio})
+                    if {_p} is set:
+                        send "&6[Base] &f%{_nom}% &7a survécu à assez de nuits pour qu'on le respecte. Il commande les autres, maintenant." to {_p}
+                    za_mot_evt("veteran_milice", location of attacker, 2, {za::garde::%{_id}%::proprio}, {_nom})
+
+# toutes les 5 s : recul quand il est blessé, protection du propriétaire blessé
+every 5 seconds:
+    loop {za::garde::liste::*}:
+        set {_id} to loop-value
+        set {_u} to {za::garde::%{_id}%::proprio}
+        set {_p} to za_garde_joueur({_u})
+        if {_p} is set:
+            if health of {_p} < 6:
+                if {za::garde::%{_id}%::mode} is not "suivre":
+                    if za_garde_moral({_id}) >= 40:
+                        set {_pl} to {za::garde::%{_id}%::poste}
+                        if {_pl} is set:
+                            if world of {_pl} is world of {_p}:
+                                if distance between {_pl} and {_p} < 40:
+                                    set {za::garde::%{_id}%::mode} to "suivre"
+                                    send "&f%{za::garde::%{_id}%::nom}% &7accourt : « Je te tiens ! »" to {_p}
+
+# chaque jour : la solde, la nourriture, le moral ; la désertion
+every 1 minute:
+    set {_j} to {za::serveur::jours} ? 0
+    if {za::garde::moral_jour} is {_j}:
+        stop
+    set {za::garde::moral_jour} to {_j}
+    loop {za::garde::liste::*}:
+        set {_id} to loop-value
+        set {_u} to {za::garde::%{_id}%::proprio}
+        set {_m} to za_garde_moral({_id})
+        if {_j} - ({za::garde::%{_id}%::paye} ? {za::garde::%{_id}%::jour} ? 0) >= 3:
+            remove 15 from {_m}
+        if za_surv_reserve({_u}) is not set:
+            remove 10 from {_m}
+        else:
+            add 5 to {_m}
+        set {za::garde::%{_id}%::moral} to max(0, min(100, {_m}))
+        if {_m} < 10:
+            set {_p} to za_garde_joueur({_u})
+            if {_p} is set:
+                set {_nom} to {za::garde::%{_id}%::nom}
+                send "&c[Base] &f%{_nom}% &ca déserté pendant la nuit. Son poste est vide." to {_p}
+                za_mot_evt("desertion", location of {_p}, 2, {_u}, {_nom})
+                set {za::garde::%{_id}%::renvoi} to true
+                execute console command "kill %{za::garde::%{_id}%::uuid}%"
