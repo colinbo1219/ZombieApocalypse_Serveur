@@ -249,6 +249,8 @@ function za_mot_evt_serveur(t: text, ligne: text):
                 send "&8Quelqu'un, quelque part, vient d'avaler ta fausse piste." to {_p}
             else:
                 send "&8Ta fausse piste n'a pas pris. NORDA vérifie davantage." to {_p}
+    else if {_t} starts with "base_":
+        za_bv_evt({_t}, {_ligne})
     else if {_t} is "legende":
         # une histoire est née (bible S-6) : elle rejoint les légendes du monde (za_p64)
         za_monde_legende(za_mot_mots({_ligne}, 1))

@@ -1,0 +1,179 @@
+# =====================================================================
+#  ZombieApocalypse - LES BASES VIVANTES (bible IA-15) et le cerveau des survivants (IA-8)
+#  Le moteur (ZAMoteur) regarde chaque base : « le bois est à 12, le minimum souhaité est 30 ». Il crée le travail
+#  et choisit QUI le fait (compétence, fatigue, nuit, aversions, moral, contamination, courage). Personne ne lui
+#  donne d'ordre : Marc part couper du bois tout seul, ou dit « J'irai demain matin ».
+#  Joueur présent : une vraie sortie (za_p92). Joueur absent : sortie courte et prudente, jamais de mort (règle 2),
+#  et au retour, « PENDANT TON ABSENCE » (rapport du plugin).
+#  Ce script : compte la Réserve et décrit les survivants au moteur ; exécute ses ordres ; /communaute.
+#  Variables : {za::bv::<uuid>::stock::<ressource>}, {za::bv::journal::<uuid>::*}, {za::mot::bv::<uuid>::etat|bilan}
+#  Joueur : /communaute [etat|minimum <ressource> <n>|sorties on|off|journal]
+# =====================================================================
+
+# ---------------------------------------------------------------- la Réserve, comptée par catégories
+
+function za_bv_categorie(t: text) :: text:
+    if {_t} contains "log" or "planks" or "wood":
+        return "bois"
+    if {_t} contains "bread", "cooked", "baked potato", "carrot", "potato", "apple", "beetroot", "berries", "raw ", "stew", "soup", "melon" or "pumpkin pie":
+        return "nourriture"
+    if {_t} contains "coal", "charcoal" or "lava bucket":
+        return "carburant"
+    if {_t} contains "iron", "cobblestone", "glass", "string", "copper", "redstone" or "leather":
+        return "materiaux"
+    return ""
+
+function za_bv_compter(u: text):
+    set {_b} to za_surv_reserve({_u})
+    if {_b} is not set:
+        stop
+    if chunk at {_b} is not loaded:
+        stop
+    loop "nourriture", "bois", "materiaux", "medicaments" and "carburant":
+        set {_n::%loop-value%} to 0
+    loop items in inventory of {_b}:
+        set {_nm} to uncolored name of loop-item ? ""
+        if {_nm} contains "Bandage", "Antidote", "Antibiotique" or "Médicament":
+            add item amount of loop-item to {_n::medicaments}
+        else if {_nm} contains "Essence":
+            add 8 * item amount of loop-item to {_n::carburant}
+        else:
+            set {_c} to za_bv_categorie("%type of loop-item%")
+            if {_c} is not "":
+                add item amount of loop-item to {_n::%{_c}%}
+    set {_l} to ""
+    loop {_n::*}:
+        set {za::bv::%{_u}%::stock::%loop-index%} to loop-value
+        set {_l} to "%{_l}% %loop-index%:%floor(loop-value)%"
+    za_mot("basestock %{_u}%%{_l}%")
+
+# un survivant décrit au moteur (fiche za_p92 + état za_p43)
+function za_bv_decrire(id: number):
+    set {_u} to {za::surv::%{_id}%::base} ? "-"
+    if {_u} is "-":
+        stop
+    za_eq_init({_id})
+    set {_mis} to 0
+    if {za::eq::m::%{_id}%::type} is set:
+        set {_mis} to 1
+    set {_bl} to 0
+    if {za::surv::%{_id}%::blesse} is true:
+        set {_bl} to 1
+    set {_tr} to {za::surv::%{_id}%::st::trait} ? "-"
+    set {_av} to {za::surv::%{_id}%::st::aversion} ? "-"
+    if {_av} is "":
+        set {_av} to "-"
+    set {_e} to {za::surv::%{_id}%::etat} ? "base"
+    set {_m} to {za::surv::%{_id}%::metier} ? "survivant"
+    set {_mo} to floor({za::surv::%{_id}%::moral} ? 50)
+    set {_fa} to floor(za_eq_fa({_id}))
+    set {_sa} to floor(za_eq_sa({_id}))
+    za_mot("surv %{_id}% %{_u}% %{_m}% %{_e}% %{_mis}% %{_bl}% %{_fa}% %{_sa}% %{_mo}% %{_tr}% %{_av}% %za_eq_rec({_id})% %za_eq_cbt({_id})% %za_eq_med({_id})% %za_eq_mec({_id})% %{za::surv::%{_id}%::nom}%")
+
+every 5 minutes:
+    if za_mot_actif() is false:
+        stop
+    loop {za::base::liste::*}:
+        za_bv_compter(loop-value)
+    loop {za::surv::liste::*}:
+        za_bv_decrire(loop-value)
+
+# ---------------------------------------------------------------- les ordres du moteur (zaevt base_...)
+
+function za_bv_evt(t: text, ligne: text):
+    set {_a::*} to split {_ligne} at " "
+    set {_u} to {_a::2}
+    if {_t} is "base_sortie":
+        set {_id} to {_a::3} parsed as number
+        set {_p} to za_mot_joueur({_u})
+        if {_p} is set:
+            send "&8[Base] &7Personne ne lui a rien demandé :" to {_p}
+            set {_ok} to za_eq_lancer({_p}, {_id}, {_a::4}, "")
+    else if {_t} is "base_prudent":
+        set {_id} to {_a::3} parsed as number
+        set {_n} to {_a::5} parsed as number
+        if {_n} > 0:
+            set {_it} to za_bv_objet({_a::4}, {_n})
+            if {_it} is set:
+                set {_ok} to za_eq_stocker({_u}, {_it})
+        za_eq_st_ajouter({_id}, "fatigue", 15)
+    else if {_t} is "base_journal":
+        set {_txt} to za_mot_mots({_ligne}, 2)
+        add "J%{za::serveur::jours} ? 0% — %{_txt}%" to {za::bv::journal::%{_u}%::*}
+        while size of {za::bv::journal::%{_u}%::*} > 30:
+            set {_ks::*} to indices of {za::bv::journal::%{_u}%::*}
+            delete {za::bv::journal::%{_u}%::%{_ks::1}%}
+        set {_p} to za_mot_joueur({_u})
+        if {_p} is set:
+            send "&8[Base] &7%{_txt}%" to {_p}
+    else if {_t} is "base_avis":
+        set {_txt} to za_mot_mots({_ligne}, 2)
+        za_surv_avis({_u}, "&6[Base] &e%{_txt}%")
+    else if {_t} is "base_depart":
+        set {_id} to {_a::3} parsed as number
+        za_surv_partir({_id}, "moral")
+
+function za_bv_objet(res: text, n: number) :: itemtype:
+    if {_res} is "bois":
+        return {_n} of oak log
+    if {_res} is "nourriture":
+        set {_t} to random element out of "potato", "carrot" and "apple"
+        set {_ty} to {_t} parsed as itemtype
+        return {_n} of {_ty}
+    if {_res} is "materiaux":
+        return {_n} of iron nugget
+    if {_res} is "medicaments":
+        return {_n} of sweet berries
+    return {_n} of coal
+
+# ---------------------------------------------------------------- /communaute
+
+command /communaute [<text>] [<text>] [<text>]:
+    aliases: /commu
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        if {za::base::%{_u}%} is not set:
+            send "&7Il faut d'abord une base (/base definir) et des survivants (/survivants)." to player
+            stop
+        set {_a} to arg-1 ? "etat"
+        if {_a} is "minimum":
+            if arg-3 is not set:
+                send "&7/communaute minimum <nourriture|bois|materiaux|medicaments|carburant> <quantité>" to player
+                stop
+            set {_n} to arg-3 parsed as number
+            if {_n} is not set:
+                send "&7Une quantité, en chiffres." to player
+                stop
+            set {za::bv::%{_u}%::min::%arg-2%} to {_n}
+            za_mot("basemin %{_u}% %arg-2% %{_n}%")
+            send "&7Compris : on vise au moins &f%{_n}% %arg-2%&7. Les survivants s'en occuperont d'eux-mêmes." to player
+        else if {_a} is "sorties":
+            if arg-2 is "off":
+                set {za::bv::%{_u}%::interdit} to true
+                za_mot("basesorties %{_u}% off")
+                send "&7Plus personne ne sort sans ton accord." to player
+            else:
+                delete {za::bv::%{_u}%::interdit}
+                za_mot("basesorties %{_u}% on")
+                send "&7Les survivants décident à nouveau de leurs sorties." to player
+        else if {_a} is "journal":
+            send "&6&l━━ JOURNAL DE LA BASE ━━" to player
+            loop {za::bv::journal::%{_u}%::*}:
+                send "&8• &7%loop-value%" to player
+        else:
+            set {_et} to {za::mot::bv::%{_u}%::etat} ? "fondation"
+            send "&6&l━━ LA COMMUNAUTÉ ━━ &7%{_et}%" to player
+            loop "nourriture", "bois", "materiaux", "medicaments" and "carburant":
+                set {_s} to {za::bv::%{_u}%::stock::%loop-value%} ? 0
+                set {_m} to {za::bv::%{_u}%::min::%loop-value%} ? 0
+                if {_m} > 0:
+                    send "&7%loop-value% : &f%floor({_s})% &8/ min %{_m}%" to player
+                else:
+                    send "&7%loop-value% : &f%floor({_s})%" to player
+            if {za::mot::bv::%{_u}%::bilan} is set:
+                send "&7Bilan d'hier : &f%{za::mot::bv::%{_u}%::bilan}%" to player
+            if {za::bv::%{_u}%::interdit} is true:
+                send "&cSorties interdites &8(/communaute sorties on)" to player
+            send "&8/communaute minimum <ressource> <n> · sorties on|off · journal" to player

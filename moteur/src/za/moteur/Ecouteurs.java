@@ -275,5 +275,6 @@ public final class Ecouteurs implements Listener {
     @EventHandler
     public void entree(PlayerJoinEvent ev) {
         z.directeur.join(ev.getPlayer());
+        z.rapportAbsence(ev.getPlayer());
     }
 }

@@ -9,6 +9,7 @@ systemes:
   ecosysteme: true      # oiseaux, silence, corbeaux, échos lointains
   telemetrie: true      # rapport quotidien (plugins/ZAMoteur/rapports)
   materialisation: true # les hordes virtuelles deviennent de vrais zombies près des joueurs
+  bases: true           # bases vivantes : le cerveau des bases et des survivants décide (IA-15, IA-8)
   omega: false          # narrateur par IA (facultatif, demande une clé)
 
 budget:

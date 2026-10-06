@@ -55,6 +55,7 @@ public final class ZAMoteur extends JavaPlugin {
     public Ecosysteme ecosysteme;
     public Omega omega;
     public InfoJoueurs infoJoueurs;
+    public BasesVivantes vivantes;
 
     /** bases enregistrées (/base, p8) : jamais envahies automatiquement (règle 2) */
     public final Map<UUID, Location> bases = new ConcurrentHashMap<>();
@@ -86,7 +87,7 @@ public final class ZAMoteur extends JavaPlugin {
         copierDefaut("reactions.yml");
         copierDefaut("config.yml");
         reloadConfig();
-        for (String s : new String[]{"hordes", "directeur", "cerveaux", "nemesis", "norda", "lea", "ecosysteme", "telemetrie", "materialisation", "omega"})
+        for (String s : new String[]{"hordes", "directeur", "cerveaux", "nemesis", "norda", "lea", "ecosysteme", "telemetrie", "materialisation", "bases", "omega"})
             systemes.put(s, getConfig().getBoolean("systemes." + s, !s.equals("omega")));
         budgetSpawnsTick = getConfig().getInt("budget.apparitions_par_tick", 6);
         budgetBlocsTick = getConfig().getInt("budget.blocs_par_tick", 200);
@@ -120,6 +121,7 @@ public final class ZAMoteur extends JavaPlugin {
         ecosysteme = new Ecosysteme(this);
         omega = new Omega(this);
         infoJoueurs = new InfoJoueurs(this);
+        vivantes = new BasesVivantes(this);
         monde.memoire.annonce = t -> pont.zaevt("legende " + t);
         persistance.chargerModules();
 
@@ -147,6 +149,7 @@ public final class ZAMoteur extends JavaPlugin {
                 if (actif("cerveaux")) cerveaux.tick1s();
                 if (actif("norda")) nordaReel.tick1s();
                 if (actif("nemesis")) nemesis.tick1s();
+                if (actif("bases")) vivantes.tick1s();
             }
         }.runTaskTimer(this, 40L, 20L);
         // HORS du fil principal : la simulation, toutes les 30 secondes
@@ -236,6 +239,7 @@ public final class ZAMoteur extends JavaPlugin {
                 nemesis.jour();
                 directeur.jour();
                 omega.jour();
+                if (actif("bases")) vivantes.jour();
                 pont.set("monde::jour_moteur", String.valueOf(j));
             });
         }
@@ -376,6 +380,17 @@ public final class ZAMoteur extends JavaPlugin {
                 Bukkit.getScheduler().runTask(this, () -> s.sendMessage("§cSimulateur : " + e.getMessage()));
             }
         });
+    }
+
+    /** au retour d'un joueur : ce qui s'est passé à sa base pendant son absence (règle 2) */
+    public void rapportAbsence(Player p) {
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            if (!p.isOnline()) return;
+            List<String> l = vivantes.absence(p.getUniqueId().toString());
+            if (l.isEmpty()) return;
+            p.sendMessage("§6§l━━ PENDANT TON ABSENCE ━━");
+            for (int i = Math.max(0, l.size() - 10); i < l.size(); i++) p.sendMessage("§7• " + l.get(i));
+        }, 120L);
     }
 
     public Map<String, Object> resumeSystemes() {

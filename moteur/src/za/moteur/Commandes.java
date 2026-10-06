@@ -183,6 +183,22 @@ final class Commandes {
             case "lea":
                 if (a.length > 1 && a[1].equals("retour")) z.lea.retour();
                 return true;
+            // bases vivantes (IA-15) et survivants (IA-8)
+            case "basestock":
+                z.vivantes.stocks(a);
+                return true;
+            case "surv":
+                if (a.length >= 17) z.vivantes.survivant(a);
+                return true;
+            case "survres":
+                z.vivantes.resultat(a);
+                return true;
+            case "basemin":
+                z.vivantes.minimum(a[1], a[2], i(a[3]));
+                return true;
+            case "basesorties":
+                z.vivantes.interdire(a[1], a[2].equals("off"));
+                return true;
             default:
                 s.sendMessage("zam : sous-commande inconnue " + a[0]);
                 return true;
@@ -399,6 +415,10 @@ final class Commandes {
                 s.sendMessage("§6[Cerveau] §f" + t.getName() + " : " + z.cerveaux.etatDe(t) + " — tags " + t.getScoreboardTags());
                 return true;
             }
+            case "base":
+            case "survivant":
+                z.vivantes.admin(s, a);
+                return true;
             case "memoire":
             case "relation":
             case "savoir":
@@ -426,6 +446,7 @@ final class Commandes {
         s.sendMessage("§6/zaadmin §7directeur [joueur] · region [id|ici] · carte · hordes [creer N|attirer] · norda [joueur] · nemesis");
         s.sendMessage("§7simuler <jours> [fantômes] · chaine <1-8> · evt <type> [grav] [texte] · rapport · systeme <nom> on|off");
         s.sendMessage("§7reactions recharger · chronique [n] · sauver · cerveau · omega");
+        s.sendMessage("§7base <joueur> · survivant <id>");
         s.sendMessage("§7memoire <clé> · relation <de> <envers> · savoir <clé> · legendes  §8(clé : pseudo, region:r_3_4, faction:milice, pnj:12)");
     }
 

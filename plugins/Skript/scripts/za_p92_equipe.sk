@@ -975,6 +975,10 @@ function za_eq_terminer(id: number, issue: text):
         za_surv_moral_ajouter({_id}, -6)
         set {za::surv::%{_id}%::blesse} to true
     za_stat_ajouter({_u}, "missions_survivants", 1)
+    # le cerveau du survivant s'en souvient (ZAMoteur, IA-8)
+    set {_tt} to {_t} ? "tache"
+    set {_nn} to floor({za::eq::m::%{_id}%::n} ? 0)
+    za_mot("survres %{_id}% %{_tt}% %{_issue}% %{_nn}%")
     za_eq_effacer({_id})
     set {za::surv::%{_id}%::lieu} to za_surv_spot_base({_u})
     za_surv_recompte({_u})

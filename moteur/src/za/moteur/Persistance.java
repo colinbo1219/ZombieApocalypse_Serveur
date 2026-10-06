@@ -134,6 +134,7 @@ public final class Persistance {
         z.telemetrie.charger(y.getConfigurationSection("telemetrie"));
         z.directeur.charger(y.getConfigurationSection("directeur"));
         z.lea.charger(y.getConfigurationSection("lea"));
+        z.vivantes.cerveau.importer(lire("bases.txt"));
     }
 
     private static void lireCarte(ConfigurationSection s, Map<String, Double> m) {
@@ -222,6 +223,7 @@ public final class Persistance {
         ecrire("chronique.txt", chron);
         ecrire("informations.txt", infos);
         ecrire("memoire.txt", mem);
+        ecrire("bases.txt", z.vivantes.cerveau.exporter());
         try {
             File tmp = new File(z.getDataFolder(), "etat.yml.tmp");
             o.save(tmp);
