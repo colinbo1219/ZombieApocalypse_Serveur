@@ -1,0 +1,193 @@
+# za_p115_justice.sk — arrestation, prison et procès (bible v2, point 48 ; S-4)
+#  ⚠ Ne concerne que les joueurs RECHERCHÉS (une prime /prime pèse sur eux) : jamais un joueur ordinaire.
+#  * ARRESTATION : un recherché qui tomberait sous les coups d'un joueur qui tient des « Menottes » est capturé au lieu
+#    d'être tué. Le chasseur touche la prime. Le prisonnier est conduit au Bloc cellulaire A de la prison (monde généré).
+#  * PROCÈS : /proces <joueur> ouvre un vote de 2 minutes ; tout joueur en ligne peut voter /jury coupable|innocent
+#    (un vote par personne, le prisonnier ne vote pas). Coupable : 20 jetons d'amende et 20 minutes de cellule.
+#    Innocent : libre, et le chasseur perd 10 de réputation. Sans procès en 20 minutes : libéré faute de procès.
+#  * ÉVASION : /evasion (une tentative toutes les 5 minutes, 25 %%) ; réussie, une nouvelle prime de 15 jetons tombe.
+#  Variables : {za::justice::<uuid>::*}
+
+options:
+    peine: 1200
+    attente: 1200
+
+function za_jus_cellule() :: location:
+    set {_x} to {za::site::d::prison_cellules0::x}
+    if {_x} is not set:
+        stop
+    set {_l} to location({_x}, ({za::site::d::prison_cellules0::y} ? 75) + 2, {za::site::d::prison_cellules0::z}, world("world"))
+    return za_eq_sol({_l})
+
+function za_jus_prime(u: text) :: number:
+    loop {za::prime::liste::*}:
+        if {za::prime::%loop-value%::cible} is {_u}:
+            return loop-value
+    return 0
+
+function za_jus_detenu(u: text) :: boolean:
+    if ({za::justice::%{_u}%::fin} ? 0) > unix timestamp of now:
+        return true
+    return false
+
+# ---------------------------------------------------------------- arrestation
+
+on damage of player:
+    if attacker is not a player:
+        stop
+    if za_pro(victim) is true:
+        stop
+    set {_n} to uncolored name of attacker's tool ? ""
+    if {_n} is not "Menottes":
+        stop
+    if damage < health of victim:
+        stop
+    set {_u} to "%victim's uuid%"
+    set {_id} to za_jus_prime({_u})
+    if {_id} is 0:
+        stop
+    if za_jus_cellule() is not set:
+        stop
+    cancel event
+    za_jus_arreter(victim, attacker, {_id})
+
+function za_jus_arreter(p: player, chasseur: player, id: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {_m} to {za::prime::%{_id}%::montant} ? 0
+    remove {_id} from {za::prime::liste::*}
+    delete {za::prime::%{_id}%::*}
+    za_jetons_ajouter({_chasseur}, {_m})
+    set {za::justice::%{_u}%::fin} to (unix timestamp of now) + {@attente}
+    set {za::justice::%{_u}%::par} to "%{_chasseur}'s uuid%"
+    set {za::justice::%{_u}%::etat} to "attente"
+    set health of {_p} to 4
+    za_effet({_p}, "slowness", 10, 2)
+    za_zm("noir %{_p}% 3")
+    teleport {_p} to za_jus_cellule()
+    send "&4Menotté. &7On te traîne jusqu'à la prison. La porte de la cellule claque. &8(/evasion · un procès peut avoir lieu : /proces)" to {_p}
+    send "&aArrestation réussie : %{_p}% est en cellule. &e+%{_m}% jetons de prime. &7(/proces %{_p}% pour le juger)" to {_chasseur}
+    za_diffuser("&6&lJUSTICE &7%{_p}% a été arrêté par %{_chasseur}% et attend son procès à la prison. &8(/proces %{_p}%)")
+    za_mot_evt("arrestation", location of {_chasseur}, 2, "%{_chasseur}'s uuid%,%{_u}%", "%{_p}% arrêté par %{_chasseur}%")
+
+# la cellule retient le prisonnier (toutes les 5 s)
+every 5 seconds:
+    set {_c} to za_jus_cellule()
+    if {_c} is not set:
+        stop
+    loop za_monde_joueurs():
+        set {_u} to "%loop-value's uuid%"
+        if {za::justice::%{_u}%::fin} is set:
+            if za_jus_detenu({_u}) is false:
+                za_jus_liberer(loop-value, "fin")
+            else if world of loop-value is not world of {_c}:
+                teleport loop-value to {_c}
+            else if distance between loop-value and {_c} > 25:
+                teleport loop-value to {_c}
+                send "&8Un garde te ramène par le col. « Pas si vite. »" to loop-value
+
+function za_jus_liberer(p: player, motif: text):
+    set {_u} to "%{_p}'s uuid%"
+    delete {za::justice::%{_u}%::*}
+    if {_motif} is "fin":
+        send "&aLa porte s'ouvre. &7Tu es libre. &8(Ne recommence pas.)" to {_p}
+    else if {_motif} is "innocent":
+        send "&aLe jury t'a déclaré innocent. &7Tu es libre." to {_p}
+
+# ---------------------------------------------------------------- procès
+
+command /proces <player>:
+    aliases: /procès
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%arg-1's uuid%"
+        if za_jus_detenu({_u}) is false:
+            send "&7%arg-1% n'est pas en cellule." to player
+            stop
+        if {za::justice::%{_u}%::etat} is not "attente":
+            send "&7Le sort de %arg-1% est déjà réglé, ou son procès est en cours." to player
+            stop
+        if {za::justice::proces} is set:
+            send "&7Un procès est déjà en cours." to player
+            stop
+        set {za::justice::%{_u}%::etat} to "proces"
+        set {za::justice::proces} to {_u}
+        delete {za::justice::vote::*}
+        za_diffuser("&6&lPROCÈS &7%arg-1% est jugé. Deux minutes pour voter : &c/jury coupable &7ou &a/jury innocent&7.")
+        za_jus_verdict({_u})
+
+command /jury <text>:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to {za::justice::proces}
+        if {_u} is not set:
+            send "&7Aucun procès en cours." to player
+            stop
+        if "%player's uuid%" is {_u}:
+            send "&7L'accusé ne vote pas." to player
+            stop
+        if arg-1 is not "coupable" or "innocent":
+            send "&7/jury coupable · /jury innocent" to player
+            stop
+        set {za::justice::vote::%player's uuid%} to arg-1
+        send "&7Ton vote est noté : &f%arg-1%&7." to player
+
+function za_jus_verdict(u: text):
+    wait 120 seconds
+    set {_c} to 0
+    set {_i} to 0
+    loop {za::justice::vote::*}:
+        if loop-value is "coupable":
+            add 1 to {_c}
+        else:
+            add 1 to {_i}
+    delete {za::justice::vote::*}
+    delete {za::justice::proces}
+    set {_p} to za_mot_joueur({_u})
+    if {_c} > {_i}:
+        set {za::justice::%{_u}%::etat} to "condamne"
+        set {za::justice::%{_u}%::fin} to (unix timestamp of now) + {@peine}
+        if {_p} is set:
+            set {_a} to min(20, za_jetons({_p}))
+            za_jetons_ajouter({_p}, 0 - {_a})
+            send "&cCoupable (%{_c}% contre %{_i}%). &7%{_a}% jetons d'amende, vingt minutes de cellule." to {_p}
+        za_diffuser("&6&lVERDICT &cCoupable &7(%{_c}% voix contre %{_i}%).")
+    else:
+        za_diffuser("&6&lVERDICT &aInnocent &7(%{_i}% voix contre %{_c}%).")
+        set {_par} to za_mot_joueur({za::justice::%{_u}%::par} ? "")
+        if {_par} is set:
+            za_faction_ajouter({_par}, "survivants", -10)
+        if {_p} is set:
+            za_jus_liberer({_p}, "innocent")
+        else:
+            delete {za::justice::%{_u}%::*}
+
+# ---------------------------------------------------------------- évasion
+
+command /evasion:
+    aliases: /évasion
+    trigger:
+        set {_u} to "%player's uuid%"
+        if za_jus_detenu({_u}) is false:
+            send "&7Tu n'es pas en cellule." to player
+            stop
+        if ({za::justice::%{_u}%::essai} ? 0) > (unix timestamp of now) - 300:
+            send "&7Les gardes te surveillent. Attends un peu." to player
+            stop
+        set {za::justice::%{_u}%::essai} to unix timestamp of now
+        if chance of 25%:
+            delete {za::justice::%{_u}%::*}
+            send "&aUn barreau descellé, une gouttière, la nuit. &7Tu es dehors. Cours." to player
+            add 1 to {za::prime::next}
+            set {_id} to {za::prime::next}
+            set {za::prime::%{_id}%::cible} to {_u}
+            set {za::prime::%{_id}%::nom} to "%player%"
+            set {za::prime::%{_id}%::montant} to 15
+            set {za::prime::%{_id}%::poseur} to "prison"
+            set {za::prime::%{_id}%::date} to now
+            add {_id} to {za::prime::liste::*}
+            za_diffuser("&6&lÉVASION &7%player% s'est évadé de la prison. &e15 jetons &7pour qui le ramène.")
+        else:
+            add 300 to {za::justice::%{_u}%::fin}
+            send "&cUn garde t'a vu. &7Cinq minutes de plus." to player

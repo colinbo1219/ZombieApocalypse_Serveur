@@ -49,6 +49,7 @@ on load:
     # faux remèdes (za_p113) : identiques aux vrais, moins chers, sans effet
     add "honey bottle|Serum|&d|Guerit l'infection a tout stade (prix d'ami)|16|1|0|faux" to {za::offre::trafiquant::*}
     add "honey bottle|Antibiotique|&b|Soigne plaie, grippe et fievre|4|1|0|faux" to {za::offre::trafiquant::*}
+    add "lead|Menottes|&7|Capture un recherche au lieu de le tuer (prison)|8|1|25" to {za::offre::trafiquant::*}
     add "tnt|Explosif artisanal|&c|Fait du bruit... beaucoup|9|1|80" to {za::offre::trafiquant::*}
     add "iron ingot|Plaque de blindage|&7|Pour l'equipement|3|4|0" to {za::offre::trafiquant::*}
     add "compass|Boussole de survivant|&b|Indique le point de depart|10|1|0" to {za::offre::collectionneur::*}
