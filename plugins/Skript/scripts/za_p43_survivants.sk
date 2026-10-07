@@ -647,7 +647,7 @@ function za_surv_menu(p: player, id: number):
         za_menu({_p}, "zasurvclic", {_nom}, "%{_nom}%, %{_m}%. Il vous observe, prêt à fuir. Confiance : %floor({_c})% %%. À 50 %%, il acceptera peut-être de te suivre.", {_o::*})
     else if {_et} is "base":
         set {_r} to {za::surv::%{_id}%::role}
-        set {_o::*} to "Lui parler|parler", "Qu'est-ce que tu sais ?|savoir", "Donner une tâche|tache", "Sa fiche|fiche", "Changer son poste|role", "Donner de la nourriture|nourriture", "Soigner (Bandage)|bandage", "Faire un test|tester", "Lui donner un Sérum|serum", "J'ai des soupçons sur toi|accuser" and "Partir|quit"
+        set {_o::*} to "Lui parler|parler", "Qu'est-ce que tu sais ?|savoir", "Donner une tâche|tache", "Sa fiche|fiche", "Changer son poste|role", "Donner de la nourriture|nourriture", "Soigner (Bandage)|bandage", "Sa santé, mes doutes...|doutes" and "Partir|quit"
         set {_ex} to ""
         if {za::surv::%{_id}%::blesse} is true:
             set {_ex} to " Il est blessé."
@@ -725,7 +725,11 @@ function za_surv_noeud(p: player, n: text):
     set {_nom} to {za::surv::%{_id}%::nom}
     set {_et} to {za::surv::%{_id}%::etat}
     # ce qu'il sait, ce qu'il cache (ZAMoteur, IA-9)
-    # infection cachée (za_p111)
+    # infection cachée (za_p111) et soupçons (IA-9) : sous-menu
+    if {_n} is "doutes":
+        set {_o::*} to "Faire un test|tester", "Lui donner un Sérum|serum", "J'ai des soupçons sur toi|accuser" and "Partir|quit"
+        za_menu({_p}, "zasurvclic", {_nom}, "%{_nom}% te regarde. Il sent que quelque chose ne va pas.", {_o::*})
+        stop
     if {_n} is "tester":
         za_sec_tester({_p}, {_id})
         stop

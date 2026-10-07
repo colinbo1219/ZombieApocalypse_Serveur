@@ -44,12 +44,13 @@ function za_menu(p: player, mod: text, titre: text, texte: text, opts: texts):
     set lore of {_it} to za_wrap({_texte})
     set slot 4 of (current inventory of {_p}) to {_it}
     set {_n} to size of {_opts::*}
+    # rangée du milieu : 9 cases au plus (slots 9 à 17)
     set {_s} to 13 - floor({_n} / 2)
-    if {_s} < 10:
-        set {_s} to 10
+    if {_s} < 9:
+        set {_s} to 9
     set {_i} to 0
     loop {_opts::*}:
-        if {_i} < 7:
+        if {_i} < 9:
             set {_e::*} to split loop-value at "|"
             set {_lib} to {_e::1}
             if {_lib} starts with "!":
