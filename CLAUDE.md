@@ -130,11 +130,13 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
   structure), `signalisation.py` (panneaux), bâtiments de village dans `batisse.py` (école, clinique, caserne).
 - **Villes** (`ville.py`, conseil des 4) : ville → quartiers → routes hiérarchisées (avenues décalées, T, impasses,
   rail, rond-point, métro) → îlots → recettes → bâtiments (`ville_bat.py` + `batisse.py`) → sort d'apocalypse par quartier.
-  `VILLES` : Laurentia (métropole, -1800/3600), Saint-Rémi-de-la-Voie (industrielle, 1200/4200), Sainte-Agathe-des-Champs
-  (résidentielle, -400/3000). Construite une fois puis découpée en sites `ville_tuile` de 240 ; les quartiers sont dans
-  `plan['quartiers']` (lignes `quartier` de p73, zones p97 `v_<id>`, lieux `quartier_<genre>` du graphe). `generer.py`
-  écrit `za_p128_villes_donnees.sk` (quartiers, sort de départ, lampadaires). Jeu : `za_p128_villes.sk` (lumière selon
-  le courant, `/zavilles`). Aperçus : `docs/apercus/`. Installation : A_INSTALLER §13.
+  `VILLES` (6) : Laurentia (métropole, -1800/3600, A-20 surélevée), Saint-Rémi-de-la-Voie (industrielle, passage
+  inférieur), Sainte-Agathe-des-Champs (résidentielle), Fort-Laflèche (garnison, 3400/3100), Mont-Lévis (universitaire,
+  -3000/3100), Saint-Jacques-des-Ponts (rivière Blanche, 1900/1300, `y` forcé à 64 : eau locale 61 = 62 du monde ;
+  sites `garder_riviere` dans `terrain.py`). `AUTOROUTES` : autoroute 20 (z 3600). Construite une fois puis découpée en
+  sites `ville_tuile` de 240 ; quartiers dans `plan['quartiers']` (lignes `quartier` de p73, zones p97 `v_<id>`, lieux
+  `quartier_<genre>` du graphe). `generer.py` écrit `za_p128_villes_donnees.sk`. Jeu : `za_p128_villes.sk` (`/zavilles`).
+  Aperçus : `docs/apercus/`. Installation : A_INSTALLER §13.
 - Lost Cities retiré de l'overworld : `world/serverconfig/lostcities-server.toml` `selectedProfile = ""`.
 - Ville moddée : `ZA_sources/ville/blocs_mods.json.gz` (extrait des jars par `extraire_blocs_mods.py`) permet à
   `za_blocs.S()` d'accepter les blocs moddés (propriétés partielles) ; `za_meubles.py` (meubles) et `za_moderne.py`

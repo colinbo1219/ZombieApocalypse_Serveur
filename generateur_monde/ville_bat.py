@@ -12,6 +12,11 @@ from batisse import S, AIR, ZM, RU, COULEURS_AUTO
 from za_meubles import Repere
 
 ASPH = S('gray_concrete')
+
+
+def _nv(ch):
+    """Nom de la ville en construction."""
+    return getattr(ch, 'nom_ville', 'Laurentia')
 TROTTOIR = S('smooth_stone')
 
 
@@ -227,8 +232,8 @@ def banque(ch, R, L, P):
     ch.coffre(R, 3, 64, 2, 'south', SI.LOOT_MILITAIRE)
     ch.coffre(R, 6, 64, 2, 'south', SI.LOOT_VILLE)
     x, z = R.xz(L // 2, P)
-    ch.panneau(x, 70, z, ['CAISSE', 'POPULAIRE', 'LAURENTIA', ''], mur=R.d('south'))
-    ch.lieu(R, L, P, 'banque', 'Caisse populaire de Laurentia')
+    ch.panneau(x, 70, z, ['CAISSE', 'POPULAIRE', _nv(ch).upper()[:15], _nv(ch).upper()[15:30]], mur=R.d('south'))
+    ch.lieu(R, L, P, 'banque', 'Caisse populaire de ' + _nv(ch))
 
 
 def hotel(ch, R, L, P):
@@ -258,11 +263,11 @@ def commissariat(ch, R, L, P):
             R.fill(a + 1, 64, 4, a + 2, 66, 4, S('iron_bars'))
     ch.coffre(R, L - 2, 64, 2, 'west', SI.LOOT_MILITAIRE)
     x, z = R.xz(L // 2, P)
-    ch.panneau(x, 70, z, ['POLICE', 'Service de police', 'de Laurentia', ''], mur=R.d('south'))
+    ch.panneau(x, 70, z, ['POLICE', 'Service de police', _nv(ch)[:15], _nv(ch)[15:30]], mur=R.d('south'))
     for k in range(2):
         x, z = R.xz(3 + 5 * k, P + 4)
         RU.voiture(ch.R0, x, z, R.d('south'), 'white', 64, 'police', portes=ch.rng.random() < 0.5)
-    ch.lieu(R, L, P, 'commissariat', 'Poste de police de Laurentia')
+    ch.lieu(R, L, P, 'commissariat', 'Poste de police de ' + _nv(ch))
 
 
 def hotel_de_ville(ch, R, L, P):
@@ -281,8 +286,8 @@ def hotel_de_ville(ch, R, L, P):
     R.fill(1, 64, 2, L - 2, 64, 2, R.S('spruce_stairs', facing='north', half='bottom'))
     ch.coffre(R, 2, 64, 1, 'south', SI.LOOT_VILLE)
     x, z = R.xz(L // 2, P)
-    ch.panneau(x, 72, z, ['HÔTEL DE VILLE', 'LAURENTIA', 'Fondée en 1871', ''], mur=R.d('south'))
-    ch.lieu(R, L, P, 'hotel_ville', 'Hôtel de ville de Laurentia')
+    ch.panneau(x, 72, z, ['HÔTEL DE VILLE', _nv(ch).upper()[:15], _nv(ch).upper()[15:30], 'Fondée en 1871'], mur=R.d('south'))
+    ch.lieu(R, L, P, 'hotel_ville', 'Hôtel de ville de ' + _nv(ch))
 
 
 def hopital(ch, B):
@@ -342,8 +347,8 @@ def hopital(ch, B):
         R.set(15, y, 6, R.S('ladder', facing='north', waterlogged=False))
     ch.coffre(R, 13, 58, 9, 'north', SI.LOOT_LABO)
     x, z = R.xz(L // 2, P + 1)
-    ch.panneau(x, 64, z, ['HÔPITAL', 'RÉGIONAL DE', 'LAURENTIA', 'Urgence 24 h'], rotation=0)
-    ch.lieu(R, L, P, 'hopital_ville', 'Hôpital régional de Laurentia')
+    ch.panneau(x, 64, z, ['HÔPITAL', 'RÉGIONAL', _nv(ch).upper()[:15], 'Urgence 24 h'], rotation=0)
+    ch.lieu(R, L, P, 'hopital_ville', 'Hôpital régional de ' + _nv(ch))
 
 
 def parking_etage(ch, B):
@@ -395,7 +400,7 @@ def place(ch, B, nom):
         if k:
             RU.banc(ch.R0, cx + k, cz + 8, 'north')
             RU.banc(ch.R0, cx + k, cz - 8, 'south')
-    ch.panneau(cx, 64, cz + 5, ['PLACE', nom[:15], 'Laurentia', ''], rotation=0)
+    ch.panneau(cx, 64, cz + 5, ['PLACE', nom[:15], _nv(ch)[:15], ''], rotation=0)
     ch.lieu(ch.rep(x1, z1, 'south'), x2 - x1, z2 - z1, 'place', 'Place ' + nom)
 
 
@@ -440,7 +445,7 @@ def parc(ch, B, nom):
         if k:
             RU.banc(ch.R0, cx + k, cz + 2, 'north')
             RU.lampadaire_parc(ch.R0, cx + k + 2, cz - 2)
-    ch.panneau(cx + 3, 64, z2 - 3, ['PARC', nom[:15], 'Ville de Laurentia', ''], rotation=0)
+    ch.panneau(cx + 3, 64, z2 - 3, ['PARC', nom[:15], 'Ville de', _nv(ch)[:15]], rotation=0)
     ch.lieu(ch.rep(x1, z1, 'south'), x2 - x1, z2 - z1, 'parc', 'Parc ' + nom)
 
 
@@ -492,7 +497,7 @@ def usine(ch, B):
         ch.coffre(R, ch.rng.randint(2, L - 3), 64, ch.rng.randint(2, P - 3), 'south', SI.LOOT_VILLE)
     ZM.porte_double(R, L // 2 - 1, 64, P - 1, 'north', 'iron')
     x, z = R.xz(L // 2, P)
-    ch.panneau(x, 70, z, ['USINE', 'BORÉAL MÉTAL', 'Laurentia', ''], mur=R.d('south'))
+    ch.panneau(x, 70, z, ['USINE', 'BORÉAL MÉTAL', _nv(ch)[:15], ''], mur=R.d('south'))
     ch.lieu(R, L, P, 'usine', 'Usine Boréal Métal')
 
 

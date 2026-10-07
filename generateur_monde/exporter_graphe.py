@@ -93,7 +93,7 @@ def main():
         i, j = reg(s['x'], s['z'])
         lignes.append('  %s:' % s['id'])
         # quartiers des villes : le genre compte pour l'économie (industriel → énergie, hôpital → médicaments)
-        typ = s['type'] if s['type'] != 'quartier' else 'quartier_' + {'civique': 'hopital'}.get(s['genre'], s['genre'])
+        typ = s['type'] if s['type'] != 'quartier' else 'quartier_' + {'civique': 'hopital', 'base': 'militaire'}.get(s['genre'], s['genre'])
         lignes.append('    type: %s' % typ)
         lignes.append('    nom: %s' % yq(s['nom']))
         lignes.append('    x: %d' % int(s['x']))

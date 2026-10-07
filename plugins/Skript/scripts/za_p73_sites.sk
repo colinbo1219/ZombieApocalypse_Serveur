@@ -185,6 +185,24 @@ function za_site_ambiance(t: text) :: text:
         return "URGENCE. Les lits sont alignés jusque dans le stationnement. Le sous-sol, personne n'y descend."
     if {_t} is "parking":
         return "Quatre étages de voitures. Des alarmes, parfois, quand quelque chose bouge entre elles."
+    if {_t} is "heliport":
+        return "Les pales ne tournent plus. Une manche à air orange claque dans le vent, pour personne."
+    if {_t} is "parc_vehicules":
+        return "Des blindés en rangs, comme à la parade. Certains ont encore les écoutilles ouvertes. Quelque chose dort dedans."
+    if {_t} is "armurerie":
+        return "Des buttes de terre et des portes d'acier. Les munitions de toute une garnison. Si quelqu'un n'est pas passé avant toi."
+    if {_t} is "champ_tir":
+        return "Les cibles sont criblées. Les dernières balles tirées ici ne visaient pas du carton."
+    if {_t} is "riviere":
+        return "La rivière Blanche coule comme avant. Elle charrie des choses qui flottent face contre l'eau."
+    if {_t} is "pont":
+        return "Un pont. Des voitures abandonnées, portières ouvertes. Au milieu, on est à découvert des deux côtés."
+    if {_t} is "pont_detruit":
+        return "Le tablier s'est effondré dans l'eau. Une voiture pend au bord. Il faudra trouver un autre passage."
+    if {_t} is "tunnel":
+        return "Le tunnel est noir. Des phares morts, des moteurs froids. Ça résonne. Tout ce qui est là-dedans t'entend venir."
+    if {_t} is "autoroute":
+        return "L'autoroute 20. Pare-chocs contre pare-chocs depuis le Jour 8. Plus loin, une travée manque : le vide jusqu'au boulevard."
     if {_t} is "poste_electrique":
         return "Transformateurs, clôture, panneaux DANGER. Ça ne bourdonne plus. Si ça rebourdonne un jour, tout le quartier le verra."
     if {_t} is "metro":

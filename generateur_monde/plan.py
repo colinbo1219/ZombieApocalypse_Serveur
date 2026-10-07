@@ -250,8 +250,8 @@ def construire(graine=GRAINE):
         routes.append(r)
 
     # sorties des villes vers le réseau (ajoutées en dernier : rien ne bouge)
-    for nom, pts in ville.routes_du_plan():
-        routes.append(_route(nom, 'route', pts))
+    for nom, genre, pts in ville.routes_du_plan():
+        routes.append(_route(nom, genre, pts))
 
     principaux = routes[0]['points'] + routes[1]['points']
     for s in sites:

@@ -25,7 +25,7 @@ import sites as SI
 import batisse as BA
 import ville_bat as VB
 from batisse import Chantier, S, AIR, ZM, RU, COULEURS_AUTO
-from ville_bat import lot, rangee, perimetre, ASPH, TROTTOIR
+from ville_bat import lot, rangee, perimetre, echelle, _nv, ASPH, TROTTOIR
 from za_blocs import Monde
 from za_meubles import Ctx, Repere
 
@@ -37,12 +37,22 @@ HAUT = 120         # jusqu'à y=163 local (tours)
 # (le type décide des quartiers ; « sorts » : un sort par genre de quartier, dans l'ordre des quartiers du type)
 VILLES = [
     {'id': 'laurentia', 'nom': 'Laurentia', 'type': 'metropole', 'x': -1800, 'z': 3600, 'n': 3, 'graine': 7101,
-     'sortie': ('est', [(-700, 3600), (80, 3600)], 'Boulevard Laurentien')},
+     'sortie': None},      # l'autoroute 20 la traverse (surélevée au-dessus du boulevard est-ouest)
     {'id': 'saint_remi', 'nom': 'Saint-Rémi-de-la-Voie', 'type': 'industrielle', 'x': 1200, 'z': 4200, 'n': 2,
      'graine': 7202, 'sortie': ('ouest', [(500, 4200), (35, 4200)], 'Rue de la Gare')},
     {'id': 'sainte_agathe', 'nom': 'Sainte-Agathe-des-Champs', 'type': 'residentielle', 'x': -400, 'z': 3000, 'n': 2,
      'graine': 7303, 'sortie': ('est', [(-45, 3000)], 'Chemin Sainte-Agathe')},
+    {'id': 'fort_lafleche', 'nom': 'Fort-Laflèche', 'type': 'militaire', 'x': 3400, 'z': 3100, 'n': 2, 'graine': 7404,
+     'sortie': ('sud', [(3400, 3600)], 'Chemin de la Garnison')},
+    {'id': 'mont_levis', 'nom': 'Mont-Lévis', 'type': 'universitaire', 'x': -3000, 'z': 3100, 'n': 2, 'graine': 7505,
+     'sortie': ('sud', [(-3000, 3600)], "Boulevard de l'Université")},
+    {'id': 'saint_jacques', 'nom': 'Saint-Jacques-des-Ponts', 'type': 'riviere', 'x': 1900, 'z': 1300, 'n': 2,
+     'graine': 7606, 'y': 64, 'sortie': ('est', [(2300, 1090), (2456, 1021)], 'Route des Ponts', -150)},
 ]
+
+# autoroute 20 : traverse les plaines du sud d'ouest en est ; dans Laurentia, elle passe en hauteur (ville.py)
+AUTOROUTES = [('Autoroute 20 ouest', [(-5100, 3600), (-2160, 3600)]),
+              ('Autoroute 20 est', [(-1440, 3600), (80, 3600), (5100, 3600)])]
 
 # quartiers de chaque type : (genre, fx, fz, sort) — fx, fz : position relative (0..1) du « germe » du quartier
 TYPES = {
@@ -52,7 +62,7 @@ TYPES = {
                       ('residentiel', 0.24, 0.5, 'evacuee'), ('residentiel', 0.78, 0.2, 'abandon'),
                       ('banlieue', 0.2, 0.82, 'brulee'), ('riche', 0.2, 0.18, 'faction'),
                       ('pauvre', 0.8, 0.85, 'envahie'), ('industriel', 0.92, 0.66, 'brulee')],
-        'avenues': (120, 170), 'metro': True, 'rail': None},
+        'avenues': (120, 170), 'metro': True, 'rail': None, 'aerienne': True},
     'industrielle': {
         'quartiers': [('centre', 0.5, 0.42, 'guerre'), ('industriel', 0.25, 0.75, 'faction'),
                       ('industriel', 0.78, 0.75, 'envahie'), ('gare', 0.5, 0.68, 'quarantaine'),
@@ -64,23 +74,44 @@ TYPES = {
                       ('banlieue', 0.75, 0.75, 'abandon'), ('riche', 0.78, 0.25, 'faction'),
                       ('banlieue', 0.25, 0.78, 'pillee'), ('parc', 0.5, 0.2, 'abandon')],
         'avenues': (100, 130), 'metro': False, 'rail': None, 'campagne': 0.3},
+    # ville de garnison : la base au nord (clôturée), les logements des familles, un petit centre
+    'militaire': {
+        'quartiers': [('base', 0.35, 0.22, 'guerre'), ('base', 0.72, 0.25, 'quarantaine'),
+                      ('centre', 0.5, 0.62, 'evacuee'), ('logements', 0.2, 0.75, 'abandon'),
+                      ('logements', 0.8, 0.72, 'evacuee'), ('commercial', 0.5, 0.88, 'pillee')],
+        'avenues': (110, 140), 'metro': False, 'rail': None, 'campagne': 0.2},
+    # ville universitaire : le campus (pavillons, bibliothèque, quadrilatère, tour de l'horloge), la vie étudiante
+    'universitaire': {
+        'quartiers': [('campus', 0.4, 0.3, 'quarantaine'), ('campus', 0.68, 0.3, 'abandon'),
+                      ('centre', 0.5, 0.62, 'envahie'), ('residentiel', 0.8, 0.7, 'pillee'),
+                      ('commercial', 0.25, 0.6, 'pillee'), ('parc', 0.22, 0.85, 'abandon'),
+                      ('riche', 0.75, 0.9, 'faction')],
+        'avenues': (100, 140), 'metro': False, 'rail': None, 'campagne': 0.2},
+    # ville de rivière : la rivière Blanche la coupe en deux ; quais, ponts, un tunnel, le vieux port
+    'riviere': {
+        'quartiers': [('vieux', 0.4, 0.3, 'abandon'), ('centre', 0.65, 0.3, 'envahie'), ('port', 0.5, 0.62, 'faction'),
+                      ('residentiel', 0.2, 0.7, 'evacuee'), ('banlieue', 0.78, 0.8, 'pillee'),
+                      ('industriel', 0.15, 0.25, 'brulee'), ('riche', 0.85, 0.2, 'guerre')],
+        'avenues': (100, 130), 'metro': False, 'rail': None, 'riviere': True},
 }
 
 # taille visée des îlots et largeur des rues secondaires, par genre de quartier
 GENRES = {
     'centre': (58, 7), 'affaires': (66, 7), 'civique': (90, 7), 'commercial': (64, 7), 'residentiel': (56, 7),
     'banlieue': (62, 5), 'riche': (84, 5), 'pauvre': (48, 5), 'industriel': (112, 7), 'gare': (90, 7),
-    'parc': (110, 5),
+    'parc': (110, 5), 'base': (110, 7), 'logements': (58, 5), 'campus': (120, 7), 'vieux': (52, 5), 'port': (72, 7),
 }
 NOMS = {
     'centre': ['Centre-ville'], 'affaires': ["Quartier des affaires"], 'civique': ["Quartier de l'Hôpital"],
-    'commercial': ['Boulevard des Commerces', 'Les Galeries'], 'gare': ['Quartier de la Gare'],
-    'residentiel': ['Le Plateau', 'Saint-Joseph', 'Le Faubourg', 'Haut-Laurier', 'Les Cèdres'],
+    'commercial': ['Boulevard des Commerces', 'Les Galeries', 'La Promenade', 'Le Carrefour', 'Rue du Marché'], 'gare': ['Quartier de la Gare'],
+    'residentiel': ['Le Plateau', 'Saint-Joseph', 'Le Faubourg', 'Haut-Laurier', 'Les Cèdres', 'Villeray', 'Limoilou'],
     'banlieue': ['Les Érables', 'Les Pins', 'Bois-Joli', 'Petite-Rivière', 'Les Bouleaux', 'Le Domaine'],
-    'riche': ['Côte-Sainte-Anne', 'Le Belvédère', 'Mont-Royal-des-Pins'],
+    'riche': ['Côte-Sainte-Anne', 'Le Belvédère', 'Mont-Royal-des-Pins', 'Les Hauteurs', 'Le Golf'],
     'pauvre': ['Le Bas-de-la-Ville', 'Saint-Roch', 'Les Tanneries', 'La Cité ouvrière'],
-    'industriel': ['Parc industriel', "Parc d'affaires Laurier", 'Les Forges', 'La Fonderie'],
-    'parc': ['Parc régional', 'Les Prés'],
+    'industriel': ['Parc industriel', "Parc d'affaires Laurier", 'Les Forges', 'La Fonderie', 'Les Moulins'],
+    'parc': ['Parc régional', 'Les Prés', 'Bois-Francs'],
+    'base': ['Secteur nord de la base', 'Secteur des hangars'], 'logements': ['Logements militaires', 'Cité des familles'],
+    'campus': ['Campus principal', 'Cité universitaire'], 'vieux': ['Vieille-Ville'], 'port': ['Le Vieux-Port'],
 }
 
 
@@ -146,15 +177,31 @@ def plan_ville(v):
         rz = int(-D + ty['rail'] * S_)
         LZ = sorted([l for l in LZ if abs(l[0] - rz) > 40 or l[2] != 'avenue'] + [(rz, 11, 'rail')])
         rail = Route('x', rz, -D, D - 1, 11, 'rail')
+    # rivière (ville de rivière) : un couloir est-ouest entre deux quais, à la place des avenues qui y tombaient
+    riv = None
+    if ty.get('riviere'):
+        zc, rw = riviere_locale(v, D)
+        zq1 = int(math.floor((zc - rw).min())) - 18
+        zq2 = int(math.ceil((zc + rw).max())) + 18
+        LZ = sorted([l for l in LZ if not (zq1 - 45 < l[0] < zq2 + 45) or l[2] == 'ceinture'] +
+                    [(zq1, 9, 'quai'), (zq2, 9, 'quai')])
+        riv = {'zc': zc, 'w': rw, 'zq1': zq1, 'zq2': zq2}
     nx, nz = len(LX) - 1, len(LZ) - 1
+    eau = set()
+    jr = None
+    if riv:
+        jr = next(j for j in range(nz) if LZ[j][2] == 'quai' and LZ[j + 1][2] == 'quai')
+        eau = {(i, jr) for i in range(nx)}
     # coins en campagne (petites villes) : la ville s'effiloche au lieu de finir sur un carré
     nature = set()
+    hors = set(eau)
     if ty.get('campagne') and nx >= 3 and nz >= 3:
         for i in range(nx):
             for j in range(nz):
                 bord = (i in (0, nx - 1)) + (j in (0, nz - 1))
                 if bord == 2 and rng.random() < 0.75 or bord == 1 and rng.random() < ty['campagne']:
                     nature.add((i, j))
+    hors = nature | eau     # mailles sans bâtiments
     # décalages des avenues nord-sud, rangée par rangée
     ov = {}
     for i, (c, w, k) in enumerate(LX):
@@ -171,18 +218,34 @@ def plan_ville(v):
             continue
         for j in range(nz):
             a, b = (i - 1, j), (i, j)
-            if a in pris or b in pris or a in nature or b in nature:
+            if a in pris or b in pris or a in hors or b in hors:
                 continue
             if rng.random() < 0.25:
                 fus.add((i, j))
                 pris.update((a, b))
     routes = []
+    # ponts (et un tunnel) : les avenues et le boulevard franchissent la rivière, la ceinture s'arrête aux quais
+    if riv:
+        cand = [i for i in range(1, nx) if LX[i][2] in ('avenue', 'boulevard')]
+        av = [i for i in cand if LX[i][2] == 'avenue']
+        i_tun = rng.choice(av) if len(av) >= 2 else None
+        i_det = rng.choice([i for i in av if i != i_tun]) if len(av) >= 2 else None
+        for i in cand:
+            c, w, k = LX[i]
+            x = xpos(i, jr)
+            if i == i_tun:
+                r = Route('z', x, LZ[jr][0] - 75, LZ[jr + 1][0] + 75, w, 'tunnel')
+            else:
+                r = Route('z', x, LZ[jr][0] - LZ[jr][1] // 2, LZ[jr + 1][0] + LZ[jr + 1][1] // 2, w,
+                          'pont_grand' if k == 'boulevard' else 'pont')
+                r.detruit = i == i_det
+            routes.append(r)
     # tronçons nord-sud
     for i in range(nx + 1):
         c, w, k = LX[i]
         for j in range(nz):
             cotes = [(i - 1, j), (i, j)]
-            dedans = [m for m in cotes if 0 <= m[0] < nx and m not in nature]
+            dedans = [m for m in cotes if 0 <= m[0] < nx and m not in hors]
             if not dedans or (i, j) in fus:
                 continue
             za = LZ[j][0] - LZ[j][1] // 2
@@ -195,7 +258,7 @@ def plan_ville(v):
             continue
         for i in range(nx):
             cotes = [(i, j - 1), (i, j)]
-            dedans = [m for m in cotes if 0 <= m[1] < nz and m not in nature]
+            dedans = [m for m in cotes if 0 <= m[1] < nz and m not in hors]
             if not dedans:
                 continue
             rangs = [r for r in (j - 1, j) if 0 <= r < nz]
@@ -261,6 +324,9 @@ def plan_ville(v):
         while i < nx:
             i1 = i + 1 if (i + 1, j) in fus else i
             x1, z1, x2, z2 = bornes(i, i1, j)
+            if (i, j) in eau:
+                i = i1 + 1
+                continue
             if (i, j) in nature:
                 # campagne : jusqu'au bord de la ville du côté extérieur
                 if i == 0:
@@ -290,13 +356,26 @@ def plan_ville(v):
         b0 = min(mes, key=lambda b: ((b['x1'] + b['x2']) / 2 - q['gx']) ** 2 + ((b['z1'] + b['z2']) / 2 - q['gz']) ** 2)
         q['cx'], q['cz'] = (b0['x1'] + b0['x2']) // 2, (b0['z1'] + b0['z2']) // 2
         quartiers.append(q)
-    return {'S': S_, 'routes': routes, 'ilots': ilots, 'quartiers': quartiers, 'rail': rail, 'metro': ty['metro']}
+    return {'S': S_, 'routes': routes, 'ilots': ilots, 'quartiers': quartiers, 'rail': rail, 'metro': ty['metro'],
+            'riviere': riv, 'aerienne': ty.get('aerienne', False)}
+
+
+def riviere_locale(v, D):
+    """La rivière Blanche dans le repère de la ville : centre zc[x] et demi-largeur w[x], pour x de -D à D-1."""
+    import plan as PL
+    pts = PL._riviere(None)
+    xs = v['x'] + np.arange(-D, D)
+    rx = np.array([p[0] for p in pts])
+    zc = np.interp(xs, rx, np.array([p[1] for p in pts])) - v['z']
+    w = np.interp(xs, rx, np.array([p[2] for p in pts]))
+    return zc, w
 
 
 # ============================================================================ chantier d'une ville entière
 class ChantierCite(Chantier):
     def __init__(self, v, pv):
         self.site = {'id': v['id'], 'graine': v['graine']}
+        self.nom_ville = v['nom']
         self.rng = random.Random(v['graine'] + 1)
         S_ = pv['S']
         D = S_ // 2
@@ -330,18 +409,21 @@ def dessiner_rues(ch, pv):
                     m.set(x, 63, z, S('gravel') if r < 0.45 else ASPH if r < 0.75 else S('coarse_dirt') if r < 0.9
                           else S('grass_block', snowy=False))
     rail = pv['rail']
+    SPECIAUX = ('rail', 'impasse', 'pont', 'pont_grand', 'tunnel')
     for r in pv['routes']:
         x1, z1, x2, z2 = r.rect()
-        if r.k in ('rail', 'impasse'):
+        if r.k in SPECIAUX:
             continue
         m.fill(x1, 63, z1, x2, 63, z2, ASPH)
         m.vide(x1, 64, z1, x2, 80, z2)
     for r in pv['routes']:
         if r.k == 'impasse':
             impasse(ch, r)
+    if pv.get('riviere'):
+        riviere(ch, pv)
     for r in pv['routes']:
         x1, z1, x2, z2 = r.rect()
-        if r.k in ('rail', 'impasse'):
+        if r.k in SPECIAUX:
             continue
         h = r.w // 2
         for t in range(r.a, r.b + 1):
@@ -359,13 +441,13 @@ def dessiner_rues(ch, pv):
                 for e in (-1, 1):
                     x, z = (t, r.c + e) if r.axe == 'x' else (r.c + e, t)
                     m.set(x, 63, z, S('yellow_concrete'))
-            elif r.k in ('rue', 'ceinture') and t % 6 < 3:
+            elif r.k in ('rue', 'ceinture', 'quai') and t % 6 < 3:
                 x, z = (t, r.c) if r.axe == 'x' else (r.c, t)
                 m.set(x, 63, z, S('yellow_concrete'))
     # les rues qui se croisent ont été peintes l'une sur l'autre : on nettoie les carrefours
     for r in pv['routes']:
         for o in pv['routes']:
-            if r.axe == o.axe or r.k == 'rail' or o.k == 'rail':
+            if r.axe == o.axe or r.k in ('rail', 'tunnel', 'impasse') or o.k in ('rail', 'tunnel', 'impasse'):
                 continue
             if r.axe == 'x' and o.a <= r.c <= o.b and r.a <= o.c <= r.b:
                 ax1, az1, ax2, az2 = r.rect()
@@ -388,7 +470,9 @@ def dessiner_rues(ch, pv):
             for z in (rail.c - 2, rail.c + 2):
                 m.set(x, 64, z, S('rail', shape='east_west', waterlogged=False))
         for r in pv['routes']:
-            if r.axe == 'z' and r.k != 'rail':
+            if r.axe == 'z' and r.k == 'boulevard' and r.a < rail.c < r.b:
+                passage_inferieur(ch, r, rail)
+            elif r.axe == 'z' and r.k != 'rail' and r.a < rail.c < r.b:
                 a1, _, a2, _ = r.rect()
                 m.fill(a1, 63, z1, a2, 63, z2, ASPH)
                 for z in (z1 - 1, z2 + 1):
@@ -399,8 +483,15 @@ def dessiner_rues(ch, pv):
             m.fill(x, 64, rail.c + 1, x + 16, 67, rail.c + 3, S(rng.choice(['brown_concrete', 'red_terracotta', 'gray_concrete'])))
             m.vide(x + 1, 65, rail.c + 2, x + 15, 66, rail.c + 2)
             ch.coffre(ch.R0, x + 8, 65, rail.c + 2, 'north', SI.LOOT_VILLE, baril=True)
-    # rond-point au croisement des boulevards
-    for dx in range(-15, 16):
+    # ponts et tunnel (ville de rivière)
+    for r in pv['routes']:
+        if r.k in ('pont', 'pont_grand'):
+            pont(ch, r, pv)
+        elif r.k == 'tunnel':
+            tunnel(ch, r, pv)
+    # rond-point au croisement des boulevards (s'il y en a un)
+    rp = not pv.get('riviere')
+    for dx in range(-15, 16) if rp else ():
         for dz in range(-15, 16):
             d = math.hypot(dx, dz)
             if d <= 15:
@@ -411,9 +502,10 @@ def dessiner_rues(ch, pv):
             if 7 < d <= 8:
                 m.set(dx, 64, dz, S('stone_brick_wall', east='none', west='none', north='none', south='none', up=True,
                                     waterlogged=False))
-    m.fill(-1, 64, -1, 1, 64, 1, S('chiseled_stone_bricks'))
-    m.fill(0, 65, 0, 0, 69, 0, S('stone_bricks'))
-    m.set(0, 70, 0, S('lantern', hanging=False, waterlogged=False))
+    if rp:
+        m.fill(-1, 64, -1, 1, 64, 1, S('chiseled_stone_bricks'))
+        m.fill(0, 65, 0, 0, 69, 0, S('stone_bricks'))
+        m.set(0, 70, 0, S('lantern', hanging=False, waterlogged=False))
     # lampadaires le long des îlots (tous éteints), bornes, feux aux grands carrefours
     for b in pv['ilots']:
         if b.get('nature'):
@@ -424,6 +516,9 @@ def dessiner_rues(ch, pv):
         for z in range(b['z1'] + 6, b['z2'] - 5, 18):
             RU.lampadaire(ch.R0, b['x1'], z, 'west')
             RU.lampadaire(ch.R0, b['x2'], z, 'east')
+        if genre.get(b['q']) in ('residentiel', 'banlieue', 'riche', 'campus', 'vieux', 'logements', 'parc', 'centre',
+                                 'pauvre'):
+            arbres_de_rue(ch, b)
         if rng.random() < 0.3:
             RU.borne_fontaine(ch.R0, b['x1'] + 3, b['z1'])
         if rng.random() < 0.25:
@@ -470,7 +565,7 @@ def campagne(ch, b):
     if rng.random() < 0.55:
         for x in range(x1 + 2, x2 - 1):
             for z in range(z1 + 2, z2 - 1):
-                if (x - x1) % 5 == 0:
+                if (x - x1) % 9 == 0:
                     m.set(x, 63, z, S('water'))
                 else:
                     m.set(x, 63, z, S('farmland', moisture=7))
@@ -501,6 +596,328 @@ def campagne(ch, b):
             x, z = rng.randint(x1, x2), rng.randint(z1, z2)
             if m.est_air(x, 64, z):
                 m.set(x, 64, z, S(rng.choice(['fern', 'grass'])))
+
+
+# ============================================================================ grands ouvrages : rivière, ponts, tunnel, autoroute
+MUR = lambda: S('stone_brick_wall', east='none', west='none', north='none', south='none', up=True, waterlogged=False)
+
+
+def riviere(ch, pv):
+    """La rivière Blanche dans la ville : quais de pierre, promenade plantée entre les quais et l'eau, fond varié.
+    L'eau est au niveau de la rivière du monde (y local 61 = y 62 du monde : la ville est posée à y=64)."""
+    m, rng = ch.m, ch.rng
+    rv = pv['riviere']
+    D = pv['S'] // 2
+    za, zb = rv['zq1'] + 5, rv['zq2'] - 5
+    herbe = S('grass_block', snowy=False)
+    fonds = [S('gravel'), S('sand'), S('clay'), S('gravel'), S('mud')]
+    for xi, x in enumerate(range(-D, D)):
+        zc, w = rv['zc'][xi], rv['w'][xi]
+        zt, zbn = int(round(zc - w)), int(round(zc + w))
+        m.vide(x, 64, za, x, 100, zb)
+        m.fill(x, 63, za, x, 63, zb, herbe)
+        for z in range(zt, zbn + 1):
+            t = (z - zc) / max(w, 1)
+            fond = 61 - int(3 + 7 * max(0.0, 1 - t * t))
+            m.set(x, fond, z, fonds[(x * 7 + z * 13) % len(fonds)])
+            m.fill(x, fond + 1, z, x, 61, z, S('water'))
+            m.vide(x, 62, z, x, 63, z)
+        # quais : murs de pierre, garde-corps
+        for z in (zt - 1, zbn + 1):
+            m.fill(x, 50, z, x, 63, z, S('stone_bricks') if (x + z) % 9 else S('mossy_stone_bricks'))
+            m.set(x, 64, z, MUR())
+        # promenade le long de l'eau
+        for z in list(range(zt - 6, zt - 3)) + list(range(zbn + 4, zbn + 7)):
+            if za <= z <= zb:
+                m.set(x, 63, z, S('polished_andesite'))
+        if x % 18 == 0:
+            for z, regard in ((zt - 3, 'south'), (zbn + 3, 'north')):
+                RU.lampadaire_parc(ch.R0, x, z)
+        elif x % 18 == 9:
+            RU.banc(ch.R0, x, zt - 3, 'south')
+            RU.banc(ch.R0, x, zbn + 3, 'north')
+        # allées d'arbres le long de la promenade, sentiers vers la rue, kiosques et massifs là où la berge est large
+        for z0, z1, za_ in ((za + 1, zt - 9, zt - 8), (zbn + 9, zb - 1, zbn + 8)):
+            if za <= za_ <= zb and x % 8 == 4:
+                try:
+                    RU.arbre_rue(ch.R0, x, za_, rng)
+                except Exception:
+                    pass
+            if x % 40 == 20:
+                m.fill(x - 1, 63, min(z0, z1), x + 1, 63, max(z0, z1), S('polished_andesite'))
+            elif z1 - z0 >= 16 and x % 40 == 0:
+                kiosque(ch, x, (z0 + z1) // 2)
+            elif z1 - z0 >= 8 and x % 13 == 7:
+                try:
+                    RU.arbre_rue(ch.R0, x, rng.randint(z0 + 1, z1 - 1), rng)
+                except Exception:
+                    pass
+            for z in range(z0, z1 + 1):
+                if rng.random() < 0.07 and m.est_air(x, 64, z) and m.get(x, 63, z) == herbe:
+                    m.set(x, 64, z, S(rng.choice(['poppy', 'dandelion', 'oxeye_daisy', 'cornflower', 'grass', 'fern',
+                                                  'grass', 'azure_bluet'])))
+    ch.lieux.append(('riviere', 'Les quais de la rivière Blanche', 0, int(rv['zc'][D]), D, int(rv['w'][D]) + 12))
+
+
+def kiosque(ch, x, z):
+    """Kiosque à musique de parc : socle de pierre, colonnes, toit pointu."""
+    m = ch.m
+    m.fill(x - 3, 63, z - 3, x + 3, 64, z + 3, S('stone_bricks'))
+    m.fill(x - 2, 64, z - 2, x + 2, 64, z + 2, S('spruce_planks'))
+    for (dx, dz) in ((-3, -3), (3, -3), (-3, 3), (3, 3)):
+        m.fill(x + dx, 65, z + dz, x + dx, 67, z + dz, S('white_concrete'))
+    m.fill(x - 3, 68, z - 3, x + 3, 68, z + 3, S('dark_oak_planks'))
+    m.fill(x - 2, 69, z - 2, x + 2, 69, z + 2, S('dark_oak_planks'))
+    m.fill(x - 1, 70, z - 1, x + 1, 70, z + 1, S('dark_oak_planks'))
+    m.set(x, 71, z, S('lightning_rod', facing='up', powered=False, waterlogged=False))
+    m.set(x, 67, z, S('lantern', hanging=True, waterlogged=False))
+
+
+def _bande_eau(pv, x):
+    rv = pv['riviere']
+    D = pv['S'] // 2
+    zc, w = rv['zc'][x + D], rv['w'][x + D]
+    return int(round(zc - w)), int(round(zc + w)), zc
+
+
+def pont(ch, r, pv):
+    """Pont d'avenue (ou grand pont du boulevard : trottoirs, pylônes, arches). Un pont peut être coupé (apocalypse)."""
+    m, rng = ch.m, ch.rng
+    x1, _, x2, _ = r.rect()
+    rv = pv['riviere']
+    za, zb = rv['zq1'] + 5, rv['zq2'] - 5
+    grand = r.k == 'pont_grand'
+    zt, zbn, zc = _bande_eau(pv, r.c)
+    m.vide(x1, 64, za, x2, 90, zb)
+    m.fill(x1, 62, za, x2, 62, zb, S('stone_bricks'))
+    m.fill(x1, 63, za, x2, 63, zb, ASPH)
+    for z in range(za, zb + 1):
+        m.set(x1, 64, z, MUR())
+        m.set(x2, 64, z, MUR())
+        if grand:
+            m.set(x1 + 1, 63, z, TROTTOIR)
+            m.set(x2 - 1, 63, z, TROTTOIR)
+        elif z % 6 < 3:
+            m.set(r.c, 63, z, S('yellow_concrete'))
+    # piles dans l'eau, et des arches sous le tablier du grand pont
+    pas = 14 if grand else 12
+    for z in range(zt + 4, zbn - 3, pas):
+        m.fill(x1 + 1, 48, z, x2 - 1, 61, z + 2, S('stone_bricks'))
+        if grand:
+            for k in range(1, 5):
+                for zz in (z - k, z + 2 + k):
+                    if zt < zz < zbn:
+                        m.fill(x1 + 1, 61 - (4 - k) // 2, zz, x2 - 1, 61, zz, S('stone_bricks'))
+    if grand:
+        for z in range(za + 2, zb - 1, 14):
+            RU.lampadaire(ch.R0, x1 + 1, z, 'east')
+            RU.lampadaire(ch.R0, x2 - 1, z + 7, 'west')
+        # pylônes aux deux têtes du pont
+        for z in (za, zb):
+            for x in (x1, x2):
+                m.fill(x, 64, z, x, 68, z, S('chiseled_stone_bricks'))
+                m.set(x, 69, z, S('lantern', hanging=False, waterlogged=False))
+        ch.panneau(x1 - 1 if x1 - 1 > -pv['S'] // 2 else x1, 65, za - 1, ['PONT', 'SAINT-JACQUES', '1912', ''],
+                   mur='north')
+    else:
+        for z in range(za + 4, zb - 3, 16):
+            RU.lampadaire(ch.R0, x1, z, 'east')
+    if getattr(r, 'detruit', False):
+        # le tablier s'est effondré au milieu : bouts de route qui pendent, débris dans l'eau, voiture au bord
+        g1, g2 = int(zc) - 6, int(zc) + 6
+        m.vide(x1, 60, g1, x2, 66, g2)
+        for x in range(x1, x2 + 1):
+            for z in (g1 - 1, g2 + 1):
+                if rng.random() < 0.6:
+                    m.fill(x, 59 + rng.randint(0, 2), z, x, 61, z, S('iron_bars'))
+            for z in range(g1, g2 + 1):
+                if rng.random() < 0.3:
+                    y = 52 + rng.randint(0, 6)
+                    m.set(x, y, z, S(rng.choice(['cobblestone', 'gray_concrete', 'stone_bricks', 'andesite'])))
+        RU.voiture(ch.R0, r.c, g1 - 3, 'south', rng.choice(COULEURS_AUTO), 64, 'auto', portes=True)
+        for z, regard in ((za + 1, 'north'), (zb - 1, 'south')):
+            m.fill(x1 + 1, 64, z, x2 - 1, 64, z, S('red_concrete'))
+            ch.panneau(r.c, 65, z, ['PONT FERMÉ', 'Effondrement', 'DANGER', ''], rotation=0 if regard == 'south' else 8,
+                       couleur='red')
+        ch.lieux.append(('pont_detruit', 'Le pont effondré', r.c, int(zc), 8, 20))
+    else:
+        ch.lieux.append(('pont', 'Le grand pont' if grand else 'Pont de la rue %d' % (abs(r.c) // 10), r.c, int(zc),
+                         r.w // 2 + 2, (zbn - zt) // 2 + 4))
+
+
+def tunnel(ch, r, pv):
+    """Tunnel sous la rivière : tranchée ouverte, portail, puis tube éclairé (éteint) sous le lit, jusqu'à l'autre rive."""
+    m, rng = ch.m, ch.rng
+    x1, _, x2, _ = r.rect()
+    zt, zbn, zc = _bande_eau(pv, r.c)
+    FOND = 45
+    n1 = zt - 2 - 54        # début de la descente côté nord
+    s2 = zbn + 2 + 54       # fin de la remontée côté sud
+    beton = S('light_gray_concrete')
+    for z in range(n1, s2 + 1):
+        if z < zt - 2:
+            y = 63 - (z - n1) // 3
+        elif z > zbn + 2:
+            y = 63 - (s2 - z) // 3
+        else:
+            y = FOND
+        y = max(FOND, y)
+        if y >= 63:
+            continue
+        couvert = y <= 57
+        m.fill(x1, y - 1, z, x2, y - 1, z, beton)
+        m.fill(x1 + 1, y, z, x2 - 1, y, z, ASPH)
+        if z % 6 < 3:
+            m.set(r.c, y, z, S('yellow_concrete'))
+        if couvert:
+            m.vide(x1 + 1, y + 1, z, x2 - 1, y + 4, z)
+            m.fill(x1, y + 5, z, x2, y + 5, z, beton)
+            m.fill(x1, y, z, x1, y + 4, z, S('white_concrete'))
+            m.fill(x2, y, z, x2, y + 4, z, S('white_concrete'))
+            if z % 8 == 0:
+                ch.ctx.lampe(r.c, y + 5, z, S('sea_lantern'), beton)
+        else:
+            m.vide(x1 + 1, y + 1, z, x2 - 1, 80, z)
+            m.fill(x1, y, z, x1, 63, z, S('stone_bricks'))
+            m.fill(x2, y, z, x2, 63, z, S('stone_bricks'))
+            m.set(x1, 64, z, S('iron_bars'))
+            m.set(x2, 64, z, S('iron_bars'))
+    # portails (là où la tranchée devient tube)
+    for z, mur in ((n1 + 18, 'north'), (s2 - 18, 'south')):
+        m.fill(x1, 62, z, x2, 63, z, S('polished_andesite'))
+        ch.panneau(r.c, 61, z - 1 if mur == 'north' else z + 1, ['TUNNEL', 'Louis-Fréchette', 'Hauteur 4 m', ''],
+                   mur=mur)
+    # embouteillage figé dans le tube
+    for z in range(zt, zbn, 9):
+        if rng.random() < 0.6:
+            RU.voiture(ch.R0, r.c - 2, z, 'south', rng.choice(COULEURS_AUTO), FOND + 1,
+                       'brulee' if rng.random() < 0.2 else 'auto', portes=rng.random() < 0.5)
+    ch.lieux.append(('tunnel', 'Tunnel Louis-Fréchette', r.c, int(zc), 6, (s2 - n1) // 2))
+
+
+def passage_inferieur(ch, r, rail):
+    """Le boulevard passe sous la voie ferrée (ville industrielle) : rampes, murs, tablier de pierre sous les rails."""
+    fait = ch.__dict__.setdefault('_passages', set())
+    if r.c in fait:
+        return
+    fait.add(r.c)
+    m = ch.m
+    x1, _, x2, _ = r.rect()
+    _, rz1, _, rz2 = rail.rect()
+    a, b = rz1 - 1 - 18, rz2 + 1 + 18
+    for z in range(a, b + 1):
+        y = 63 - min(6, (z - a) // 3, (b - z) // 3)
+        if y >= 63:
+            continue
+        sous_rail = rz1 - 1 <= z <= rz2 + 1
+        m.fill(x1 + 1, y, z, x2 - 1, y, z, ASPH)
+        if sous_rail:
+            m.vide(x1 + 1, y + 1, z, x2 - 1, 62, z)
+            m.fill(x1, 63, z, x2, 63, z, S('stone_bricks'))
+        else:
+            m.vide(x1 + 1, y + 1, z, x2 - 1, 80, z)
+            m.set(x1, 64, z, S('iron_bars'))
+            m.set(x2, 64, z, S('iron_bars'))
+        m.fill(x1, y, z, x1, 63, z, S('stone_bricks'))
+        m.fill(x2, y, z, x2, 63, z, S('stone_bricks'))
+    ch.panneau(r.c, 62, rz1 - 2, ['PASSAGE', 'INFÉRIEUR', 'Hauteur 4 m', ''], mur='north')
+    ch.lieux.append(('tunnel', 'Passage sous la voie ferrée', r.c, (rz1 + rz2) // 2, r.w // 2, 24))
+
+
+def autoroute_aerienne(ch, pv, v):
+    """L'autoroute 20 au-dessus du boulevard est-ouest : rampes aux deux bouts, tablier sur piliers, lampadaires,
+    portiques de signalisation ; l'apocalypse : un bouchon figé et une travée effondrée."""
+    m, rng = ch.m, ch.rng
+    D = pv['S'] // 2
+    TOP = 74
+    beton = S('light_gray_concrete')
+
+    def niveau(x):
+        return max(0, min(22, (x + D - 8) // 2, (D - 9 - x) // 2))
+    for x in range(-D, D):
+        L = niveau(x)
+        if L <= 0:
+            continue
+        y = 63 + L // 2
+        demi = L % 2
+        if L < 22:
+            m.fill(x, 64, -6, x, y, 6, beton)
+            m.fill(x, y, -5, x, y, 5, ASPH)
+            if demi:
+                m.fill(x, y + 1, -5, x, y + 1, 5, S('polished_andesite_slab', type='bottom'))
+        else:
+            m.vide(x, 66, -6, x, 72, 6)
+            m.fill(x, 73, -6, x, 73, 6, S('smooth_stone'))
+            m.fill(x, TOP, -6, x, TOP, 6, ASPH)
+        sol = y if not demi else y + 1
+        m.set(x, sol + (0 if demi else 1), -6, MUR())
+        m.set(x, sol + (0 if demi else 1), 6, MUR())
+        if L == 22:
+            if x % 8 < 4:
+                for z in (-3, 3):
+                    m.set(x, TOP, z, S('white_concrete'))
+            m.set(x, TOP + 1, 0, S('smooth_stone_slab', type='bottom'))
+            if x % 24 == 0:
+                RU.lampadaire(ch.R0, x, 0, 'north', y=TOP + 1, hauteur=4)
+                RU.lampadaire(ch.R0, x, 0, 'south', y=TOP + 1, hauteur=4)
+    # piliers (sur le terre-plein, en évitant le rond-point et les édicules du métro)
+    for x in range(-D + 46, D - 46):
+        if x % 18 or abs(x) < 17:
+            continue
+        if any('glass' in m.get(xx, 64, zz) for xx in (x, x + 1) for zz in (-2, 0, 2)):
+            continue
+        m.fill(x, 64, -1, x + 1, 72, 1, beton)
+        m.fill(x, 72, -6, x + 1, 72, 6, S('smooth_stone'))
+    for x in (-17, 16):
+        m.fill(x, 64, -1, x + 1, 72, 1, beton)
+    # portiques verts : « A-20 »
+    for x, txt, mur in ((-D + 60, ['A-20 EST', 'Laurentia', 'Centre-ville', ''], 'west'),
+                        (D - 61, ['A-20 OUEST', 'Laurentia', 'Mont-Lévis', ''], 'east')):
+        for z in (-6, 6):
+            m.fill(x, TOP + 1, z, x, TOP + 6, z, S('iron_bars'))
+        m.fill(x, TOP + 5, -5, x, TOP + 7, 5, S('green_concrete'))
+        ch.panneau(x - 1 if mur == 'west' else x + 1, TOP + 6, 0, txt, mur=mur, couleur='white')
+    # bouchon figé : l'exode du Jour 8, pare-chocs contre pare-chocs
+    x0 = rng.randint(-D // 2, -40)
+    for x in range(x0, x0 + 140, 7):
+        for z, d in ((-3, 'west'), (3, 'east')):
+            if -D + 46 < x < D - 46 and rng.random() < 0.75:
+                RU.voiture(ch.R0, x, z, d, rng.choice(COULEURS_AUTO), TOP + 1,
+                           'brulee' if rng.random() < 0.15 else rng.choice(['auto', 'auto', 'taxi']),
+                           portes=rng.random() < 0.5)
+    # une travée effondrée sur le boulevard
+    xc = rng.choice([x for x in range(40, D - 70) if x % 18 not in (0, 1, 17)])
+    m.vide(xc, 72, -6, xc + 10, 77, 6)
+    for x in range(xc, xc + 11):
+        for z in range(-6, 7):
+            if rng.random() < 0.55:
+                m.fill(x, 64, z, x, 64 + rng.randint(0, 1), z, S(rng.choice(['smooth_stone', 'gray_concrete', 'cobblestone',
+                                                                                 'light_gray_concrete'])))
+        for xx in (xc - 1, xc + 11):
+            if rng.random() < 0.5:
+                zz = rng.randint(-5, 5)
+                m.fill(xx, 70, zz, xx, 72, zz, S('iron_bars'))
+    RU.voiture(ch.R0, xc + 5, -2, 'east', 'red', 66, 'brulee')
+    ch.lieux.append(('autoroute', 'Autoroute 20 (voie surélevée)', 0, 0, D, 9))
+
+
+def arbres_de_rue(ch, b):
+    """Alignement d'arbres le long des trottoirs (entre les lampadaires)."""
+    m, rng = ch.m, ch.rng
+    for x in range(b['x1'] + 15, b['x2'] - 5, 18):
+        for z in (b['z1'], b['z2']):
+            if m.est_air(x, 64, z) and rng.random() < 0.85:
+                try:
+                    RU.arbre_rue(ch.R0, x, z, rng)
+                except Exception:
+                    pass
+    for z in range(b['z1'] + 15, b['z2'] - 5, 18):
+        for x in (b['x1'], b['x2']):
+            if m.est_air(x, 64, z) and rng.random() < 0.85:
+                try:
+                    RU.arbre_rue(ch.R0, x, z, rng)
+                except Exception:
+                    pass
 
 
 # ---------------------------------------------------------------------------- métro (métropole)
@@ -708,6 +1125,479 @@ def stade(ch, B, nom):
     ch.lieux.append(('arena', 'Stade ' + nom, (x1 + x2) // 2, (z1 + z2) // 2, (x2 - x1) // 2, (z2 - z1) // 2))
 
 
+# ============================================================================ ville de garnison
+VERT_MIL = 'green_terracotta'
+
+
+def char_assaut(m, x, z, axe='x', y=64, brule=False):
+    """Char d'assaut (7 x 5) : chenilles, caisse, tourelle, canon."""
+    c = S('coal_block') if brule else S(VERT_MIL)
+    ch_ = S('blackstone') if brule else S('black_concrete')
+    def put(a, b, yy, st):
+        m.set(x + a, yy, z + b, st) if axe == 'x' else m.set(x + b, yy, z + a, st)
+    for a in range(-3, 4):
+        for b in range(-2, 3):
+            put(a, b, y, ch_ if abs(b) == 2 else c)
+            if abs(b) < 2:
+                put(a, b, y + 1, c)
+    for a in range(-1, 2):
+        for b in range(-1, 2):
+            put(a, b, y + 2, c)
+    for a in range(2, 6):
+        put(a, 0, y + 2, S('polished_basalt', axis='x' if axe == 'x' else 'z'))
+
+
+def camion_mil(m, x, z, axe='x', y=64):
+    """Camion de transport de troupes : cabine, bâche verte."""
+    def put(a, b, yy, st):
+        m.set(x + a, yy, z + b, st) if axe == 'x' else m.set(x + b, yy, z + a, st)
+    for a in range(-4, 4):
+        for b in (-1, 0, 1):
+            put(a, b, y, S('black_concrete') if a in (-3, 2) and b != 0 else S(VERT_MIL))
+    for b in (-1, 0, 1):
+        put(3, b, y + 1, S('black_stained_glass') if b == 0 else S(VERT_MIL))
+        for a in range(-4, 2):
+            put(a, b, y + 1, S('green_wool'))
+            put(a, b, y + 2, S('green_wool') if b == 0 or a % 2 else AIR)
+
+
+def helicoptere(m, x, z, y=64):
+    m.fill(x - 3, y + 1, z - 1, x + 2, y + 2, z + 1, S('green_concrete'))
+    m.fill(x + 3, y + 1, z - 1, x + 3, y + 2, z + 1, S('black_stained_glass'))
+    m.fill(x - 9, y + 2, z, x - 4, y + 2, z, S('green_concrete'))
+    m.fill(x - 9, y + 3, z, x - 9, y + 4, z, S('green_concrete'))
+    m.fill(x - 3, y, z - 2, x + 2, y, z - 2, S('iron_bars'))
+    m.fill(x - 3, y, z + 2, x + 2, y, z + 2, S('iron_bars'))
+    m.set(x, y + 3, z, S('iron_block'))
+    m.fill(x - 6, y + 4, z, x + 6, y + 4, z, S('polished_blackstone_slab', type='bottom'))
+    m.fill(x, y + 4, z - 6, x, y + 4, z + 6, S('polished_blackstone_slab', type='bottom'))
+
+
+def cloture_base(ch, b):
+    """Clôture de la base autour de l'îlot : grillage, barbelés, guérite et barrière au milieu du côté sud."""
+    m, rng = ch.m, ch.rng
+    x1, z1, x2, z2 = b['x1'] + 1, b['z1'] + 1, b['x2'] - 1, b['z2'] - 1
+    for x in range(x1, x2 + 1):
+        for z in (z1, z2):
+            m.fill(x, 64, z, x, 66, z, S('iron_bars'))
+            if rng.random() < 0.4:
+                m.set(x, 67, z, S('cobweb'))
+    for z in range(z1, z2 + 1):
+        for x in (x1, x2):
+            m.fill(x, 64, z, x, 66, z, S('iron_bars'))
+            if rng.random() < 0.4:
+                m.set(x, 67, z, S('cobweb'))
+    gx = (x1 + x2) // 2
+    m.vide(gx - 3, 64, z2, gx + 3, 67, z2)
+    for k in range(-3, 4):
+        m.set(gx + k, 65, z2, S('red_concrete') if k % 2 else S('white_concrete'))
+    m.vide(gx - 3, 64, z2, gx + 3, 64, z2)
+    m.fill(gx + 5, 64, z2 - 4, gx + 8, 67, z2 - 1, S('light_gray_concrete'))
+    m.vide(gx + 6, 64, z2 - 3, gx + 7, 66, z2 - 2)
+    m.fill(gx + 5, 65, z2 - 3, gx + 5, 66, z2 - 2, S('glass_pane'))
+    m.fill(gx + 5, 68, z2 - 4, gx + 8, 68, z2 - 1, S('smooth_stone_slab', type='bottom'))
+    ch.panneau(gx - 4, 65, z2 + 1, ['ZONE MILITAIRE', 'Accès interdit', 'Halte !', ''], mur='south', couleur='red')
+    for (x, z) in ((x1 + 2, z1 + 2), (x2 - 2, z1 + 2)):
+        # miradors aux coins
+        m.fill(x, 64, z, x, 71, z, S('spruce_log', axis='y'))
+        m.fill(x - 1, 72, z - 1, x + 1, 72, z + 1, S('spruce_planks'))
+        m.fill(x - 1, 73, z - 1, x + 1, 73, z + 1, S('spruce_fence'))
+        m.set(x, 73, z, AIR)
+        m.fill(x - 1, 75, z - 1, x + 1, 75, z + 1, S('spruce_slab', type='bottom'))
+        for y in range(64, 72):
+            m.set(x, y, z + 1, S('ladder', facing='south', waterlogged=False))
+
+
+def caserne_mil(ch, R, L, P):
+    rng = ch.rng
+    R.fill(0, 59, 0, L - 1, 63, P - 1, S('stone'))
+    R.fill(0, 64, 0, L - 1, 68, P - 1, S('light_gray_concrete'))
+    R.fill(0, 64, 0, L - 1, 64, P - 1, S(VERT_MIL))
+    R.vide(1, 64, 1, L - 2, 67, P - 2)
+    R.fill(1, 63, 1, L - 2, 63, P - 2, S('gray_concrete'))
+    R.fill(0, 69, 0, L - 1, 69, P - 1, S('green_concrete'))
+    for a in range(2, L - 2, 3):
+        R.set(a, 66, 0, S('glass_pane'))
+        R.set(a, 66, P - 1, S('glass_pane'))
+    for a in range(2, L - 2, 3):
+        ZM.lit(R, a, 64, 1, 'south', 'green')
+        if P >= 8:
+            R.set(a, 64, P - 2, R.S('barrel', facing='up', open=False))
+    ZM.porte_double(R, L // 2 - 1, 64, P - 1, 'north', 'iron')
+    ch.coffre(R, 1, 64, P // 2, 'east', SI.LOOT_MILITAIRE)
+    x, z = R.xz(L // 2 + 2, P)
+    ch.panneau(x, 67, z, ['CASERNE', 'Bataillon %d' % rng.randint(1, 5), '', ''], mur=R.d('south'))
+
+
+def hangar_mil(ch, R, L, P):
+    """Hangar en demi-lune (toit arrondi), grande porte ouverte, un véhicule dedans."""
+    rng = ch.rng
+    R.fill(0, 59, 0, L - 1, 63, P - 1, S('stone'))
+    R.fill(0, 63, 0, L - 1, 63, P - 1, S('smooth_stone'))
+    r = L / 2.0
+    for a in range(L):
+        h = int(((r * r - (a + 0.5 - r) ** 2) ** 0.5) * 0.85)
+        R.fill(a, 64, 0, a, 64 + h, P - 1, S('green_terracotta' if rng.random() < 0.9 else 'light_gray_terracotta'))
+        if h > 0:
+            R.vide(a, 64, 1, a, 63 + h, P - 2)
+    R.vide(2, 64, P - 1, L - 3, 64 + int(r * 0.6), P - 1)
+    x, z = R.xz(L // 2, P // 2)
+    if rng.random() < 0.5:
+        helicoptere(ch.m, x, z)
+    else:
+        camion_mil(ch.m, x, z, 'z' if R.d('south') in ('north', 'south') else 'x')
+    ch.coffre(R, 2, 64, 2, 'south', SI.LOOT_MILITAIRE)
+    ch.lieu(R, L, P, 'hangar', 'Hangar militaire')
+
+
+def qg(ch, R, L, P):
+    R.fill(0, 59, 0, L - 1, 63, P - 1, S('stone'))
+    R.fill(0, 64, 0, L - 1, 75, P - 1, S('stone_bricks'))
+    R.vide(1, 64, 1, L - 2, 75, P - 2)
+    for e in range(1, 3):
+        R.fill(1, 63 + 4 * e, 1, L - 2, 63 + 4 * e, P - 2, S('spruce_planks'))
+    R.fill(1, 63, 1, L - 2, 63, P - 2, S('polished_andesite'))
+    R.fill(0, 76, 0, L - 1, 76, P - 1, S('stone_brick_slab', type='bottom'))
+    for e in range(3):
+        for a in range(2, L - 2, 3):
+            R.fill(a, 65 + 4 * e, P - 1, a, 66 + 4 * e, P - 1, S('glass_pane'))
+            R.fill(a, 65 + 4 * e, 0, a, 66 + 4 * e, 0, S('glass_pane'))
+    ZM.porte_double(R, L // 2 - 1, 64, P - 1, 'north', 'iron')
+    for k in range(3):
+        ch.coffre(R, 2 + 3 * k, 64, 2, 'south', SI.LOOT_MILITAIRE)
+    # mât et drapeau
+    R.fill(L // 2 + 4, 64, P + 3, L // 2 + 4, 80, P + 3, S('iron_bars'))
+    for k in range(6):
+        for h in range(3):
+            R.set(L // 2 + 5 + k, 77 + h, P + 3, S('white_wool') if 1 < k < 4 else S('red_wool'))
+    x, z = R.xz(L // 2, P)
+    ch.panneau(x, 70, z, ['QUARTIER', 'GÉNÉRAL', _nv(ch)[:15], ''], mur=R.d('south'))
+    ch.lieu(R, L, P, 'militaire', 'Quartier général de ' + _nv(ch))
+
+
+def heliport(ch, B):
+    m, rng = ch.m, ch.rng
+    x1, z1, x2, z2 = B
+    m.fill(x1 + 2, 63, z1 + 2, x2 - 2, 63, z2 - 2, S('gray_concrete'))
+    pads = [((x1 + x2) // 2, (z1 + z2) // 2)] if x2 - x1 < 60 else [(x1 + 22, (z1 + z2) // 2), (x2 - 22, (z1 + z2) // 2)]
+    for (cx, cz) in pads:
+        for dx in range(-10, 11):
+            for dz in range(-10, 11):
+                d = math.hypot(dx, dz)
+                if d <= 10:
+                    m.set(cx + dx, 63, cz + dz, S('light_gray_concrete'))
+                if 9 <= d <= 10:
+                    m.set(cx + dx, 63, cz + dz, S('yellow_concrete'))
+        m.fill(cx - 3, 63, cz - 4, cx - 2, 63, cz + 4, S('white_concrete'))
+        m.fill(cx + 2, 63, cz - 4, cx + 3, 63, cz + 4, S('white_concrete'))
+        m.fill(cx - 1, 63, cz, cx + 1, 63, cz, S('white_concrete'))
+        if rng.random() < 0.7:
+            helicoptere(m, cx, cz)
+    # manche à air
+    m.fill(x2 - 4, 64, z1 + 4, x2 - 4, 69, z1 + 4, S('iron_bars'))
+    m.fill(x2 - 3, 69, z1 + 4, x2 - 1, 69, z1 + 4, S('orange_wool'))
+    ch.lieux.append(('heliport', 'Héliport militaire', (x1 + x2) // 2, (z1 + z2) // 2, (x2 - x1) // 2, (z2 - z1) // 2))
+
+
+def parc_vehicules(ch, B):
+    m, rng = ch.m, ch.rng
+    x1, z1, x2, z2 = B
+    m.fill(x1 + 2, 63, z1 + 2, x2 - 2, 63, z2 - 2, ASPH)
+    for z in range(z1 + 7, z2 - 6, 10):
+        for x in range(x1 + 8, x2 - 7, 11):
+            if rng.random() < 0.8:
+                if rng.random() < 0.45:
+                    char_assaut(m, x, z, 'x', brule=rng.random() < 0.2)
+                else:
+                    camion_mil(m, x, z, 'x')
+    ch.lieux.append(('parc_vehicules', 'Parc de véhicules blindés', (x1 + x2) // 2, (z1 + z2) // 2, (x2 - x1) // 2,
+                     (z2 - z1) // 2))
+
+
+def depot_munitions(ch, B):
+    """Igloos de munitions : buttes de terre, portes d'acier, caisses."""
+    m, rng = ch.m, ch.rng
+    x1, z1, x2, z2 = B
+    for x in range(x1 + 4, x2 - 14, 18):
+        for z in range(z1 + 4, z2 - 12, 18):
+            for dx in range(13):
+                for dz in range(11):
+                    h = int(4.5 * (1 - ((dx - 6) / 7.0) ** 2) * (1 - (dz / 12.0) ** 2) + 0.5)
+                    if h > 0:
+                        m.fill(x + dx, 64, z + dz, x + dx, 63 + h, z + dz, S('dirt'))
+                        m.set(x + dx, 63 + h, z + dz, S('grass_block', snowy=False))
+            m.vide(x + 4, 64, z, x + 8, 66, z + 7)
+            m.fill(x + 3, 64, z, x + 9, 67, z, S('stone_bricks'))
+            m.vide(x + 5, 64, z, x + 7, 65, z)
+            m.set(x + 5, 64, z, S('iron_door', facing='north', half='lower', hinge='left', open=False, powered=False))
+            m.set(x + 5, 65, z, S('iron_door', facing='north', half='upper', hinge='left', open=False, powered=False))
+            ch.coffre(ch.R0, x + 6, 64, z + 5, 'north', SI.LOOT_MILITAIRE)
+            ch.coffre(ch.R0, x + 4, 64, z + 6, 'north', SI.LOOT_MILITAIRE)
+    ch.lieux.append(('armurerie', 'Dépôt de munitions', (x1 + x2) // 2, (z1 + z2) // 2, (x2 - x1) // 2, (z2 - z1) // 2))
+
+
+def champ_tir(ch, B):
+    m, rng = ch.m, ch.rng
+    x1, z1, x2, z2 = B
+    m.fill(x1 + 2, 63, z1 + 2, x2 - 2, 63, z2 - 2, S('sand'))
+    for x in range(x1 + 6, x2 - 4, 6):
+        m.fill(x, 64, z2 - 6, x + 2, 64, z2 - 6, S('sandstone_wall', east='low', west='low', north='none', south='none',
+                                                   up=False, waterlogged=False))
+        m.set(x + 1, 64, z1 + 6, S('hay_block', axis='y'))
+        m.set(x + 1, 65, z1 + 6, S('target', power=0))
+    m.fill(x1 + 2, 64, z1 + 2, x2 - 2, 67, z1 + 3, S('dirt'))
+    ch.lieux.append(('champ_tir', 'Champ de tir', (x1 + x2) // 2, (z1 + z2) // 2, (x2 - x1) // 2, (z2 - z1) // 2))
+
+
+# ============================================================================ ville universitaire
+def pavillon(ch, R, L, P, nom=None):
+    """Pavillon universitaire : brique, bandeaux de pierre, portique à colonnes, corniche de cuivre."""
+    rng = ch.rng
+    et = rng.randint(3, 5)
+    top = 63 + 4 * et
+    mur = S(rng.choice(['bricks', 'bricks', 'mud_bricks', 'stone_bricks', 'red_terracotta']))
+    R.fill(0, 59, 0, L - 1, 63, P - 1, S('stone'))
+    R.fill(0, 64, 0, L - 1, top, P - 1, mur)
+    R.vide(1, 64, 1, L - 2, top, P - 2)
+    R.fill(1, 63, 1, L - 2, 63, P - 2, S('polished_andesite'))
+    for e in range(1, et + 1):
+        R.fill(1, 63 + 4 * e, 1, L - 2, 63 + 4 * e, P - 2, S('oak_planks'))
+        R.fill(0, 63 + 4 * e, 0, L - 1, 63 + 4 * e, 0, S('smooth_sandstone'))
+        R.fill(0, 63 + 4 * e, P - 1, L - 1, 63 + 4 * e, P - 1, S('smooth_sandstone'))
+    for e in range(et):
+        y = 65 + 4 * e
+        for a in range(2, L - 2, 2):
+            for b in (0, P - 1):
+                R.fill(a, y, b, a, y + 1, b, S('glass_pane'))
+        for b in range(2, P - 2, 3):
+            for a in (0, L - 1):
+                R.fill(a, y, b, a, y + 1, b, S('glass_pane'))
+        # salle de cours : rangées de pupitres
+        for b in range(3, P - 3, 2):
+            R.fill(2, y - 1, b, L - 4, y - 1, b, R.S('spruce_stairs', facing='north', half='bottom'))
+    cu = rng.choice(['cut_copper', 'exposed_cut_copper', 'weathered_cut_copper', 'oxidized_cut_copper'])
+    R.fill(-1, top + 1, -1, L, top + 1, P, S(cu))
+    R.fill(0, top + 2, 0, L - 1, top + 2, P - 1, S(cu.replace('cut_copper', 'cut_copper_slab'), type='bottom'))
+    # portique
+    pa = L // 2
+    for a in (pa - 4, pa - 2, pa + 2, pa + 4):
+        R.fill(a, 64, P + 2, a, 70, P + 2, S('quartz_pillar', axis='y'))
+    R.fill(pa - 5, 71, P, pa + 5, 71, P + 3, S('smooth_quartz'))
+    R.fill(pa - 3, 72, P, pa + 3, 72, P + 3, S('smooth_quartz_slab', type='bottom'))
+    R.fill(pa - 5, 63, P, pa + 5, 63, P + 3, S('polished_diorite'))
+    ZM.porte_double(R, pa - 1, 64, P - 1, 'north', 'dark_oak')
+    echelle(R, L - 2, 2, 64, top - 1, mur)
+    ch.coffre(R, 2, 64, 2, 'south', SI.LOOT_VILLE)
+    nom = nom or 'Pavillon ' + rng.choice(['Marie-Victorin', 'Lionel-Groulx', 'Jean-Brillant', 'Roger-Gaudry',
+                                           'Laval', 'De Koninck', 'Desjardins', 'Vachon', 'Pouliot', 'Casault'])
+    x, z = R.xz(pa, P + 4)
+    ch.panneau(x, 64, z, ['UNIVERSITÉ', nom[:15], nom[15:30], ''], rotation=0)
+    ch.lieu(R, L, P, 'universite', nom)
+
+
+def bibliotheque_u(ch, R, L, P):
+    rng = ch.rng
+    R.fill(0, 59, 0, L - 1, 63, P - 1, S('stone'))
+    R.fill(0, 64, 0, L - 1, 75, P - 1, S('stone_bricks'))
+    R.vide(1, 64, 1, L - 2, 74, P - 2)
+    R.fill(1, 63, 1, L - 2, 63, P - 2, S('dark_oak_planks'))
+    for a in range(2, L - 2, 4):
+        R.fill(a, 66, P - 1, a + 1, 73, P - 1, S('glass_pane'))
+        R.fill(a, 66, 0, a + 1, 73, 0, S('glass_pane'))
+    for b in range(3, P - 3, 3):
+        R.fill(3, 64, b, L - 4, 66, b, S('bookshelf'))
+        R.vide(L // 2 - 1, 64, b, L // 2 + 1, 66, b)
+    R.fill(1, 69, 1, L - 2, 69, 3, S('dark_oak_planks'))
+    R.fill(1, 70, 4, L - 2, 70, 4, S('dark_oak_fence'))
+    # coupole
+    cx, cb = L // 2, P // 2
+    for k in range(5):
+        R.fill(cx - 4 + k, 76 + k, cb - 4 + k, cx + 4 - k, 76 + k, cb + 4 - k, S('oxidized_copper'))
+    ZM.porte_double(R, cx - 1, 64, P - 1, 'north', 'dark_oak')
+    for k in range(3):
+        ch.coffre(R, 2 + 4 * k, 64, P - 3, 'north', SI.LOOT_VILLE)
+    x, z = R.xz(cx, P)
+    ch.panneau(x, 70, z, ['BIBLIOTHÈQUE', 'des sciences', 'humaines', ''], mur=R.d('south'))
+    ch.lieu(R, L, P, 'bibliotheque', 'Bibliothèque de l\'Université de ' + _nv(ch))
+
+
+def labo_u(ch, R, L, P):
+    R.fill(0, 59, 0, L - 1, 63, P - 1, S('stone'))
+    for e in range(3):
+        y0 = 64 + 5 * e
+        R.fill(0, y0, 0, L - 1, y0 + 4, P - 1, S('white_concrete'))
+        R.vide(1, y0, 1, L - 2, y0 + 3, P - 2)
+        R.fill(1, y0 - 1, 1, L - 2, y0 - 1, P - 2, S('smooth_quartz'))
+        for a in range(2, L - 2):
+            if a % 4:
+                R.fill(a, y0 + 1, P - 1, a, y0 + 3, P - 1, S('light_blue_stained_glass_pane'))
+        for a in range(3, L - 5, 6):
+            R.fill(a, y0, 4, a + 3, y0, 4, S('smooth_quartz'))
+            R.set(a + 1, y0 + 1, 4, S('brewing_stand', has_bottle_0=False, has_bottle_1=False, has_bottle_2=False))
+            ch.coffre(R, a + 3, y0, 6, 'north', SI.LOOT_LABO)
+        for k in range(5):
+            R.set(L - 3, y0 + k, 8 + k, R.S('quartz_stairs', facing='south', half='bottom'))
+            R.vide(L - 3, y0 + 4, 8 + k, L - 3, y0 + 4, 8 + k)
+    R.fill(0, 79, 0, L - 1, 79, P - 1, S('smooth_stone_slab', type='bottom'))
+    ZM.porte_double(R, L // 2 - 1, 64, P - 1, 'north', 'iron')
+    x, z = R.xz(L // 2, P)
+    ch.panneau(x, 68, z, ['PAVILLON DE', 'VIROLOGIE', 'Partenaire :', 'NORDA Biotech'], mur=R.d('south'), couleur='blue')
+    ch.lieu(R, L, P, 'labo_civil', 'Pavillon de virologie')
+
+
+def tour_horloge(ch, x, z):
+    m = ch.m
+    m.fill(x - 2, 64, z - 2, x + 2, 88, z + 2, S('stone_bricks'))
+    m.vide(x - 1, 64, z - 1, x + 1, 87, z + 1)
+    for y in range(64, 88):
+        m.set(x, y, z - 1, S('ladder', facing='south', waterlogged=False))
+    m.vide(x, 64, z + 2, x, 65, z + 2)
+    for (dx, dz) in ((0, -3), (0, 3), (-3, 0), (3, 0)):
+        cx, cz = x + dx, z + dz
+        for k in (-1, 0, 1):
+            for y in (83, 84, 85):
+                if dx:
+                    m.set(cx, y, cz + k, S('white_concrete'))
+                else:
+                    m.set(cx + k, y, cz, S('white_concrete'))
+        m.set(cx, 84, cz, S('black_concrete'))
+        m.set(cx if dx else cx, 85, cz, S('black_concrete'))
+    m.vide(x - 2, 89, z - 1, x + 2, 91, z + 1)
+    m.vide(x - 1, 89, z - 2, x + 1, 91, z + 2)
+    m.fill(x - 2, 89, z - 2, x - 2, 91, z - 2, S('stone_bricks'))
+    m.fill(x + 2, 89, z - 2, x + 2, 91, z - 2, S('stone_bricks'))
+    m.fill(x - 2, 89, z + 2, x - 2, 91, z + 2, S('stone_bricks'))
+    m.fill(x + 2, 89, z + 2, x + 2, 91, z + 2, S('stone_bricks'))
+    m.set(x, 90, z, S('bell', attachment='ceiling', facing='north', powered=False))
+    m.fill(x - 2, 92, z - 2, x + 2, 92, z + 2, S('oxidized_cut_copper'))
+    m.fill(x - 1, 93, z - 1, x + 1, 95, z + 1, S('oxidized_cut_copper'))
+    m.fill(x, 96, z, x, 99, z, S('oxidized_cut_copper'))
+    m.set(x, 100, z, S('lightning_rod', facing='up', powered=False, waterlogged=False))
+
+
+def quad(ch, B, v):
+    """Le quadrilatère : grande pelouse, allées en croix, ceinture d'arbres, statue du fondateur, tour de l'horloge,
+    pavillons tout autour."""
+    m, rng = ch.m, ch.rng
+    x1, z1, x2, z2 = B
+    P = 20
+    perimetre(ch, B, P, lambda: (rng.choice((26, 30)), lambda c, R, L, P_: pavillon(c, R, L, P_)), marge=4)
+    a1, b1, a2, b2 = x1 + P + 4, z1 + P + 4, x2 - P - 4, z2 - P - 4
+    cx, cz = (a1 + a2) // 2, (b1 + b2) // 2
+    allee = S('polished_andesite')
+    m.fill(a1, 63, cz - 1, a2, 63, cz + 1, allee)
+    m.fill(cx - 1, 63, b1, cx + 1, 63, b2, allee)
+    n = max(a2 - a1, b2 - b1)
+    for k in range(n):
+        for (x, z) in ((a1 + k * (a2 - a1) // n, b1 + k * (b2 - b1) // n), (a2 - k * (a2 - a1) // n, b1 + k * (b2 - b1) // n)):
+            m.fill(x - 1, 63, z, x + 1, 63, z, allee)
+    for x in range(a1, a2 + 1, 9):
+        for z in (b1, b2):
+            try:
+                RU.arbre_rue(ch.R0, x, z, rng, kind='erable')
+            except Exception:
+                pass
+    for x in range(a1 + 6, a2 - 5, 12):
+        RU.lampadaire_parc(ch.R0, x, cz + 3)
+        RU.banc(ch.R0, x + 3, cz + 3, 'north')
+    # statue du fondateur
+    m.fill(cx - 2, 63, cz - 2, cx + 2, 64, cz + 2, S('polished_andesite'))
+    m.fill(cx, 65, cz, cx, 66, cz, S('stone_bricks'))
+    m.set(cx, 67, cz, S('chiseled_stone_bricks'))
+    m.set(cx, 68, cz, S('skeleton_skull', rotation=0))
+    ch.panneau(cx, 65, cz + 1, ['MGR', 'J.-B. LÉVIS', 'Fondateur', '1878'], mur='south')
+    tour_horloge(ch, cx, b1 + 4)
+    ch.lieux.append(('parc', 'Le quadrilatère de l\'Université', cx, cz, (a2 - a1) // 2, (b2 - b1) // 2))
+
+
+# ============================================================================ ville de rivière
+def maison_vieille(ch, R, L, P):
+    rng = ch.rng
+    BA.maison(ch, R, L, P, etages=2 if rng.random() < 0.6 else 1,
+              mur=rng.choice(['stone_bricks', 'cobblestone', 'mossy_cobblestone', 'andesite', 'bricks', 'stone']),
+              toit=rng.choice(['dark_oak', 'spruce', 'deepslate_tile', 'mangrove']))
+    # lucarnes et cheminée
+    R.fill(1, 72, P // 2, 1, 75, P // 2, S('bricks'))
+
+
+def capitainerie(ch, R, L, P):
+    R.fill(0, 59, 0, L - 1, 63, P - 1, S('stone'))
+    R.fill(0, 64, 0, L - 1, 69, P - 1, S('white_terracotta'))
+    R.vide(1, 64, 1, L - 2, 68, P - 2)
+    R.fill(1, 63, 1, L - 2, 63, P - 2, S('spruce_planks'))
+    R.fill(0, 70, 0, L - 1, 70, P - 1, S('red_terracotta'))
+    for a in range(2, L - 2, 3):
+        R.fill(a, 65, P - 1, a, 66, P - 1, S('glass_pane'))
+    # petite tour de guet vitrée
+    R.fill(1, 71, 1, 5, 76, 5, S('white_terracotta'))
+    R.fill(1, 74, 1, 5, 75, 5, S('glass'))
+    R.vide(2, 71, 2, 4, 75, 4)
+    R.fill(1, 77, 1, 5, 77, 5, S('red_terracotta'))
+    ZM.porte(R, L // 2, 64, P - 1, 'north', 'spruce')
+    ch.coffre(R, 2, 64, 2, 'south', SI.LOOT_VILLE)
+    x, z = R.xz(L // 2, P)
+    ch.panneau(x, 68, z, ['CAPITAINERIE', 'du Vieux-Port', '', ''], mur=R.d('south'))
+    ch.lieu(R, L, P, 'port', 'Capitainerie du Vieux-Port')
+
+
+def quais_port(ch, pv):
+    """Le Vieux-Port : pontons de bois dans la rivière devant le quartier du port, bateaux amarrés ou coulés."""
+    m, rng = ch.m, ch.rng
+    rv = pv['riviere']
+    D = pv['S'] // 2
+    for q in pv['quartiers']:
+        if q['genre'] != 'port':
+            continue
+        for x in range(max(-D + 8, q['x1'] + 6), min(D - 10, q['x2'] - 6), 15):
+            zt, zbn, zc = _bande_eau(pv, x)
+            sud = q['cz'] > zc
+            z0, sens = (zbn, -1) if sud else (zt, 1)
+            longueur = min(14, (zbn - zt) // 3)
+            for k in range(longueur):
+                z = z0 + sens * k
+                m.fill(x, 62, z, x + 2, 62, z, S('spruce_planks'))
+                if k % 3 == 0:
+                    m.fill(x - 1, 55, z, x - 1, 63, z, S('spruce_fence'))
+                    m.fill(x + 3, 55, z, x + 3, 63, z, S('spruce_fence'))
+            m.vide(x, 63, z0 - sens * 1, x + 2, 64, z0 - sens * 1)
+            # un bateau le long du ponton
+            if rng.random() < 0.75:
+                bx = x + 5
+                coule = rng.random() < 0.35
+                yb = 59 if coule else 61
+                for k in range(2, 10):
+                    z = z0 + sens * k
+                    m.fill(bx, yb, z, bx + 2, yb, z, S('spruce_planks'))
+                    m.set(bx, yb + 1, z, S('spruce_slab', type='bottom', waterlogged=coule))
+                    m.set(bx + 2, yb + 1, z, S('spruce_slab', type='bottom', waterlogged=coule))
+                m.set(bx + 1, yb + 1, z0 + sens * 9, S('spruce_planks'))
+                if not coule:
+                    m.fill(bx + 1, 62, z0 + sens * 5, bx + 1, 66, z0 + sens * 5, S('spruce_fence'))
+                    m.fill(bx + 1, 64, z0 + sens * 4, bx + 1, 66, z0 + sens * 4, S('white_wool'))
+                    ch.coffre(ch.R0, bx + 1, 62, z0 + sens * 7, 'north', SI.LOOT_VILLE, baril=True)
+        ch.lieux.append(('port', 'Le Vieux-Port', q['cx'], q['cz'], (q['x2'] - q['x1']) // 2, (q['z2'] - q['z1']) // 2))
+
+
+def paves(ch, pv):
+    """Rues pavées de la Vieille-Ville (le bitume devient pavés de pierre)."""
+    m = ch.m
+    D = pv['S'] // 2
+    carte = carte_quartiers(pv)
+    vieux = np.array([q['genre'] == 'vieux' for q in pv['quartiers']])[carte]
+    i_asph = m.id(ASPH)
+    ids = [m.id(S(n)) for n in ('cobblestone', 'stone_bricks', 'andesite', 'polished_andesite', 'cobblestone',
+                                 'mossy_cobblestone')]
+    yl = 63 - m.y0
+    a = m.a[yl]
+    z0, x0 = -D - m.z0, -D - m.x0
+    sub = a[z0:z0 + pv['S'], x0:x0 + pv['S']]
+    rs = np.random.default_rng(7)
+    k = rs.integers(0, len(ids), sub.shape)
+    masque = vieux & (sub == i_asph)
+    for i, nid in enumerate(ids):
+        sub[masque & (k == i)] = nid
+
+
 # ============================================================================ recettes d'îlots (le rythme d'un quartier)
 def recettes(ch, b, q, uniques, v):
     """Choisit et pose la recette d'un îlot. b : îlot ; q : quartier ; uniques : bâtiments déjà posés dans la ville."""
@@ -761,7 +1651,7 @@ def recettes(ch, b, q, uniques, v):
     if g in ('civique', 'centre', 'affaires') and petit >= 56 and unique('parking'):
         VB.parking_etage(ch, B)
         return
-    if g in ('residentiel', 'banlieue', 'pauvre') and petit >= 50 and unique('ecole_' + q['id']):
+    if g in ('residentiel', 'banlieue', 'pauvre', 'logements') and petit >= 50 and unique('ecole_' + q['id']):
         BA.ecole(ch, lot(ch, B, 'north', B[0] + 4, 25, 20), 25, 20, q['nom'])
         m = ch.m
         m.fill(B[0] + 4, 63, B[1] + 26, B[2] - 4, 63, B[3] - 4, S('green_concrete'))
@@ -784,6 +1674,83 @@ def recettes(ch, b, q, uniques, v):
         return
     if g in ('gare', 'industriel') and petit >= 40 and unique('bus_' + v['id']):
         depot_bus(ch, B)
+        return
+    # ---- ville de garnison
+    if g == 'base':
+        cloture_base(ch, b)
+        Bi = (B[0] + 2, B[1] + 2, B[2] - 2, B[3] - 6)
+        Wi, Hi = Bi[2] - Bi[0] + 1, Bi[3] - Bi[1] + 1
+        if min(Wi, Hi) >= 44 and unique('qg'):
+            qg(ch, lot(ch, Bi, 'south', Bi[0] + (Wi - 30) // 2, 30, 18), 30, 18)
+            if Hi >= 70:
+                heliport(ch, (Bi[0], Bi[1], Bi[2], Bi[3] - 24))
+            return
+        r = rng.random()
+        if min(Wi, Hi) >= 40 and unique('heliport'):
+            heliport(ch, Bi)
+        elif r < 0.3:
+            parc_vehicules(ch, Bi)
+        elif r < 0.5 and min(Wi, Hi) >= 30 and unique('munitions'):
+            depot_munitions(ch, Bi)
+        elif r < 0.62 and min(Wi, Hi) >= 36 and unique('tir'):
+            champ_tir(ch, Bi)
+        elif r < 0.82 and Hi >= 30:
+            for s_ in range(Bi[0] + 2, Bi[2] - 25, 30):
+                hangar_mil(ch, ch.rep(s_, Bi[1] + 2, 'south'), 26, min(34, Hi - 6))
+        else:
+            perimetre(ch, Bi, 12, lambda: (rng.choice((22, 26)), lambda c, R, L, P: caserne_mil(c, R, L, P)),
+                      cotes=('north', 'south'))
+            VB.cour(ch, Bi, 12, 'centre')
+        return
+    if g == 'logements':
+        mur, toit = rng.choice([('white_terracotta', 'dark_oak'), ('light_gray_concrete', 'spruce'),
+                                ('smooth_sandstone', 'dark_oak'), ('white_concrete', 'deepslate_tile')])
+        perimetre(ch, B, 10, lambda: (9, lambda c, R, L, P: BA.maison(c, R, L, P, etages=1, mur=mur, toit=toit)))
+        cour_(10, 'banlieue')
+        return
+    # ---- ville universitaire
+    if g == 'campus':
+        if petit >= 76 and unique('quad'):
+            quad(ch, B, v)
+            return
+        if petit >= 44 and W >= 44 and unique('bibliotheque'):
+            bibliotheque_u(ch, lot(ch, B, 'south', B[0] + (W - 36) // 2, 36, 26), 36, 26)
+            perimetre(ch, B, 18, lambda: (rng.choice((24, 28)), lambda c, R, L, P: pavillon(c, R, L, P)), cotes=('north',))
+            return
+        if petit >= 40 and W >= 40 and unique('labo_u'):
+            labo_u(ch, lot(ch, B, 'north', B[0] + 4, 30, 22), 30, 22)
+            perimetre(ch, B, 16, lambda: (rng.choice((24, 28)), lambda c, R, L, P: pavillon(c, R, L, P)), cotes=('south',))
+            return
+        if petit >= 56 and unique('stade_' + v['id']):
+            stade(ch, B, 'du Rouge et Or')
+            return
+        if rng.random() < 0.65:
+            perimetre(ch, B, 18, lambda: (rng.choice((24, 28, 32)), lambda c, R, L, P: pavillon(c, R, L, P)), marge=4)
+            cour_(18, 'banlieue')
+        else:
+            perimetre(ch, B, 14, immeubles(5, 7, 0.0))
+            cour_(14, 'banlieue')
+        return
+    # ---- ville de rivière
+    if g == 'vieux':
+        if petit >= 50 and unique('eglise_vieux'):
+            Re = lot(ch, B, 'north', B[0] + W // 2 - 8, 17, 27)
+            BA.eglise(ch, Re, 17, 27)
+            ch.lieu(Re, 17, 27, 'eglise', 'Basilique Saint-Jacques')
+            VB.place(ch, (B[0], B[1] + 30, B[2], B[3]), 'du Marché')
+            return
+        perimetre(ch, B, 10, lambda: (rng.choice((7, 8, 9)), lambda c, R, L, P: maison_vieille(c, R, L, P)))
+        cour_(10, 'banlieue')
+        return
+    if g == 'port':
+        if petit >= 30 and W >= 30 and unique('capitainerie'):
+            capitainerie(ch, lot(ch, B, 'north', B[0] + 4, 16, 12), 16, 12)
+            perimetre(ch, B, 16, lambda: (rng.choice((20, 24)), lambda c, R, L, P: VB.entrepot(c, R, L, P)),
+                      cotes=('south',))
+            return
+        perimetre(ch, B, 16, lambda: (rng.choice((20, 24)), lambda c, R, L, P: VB.entrepot(c, R, L, P)),
+                  cotes=('north', 'south'))
+        VB.conteneurs(ch, (B[0] + 4, B[1] + 20, B[2] - 4, B[3] - 20), max(2, W * H // 900))
         return
     # ---- recettes courantes
     r = rng.random()
@@ -1124,6 +2091,12 @@ def construire(v):
                 recettes(ch, b, q, uniques, v)
             except Exception as e:   # un îlot raté ne doit pas faire tomber la ville
                 print('  [%s] îlot (%d,%d) : %s' % (v['id'], b['x1'], b['z1'], e))
+    if pv.get('aerienne'):
+        autoroute_aerienne(ch, pv, v)
+    if pv.get('riviere'):
+        quais_port(ch, pv)
+    if any(q['genre'] == 'vieux' for q in pv['quartiers']):
+        paves(ch, pv)
     # lampadaires de rue : on garde leur quartier (Skript les rallume avec le courant)
     carte = carte_quartiers(pv)
     D = pv['S'] // 2
@@ -1148,6 +2121,8 @@ def construire(v):
 
 # ============================================================================ le plan de la carte : fenêtres et quartiers
 def y_ville(v):
+    if 'y' in v:
+        return v['y']
     import terrain as T
     D = v['n'] * TUILE // 2
     xs = np.linspace(v['x'] - D, v['x'] + D, 9)
@@ -1164,23 +2139,31 @@ def sites_du_plan():
         n = v['n']
         for i in range(n):
             for j in range(n):
-                out.append({'id': '%s_t%d%d' % (v['id'], i, j), 'type': 'ville_tuile', 'nom': v['nom'],
-                            'x': v['x'] + (i - (n - 1) / 2) * TUILE, 'z': v['z'] + (j - (n - 1) / 2) * TUILE,
-                            'larg': TUILE, 'prof': TUILE, 'y': y, 'ville': v['id'], 'ti': i, 'tj': j, 'bible': True})
+                s = {'id': '%s_t%d%d' % (v['id'], i, j), 'type': 'ville_tuile', 'nom': v['nom'],
+                     'x': v['x'] + (i - (n - 1) / 2) * TUILE, 'z': v['z'] + (j - (n - 1) / 2) * TUILE,
+                     'larg': TUILE, 'prof': TUILE, 'y': y, 'ville': v['id'], 'ti': i, 'tj': j, 'bible': True}
+                if TYPES[v['type']].get('riviere'):
+                    s['garder_riviere'] = True    # terrain : on n'assèche pas la rivière autour de la ville
+                out.append(s)
     for s in out:
         s['x'], s['z'] = int(s['x']), int(s['z'])
     return out
 
 
 def routes_du_plan():
-    """Les routes qui relient chaque ville au réseau (boulevard central -> route existante)."""
+    """Les routes qui relient chaque ville au réseau, puis l'autoroute 20 -> [(nom, genre, points)]."""
     out = []
     for v in VILLES:
+        if not v.get('sortie'):
+            continue
         D = v['n'] * TUILE // 2
-        cote, pts, nom = v['sortie']
-        dep = {'est': (v['x'] + D, v['z']), 'ouest': (v['x'] - D, v['z']), 'nord': (v['x'], v['z'] - D),
-               'sud': (v['x'], v['z'] + D)}[cote]
-        out.append((nom, [dep] + pts))
+        cote, pts, nom = v['sortie'][:3]
+        dec = v['sortie'][3] if len(v['sortie']) > 3 else 0
+        dep = {'est': (v['x'] + D, v['z'] + dec), 'ouest': (v['x'] - D, v['z'] + dec),
+               'nord': (v['x'] + dec, v['z'] - D), 'sud': (v['x'] + dec, v['z'] + D)}[cote]
+        out.append((nom, 'route', [dep] + pts))
+    for nom, pts in AUTOROUTES:
+        out.append((nom, 'autoroute', pts))
     return out
 
 

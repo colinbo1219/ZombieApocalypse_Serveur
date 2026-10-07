@@ -131,6 +131,15 @@ ZOMBIES = {
     # villes (ville.py) : quartiers et lieux
     'quartier': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Runner,ZA_Crawler',
     'poste_electrique': 'ZA_Ouvrier_Brule,ZA_Ouvrier_Infecte',
+    'heliport': 'ZA_Soldat_Infecte,ZA_Soldat_Infecte,ZA_Armored',
+    'parc_vehicules': 'ZA_Soldat_Infecte,ZA_Armored,ZA_Brute',
+    'armurerie': 'ZA_Soldat_Infecte,ZA_Armored,ZA_Armored',
+    'champ_tir': 'ZA_Soldat_Infecte,ZA_Runner',
+    'riviere': 'ZA_Noye,ZA_Noye,ZA_Citoyen_Infecte',
+    'pont': 'ZA_Citoyen_Infecte,ZA_Runner,ZA_Shambler',
+    'pont_detruit': 'ZA_Noye,ZA_Crawler,ZA_Citoyen_Infecte',
+    'tunnel': 'ZA_Crawler,ZA_Stalker,ZA_FakeDead,ZA_Citoyen_Infecte',
+    'autoroute': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Crawler,ZA_FakeDead',
     'tour': 'ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead',
     'banque': 'ZA_Citoyen_Infecte,ZA_Policier_Infecte',
     'hotel_ville': 'ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer',
@@ -160,6 +169,11 @@ ZOMBIES_QUARTIER = {
     'pauvre': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Child,ZA_Crawler,ZA_Runner',
     'banlieue': 'ZA_Citoyen_Infecte,ZA_Child,ZA_Shambler,ZA_Runner',
     'parc': 'ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker',
+    'base': 'ZA_Soldat_Infecte,ZA_Soldat_Infecte,ZA_Armored,ZA_Runner',
+    'logements': 'ZA_Citoyen_Infecte,ZA_Child,ZA_Soldat_Infecte,ZA_Shambler',
+    'campus': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Runner,ZA_Shambler',
+    'vieux': 'ZA_Citoyen_Infecte,ZA_Shambler,ZA_Stalker,ZA_Crawler',
+    'port': 'ZA_Noye,ZA_Ouvrier_Infecte,ZA_Citoyen_Infecte',
 }
 
 

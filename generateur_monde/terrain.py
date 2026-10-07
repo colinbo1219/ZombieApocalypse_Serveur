@@ -165,9 +165,12 @@ def champ(plan, X, Z, routes=True):
         if s.get('aplanir', True):
             ys = y_site(s)
             wgt = B.lisse_pas(48, 0, dr)
+            if s.get('garder_riviere'):
+                wgt = np.where(riv, 0, wgt)     # ville de rivière : la rivière entre et sort de la ville
             h = h * (1 - wgt) + ys * wgt
-            h = np.where(dedans, ys, h)
-            eau = np.where(dedans, -999, eau)
+            pose = dedans & ~riv if s.get('garder_riviere') else dedans
+            h = np.where(pose, ys, h)
+            eau = np.where(pose, -999, eau)
     # ---------------------------------------------------------------- routes
     route = np.zeros(X.shape, np.int8)
     route_y = np.zeros(X.shape)

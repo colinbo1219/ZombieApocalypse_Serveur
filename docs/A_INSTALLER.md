@@ -456,54 +456,55 @@ péages de joueurs (p113) ne sont jamais des pièges : un garde PNJ demande, le 
 - Les menus des survivants (nouvelles options), le frigo sur un frigo moddé (Refurbished Furniture), le garde du péage.
 - `/reprise` : la horde-test ne part que la nuit, avec un joueur dans la zone, une fois par jour serveur.
 
-## 13. Les villes : Laurentia, Saint-Rémi-de-la-Voie, Sainte-Agathe-des-Champs
+## 13. Les villes du sud et l'autoroute 20
 
 Générateur hiérarchique `generateur_monde/ville.py` (conseil des 4 : « garder les modules, ajouter la hiérarchie ») :
 **VILLE** (type, graine) → **QUARTIERS** (germes : genre + sort d'apocalypse) → **RÉSEAU ROUTIER** → **ÎLOTS** →
-**PARCELLES** → **BÂTIMENTS** (`ville_bat.py` + `batisse.py`, les modules d'avant) → **DÉTAILS** → **APOCALYPSE**.
+**PARCELLES** → **BÂTIMENTS** (`ville_bat.py` + `batisse.py`) → **DÉTAILS** → **APOCALYPSE**. Ajouter une ville = une
+ligne dans `VILLES` (un type, un centre, une graine, une sortie vers le réseau).
 
-- **Types de ville** : `metropole` (métro, tours, rond-point central), `industrielle` (voie ferrée et gare au cœur,
-  usines, cours en gravier), `residentielle` (étalée, parcs, impasses). Ajouter une ville = une ligne dans `VILLES`.
-- **Routes hiérarchisées** : boulevards (13, terre-plein planté, rond-point), avenues (9) qui **se décalent d'une
-  rangée à l'autre** et **s'interrompent** (deux mailles fusionnent : carrefours en T), rues (7) et petites rues (5) qui
-  s'arrêtent sur les avenues, **impasses à rond de virage** en banlieue, ruelles derrière les commerces, voie ferrée avec
-  passages à niveau. Les petites villes s'effilochent : coins en **champs** ou en **boisés** au lieu d'un carré.
-- **Recettes d'îlots** selon le genre du quartier (centre, affaires, civique, commercial, résidentiel, banlieue, riche,
-  pauvre, industriel, gare, parc) ; grands équipements une fois par ville (hôpital, hôtel de ville + place, gare, magasin
-  à rayons, stationnement, écoles, églises, stade, piscine, poste électrique, dépôt d'autobus, cinéma).
-- **Apocalypse par quartier** : évacué, abandonné, pillé, brûlé, envahi, quarantaine militaire, faction, **zone de
-  guerre** (cratères, sacs de sable, barbelés). Le sort fixe aussi la pression et la présence de départ dans p97.
+**Six villes, six silhouettes**
 
-| Ville | Centre | Type | Quartiers (sort) |
-|---|---|---|---|
-| Laurentia | X -1800, Z 3600 (720 × 720) | métropole | Centre-ville (envahi), Quartier des affaires (guerre), Quartier de l'Hôpital (quarantaine), Boulevard des Commerces (pillé), Le Faubourg (évacué), Les Cèdres (abandonné), Les Bouleaux (brûlé), Mont-Royal-des-Pins (faction), Les Tanneries (envahi), Parc industriel (brûlé) |
-| Saint-Rémi-de-la-Voie | X 1200, Z 4200 (480 × 480) | industrielle | Centre-ville (guerre), La Fonderie (faction), Les Forges (envahi), Quartier de la Gare (quarantaine), Le Bas-de-la-Ville (envahi), Saint-Roch (brûlé), Les Galeries (pillé) |
-| Sainte-Agathe-des-Champs | X -400, Z 3000 (480 × 480) | résidentielle | Centre-ville (abandonné), Les Pins (évacué), Petite-Rivière (abandonné), Le Belvédère (faction), Bois-Joli (pillé), Les Prés (abandonné) |
+| Ville | Centre | Type | Ce qu'on y voit | Quartiers (sort de départ) |
+|---|---|---|---|---|
+| Laurentia | X -1800, Z 3600 (720²) | métropole | tours, métro, rond-point, **autoroute 20 surélevée** (bouchon figé, travée effondrée sur le boulevard) | Centre-ville (envahi), Quartier des affaires (guerre), Quartier de l'Hôpital (quarantaine), Les Galeries (pillé), Le Faubourg (évacué), Villeray (abandonné), Petite-Rivière (brûlé), Le Golf (faction), Les Tanneries (envahi), Parc industriel (brûlé) |
+| Saint-Rémi-de-la-Voie | X 1200, Z 4200 (480²) | industrielle | voie ferrée et gare au cœur, **passage inférieur** du boulevard sous les rails, usines, cours en gravier | Centre-ville (guerre), La Fonderie (faction), Les Moulins (envahi), Quartier de la Gare (quarantaine), Le Bas-de-la-Ville (envahi), Saint-Roch (brûlé), Boulevard des Commerces (pillé) |
+| Sainte-Agathe-des-Champs | X -400, Z 3000 (480²) | résidentielle | banlieue, impasses, parcs, coins en champs | Centre-ville, Les Pins, Les Bouleaux, Mont-Royal-des-Pins, Bois-Joli, Les Prés |
+| **Fort-Laflèche** | X 3400, Z 3100 (480²) | **garnison** | base clôturée (miradors, barbelés, guérites), quartier général et son drapeau, héliports et hélicoptères, parc de blindés (chars, camions), hangars en demi-lune, igloos de munitions, champ de tir, casernes ; logements militaires identiques | Secteur des hangars (guerre), Secteur nord de la base (quarantaine), Centre-ville (évacué), Logements militaires (abandonné), Cité des familles (évacué), Rue du Marché (pillé) |
+| **Mont-Lévis** | X -3000, Z 3100 (480²) | **universitaire** | quadrilatère (pelouse, allées en croix, statue du fondateur, **tour de l'horloge** à cloche et flèche de cuivre), pavillons de brique à portique et corniche de cuivre, bibliothèque à coupole, pavillon de virologie (partenaire NORDA), stade, résidences | Cité universitaire (quarantaine), Campus principal (abandonné), Centre-ville (envahi), Haut-Laurier (pillé), La Promenade (pillé), Parc régional (abandonné), Côte-Sainte-Anne (faction) |
+| **Saint-Jacques-des-Ponts** | X 1900, Z 1300 (480²), sur la **rivière Blanche** | **ville de rivière** | quais de pierre, promenade plantée (bancs, réverbères, kiosques), **grand pont** à arches et pylônes, **pont effondré** (voiture au bord du vide), **tunnel Louis-Fréchette** sous la rivière (tranchée, portails, tube, embouteillage figé), Vieux-Port (pontons, bateaux amarrés ou coulés, capitainerie), Vieille-Ville aux rues pavées et sa basilique | Vieille-Ville (abandonné), Centre-ville (envahi), Le Vieux-Port (faction), Limoilou (évacué), Les Érables (pillé), Les Forges (brûlé), Le Belvédère (guerre) |
 
-Aperçus vus du dessus : `docs/apercus/laurentia.png`, `saint_remi.png`, `sainte_agathe.png`. Routes vers le réseau :
-boulevard Laurentien, rue de la Gare et chemin Sainte-Agathe (tous trois vers la route 117).
+**Ce qui rend le tout plus beau** : avenues décalées et carrefours en T (plus de quadrillage), arbres d'alignement le
+long des trottoirs des quartiers habités, impasses plantées, coins de ville en champs et en boisés, promenade de la
+rivière, enseignes et noms propres à chaque ville (l'hôtel de ville, la police, la banque portent le nom de leur ville).
 
-**Branchées au reste** (règle de l'équipe) : chaque quartier est une zone vivante de p97 (`v_<ville>_<genre><n>` ; état
-de départ tiré de son sort, puis il évolue), se reprend avec `/reprise` (p112), et ses lampadaires se rallument quand il
-retrouve le courant (`za_p128_villes.sk` : sous-station, génératrice ou barrage ; le moteur l'apprend). Les quartiers
-industriels produisent de l'énergie et l'hôpital des médicaments dans l'économie du moteur (`graphe.yml`). Chaque lieu
-(tour, métro, gare, cinéma, poste électrique...) a son nom, sa phrase d'entrée et ses zombies (p73) ; chaque quartier a
-des zombies selon son genre (ouvriers à l'usine, patients près de l'hôpital, enfants en banlieue).
+**Autoroute 20** : traverse tout le sud d'ouest en est (z = 3600), passe en hauteur dans Laurentia (rampes aux deux
+bouts, piliers, lampadaires, portiques verts « A-20 »), croise la 117 et dessert Mont-Lévis (boulevard de
+l'Université) et Fort-Laflèche (chemin de la Garnison). Saint-Jacques est reliée au chemin de Sainte-Brigitte par la
+route des Ponts.
 
-**À faire (serveur ARRÊTÉ)** : régénérer les 19 régions des trois villes et de leurs routes (≈ 2 minutes) :
+**Branchées au reste** (règle de l'équipe) : chaque quartier est une zone vivante de p97 (`v_<ville>_<genre><n>`, état
+de départ tiré de son sort), se reprend avec `/reprise` (p112), et ses lampadaires — y compris ceux des ponts et de
+l'autoroute — se rallument quand il retrouve le courant (`za_p128_villes.sk`). Graphe du moteur : la base de
+Fort-Laflèche produit des munitions, l'hôpital des médicaments, l'industrie de l'énergie. Nouveaux lieux de p73 avec
+phrase d'entrée et zombies : héliport, parc de blindés, dépôt de munitions, champ de tir, quais, pont, pont effondré,
+tunnel, autoroute (soldats infectés et blindés à la base, noyés à la rivière, rampants dans le tunnel).
+
+**À faire (serveur ARRÊTÉ)** : régénérer les **55 régions** des villes et de l'autoroute (≈ 6 minutes) :
 ```
-python3 generateur_monde/generer.py --forcer --regions=-5,6/-5,7/-4,6/-4,7/-3,6/-3,7/-2,5/-2,6/-2,7/-1,5/-1,6/-1,7/0,6/0,7/0,8/1,7/1,8/2,7/2,8
+python3 generateur_monde/generer.py --forcer --regions=-10,6/-10,7/-9,6/-9,7/-8,6/-8,7/-7,5/-7,6/-7,7/-6,5/-6,6/-6,7/-5,6/-5,7/-4,6/-4,7/-3,6/-3,7/-2,5/-2,6/-2,7/-1,5/-1,6/-1,7/0,6/0,7/0,8/1,6/1,7/1,8/2,6/2,7/2,8/3,1/3,2/3,3/3,6/3,7/4,1/4,2/4,3/4,6/4,7/5,6/5,7/6,5/6,6/6,7/7,5/7,6/7,7/8,6/8,7/9,6/9,7
 ```
-⚠️ Une région régénérée perd ce que les joueurs y ont construit : les villes sont sur des terrains vides, mais
-**r.0.6, r.0.7, r.0.8, r.-1.5, r.-1.6** contiennent la route 117 et des fermes ; vérifier qu'aucune base n'y est.
-Ensuite, en jeu : `/zasites installer` (les nouveaux lieux), puis un par un : `sk reload za_p128_villes_donnees`,
-`sk reload za_p128_villes`, `sk reload za_p97_quartiers`, `sk reload za_p73_sites_donnees`, `sk reload za_p73_sites`.
-Si l'ancienne Laurentia était installée : supprimer `za_p128_laurentia.sk` et `za_p128_laurentia_donnees.sk` du serveur
-(remplacés). Le moteur relit `graphe.yml` au prochain redémarrage. Admin : `/zavilles` (état des quartiers et des
-lumières ; `allumer` / `eteindre` pour tester).
+⚠️ Une région régénérée perd ce que les joueurs y ont construit. Les villes sont sur des terrains vides, mais
+l'autoroute traverse tout le sud (rangées rz 6 et 7) et la route 117, des fermes et la rivière passent dans plusieurs de
+ces régions : **vérifier qu'aucune base n'y est**. Ensuite, en jeu : `/zasites installer`, puis un par un :
+`sk reload za_p128_villes_donnees`, `sk reload za_p128_villes`, `sk reload za_p97_quartiers`,
+`sk reload za_p73_sites_donnees`, `sk reload za_p73_sites`. Le moteur relit `graphe.yml` au prochain redémarrage.
+Admin : `/zavilles` (état des quartiers et des lumières ; `allumer` / `eteindre` pour tester).
 
-**Testé** : les trois villes se construisent (Laurentia ≈ 20 s, les autres < 10 s) ; 4 régions générées en test
-(une par ville + route) et relues vue du dessus ; le reste de la carte est identique (sites, routes, ponts comparés à
-l'ancien plan) ; `verif_skript` et `verif_liens` sans anomalie nouvelle. **Pas testé** : le rendu en jeu, la
-circulation dans les tours (échelles), le métro, les mods décoratifs dans ces bâtiments, les performances d'une ville
-aussi dense, le raccord des chemins de ferme qui butent sur le bord de Saint-Rémi et de Sainte-Agathe.
+**Testé** : les six villes se construisent sans erreur ; régions générées en test et relues (vue du dessus, vues
+obliques `docs/apercus/vue_*.png`, coupe de l'autoroute) : la rivière entre et sort de Saint-Jacques sans
+coupure, les rampes de l'A-20 rejoignent le sol aux deux bords de Laurentia ; le reste de la carte est identique
+(sites, anciennes routes, ponts comparés) ; aucune nouvelle route ne traverse un site ou un lac ; `verif_skript` et
+`verif_liens` sans anomalie nouvelle. **Pas testé** : le rendu en jeu (éclairage, eau qui coule aux bords),
+la conduite sur les rampes (demi-dalles), le tunnel en jeu, les performances, le raccord des chemins de ferme qui butent
+sur le bord de Saint-Rémi et de Sainte-Agathe.

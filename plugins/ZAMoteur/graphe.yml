@@ -400,17 +400,17 @@ regions:
     riviere: true
     routes: ["7;1064;route", "500;1104;rail", "500;1250;rail", "500;1395;rail", "500;1540;rail", "500;1686;rail", "500;1831;rail", "596;1880;rail", "740;1880;rail", "885;1880;rail", "676;1586;rang", "530;1601;rang"]
   r_6_6:
-    nom: "Ferme Côté"
+    nom: "Saint-Jacques-des-Ponts — Vieille-Ville"
     x: 1500
     z: 1500
     riviere: true
     routes: ["1029;1880;rail", "1173;1880;rail", "1318;1880;rail", "1462;1880;rail", "1607;1880;rail", "1751;1880;rail", "1895;1880;rail", "1346;1883;rang", "1200;1883;rang", "1055;1864;rang"]
   r_7_6:
-    nom: "Gare de Sainte-Brigitte"
+    nom: "Saint-Jacques-des-Ponts — Les Érables"
     x: 2500
     z: 1500
     riviere: true
-    routes: ["2040;1880;rail", "2184;1880;rail", "2335;1880;rail", "2362;1906;route", "2391;1764;route", "2401;1620;route", "2404;1475;route", "2449;1335;route", "2453;1190;route", "2453;1044;route", "2993;1038;rang", "2350;1880;rang"]
+    routes: ["2040;1880;rail", "2184;1880;rail", "2335;1880;rail", "2140;1150;route", "2277;1098;route", "2411;1040;route", "2362;1906;route", "2391;1764;route", "2401;1620;route", "2404;1475;route", "2449;1335;route", "2453;1190;route"]
   r_8_6:
     nom: "Aéroport régional des Laurentides"
     x: 3500
@@ -472,7 +472,7 @@ regions:
     riviere: false
     routes: ["2350;2050;route"]
   r_8_7:
-    nom: "Refuge 6"
+    nom: "Fort-Laflèche — Secteur des hangars"
     x: 3500
     z: 2500
     riviere: false
@@ -488,61 +488,61 @@ regions:
     x: -4500
     z: 3500
     riviere: false
-    routes: ["-4282;3391;rang", "-4266;3246;rang", "-4241;3104;rang"]
+    routes: ["-5100;3600;autoroute", "-4955;3600;autoroute", "-4810;3600;autoroute", "-4666;3600;autoroute", "-4521;3600;autoroute", "-4377;3600;autoroute", "-4232;3600;autoroute", "-4087;3600;autoroute", "-4282;3391;rang", "-4266;3246;rang", "-4241;3104;rang"]
   r_1_8:
-    nom: "Terres du sud ouest"
+    nom: "Mont-Lévis — Cité universitaire"
     x: -3500
     z: 3500
     riviere: false
-    routes: []
+    routes: ["-3943;3600;autoroute", "-3798;3600;autoroute", "-3654;3600;autoroute", "-3509;3600;autoroute", "-3364;3600;autoroute", "-3220;3600;autoroute", "-3075;3600;autoroute"]
   r_2_8:
     nom: "Laurentia — Le Faubourg"
     x: -2500
     z: 3500
     riviere: false
-    routes: ["-2207;3112;rang", "-2064;3086;rang"]
+    routes: ["-3000;3340;route", "-3000;3496;route", "-2931;3600;autoroute", "-2786;3600;autoroute", "-2641;3600;autoroute", "-2497;3600;autoroute", "-2352;3600;autoroute", "-2208;3600;autoroute", "-2207;3112;rang", "-2064;3086;rang"]
   r_3_8:
     nom: "Laurentia — Centre-ville"
     x: -1500
     z: 3500
     riviere: false
-    routes: ["-1440;3600;route", "-1292;3600;route", "-1144;3600;route", "-1919;3074;rang", "-1776;3046;rang", "-1635;3012;rang", "-1488;3015;rang"]
+    routes: ["-1440;3600;autoroute", "-1295;3600;autoroute", "-1150;3600;autoroute", "-1005;3600;autoroute", "-1919;3074;rang", "-1776;3046;rang", "-1635;3012;rang", "-1488;3015;rang"]
   r_4_8:
-    nom: "Sainte-Agathe-des-Champs — Petite-Rivière"
+    nom: "Sainte-Agathe-des-Champs — Les Bouleaux"
     x: -500
     z: 3500
     riviere: false
-    routes: ["0;3243;route", "-996;3600;route", "-848;3600;route", "-700;3600;route", "-553;3600;route", "-407;3600;route", "-261;3600;route", "-115;3600;route", "-160;3000;route", "-286;3506;rang", "-139;3457;rang"]
+    routes: ["0;3243;route", "-160;3000;route", "-860;3600;autoroute", "-716;3600;autoroute", "-571;3600;autoroute", "-426;3600;autoroute", "-281;3600;autoroute", "-137;3600;autoroute", "-286;3506;rang", "-139;3457;rang"]
   r_5_8:
     nom: "Terres du sud"
     x: 500
     z: 3500
     riviere: false
-    routes: ["20;3091;route", "43;3384;route", "72;3527;route", "78;3672;route", "75;3818;route", "40;3961;route", "31;3600;route", "15;3443;rang", "974;3450;rang", "829;3475;rang", "685;3506;rang", "536;3491;rang"]
+    routes: ["20;3091;route", "43;3384;route", "72;3527;route", "78;3672;route", "75;3818;route", "40;3961;route", "7;3600;autoroute", "152;3600;autoroute", "296;3600;autoroute", "440;3600;autoroute", "584;3600;autoroute", "728;3600;autoroute"]
   r_6_8:
     nom: "Ferme Tremblay"
     x: 1500
     z: 3500
     riviere: false
-    routes: ["1267;3432;rang", "1121;3452;rang"]
+    routes: ["1016;3600;autoroute", "1160;3600;autoroute", "1304;3600;autoroute", "1449;3600;autoroute", "1593;3600;autoroute", "1737;3600;autoroute", "1881;3600;autoroute", "1267;3432;rang", "1121;3452;rang"]
   r_7_8:
     nom: "Terres du sud est"
     x: 2500
     z: 3500
     riviere: false
-    routes: []
+    routes: ["2025;3600;autoroute", "2169;3600;autoroute", "2313;3600;autoroute", "2457;3600;autoroute", "2602;3600;autoroute", "2746;3600;autoroute", "2890;3600;autoroute"]
   r_8_8:
-    nom: "Terres du sud est"
+    nom: "Fort-Laflèche — Secteur nord de la base"
     x: 3500
     z: 3500
     riviere: false
-    routes: []
+    routes: ["3400;3340;route", "3400;3496;route", "3034;3600;autoroute", "3178;3600;autoroute", "3322;3600;autoroute", "3466;3600;autoroute", "3610;3600;autoroute", "3754;3600;autoroute", "3899;3600;autoroute"]
   r_9_8:
     nom: "Terres du sud est"
     x: 4500
     z: 3500
     riviere: false
-    routes: []
+    routes: ["4043;3600;autoroute", "4187;3600;autoroute", "4331;3600;autoroute", "4475;3600;autoroute", "4619;3600;autoroute", "4763;3600;autoroute", "4907;3600;autoroute", "5051;3600;autoroute"]
   r_0_9:
     nom: "Terres du sud ouest"
     x: -4500
@@ -1254,7 +1254,7 @@ lieux:
     region: r_3_8
   laurentia_commercial3:
     type: quartier_commercial
-    nom: "Laurentia — Boulevard des Commerces"
+    nom: "Laurentia — Les Galeries"
     x: -1769
     z: 3834
     region: r_3_8
@@ -1266,19 +1266,19 @@ lieux:
     region: r_2_8
   laurentia_residentiel5:
     type: quartier_residentiel
-    nom: "Laurentia — Les Cèdres"
+    nom: "Laurentia — Villeray"
     x: -1610
     z: 3356
     region: r_3_8
   laurentia_banlieue6:
     type: quartier_banlieue
-    nom: "Laurentia — Les Bouleaux"
+    nom: "Laurentia — Petite-Rivière"
     x: -2040
     z: 3815
     region: r_2_8
   laurentia_riche7:
     type: quartier_riche
-    nom: "Laurentia — Mont-Royal-des-Pins"
+    nom: "Laurentia — Le Golf"
     x: -1996
     z: 3395
     region: r_3_8
@@ -1308,7 +1308,7 @@ lieux:
     region: r_6_9
   saint_remi_industriel2:
     type: quartier_industriel
-    nom: "Saint-Rémi-de-la-Voie — Les Forges"
+    nom: "Saint-Rémi-de-la-Voie — Les Moulins"
     x: 1311
     z: 4299
     region: r_6_9
@@ -1332,7 +1332,7 @@ lieux:
     region: r_6_9
   saint_remi_commercial6:
     type: quartier_commercial
-    nom: "Saint-Rémi-de-la-Voie — Les Galeries"
+    nom: "Saint-Rémi-de-la-Voie — Boulevard des Commerces"
     x: 1230
     z: 4034
     region: r_6_9
@@ -1350,13 +1350,13 @@ lieux:
     region: r_4_7
   sainte_agathe_banlieue2:
     type: quartier_banlieue
-    nom: "Sainte-Agathe-des-Champs — Petite-Rivière"
+    nom: "Sainte-Agathe-des-Champs — Les Bouleaux"
     x: -310
     z: 3125
     region: r_4_8
   sainte_agathe_riche3:
     type: quartier_riche
-    nom: "Sainte-Agathe-des-Champs — Le Belvédère"
+    nom: "Sainte-Agathe-des-Champs — Mont-Royal-des-Pins"
     x: -210
     z: 2876
     region: r_4_7
@@ -1372,6 +1372,126 @@ lieux:
     x: -374
     z: 2930
     region: r_4_7
+  fort_lafleche_base0:
+    type: quartier_militaire
+    nom: "Fort-Laflèche — Secteur des hangars"
+    x: 3334
+    z: 2919
+    region: r_8_7
+  fort_lafleche_base1:
+    type: quartier_militaire
+    nom: "Fort-Laflèche — Secteur nord de la base"
+    x: 3457
+    z: 3037
+    region: r_8_8
+  fort_lafleche_centre2:
+    type: quartier_centre
+    nom: "Fort-Laflèche — Centre-ville"
+    x: 3363
+    z: 3182
+    region: r_8_8
+  fort_lafleche_logements3:
+    type: quartier_logements
+    nom: "Fort-Laflèche — Logements militaires"
+    x: 3252
+    z: 3187
+    region: r_8_8
+  fort_lafleche_logements4:
+    type: quartier_logements
+    nom: "Fort-Laflèche — Cité des familles"
+    x: 3488
+    z: 3180
+    region: r_8_8
+  fort_lafleche_commercial5:
+    type: quartier_commercial
+    nom: "Fort-Laflèche — Rue du Marché"
+    x: 3429
+    z: 3244
+    region: r_8_8
+  mont_levis_campus0:
+    type: quartier_campus
+    nom: "Mont-Lévis — Cité universitaire"
+    x: -3056
+    z: 3043
+    region: r_1_8
+  mont_levis_campus1:
+    type: quartier_campus
+    nom: "Mont-Lévis — Campus principal"
+    x: -2946
+    z: 3043
+    region: r_2_8
+  mont_levis_centre2:
+    type: quartier_centre
+    nom: "Mont-Lévis — Centre-ville"
+    x: -3030
+    z: 3135
+    region: r_1_8
+  mont_levis_residentiel3:
+    type: quartier_residentiel
+    nom: "Mont-Lévis — Haut-Laurier"
+    x: -2861
+    z: 3191
+    region: r_2_8
+  mont_levis_commercial4:
+    type: quartier_commercial
+    nom: "Mont-Lévis — La Promenade"
+    x: -3143
+    z: 3135
+    region: r_1_8
+  mont_levis_parc5:
+    type: quartier_parc
+    nom: "Mont-Lévis — Parc régional"
+    x: -3182
+    z: 3284
+    region: r_1_8
+  mont_levis_riche6:
+    type: quartier_riche
+    nom: "Mont-Lévis — Côte-Sainte-Anne"
+    x: -2955
+    z: 3284
+    region: r_2_8
+  saint_jacques_vieux0:
+    type: quartier_vieux
+    nom: "Saint-Jacques-des-Ponts — Vieille-Ville"
+    x: 1856
+    z: 1162
+    region: r_6_6
+  saint_jacques_centre1:
+    type: quartier_centre
+    nom: "Saint-Jacques-des-Ponts — Centre-ville"
+    x: 1931
+    z: 1162
+    region: r_6_6
+  saint_jacques_port2:
+    type: quartier_port
+    nom: "Saint-Jacques-des-Ponts — Le Vieux-Port"
+    x: 1849
+    z: 1380
+    region: r_6_6
+  saint_jacques_residentiel3:
+    type: quartier_residentiel
+    nom: "Saint-Jacques-des-Ponts — Limoilou"
+    x: 1760
+    z: 1380
+    region: r_6_6
+  saint_jacques_banlieue4:
+    type: quartier_banlieue
+    nom: "Saint-Jacques-des-Ponts — Les Érables"
+    x: 2039
+    z: 1448
+    region: r_7_6
+  saint_jacques_industriel5:
+    type: quartier_industriel
+    nom: "Saint-Jacques-des-Ponts — Les Forges"
+    x: 1738
+    z: 1125
+    region: r_6_6
+  saint_jacques_riche6:
+    type: quartier_riche
+    nom: "Saint-Jacques-des-Ponts — Le Belvédère"
+    x: 2085
+    z: 1125
+    region: r_7_6
 liens:
   - "r_0_0;r_1_0;3;terre"
   - "r_0_0;r_0_1;3;terre"
@@ -1521,14 +1641,14 @@ liens:
   - "r_6_7;r_7_7;3;terre"
   - "r_6_7;r_6_8;3;terre"
   - "r_7_7;r_8_7;3;terre"
-  - "r_7_7;r_7_8;3;terre"
+  - "r_7_7;r_7_8;1;route"
   - "r_8_7;r_9_7;3;terre"
   - "r_8_7;r_8_8;3;terre"
   - "r_9_7;r_9_8;3;terre"
-  - "r_0_8;r_1_8;3;terre"
+  - "r_0_8;r_1_8;1;route"
   - "r_0_8;r_0_9;3;terre"
-  - "r_1_8;r_2_8;3;terre"
-  - "r_1_8;r_1_9;3;terre"
+  - "r_1_8;r_2_8;1;route"
+  - "r_1_8;r_1_9;1;route"
   - "r_2_8;r_3_8;1;route"
   - "r_2_8;r_2_9;1;route"
   - "r_3_8;r_4_8;1;route"
@@ -1537,12 +1657,12 @@ liens:
   - "r_4_8;r_4_9;1;route"
   - "r_5_8;r_6_8;1;route"
   - "r_5_8;r_5_9;1;route"
-  - "r_6_8;r_7_8;3;terre"
+  - "r_6_8;r_7_8;1;route"
   - "r_6_8;r_6_9;1;route"
-  - "r_7_8;r_8_8;3;terre"
-  - "r_7_8;r_7_9;3;terre"
-  - "r_8_8;r_9_8;3;terre"
-  - "r_8_8;r_8_9;3;terre"
+  - "r_7_8;r_8_8;1;route"
+  - "r_7_8;r_7_9;1;route"
+  - "r_8_8;r_9_8;1;route"
+  - "r_8_8;r_8_9;1;route"
   - "r_9_8;r_9_9;3;terre"
   - "r_0_9;r_1_9;3;terre"
   - "r_1_9;r_2_9;1;route"
