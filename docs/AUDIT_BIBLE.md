@@ -37,7 +37,7 @@ Fusionnés : 17, 21, 37, 40, 51.
 | 7 Fiche d'état de chaque lieu | `/ville` avec le brouillard d'information (p122) | panneau dynamique à l'entrée |
 | 14 Événements sans annonce | largage, survivant poursuivi, alarme, chien, patrouille (Directeur) | à vérifier en jeu |
 | 26 Trace de sang | piste d'odeur du moteur, sang = piste forte | taches visibles au sol 📦, viande crue comme appât |
-| 32 Catastrophes | incendies (p98), barrage (p119), tempêtes (p55) | effondrement d'un bâtiment, dépôt de carburant qui explose en chaîne, grue |
+| 32 Catastrophes | incendies (p98), barrage (p119), tempêtes (p55), effondrements et dépôt de carburant (p125) | grue (aucune n'est générée), « photo » avant dégâts pour les retours en arrière |
 | 34 Habillage du monde | notes, graffitis, embuscades | scènes posées par le générateur (dernier souper, horloges arrêtées) |
 | 35 Mods déco | lampadaires Macaw's | tableaux d'affichage Supplementaries (avis de recherche, prix), drapeaux de faction 🔍 |
 | 54 Sang, impacts, cadavres | corps de joueurs (p13), particules | décalques de sang 📦 |
