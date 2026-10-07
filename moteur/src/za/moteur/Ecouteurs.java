@@ -181,6 +181,12 @@ public final class Ecouteurs implements Listener {
         z.cerveaux.panique(l, 14);
     }
 
+    /** une apparition demandée par la matérialisation (audit N4) */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void apparition(EntitySpawnEvent ev) {
+        if (z.mat != null) z.mat.surApparition(ev.getEntity());
+    }
+
     /** les balles de TaCZ sont des entités moddées : leur apparition est un coup de feu */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void tirModde(EntitySpawnEvent ev) {

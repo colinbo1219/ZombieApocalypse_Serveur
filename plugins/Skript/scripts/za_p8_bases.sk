@@ -35,12 +35,14 @@ command /base <text>:
                 set {za::base::entretien::%{_u}%} to now
                 add 3 days to {za::base::entretien::%{_u}%}
                 add {_u} to {za::base::liste::*}
+                za_mot_base_sync({_u})
                 send "&aBase definie ici. Entretien a payer tous les 3 jours (/base entretien). Plus elle grandit, plus les morts l'attaquent." to player
         else if arg-1 is "supprimer":
             remove {_u} from {za::base::liste::*}
             delete {za::base::%{_u}%}
             delete {za::base::taille::%{_u}%}
             delete {za::base::entretien::%{_u}%}
+            za_mot_base_sync({_u})
             send "&7Base supprimee." to player
         else if arg-1 is "abandonner":
             za_rec_abandonner(player)

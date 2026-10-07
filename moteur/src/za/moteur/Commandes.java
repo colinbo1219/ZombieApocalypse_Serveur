@@ -101,12 +101,29 @@ final class Commandes {
                 }
                 return true;
             case "base": {
-                // zam base <uuid> <x> <y> <z> <monde>
+                // zam base <uuid> <x> <y> <z> <monde> | zam base <uuid> suppr (audit N5)
+                if (a.length >= 3 && a[2].equals("suppr")) {
+                    z.bases.remove(UUID.fromString(a[1]));
+                    z.basesVues.remove(UUID.fromString(a[1]));
+                    return true;
+                }
                 World w = Bukkit.getWorld(a[5]);
                 if (w == null) return true;
                 z.bases.put(UUID.fromString(a[1]), new Location(w, d(a[2]), d(a[3]), d(a[4])));
+                z.basesVues.put(UUID.fromString(a[1]), System.currentTimeMillis());
                 return true;
             }
+            case "basesdebut":
+                z.basesTour = System.currentTimeMillis();
+                return true;
+            case "basesfin":
+                // toute base qui n'a pas été renvoyée pendant ce tour n'existe plus côté Skript
+                for (UUID u : new ArrayList<>(z.bases.keySet()))
+                    if (z.basesVues.getOrDefault(u, 0L) < z.basesTour) {
+                        z.bases.remove(u);
+                        z.basesVues.remove(u);
+                    }
+                return true;
             case "camp":
                 // zam camp <id> <x> <z> <nom...>
                 synchronized (z.monde) {

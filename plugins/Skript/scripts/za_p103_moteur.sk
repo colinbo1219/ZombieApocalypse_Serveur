@@ -561,6 +561,16 @@ function za_mot_controle(u: text):
         send "&7Il te prend en photo. &c« Vous êtes dans nos fichiers, maintenant. »" to {_p}
         za_mot("preuve %{_u}% controle 12 %floor(x-coordinate of {_p})% %floor(z-coordinate of {_p})%")
 
+# synchronisation immédiate d'une base avec le moteur (création, déplacement, suppression, abandon) (audit N5)
+function za_mot_base_sync(u: text):
+    if za_mot_actif() is false:
+        stop
+    set {_b} to {za::base::%{_u}%}
+    if {_b} is set:
+        za_mot("base %{_u}% %floor(x-coordinate of {_b})% %floor(y-coordinate of {_b})% %floor(z-coordinate of {_b})% %world of {_b}%")
+    else:
+        za_mot("base %{_u}% suppr")
+
 # capture (100) : jamais de mort, une cellule au niveau -2, l'équipement au casier
 function za_mot_capture(u: text):
     set {_p} to za_mot_joueur({_u})
@@ -697,10 +707,13 @@ every 30 seconds:
 every 5 minutes:
     if za_mot_actif() is false:
         stop
+    # tour complet : ce qui n'est pas renvoyé est retiré côté moteur (audit N5)
+    za_mot("basesdebut")
     loop {za::base::liste::*}:
         set {_b} to {za::base::%loop-value%}
         if {_b} is set:
             za_mot("base %loop-value% %floor(x-coordinate of {_b})% %floor(y-coordinate of {_b})% %floor(z-coordinate of {_b})% %world of {_b}%")
+    za_mot("basesfin")
     loop {za::camp::liste::*}:
         set {_c} to {za::camp::%loop-value%::loc}
         if {_c} is set:

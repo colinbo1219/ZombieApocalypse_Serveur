@@ -66,7 +66,6 @@ public final class Materialisation {
     }
 
     private final List<Pos> joueurs = new CopyOnWriteArrayList<>();
-    private final List<Object[]> aMarquer = new ArrayList<>();   // {Location, hordeId, échéance tick}
     private final Map<UUID, Long> leurres = new HashMap<>();     // leurre -> expiration (ms)
     private long tick;
     public int front = 30;   // morts réels par horde au contact
@@ -139,27 +138,6 @@ public final class Materialisation {
             if (d == null) break;
             apparaitre(d);
         }
-        // marquer les morts apparus (la commande MythicMobs ne rend pas l'entité)
-        if (!aMarquer.isEmpty()) {
-            Iterator<Object[]> it = aMarquer.iterator();
-            while (it.hasNext()) {
-                Object[] m = it.next();
-                Location l = (Location) m[0];
-                int hid = (Integer) m[1];
-                if (tick < (Long) m[2]) continue;
-                it.remove();
-                for (Entity e : l.getWorld().getNearbyEntities(l, 4, 6, 4)) {
-                    if (!(e instanceof Mob) || e.getTicksLived() > 60 || e.getScoreboardTags().contains("za_horde")) continue;
-                    e.addScoreboardTag("za_horde");
-                    e.addScoreboardTag("za_h_" + hid);
-                    reels.computeIfAbsent(hid, k -> new HashSet<>()).add(e.getUniqueId());
-                    synchronized (z.monde) {
-                        for (Horde h : z.monde.hordes) if (h.id == hid) h.reels++;
-                    }
-                    break;
-                }
-            }
-        }
         if (tick % 40 == 0) guider();
         if (tick % 200 == 0) dematerialiser();
         if (tick % 100 == 0) nettoyerLeurres();
@@ -225,9 +203,37 @@ public final class Materialisation {
         }
         if (r != null && r.interdictionFarm >= z.monde.jour && r.habitudes.getOrDefault("farm", 0.0) > 20) return;
         String cmd = "mm mobs spawn " + d.type + " 1 " + l.getWorld().getName() + "," + l.getBlockX() + "," + l.getBlockY() + "," + l.getBlockZ();
-        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
-        aMarquer.add(new Object[]{l, d.horde, tick + 2});
+        // la commande MythicMobs fait apparaître le mob tout de suite (fil principal) : l'écouteur d'apparition le
+        // reconnaît pendant l'appel, d'après cette demande en cours, et lui donne son identité (audit N4)
+        enCours = d;
+        lieuEnCours = l;
+        try {
+            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+        } finally {
+            enCours = null;
+            lieuEnCours = null;
+        }
         z.ecosysteme.avantHorde(p, l);
+    }
+
+    private Demande enCours;
+    private Location lieuEnCours;
+
+    /** appelé par Ecouteurs pour chaque apparition : seule l'entité née PENDANT notre commande, au bon endroit, est
+     *  rattachée à la horde ; aucune recherche après coup parmi les voisins */
+    public void surApparition(Entity e) {
+        Demande d = enCours;
+        Location l = lieuEnCours;
+        if (d == null || l == null || !(e instanceof Mob)) return;
+        if (e.getWorld() != l.getWorld() || e.getLocation().distanceSquared(l) > 36) return;
+        if (e.getScoreboardTags().contains("za_horde")) return;
+        e.addScoreboardTag("za_horde");
+        e.addScoreboardTag("za_h_" + d.horde);
+        reels.computeIfAbsent(d.horde, k -> new HashSet<>()).add(e.getUniqueId());
+        synchronized (z.monde) {
+            for (Horde h : z.monde.hordes) if (h.id == d.horde) h.reels++;
+        }
+        enCours = null;   // une demande = une entité
     }
 
     /** les morts d'une horde réelle marchent vers son objectif (ou vers le joueur qu'elle a entendu) */
@@ -315,6 +321,9 @@ public final class Materialisation {
                 if (e != null) e.remove();
             }
         reels.clear();
+        synchronized (z.monde) {
+            for (Horde h : z.monde.hordes) h.reels = 0;   // la sauvegarde de fermeture voit l'état réel (audit N3)
+        }
         for (UUID u : leurres.keySet()) {
             Entity e = Bukkit.getEntity(u);
             if (e != null) e.remove();

@@ -180,7 +180,7 @@ public final class Persistance {
             }
             for (Horde h : z.monde.hordes) {
                 String p = "hordes.h" + h.id + ".";
-                o.set(p + "taille", h.taille + h.reels);
+                o.set(p + "taille", h.taille);   // taille compte déjà les membres réels (audit N3)
                 o.set(p + "nom", h.nom);
                 o.set(p + "x", arr(h.x));
                 o.set(p + "z", arr(h.z));

@@ -338,6 +338,7 @@ function za_aband_creer(u: text, nom: text, l: location):
     delete {za::base::%{_u}%}
     delete {za::base::taille::%{_u}%}
     delete {za::base::entretien::%{_u}%}
+    za_mot_base_sync({_u})
     set {_s} to location((x-coordinate of {_l}) + 1, y-coordinate of {_l}, z-coordinate of {_l}, world of {_l})
     if block at {_s} is air:
         execute console command "execute in %za_dim(world of {_s})% run setblock %floor(x-coordinate of {_s})% %floor(y-coordinate of {_s})% %floor(z-coordinate of {_s})% minecraft:oak_sign[rotation=%random integer between 0 and 15%]{front_text:{color:""gray"",messages:['""Ancienne base""','""de %{_nom}%""','""jour %{za::serveur::jours} ? 0%""','""""']}}"

@@ -61,6 +61,9 @@ public final class ZAMoteur extends JavaPlugin {
 
     /** bases enregistrées (/base, p8) : jamais envahies automatiquement (règle 2) */
     public final Map<UUID, Location> bases = new ConcurrentHashMap<>();
+    /** réconciliation complète des bases (audit N5) : début de tour, et dernier tour où chaque base a été vue */
+    public volatile long basesTour;
+    public final Map<UUID, Long> basesVues = new ConcurrentHashMap<>();
     public final Map<UUID, String> factions = new ConcurrentHashMap<>();
     public final Map<String, Boolean> systemes = new LinkedHashMap<>();
     public volatile int jourSkript = -1;
