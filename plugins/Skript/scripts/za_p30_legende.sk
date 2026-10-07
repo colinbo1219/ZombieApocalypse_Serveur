@@ -128,7 +128,7 @@ every 10 minutes:
             if {za::rang::connu::%{_u}%} is set:
                 if {za::rang::connu::%{_u}%} is not {_r}:
                     if {_r} is "Mythe":
-                        broadcast "&4&lUNE LEGENDE NAIT ! &e%loop-player% &7atteint le rang &4MYTHE&7."
+                        za_diffuser("&4&lUNE LEGENDE NAIT ! &e%loop-player% &7atteint le rang &4MYTHE&7.")
                         za_journal("%loop-player% est devenu un Mythe.")
                     else:
                         send "&6Nouveau rang : &e%{_r}%" to loop-player
@@ -151,7 +151,7 @@ every 2 minutes:
                     {za::massacre::cd::%{_u}%} is not set
                     {za::massacre::cd::%{_u}%} is less than now
                 then:
-                    broadcast "&4&l%loop-player% &cmassacre les morts : 30 zombies en 2 minutes !"
+                    za_diffuser("&4&l%loop-player% &cmassacre les morts : 30 zombies en 2 minutes !")
                     za_journal("%loop-player% a massacre trente zombies en deux minutes.")
                     set {za::massacre::cd::%{_u}%} to now
                     add 30 minutes to {za::massacre::cd::%{_u}%}

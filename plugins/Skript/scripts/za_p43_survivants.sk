@@ -562,7 +562,7 @@ function za_surv_arriver_base(id: number, u: text, p: player):
     za_surv_recompte({_u})
     za_surv_npc_placer({_id})
     if {_p} is set:
-        za_zm("son %{_p}% za_modeles:sfx.porte_grince 0.6 1")
+        za_zm("son %{_p}% minecraft:block.wooden_door.open 0.6 0.6")
         send "&a%{_nom}% &7(%za_surv_metier_txt({za::surv::%{_id}%::metier}, {za::surv::%{_id}%::genre})%) rejoint ta base. Rôle : &e%za_surv_role_nom({za::surv::%{_id}%::role})%&7 (/survivants)." to {_p}
         if {za::surv::reserve::%{_u}%} is not set:
             send "&8&oIl faut lui montrer où sont les vivres : regarde un coffre de la base et tape &f/survivants reserve&8&o. Sans Réserve, il ne mange pas et ne travaille pas." to {_p}

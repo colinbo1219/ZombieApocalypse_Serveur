@@ -435,7 +435,7 @@ function za_pro_j1_aide_fin(p: player, run: number):
     set {za::pro::attend::%{_u}%} to "occupe"
     za_zm("objectif %{_p}% off")
     remove all barrel named "&fCaisse de soluté" from {_p}'s inventory
-    za_pro_sfx({_p}, "porte_grince", 0.5)
+    za_zm("son %{_p}% minecraft:block.wooden_door.open 0.5 0.6")
     send "&8&o(Tu déposes la caisse. Une infirmière aux yeux rougis te remercie d'un signe de tête. Son badge : LEBLANC.)" to {_p}
     wait 4 seconds
     if za_pro_ok({_p}, {_run}) is false:
@@ -743,7 +743,7 @@ function za_pro_j5_provisions(p: player, run: number):
     give {_p} za_item("honey bottle", "Antibiotique", "&b", 1)
     give {_p} za_item("paper", "Bandage", "&f", 2)
     give {_p} 1 paper named "&fEnveloppe de Mme Gagnon" with lore "&7« Pour Théo, pour ses 13 ans. »" and "&8Soixante dollars. Ça ne vaudra bientôt plus rien."
-    za_pro_sfx({_p}, "porte_grince", 0.5)
+    za_zm("son %{_p}% minecraft:block.wooden_door.open 0.5 0.6")
     wait 2 seconds
     if za_pro_ok({_p}, {_run}) is false:
         stop

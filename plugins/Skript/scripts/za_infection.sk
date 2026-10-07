@@ -243,16 +243,27 @@ on right click with paper:
         stop
     if uncolored name of player's tool is "Bandage":
         cancel the event
+        # une seule décision, une seule consommation : soin de la vie ET de la blessure au torse (audit M2)
+        set {_utile} to false
+        if health of player < 10:
+            set {_utile} to true
+        if za_bless_niveau(player's uuid, "torse") > 0:
+            set {_utile} to true
+        if {_utile} is false:
+            send "&7Tu n'as rien à panser." to player
+            stop
+        remove 1 of player's tool from player's inventory
         if health of player < 10:
             if za_role(player) is "medecin":
                 heal player by 5 hearts
             else:
                 heal player by 3 hearts
-            remove 1 of player's tool from player's inventory
             send "&fTu appliques un bandage." to player
             delete {za::sang::%player's uuid%}
             delete {za::plaie::flag::%player's uuid%}
             delete {za::mal::plaie::%player's uuid%}
+        if za_bless_niveau(player's uuid, "torse") > 0:
+            set {_ok} to za_bless_bandage(player)
 
 # ---------- mort infectee : le joueur se releve en zombie ----------
 on death of player:

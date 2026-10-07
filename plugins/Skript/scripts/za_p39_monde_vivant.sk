@@ -562,7 +562,8 @@ every 1 minute:
 # ---------------------------------------------------------------- LIEUX QUI ÉVOLUENT (abandonné → contaminé → nid → zone morte)
 
 function za_lieu_evoluer():
-    set {_types::*} to "hopital", "police", "supermarche", "station", "laboratoire", "caserne", "ecole", "centrale"
+    # le catalogue unique (super, labo2...) : tous les bâtiments vieillissent (audit M8)
+    set {_types::*} to za_bat_types()
     loop {_types::*}:
         set {_t} to loop-value-1
         loop {za::bat::%{_t}%::liste::*}:

@@ -11,10 +11,13 @@ options:
     zombies_sans_brulure: true
 
 function za_jour(w: world) :: boolean:
+    # la nuit va de 18 h 30 à 5 h : c'est un OU, pas un ET (audit M3)
     set {_t} to time in {_w}
-    if {_t} is greater than 18:30:
-        if {_t} is less than 5:00:
-            return false
+    if any:
+        {_t} is greater than 18:30
+        {_t} is less than 5:00
+    then:
+        return false
     return true
 
 on combust:

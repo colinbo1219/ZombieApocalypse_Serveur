@@ -174,6 +174,11 @@ function za_leg_migration_fin():
     delete {za::leg::mig::k::*}
 
 on death of zombie:
+    # ni le prologue, ni un autre monde ne comptent pour les légendes (audit M9)
+    if za_pro(victim) is true:
+        stop
+    if "%world of victim%" is not "world":
+        stop
     if {za::leg::mig::actif} is true:
         if attacker is a player:
             set {_u} to "%attacker's uuid%"

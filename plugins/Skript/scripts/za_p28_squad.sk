@@ -33,10 +33,18 @@ command /squad [<text>] [<player>]:
                 send "&cAucune invitation." to player
             else:
                 delete {za::squad::inv::%{_u}%}
-                if size of {za::squad::membres::%{_id}%::*} >= 4:
+                if {za::squad::id::%{_u}%} is {_id}:
+                    send "&7Tu es déjà dans ce squad." to player
+                else if size of {za::squad::membres::%{_id}%::*} >= 4:
                     send "&cCe squad est plein." to player
                 else:
+                    # changer de squad : on quitte proprement l'ancien (une seule appartenance) (audit M5)
+                    set {_ancien} to {za::squad::id::%{_u}%}
+                    if {_ancien} is set:
+                        remove {_u} from {za::squad::membres::%{_ancien}%::*}
+                        send "&7Tu quittes ton ancien squad." to player
                     set {za::squad::id::%{_u}%} to {_id}
+                    remove {_u} from {za::squad::membres::%{_id}%::*}
                     add {_u} to {za::squad::membres::%{_id}%::*}
                     send "&aTu rejoins le squad !" to player
         else if arg-1 is "quitter":

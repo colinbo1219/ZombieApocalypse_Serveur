@@ -175,7 +175,7 @@ command /maudire <player>:
             set {za::maudire::cible::%player's uuid%} to "%arg-1's uuid%"
             send "&8Ta derniere malediction est prete pour %arg-1%. Elle s'abattra a ta mort." to player
 
-command /heritier <text> [<player>]:
+command /heritier <text>:
     trigger:
         if arg-1 is "annuler":
             set {_u} to "%player's uuid%"
@@ -187,19 +187,21 @@ command /heritier <text> [<player>]:
                 delete {za::heritier::objets::%{_u}%::*}
                 delete {za::heritier::cible::%{_u}%}
                 send "&7Tu reprends ce que tu avais mis de cote." to player
-        else if arg-2 is not set:
+        # /heritier <joueur> : le premier argument EST la cible, comme l'annonce l'aide (audit m2)
+        else if (arg-1 parsed as player) is not set:
             send "&cUsage : /heritier <joueur>  (leguer l'objet en main)  |  /heritier annuler" to player
-        else if arg-2 is player:
+        else if (arg-1 parsed as player) is player:
             send "&cChoisis quelqu'un d'autre." to player
         else if player's tool is air:
             send "&cTiens l'objet a leguer dans ta main avant de taper la commande." to player
         else:
+            set {_c} to arg-1 parsed as player
             set {_u} to "%player's uuid%"
             set {_it} to player's tool
             set player's tool to air
             add {_it} to {za::heritier::objets::%{_u}%::*}
-            set {za::heritier::cible::%{_u}%} to "%arg-2's uuid%"
-            send "&7%{_it}% est mis de cote, en lieu sur. A ta mort, il ira a %arg-2%. (&e/heritier annuler &7pour le reprendre)" to player
+            set {za::heritier::cible::%{_u}%} to "%{_c}'s uuid%"
+            send "&7%{_it}% est mis de cote, en lieu sur. A ta mort, il ira a %{_c}%. (&e/heritier annuler &7pour le reprendre)" to player
 
 on death of player:
     if za_pro(victim) is true:
