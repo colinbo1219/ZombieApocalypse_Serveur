@@ -385,6 +385,8 @@ function za_surv_npc_placer(id: number):
 
 # retire un survivant de la partie (record + PNJ). motif : parti|mort|zombifie
 function za_surv_clore(id: number, motif: text):
+    # le deuil des proches (za_p127), avant que la fiche soit effacée
+    za_soc_deuil({_id}, {_motif})
     set {_e} to za_surv_npc({_id})
     if {_e} is set:
         delete {_e}

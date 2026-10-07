@@ -84,6 +84,7 @@ public final class Memoire {
         regle("refus_aide", -5, 0, 0, 5, "a refusé de nous aider");
         regle("fausse_accusation", -12, 0, 0, 12, "a accusé un innocent");
         regle("accuse", -20, 0, 5, 25, "m'a accusé");
+        regle("meurtre", -35, 0, 20, 30, "a tué l'un des nôtres");
     }
 
     private static void regle(String t, double c, double g, double p, double r, String interp) {

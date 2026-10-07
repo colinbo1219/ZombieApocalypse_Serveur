@@ -256,10 +256,10 @@ function za_mot_evt_serveur(t: text, ligne: text):
         set {_v} to ({za::facres::%{_a::2}%::%{_a::3}%} ? 0) + ({_a::4} parsed as number)
         set {za::facres::%{_a::2}%::%{_a::3}%} to max(0, min(200, {_v}))
     else if {_t} is "convoi_proche":
-        set {_p} to za_mot_joueur({_a::2})
-        if {_p} is set:
-            send "&7Un convoi passe au loin : des charrettes, des hommes armés. &8(%uncolored za_faction_nom({_a::3})%, chargé de %{_a::4}%)" to {_p}
-            za_zm("son %{_p}% minecraft:entity.horse.ambient 0.6 0.8")
+        # le joueur peut s'en mêler : escorter ou attaquer (za_p126)
+        za_lien_convoi_proche({_a::2}, {_a::3}, {_a::4}, {_a::5}, {_a::6} ? "0")
+    else if {_t} is "convoi_embuscade" or "convoi_escorte_ok" or "convoi_pille":
+        za_lien_evt({_t}, {_ligne})
     else if {_t} is "convoi_epave":
         add "%{_a::2}%|%{_a::3}%|%{_a::4}%|%{_a::5}%|%{_a::6}%" to {za::mot::epave::*}
     else if {_t} is "msg":

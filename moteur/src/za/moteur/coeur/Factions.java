@@ -51,6 +51,7 @@ public final class Factions {
         public int quantite;
         public double x, z, tx, tz;
         public String etat = "en_route";   // en_route, arrive, attaque, pille
+        public String escorte = "";         // uuid du joueur qui l'escorte (S-3, 89 : le joueur peut s'en mêler)
     }
 
     public static final class Blocus {
@@ -338,6 +339,8 @@ public final class Factions {
             double pas = 1.2 * 30;   // à pied ou en charrette
             if (d <= pas) {
                 it.remove();
+                if (!c.escorte.isEmpty())
+                    o.add(new Ordre("convoi_escorte_ok", null, String.valueOf(c.id), c.escorte, c.faction, c.ressource, String.valueOf((int) c.tx), String.valueOf((int) c.tz)));
                 o.add(new Ordre("convoi_arrive", "Le convoi de " + c.faction + " est arrivé à " + c.arrivee + ".", String.valueOf(c.id), vers, c.ressource, String.valueOf(c.quantite), String.valueOf((int) c.tx), String.valueOf((int) c.tz)));
                 continue;
             }
@@ -345,6 +348,11 @@ public final class Factions {
             c.z += dz / d * pas;
             for (Horde h : hordes) {
                 if (Math.hypot(h.x - c.x, h.z - c.z) < 150 && rng.nextDouble() < 0.08 * Math.min(3, h.taille / 20.0)) {
+                    // escorté : l'embuscade a lieu, mais l'escorte se bat (côté serveur) et le convoi passe
+                    if (!c.escorte.isEmpty() && rng.nextDouble() < 0.75) {
+                        o.add(new Ordre("convoi_embuscade", null, String.valueOf(c.id), c.escorte, c.faction));
+                        break;
+                    }
                     it.remove();
                     int perdu = rng.nextDouble() < 0.5 ? c.quantite : c.quantite / 2;
                     o.add(new Ordre("convoi_attaque", "Une horde est tombée sur le convoi de " + c.faction + " entre " + c.depart + " et " + c.arrivee + ".",

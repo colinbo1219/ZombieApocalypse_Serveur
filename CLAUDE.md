@@ -10,7 +10,7 @@ Phase 1 = analyse seule, aucune modification.
 
 ## Pile technique
 - `arclight-5dc8683.jar` : Forge 1.20.1 + API Bukkit/Spigot dans le même serveur.
-- Skript 2.9.5 : presque toute la logique de jeu (`plugins/Skript/scripts/za_*.sk`, 132 fichiers).
+- Skript 2.9.5 : presque toute la logique de jeu (`plugins/Skript/scripts/za_*.sk`, 134 fichiers).
 - MythicMobs 5.7.2 : zombies et PNJ (`plugins/MythicMobs/Mobs|Skills|Items|RandomSpawns/`).
 - Plugin maison `plugins/ZAMonde.jar` : ville, PNJ, props, HUD, caméras (données dans `plugins/ZAMonde/`).
 - ~64 mods Forge (liste et SHA-1 dans [JARS.txt](JARS.txt), dont 16 mods décoratifs Macaw's / Handcrafted / Supplementaries / Create Deco utilisés par la ville, et des add-ons Create : voir docs/A_INSTALLER.md §6 bis ; Design Decor 0.4.0b et Create D&D 0.1b sont INCOMPATIBLES avec Create 6), configs dans `config/`, `defaultconfigs/`, `world/serverconfig/`.
@@ -43,7 +43,12 @@ Phase 1 = analyse seule, aucune modification.
   `za_p121_offensives` (offensives de territoire `{za::off::*}`, JcJ permis entre les camps), `za_p122_ville_classement`
   (/ville, /classement, /zaredemarrer), `za_p123_ombres` (témoins `{za::tem::*}`, filature `{za::filat::*}`, opérations
   NORDA `{za::nop::*}`), `za_p124_chairs` (démembrement, mutation : tags `za_rampant`, `za_sansbras`, `za_odeur_morte`,
-  `za_camouflage`), `za_p125_catastrophes2` (effondrements, dépôt de carburant). Liste et tests : docs/A_INSTALLER.md §12.
+  `za_camouflage`), `za_p125_catastrophes2` (effondrements, dépôt de carburant), `za_p126_liens` (branchements :
+  convois escortés ou pillés, faction détruite, hôpital et médicaments), `za_p127_societe_base` (liens entre survivants
+  `{za::soc::*}`, /liens).
+- **Règle de l'équipe** : un système n'est pas fini tant qu'il n'interagit pas avec les autres. Tout événement publié
+  (`za_mot_evt`) doit avoir une conséquence (règle de `reactions.yml`, règle de mémoire ou traitement du moteur).
+  Vérifier : `python3 docs/outils/verif_liens.py` (liste les impasses). Liste et tests : docs/A_INSTALLER.md §12.
 
 ## Ce que le dépôt ne contient pas
 - **Les jars publics** : exclus par `.gitignore`, voir JARS.txt. Seuls `ZAMonde.jar`, `ZAPaperCompat.jar` et
@@ -80,7 +85,7 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
 
 ## Pièges connus
 - Numéros en double : `za_p7_economie` / `za_p7_progression`, `za_p38_lieux` / `za_p38_prologue`.
-- LISEZMOI.txt annonce 41 scripts : il y en a 132.
+- LISEZMOI.txt annonce 41 scripts : il y en a 134.
 - Colin utilise Java 25 en local, alors que le serveur exige Java 17 ou 21.
 
 ## Travail des phases 2 à 15 (voir docs/RAPPORTS_PHASES.md)

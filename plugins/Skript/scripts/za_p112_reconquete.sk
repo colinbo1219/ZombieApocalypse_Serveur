@@ -203,10 +203,10 @@ function za_rep_fete(z: text):
     set {za::qz::%{_z}%::pression} to 0
     if za_qz_etat({_z}) is not "calme" or "faction":
         za_qz_changer({_z}, "calme")
-    za_radio("&bLéa", "%{_nom}% est à nous. Je le répète : %{_nom}% est à nous. Ce soir, il y a un banquet. Venez. Apportez ce que vous pouvez.")
     za_monde_legende("%{_nom}% fut repris aux morts le jour %{za::serveur::jours} ? 0% par %{_noms}%.")
     if {_c} is set:
-        za_mot_evt("ville_reprise", {_c}, 4, "-", "%{_nom}% repris aux morts")
+        # le moteur écoute region_reprise : fête (moral, calme), Léa, mémoire des PNJ, rumeurs
+        za_mot_evt("region_reprise", {_c}, 4, "-", {_nom})
         set {_l} to za_qz_point({_c}, 6)
         if {_l} is set:
             if block at {_l} is air:

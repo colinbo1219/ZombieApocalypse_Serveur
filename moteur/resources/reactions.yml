@@ -324,3 +324,135 @@ reactions:
     alors:
       - attentionZ +15
       - radio lea Quelqu'un a un canon. On l'a entendu jusqu'ici. Eux aussi l'ont entendu. Et NORDA, sûrement.
+
+  # ---------------------------------------------------------------- Branchements (réunion de l'équipe : plus d'impasses)
+  # une faction qui perd son dernier territoire : ses gens partent, les vautours arrivent
+  - nom: faction_detruite_exode
+    si: faction_detruite
+    proba: 100
+    delai: 10-60
+    alors:
+      - evenement colonne_refugies 3
+      - panique +10
+      - radio lea Plus personne ne tient pour {texte}. Les derniers prennent la route. Si vous les croisez, ils ont tout perdu.
+  - nom: faction_detruite_vautours
+    si: faction_detruite
+    proba: 60
+    delai: 120-480
+    plafond: 1
+    alors: skript zaevt faction_opportuniste {lieu}
+  # l'hôpital tombe : les médicaments manquent, le marché noir monte
+  - nom: hopital_penurie
+    si: hopital_perdu
+    proba: 100
+    delai: 0-10
+    alors:
+      - moral -10
+      - radio lea L'hôpital est tombé. Plus de pharmacie, plus de médecins. Gardez vos antibiotiques. Ne les vendez pas.
+  - nom: hopital_marche_noir
+    si: hopital_perdu
+    proba: 70
+    delai: 60-240
+    plafond: 1
+    alors: radio pirate Des antibiotiques, des sérums ? Le Trafiquant en a. Pas donnés. Et pas tous vrais.
+  - nom: hopital_rouvert
+    si: hopital_rouvert
+    proba: 100
+    delai: 0-10
+    alors:
+      - moral +15
+      - radio lea L'hôpital rouvre ses portes. Il y a de la lumière au deuxième étage. Les médicaments vont revenir.
+  # le dépôt de carburant saute : pénurie, prix, et toutes les hordes l'ont entendu
+  - nom: depot_penurie
+    si: explosion_depot
+    proba: 100
+    delai: 0
+    alors:
+      - skript zaevt set blocus::carburant 1
+      - horde attirer
+      - attentionZ +30
+  # offensives entre factions (p121)
+  - nom: offensive_tension
+    si: offensive_declaree
+    proba: 100
+    delai: 0-10
+    alors:
+      - panique +10
+      - radio bravo À toutes les unités : activité armée signalée secteur {lieu}. Ne pas intervenir.
+  - nom: offensive_exode
+    si: offensive_prise
+    proba: 70
+    delai: 10-60
+    alors:
+      - evenement colonne_refugies 3
+      - moral -10
+  # une base abandonnée : les morts s'y installent
+  - nom: base_abandonnee_nid
+    si: base_abandonnee
+    proba: 35
+    delai: 120-600
+    plafond: 2
+    alors:
+      - nid +1
+      - graffiti PERSONNE ICI. PLUS PERSONNE.
+  # un meurtre vu : NORDA prend note, le coin se méfie
+  - nom: meurtre_peur
+    si: meurtre
+    proba: 100
+    delai: 0-10
+    alors:
+      - panique +8
+      - securite -5
+      - norda soupcon 4
+  # des faux remèdes circulent
+  - nom: faux_remedes_alerte
+    si: faux_remede
+    proba: 60
+    delai: 30-120
+    plafond: 1
+    alors: radio lea Attention : des faux sérums circulent. Même couleur, même étiquette. Si vous pouvez, faites-les analyser.
+  # un survivant sauvé : le coin reprend espoir
+  - nom: sauve_espoir
+    si: survivant_sauve
+    proba: 100
+    delai: 0
+    plafond: 3
+    alors: moral +5
+  # la recherche avance : un peu d'espoir partout
+  - nom: science_espoir
+    si: science_avancee
+    proba: 100
+    delai: 10-60
+    plafond: 1
+    alors:
+      - moral +5
+      - radio lea Les scientifiques disent qu'ils avancent. Je ne sais pas ce que ça veut dire. Mais c'est la première fois qu'ils disent ça.
+  # un soldat de la milice déserte : le coin a moins confiance ; un vétéran rassure
+  - nom: desertion_doute
+    si: desertion
+    proba: 100
+    delai: 0-10
+    plafond: 2
+    alors:
+      - moral -5
+      - securite -3
+  - nom: veteran_confiance
+    si: veteran_milice
+    proba: 100
+    delai: 0
+    plafond: 2
+    alors: securite +3
+  # quelqu'un emmené par NORDA : la peur gagne, la radio pirate en parle
+  - nom: capture_peur
+    si: norda_capture
+    proba: 100
+    delai: 5-30
+    alors:
+      - panique +10
+      - radio pirate Des combinaisons blanches ont emmené quelqu'un, cette nuit. Ne restez pas seuls.
+  # un accord rompu entre joueurs : les camps deviennent méfiants
+  - nom: accord_mefiance
+    si: accord_conteste
+    proba: 100
+    delai: 0-10
+    alors: skript zaevt rumeur_mefiance {acteurs}

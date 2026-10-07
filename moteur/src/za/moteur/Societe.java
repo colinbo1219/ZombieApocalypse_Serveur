@@ -136,7 +136,7 @@ public final class Societe {
             for (Factions.Convoi c : cerveau.convois) {
                 if (Math.hypot(c.x - l.getX(), c.z - l.getZ()) < 120 && !c.etat.contains("vu:" + p.getUniqueId())) {
                     c.etat = c.etat + ";vu:" + p.getUniqueId();
-                    z.pont.zaevt("convoi_proche " + p.getUniqueId() + " " + c.faction + " " + c.ressource + " " + c.quantite);
+                    z.pont.zaevt("convoi_proche " + p.getUniqueId() + " " + c.faction + " " + c.ressource + " " + c.quantite + " " + c.id);
                 }
             }
         }
@@ -193,6 +193,16 @@ public final class Societe {
                     }
                     break;
                 }
+                case "convoi_embuscade":
+                    z.pont.zaevt("convoi_embuscade " + a[1] + " " + a[2]);
+                    break;
+                case "convoi_escorte_ok": {
+                    Evenement e = new Evenement("escorte").a(Double.parseDouble(a[4]), Double.parseDouble(a[5])).grav(2)
+                            .acteur(a[1]).acteur("faction:" + a[2]).dit("escorte du convoi de " + a[2] + " jusqu'au bout");
+                    z.publier(e);
+                    z.pont.zaevt("convoi_escorte_ok " + a[1] + " " + a[2] + " " + a[3]);
+                    break;
+                }
                 case "convoi_bloque":
                     publier("convoi_bloque", Double.parseDouble(a[2]), Double.parseDouble(a[3]), 2, o.texte, a[1]);
                     break;
@@ -206,6 +216,41 @@ public final class Societe {
         Evenement e = new Evenement(type).a(x, zz).grav(g).dit(texte).acteur("faction:" + faction);
         e.source = "faction";
         z.publier(e);
+    }
+
+    // ---------------------------------------------------------------- le joueur s'en mêle (S-3)
+
+    /** zam convoi <escorter|attaquer> <uuid> <id> : le joueur doit être à moins de 200 blocs du convoi */
+    void convoiAction(String choix, String u, int id) {
+        Player p = null;
+        for (Player o : z.mondePrincipal().getPlayers()) if (o.getUniqueId().toString().equals(u)) p = o;
+        if (p == null) return;
+        Factions.Convoi c = null;
+        synchronized (z.monde) {
+            for (Factions.Convoi o : cerveau.convois) if (o.id == id) c = o;
+            if (c == null || Math.hypot(c.x - p.getLocation().getX(), c.z - p.getLocation().getZ()) > 200) {
+                z.pont.zaevt("msg " + u + " Le convoi est déjà loin, ou il n'existe plus.");
+                return;
+            }
+            if (choix.equals("escorter")) {
+                c.escorte = u;
+                z.pont.zaevt("msg " + u + " Le chef du convoi hoche la tête. « Reste avec nous jusqu'à " + c.arrivee + ". »");
+                return;
+            }
+            // attaquer : le convoi est pillé, la faction s'en souviendra, la destination manquera de sa ressource
+            cerveau.convois.remove(c);
+        }
+        double x = p.getLocation().getX(), zz = p.getLocation().getZ();
+        Evenement e = new Evenement("vol").a(x, zz).grav(3).acteur(u).acteur("faction:" + c.faction)
+                .dit("le convoi de " + c.faction + " (" + c.quantite + " " + c.ressource + ") a été pillé");
+        z.publier(e);
+        String vers = c.etat.contains("|") ? c.etat.substring(c.etat.indexOf('|') + 1) : "";
+        if (!vers.isEmpty()) {
+            cerveau.faction(vers).stocks.merge(c.ressource, -Math.min(c.quantite, 5), Integer::sum);
+            z.pont.zaevt("fac_stock " + vers + " " + c.ressource + " -" + Math.min(c.quantite, 5));
+        }
+        z.pont.zaevt("convoi_pille " + u + " " + c.faction + " " + c.ressource + " " + c.quantite);
+        z.pont.zaevt("convoi_epave " + (int) x + " " + (int) zz + " " + c.faction + " " + c.ressource + " " + c.quantite);
     }
 
     // ---------------------------------------------------------------- /zaadmin factions

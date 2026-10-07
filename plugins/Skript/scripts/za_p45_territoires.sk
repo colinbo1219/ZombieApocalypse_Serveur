@@ -401,6 +401,8 @@ function za_terr_change(cle: text, f: text, ctrl: number):
     za_lieu_terr({_cle}, {_old}, {_f})
     # relations entre factions (za_p67_diplomatie)
     za_diplo_changement({_old}, {_f})
+    # une faction qui perd son dernier territoire (za_p126)
+    za_lien_faction_perd({_old}, {_cle})
 
 # un territoire tombe : chez un rival voisin (35 %%) ou aux morts
 function za_terr_chute(cle: text, motif: text):

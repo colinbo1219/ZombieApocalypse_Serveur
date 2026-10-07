@@ -1,0 +1,99 @@
+# za_p126_liens.sk — les branchements entre systèmes (réunion de l'équipe : « un système n'est pas fini tant qu'il
+#  n'interagit pas avec les autres »). Pas de nouveau système ici : des fils entre ceux qui existent.
+#  * CONVOIS (S-3) : un convoi de faction qui passe près de toi (moteur) → /convoi escorter (embuscades à repousser ;
+#    à l'arrivée : jetons, réputation, la faction s'en souvient) ou /convoi attaquer (pillage : épave à fouiller, les
+#    convoyeurs ripostent, la faction t'en veut, la destination manque de cette ressource, rumeur de vol).
+#  * FACTION DÉTRUITE (45, IA-10) : une faction qui perd son dernier territoire (p45) → Chronique ; ses survivants
+#    partent en colonne, les vautours arrivent (règles faction_detruite de reactions.yml).
+#  * HÔPITAL (S-3) : le quartier de l'hôpital de Saint-Aurèle tombe (p97) → les médicaments se raréfient (cours,
+#    prix), le marché noir s'en mêle ; il revient au calme → la pénurie s'achève.
+#  Variables : {za::lien::*}
+
+# ---------------------------------------------------------------- convois
+
+function za_lien_convoi_proche(u: text, f: text, res: text, q: text, id: text):
+    set {_p} to za_mot_joueur({_u})
+    if {_p} is not set:
+        stop
+    set {za::lien::convoi::%{_u}%} to "%{_id}%|%{_f}%"
+    set {za::lien::convoi_t::%{_u}%} to unix timestamp of now
+    send "&7Un convoi passe au loin : des charrettes, des hommes armés. &8(%uncolored za_faction_nom({_f})%, chargé de %{_res}%)" to {_p}
+    send "&8   /convoi escorter · /convoi attaquer &7(dans les 3 minutes)" to {_p}
+    za_zm("son %{_p}% minecraft:entity.horse.ambient 0.6 0.8")
+
+command /convoi [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        set {_c} to arg-1 ? ""
+        if {_c} is not "escorter" or "attaquer":
+            send "&7/convoi escorter · /convoi attaquer &8(quand un convoi passe près de toi)" to player
+            stop
+        if {za::lien::convoi::%{_u}%} is not set:
+            send "&7Aucun convoi en vue." to player
+            stop
+        if ({za::lien::convoi_t::%{_u}%} ? 0) < (unix timestamp of now) - 180:
+            send "&7Le convoi est passé. Trop tard." to player
+            stop
+        if za_mot_actif() is false:
+            stop
+        set {_v::*} to split {za::lien::convoi::%{_u}%} at "|"
+        delete {za::lien::convoi::%{_u}%}
+        za_mot("convoi %{_c}% %{_u}% %{_v::1}%")
+        if {_c} is "attaquer":
+            send "&cTu fonds sur le convoi." to player
+
+function za_lien_evt(t: text, ligne: text):
+    set {_a::*} to split {_ligne} at " "
+    set {_p} to za_mot_joueur({_a::2})
+    if {_t} is "convoi_embuscade":
+        if {_p} is set:
+            send "&4Embuscade sur le convoi ! &7Les convoyeurs crient ton nom. Tiens-les à distance." to {_p}
+            za_spawn_near({_p}, "ZA_Runner", 12, 18)
+            za_spawn_near({_p}, "ZA_Shambler", 10, 16)
+            za_spawn_near({_p}, "ZA_Shambler", 10, 16)
+    else if {_t} is "convoi_escorte_ok":
+        if {_p} is set:
+            za_jetons_ajouter({_p}, 15)
+            za_faction_ajouter({_p}, {_a::3}, 8)
+            send "&aLe convoi est arrivé. &7Le chef te serre la main et te glisse 15 jetons. %za_faction_nom({_a::3})% &7s'en souviendra." to {_p}
+        za_cmpg_decision({_a::2}, "Tu as escorté un convoi de %uncolored za_faction_nom({_a::3})% jusqu'au bout.")
+    else if {_t} is "convoi_pille":
+        if {_p} is set:
+            za_faction_ajouter({_p}, {_a::3}, -25)
+            send "&cLe convoi est à toi. &7Les convoyeurs survivants ripostent. %za_faction_nom({_a::3})% &7ne l'oubliera pas." to {_p}
+            set {_l} to location of {_p}
+            za_spawn_at({_l}, "ZA_Pillard_Tireur", 10, 16)
+            za_spawn_at({_l}, "ZA_Pillard", 10, 16)
+        za_cmpg_decision({_a::2}, "Tu as pillé un convoi de %uncolored za_faction_nom({_a::3})%.")
+
+# ---------------------------------------------------------------- faction détruite (appelée par za_terr_change, p45)
+
+function za_lien_faction_perd(old: text, cle: text):
+    if za_terr_reelle({_old}) is false:
+        stop
+    if za_terr_compte({_old}) > 0:
+        stop
+    set {_l} to za_terr_loc({_cle})
+    if {_l} is not set:
+        stop
+    za_mot_evt("faction_detruite", {_l}, 5, "faction:%{_old}%", "%uncolored za_terr_fnom({_old})% a perdu son dernier territoire")
+    za_journal("%uncolored za_terr_fnom({_old})% n'a plus de territoire. Ses derniers membres prennent la route.")
+
+# ---------------------------------------------------------------- l'hôpital et les médicaments (appelée par za_qz_changer, p97)
+
+function za_lien_quartier(z: text, e: text):
+    if {_z} is not "sa_hopital":
+        stop
+    set {_c} to za_qz_centre({_z})
+    if {_c} is not set:
+        stop
+    if {_e} is "infestation" or "zone_morte":
+        if {za::mot::blocus::medicaments} is not "1":
+            set {za::mot::blocus::medicaments} to "1"
+            za_mot_evt("hopital_perdu", {_c}, 4, "-", "L'hôpital de Saint-Aurèle est tombé")
+    else if {_e} is "calme" or "faction":
+        if {za::mot::blocus::medicaments} is "1":
+            set {za::mot::blocus::medicaments} to "0"
+            za_mot_evt("hopital_rouvert", {_c}, 3, "-", "L'hôpital de Saint-Aurèle est de nouveau accessible")

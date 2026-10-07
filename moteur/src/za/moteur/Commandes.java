@@ -255,6 +255,9 @@ final class Commandes {
             case "retourner":
                 z.mensonges.retourner(a[1], i(a[2]));
                 return true;
+            case "convoi":
+                z.societe.convoiAction(a[1], a[2], i(a[3]));
+                return true;
             case "deserteurs":
                 z.societe.deserteursChoix(a[1], a[2]);
                 return true;

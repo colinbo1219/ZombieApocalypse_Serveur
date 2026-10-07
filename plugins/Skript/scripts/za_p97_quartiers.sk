@@ -180,6 +180,8 @@ every 1 minute:
 function za_qz_changer(z: text, e: text):
     set {_avant} to za_qz_etat({_z})
     set {za::qz::%{_z}%::etat} to {_e}
+    # l'hôpital tombe ou rouvre : les médicaments suivent (za_p126)
+    za_lien_quartier({_z}, {_e})
     set {za::qz::%{_z}%::a_poser} to true
     set {_c} to za_qz_centre({_z})
     set {_nom} to za_qz_nom({_z})

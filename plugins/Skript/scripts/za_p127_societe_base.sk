@@ -1,0 +1,183 @@
+# za_p127_societe_base.sk — la base comme petite société (réunion de l'équipe, point 7 ; IA-15)
+#  Entre les survivants d'une même base, des liens se font et se défont chaque jour (-100 à 100) :
+#  même poste, caractères loyaux ou volontaires (+) ; faim, tête brûlée contre prudent (-).
+#  * AMITIÉ (60+) : moral meilleur. Si l'un meurt, l'autre est en DEUIL (moral -25) et peut partir.
+#  * COUPLE (85+, parfois) : moral meilleur, le journal le note.
+#  * HAINE (-60 ou moins) : une bagarre (un blessé) ; et si ça dure, l'un des deux PART AVEC UNE PARTIE DE LA RÉSERVE.
+#    Départs et vols seulement quand le propriétaire est en ligne (règle 2) ; sinon, ça couve.
+#  Tout passe par le journal de la base (/communaute) et la Chronique. /liens : qui s'entend avec qui.
+#  Variables : {za::soc::<a>::<b>} (a < b), {za::soc::couple::<id>}
+
+function za_soc_cle(a: number, b: number) :: text:
+    if {_a} < {_b}:
+        return "%{_a}%::%{_b}%"
+    return "%{_b}%::%{_a}%"
+
+function za_soc_lien(a: number, b: number) :: number:
+    return {za::soc::%za_soc_cle({_a}, {_b})%} ? 0
+
+function za_soc_ajouter(a: number, b: number, n: number):
+    set {_k} to za_soc_cle({_a}, {_b})
+    set {za::soc::%{_k}%} to max(-100, min(100, ({za::soc::%{_k}%} ? 0) + {_n}))
+
+function za_soc_journal(u: text, txt: text):
+    add "J%{za::serveur::jours} ? 0% — %{_txt}%" to {za::bv::journal::%{_u}%::*}
+    while size of {za::bv::journal::%{_u}%::*} > 30:
+        set {_ks::*} to indices of {za::bv::journal::%{_u}%::*}
+        delete {za::bv::journal::%{_u}%::%{_ks::1}%}
+    za_surv_avis({_u}, "&8[Base] &7%{_txt}%")
+
+# survivants présents à la base d'un joueur
+function za_soc_membres(u: text) :: numbers:
+    loop {za::surv::liste::*}:
+        if {za::surv::%loop-value%::base} is {_u}:
+            if {za::surv::%loop-value%::etat} is "base":
+                add loop-value to {_r::*}
+    return {_r::*}
+
+every 1 minute:
+    if {za::soc::jour} is ({za::serveur::jours} ? 0):
+        stop
+    set {za::soc::jour} to {za::serveur::jours} ? 0
+    loop {za::base::liste::*}:
+        za_soc_jour(loop-value)
+
+function za_soc_jour(u: text):
+    set {_m::*} to za_soc_membres({_u})
+    if size of {_m::*} < 2:
+        stop
+    set {_en_ligne} to false
+    if za_surv_joueur({_u}) is set:
+        set {_en_ligne} to true
+    set {_n} to 0
+    loop {_m::*}:
+        set {_a} to loop-value-1
+        loop {_m::*}:
+            set {_b} to loop-value-2
+            if {_a} < {_b}:
+                if {_n} < 12:
+                    add 1 to {_n}
+                    za_soc_paire({_u}, {_a}, {_b}, {_en_ligne})
+
+function za_soc_paire(u: text, a: number, b: number, en_ligne: boolean):
+    set {_d} to random integer between -4 and 6
+    if {za::surv::%{_a}%::role} is {za::surv::%{_b}%::role}:
+        add 5 to {_d}
+    set {_ta} to {za::surv::%{_a}%::st::trait} ? ""
+    set {_tb} to {za::surv::%{_b}%::st::trait} ? ""
+    if {_ta} is "loyal" or "volontaire":
+        add 1 to {_d}
+    if {_tb} is "loyal" or "volontaire":
+        add 1 to {_d}
+    set {_paire} to "%{_ta}%/%{_tb}%"
+    if {_paire} is "tete_brulee/prudent" or "prudent/tete_brulee":
+        remove 6 from {_d}
+    if ({za::surv::%{_a}%::faim} ? 100) < 30:
+        remove 5 from {_d}
+    if ({za::surv::%{_b}%::faim} ? 100) < 30:
+        remove 5 from {_d}
+    set {_av} to za_soc_lien({_a}, {_b})
+    za_soc_ajouter({_a}, {_b}, {_d})
+    set {_ap} to za_soc_lien({_a}, {_b})
+    set {_na} to {za::surv::%{_a}%::nom}
+    set {_nb} to {za::surv::%{_b}%::nom}
+    # amitié
+    if {_ap} >= 60:
+        za_surv_moral_ajouter({_a}, 2)
+        za_surv_moral_ajouter({_b}, 2)
+        if {_av} < 60:
+            za_soc_journal({_u}, "%{_na}% et %{_nb}% sont devenus inséparables. Ils montent la garde ensemble.")
+    # couple
+    if {_ap} >= 85:
+        if {za::soc::couple::%{_a}%} is not set:
+            if {za::soc::couple::%{_b}%} is not set:
+                if chance of 25%:
+                    set {za::soc::couple::%{_a}%} to {_b}
+                    set {za::soc::couple::%{_b}%} to {_a}
+                    za_surv_moral_ajouter({_a}, 10)
+                    za_surv_moral_ajouter({_b}, 10)
+                    za_soc_journal({_u}, "%{_na}% et %{_nb}% dorment maintenant sous la même couverture. Personne n'a fait de commentaire. Tout le monde a souri.")
+    # haine
+    if {_ap} <= -60:
+        if {_av} > -60:
+            za_soc_journal({_u}, "%{_na}% et %{_nb}% ne se parlent plus. L'ambiance est lourde au repas.")
+            za_surv_moral_ajouter({_a}, -5)
+            za_surv_moral_ajouter({_b}, -5)
+        else if chance of 30%:
+            set {_bl} to {_a}
+            if chance of 50%:
+                set {_bl} to {_b}
+            set {za::surv::%{_bl}%::blesse} to true
+            za_soc_journal({_u}, "%{_na}% et %{_nb}% se sont battus. %{za::surv::%{_bl}%::nom}% a l'arcade ouverte.")
+        else if {_en_ligne} is true:
+            if {_ap} <= -80:
+                set {_qui} to {_a}
+                if chance of 50%:
+                    set {_qui} to {_b}
+                za_soc_partir_vol({_u}, {_qui})
+
+# il part, et il se sert dans la Réserve
+function za_soc_partir_vol(u: text, id: number):
+    set {_nom} to {za::surv::%{_id}%::nom}
+    set {_b} to za_surv_reserve({_u})
+    set {_n} to 0
+    if {_b} is set:
+        loop items in inventory of {_b}:
+            if {_n} < 3:
+                if chance of 50%:
+                    add loop-item to {_pris::*}
+                    add 1 to {_n}
+        loop {_pris::*}:
+            remove loop-value from inventory of {_b}
+    za_soc_journal({_u}, "%{_nom}% est parti dans la nuit, après une dernière dispute. Il manque des choses dans la Réserve (%{_n}% piles).")
+    za_mot_evt("vol", {za::base::%{_u}%}, 2, "pnj:%{_id}%", "%{_nom}% a quitté la base en emportant des vivres")
+    za_surv_partir({_id}, "moral")
+
+# le deuil (appelée par za_surv_clore, p43, avant que la fiche soit effacée)
+function za_soc_deuil(id: number, motif: text):
+    if {_motif} is "parti":
+        stop
+    set {_u} to {za::surv::%{_id}%::base}
+    if {_u} is not set:
+        stop
+    set {_nom} to {za::surv::%{_id}%::nom}
+    loop za_soc_membres({_u}):
+        if loop-value is not {_id}:
+            set {_l} to za_soc_lien({_id}, loop-value)
+            if any:
+                {_l} >= 60
+                {za::soc::couple::%{_id}%} is loop-value
+            then:
+                za_surv_moral_ajouter(loop-value, -25)
+                za_soc_journal({_u}, "%{za::surv::%loop-value%::nom}% ne mange plus depuis la mort de %{_nom}%. Il parle de partir.")
+    set {_c} to {za::soc::couple::%{_id}%}
+    if {_c} is set:
+        delete {za::soc::couple::%{_c}%}
+    delete {za::soc::couple::%{_id}%}
+
+command /liens:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        set {_m::*} to za_soc_membres({_u})
+        if size of {_m::*} < 2:
+            send "&7Il faut au moins deux survivants à la base." to player
+            stop
+        send "&6&l━━ ENTRE EUX ━━" to player
+        loop {_m::*}:
+            loop {_m::*}:
+                if loop-value-1 < loop-value-2:
+                    set {_l} to za_soc_lien(loop-value-1, loop-value-2)
+                    set {_t} to "&7indifférents"
+                    if {_l} >= 60:
+                        set {_t} to "&ainséparables"
+                    else if {_l} >= 25:
+                        set {_t} to "&2s'entendent bien"
+                    else if {_l} <= -60:
+                        set {_t} to "&cse détestent"
+                    else if {_l} <= -25:
+                        set {_t} to "&6se supportent mal"
+                    if {za::soc::couple::%loop-value-1%} is loop-value-2:
+                        set {_t} to "&densemble"
+                    send "&f%{za::surv::%loop-value-1%::nom}% &8& &f%{za::surv::%loop-value-2%::nom}% &8: %{_t}%" to player
