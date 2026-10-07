@@ -8,17 +8,32 @@ options:
     plafond_zombies: 70
 
 # ---------- plafond de zombies autour de chaque joueur ----------
+# entités qu'aucun plafond ne doit supprimer (audit C8) : boss, Némésis, gardes, PNJ, entités de mission ou de scénario
+function za_zombie_protege(e: entity) :: boolean:
+    set {_t::*} to scoreboard tags of {_e}
+    loop "za_overlord", "za_overlord_final", "za_cerveau_libre", "za_allie", "za_garde", "za_norda", "za_veteran", "za_rb_boucher", "za_rb_matriarche", "za_rb_gardien", "za_rb_brule", "za_mission", "za_nemesis", "za_chien_dominant":
+        if {_t::*} contains loop-value:
+            return true
+    set {_n} to lowercase (uncolored name of {_e} ? "")
+    loop "overlord", "némésis", "nemesis", "caporal", "alpha", "matriarche", "boucher", "gardien", "brûlé", "vega", "patient zéro":
+        if {_n} contains loop-value:
+            return true
+    return false
+
 every 15 seconds:
-    loop all players:
-        if za_pro(loop-player) is false:
-            set {_zs::*} to all zombies in radius 64 around loop-player
+    loop za_monde_joueurs():
+        if za_pro(loop-value) is false:
+            set {_zs::*} to all zombies in radius 64 around loop-value
             set {_n} to size of {_zs::*}
             if {_n} > {@plafond_zombies}:
                 set {_excess} to {_n} - {@plafond_zombies}
-                loop all zombies in radius 64 around loop-player:
+                # les plus éloignés du joueur d'abord, jamais une entité protégée
+                loop all zombies in radius 64 around loop-value:
                     if {_excess} > 0:
-                        delete loop-zombie
-                        remove 1 from {_excess}
+                        if za_zombie_protege(loop-zombie) is false:
+                            if distance between loop-zombie and loop-value > 24:
+                                delete loop-zombie
+                                remove 1 from {_excess}
 
 # ---------- nettoyage des objets inutiles (ne touche PAS aux jetons ni aux objets utiles) ----------
 every 10 minutes:

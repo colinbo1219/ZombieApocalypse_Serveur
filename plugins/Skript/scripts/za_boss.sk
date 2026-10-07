@@ -7,8 +7,38 @@
 options:
     intervalle: 90 minutes
 
+# au chargement : on ne remet pas l'état à zéro à l'aveugle, on le confronte aux entités présentes (audit C7)
 on load:
-    set {za::boss::vivant} to false
+    wait 30 seconds
+    set {_n} to false
+    set {_f} to false
+    loop all zombies:
+        if scoreboard tags of loop-zombie contain "za_overlord_final":
+            set {_f} to true
+        else if scoreboard tags of loop-zombie contain "za_overlord":
+            set {_n} to true
+    if {za::boss::vivant} is true:
+        if {_n} is false:
+            set {za::boss::vivant} to false
+    if {za::boss::final_vivant} is true:
+        if {_f} is false:
+            delete {za::boss::final_vivant}
+
+# reconnaît l'Overlord qui vient d'apparaître et lui donne une identité (tag + UUID) : la finale ne dépend plus d'un nom
+function za_overlord_marquer(l: location, finale: boolean):
+    wait 3 ticks
+    loop all zombies in radius 10 around {_l}:
+        if {_ok} is not set:
+            if uncolored name of loop-zombie contains "Overlord":
+                if scoreboard tags of loop-zombie do not contain "za_overlord":
+                    add "za_overlord" to scoreboard tags of loop-zombie
+                    add "za_cerveau_libre" to scoreboard tags of loop-zombie
+                    if {_finale} is true:
+                        add "za_overlord_final" to scoreboard tags of loop-zombie
+                        set {za::boss::final_uuid} to "%uuid of loop-zombie%"
+                    else:
+                        set {za::boss::uuid} to "%uuid of loop-zombie%"
+                    set {_ok} to true
 
 function za_boss_spawn():
     if {za::boss::vivant} is true:
@@ -23,6 +53,8 @@ function za_boss_spawn():
     set {_y} to (y-coordinate of (location of {_b})) + 1
     execute console command "mm mobs spawn ZA_Overlord 1 %world of {_l}%,%floor(x-coordinate of {_l})%,%{_y}%,%floor(z-coordinate of {_l})%"
     set {za::boss::vivant} to true
+    set {_ml} to location(x-coordinate of {_l}, {_y}, z-coordinate of {_l}, world of {_l})
+    za_overlord_marquer({_ml}, false)
     za_diffuser("&4&lL'UNDEAD OVERLORD S'EST EVEILLE ! &7Il rode pres de %{_p}%...")
 
 every {@intervalle}:
