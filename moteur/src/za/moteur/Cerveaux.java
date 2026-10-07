@@ -105,7 +105,8 @@ public final class Cerveaux {
         if (ml.getWorld() != pl.getWorld()) return false;
         double d = ml.distance(pl);
         if (d < 2.5) return true;                       // au contact, on sent tout
-        if (p.getScoreboardTags().contains("za_fumee")) return false;   // fumigène (104) : plus rien ne se voit ni ne se sent
+        if (p.getScoreboardTags().contains("za_fumee")) return false;
+        if (p.getScoreboardTags().contains("za_odeur_morte") && d > 6) return false;   // infecté au stade 3 (39) : il sent comme eux   // fumigène (104) : plus rien ne se voit ni ne se sent
         boolean aveugle = c.traits.contains("aveugle");
         if (!aveugle && d <= porteeVue(p)) {
             Vector regard = ml.getDirection().normalize();

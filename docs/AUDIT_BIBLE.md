@@ -47,8 +47,8 @@ Fusionnés : 17, 21, 37, 40, 51.
 
 | N° | Remarque |
 |---|---|
-| 24 Démembrement | jambes → rampant, bras → ne casse plus les portes ; faisable côté serveur, les modèles sont 📦 |
-| 39 Mutation visible | 📦 (effets d'écran, peau) ; côté serveur : chuchotements, chiens qui jappent, PNJ qui ont peur |
+| 24 Démembrement | 🟡 côté serveur fait (p124) ; modèles 📦 |
+| 39 Mutation visible | 🟡 côté serveur fait (p124) ; effets d'écran et peau 📦 |
 | 58 Shaders et sons | 🔍 modpack |
 | 59 Discord, 60 BlueMap, 61 Whitelist | 🔍 hors du serveur Skript |
 | 64 Mods d'optimisation | 🔍 modpack |

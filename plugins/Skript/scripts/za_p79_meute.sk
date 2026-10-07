@@ -35,6 +35,9 @@ function za_meute_force(z: entity) :: number:
     return 1
 
 function za_meute_porte(z: entity, p: player):
+    # sans bras, il ne casse plus les portes (za_p124)
+    if za_surv_a_tag({_z}, "za_sansbras") is true:
+        stop
     loop blocks in radius 1.8 around {_z}:
         set {_r} to za_meute_resistance(loop-block)
         if {_r} >= 0:
