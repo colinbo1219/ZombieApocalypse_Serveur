@@ -46,9 +46,11 @@ on load:
     add "iron bars|Silencieux Ursus|&8|Reduit fortement le bruit des tirs (donc les zombies attires)|15|1|25|tacz:attachment{AttachmentId:""tacz:muzzle_silencer_ursus""}" to {za::offre::trafiquant::*}
     add "compass|Lunette ELCAN 4x|&b|Viseur grossissant|20|1|80|tacz:attachment{AttachmentId:""tacz:scope_elcan_4x""}" to {za::offre::trafiquant::*}
     add "hopper|Chargeur etendu|&b|Plus de coups dans le chargeur|12|1|25|tacz:attachment{AttachmentId:""tacz:extended_mag_1""}" to {za::offre::trafiquant::*}
+    # 28 offres au plus par marchand (coffre de 5 rangées)
     # faux remèdes (za_p113) : identiques aux vrais, moins chers, sans effet
     add "honey bottle|Serum|&d|Guerit l'infection a tout stade (prix d'ami)|16|1|0|faux" to {za::offre::trafiquant::*}
     add "honey bottle|Antibiotique|&b|Soigne plaie, grippe et fievre|4|1|0|faux" to {za::offre::trafiquant::*}
+    add "paper|Certificat de sante|&f|Passe le controle sanitaire des camps (si le chien ne grogne pas)|12|1|0" to {za::offre::trafiquant::*}
     add "lead|Menottes|&7|Capture un recherche au lieu de le tuer (prison)|8|1|25" to {za::offre::trafiquant::*}
     add "tnt|Explosif artisanal|&c|Fait du bruit... beaucoup|9|1|80" to {za::offre::trafiquant::*}
     add "iron ingot|Plaque de blindage|&7|Pour l'equipement|3|4|0" to {za::offre::trafiquant::*}

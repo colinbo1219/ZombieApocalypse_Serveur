@@ -1136,10 +1136,15 @@ function za_cmp_jour_camp(id: number):
 
 function za_cmp_chef_menu(p: player, id: number):
     set {_u} to {_p}'s uuid
+    # quarantaine à l'entrée (za_p117)
+    if za_cpol_refuse({_p}, {_id}) is true:
+        stop
     set {za::camp::ctx::%{_u}%} to {_id}
     set {_nom} to {za::camp::%{_id}%::nom}
     set {_chef} to {za::camp::%{_id}%::chef}
     set {_o::*} to "État du camp|etat", "Donner|donner", "Défendre le camp|defendre", "Recruter quelqu'un|recruter", "Commercer|commerce", "Partir|quit"
+    if {za::cpol::%{_id}%::conflit} is set:
+        set {_o::*} to "Arbitrer une dispute|arbitrer", "État du camp|etat", "Donner|donner", "Défendre le camp|defendre", "Recruter quelqu'un|recruter", "Commercer|commerce" and "Partir|quit"
     set {_c} to za_cmp_conf({_u}, {_id})
     set {_txt} to "%{_chef}%. Bienvenue au %{_nom}%. %za_cmp_phrase({_id})% (Confiance du camp : %floor({_c})% %%)"
     if {za::camp::%{_id}%::attaque} is set:
@@ -1202,6 +1207,13 @@ function za_cmp_noeud(p: player, n: text):
         stop
     if distance between {_p} and {_l} > 40:
         send "&8&o(Tu es trop loin du camp.)" to {_p}
+        stop
+    # disputes (za_p117)
+    if {_n} is "arbitrer":
+        za_cpol_menu({_p}, {_id})
+        stop
+    if {_n} starts with "arb_":
+        za_cpol_arbitrer({_p}, {_id}, {_n})
         stop
     if {_n} is "etat":
         send "&6&l=== %{_nom}% ===" to {_p}
