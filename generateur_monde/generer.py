@@ -132,6 +132,8 @@ ZOMBIES = {
     'quartier': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Runner,ZA_Crawler',
     'poste_electrique': 'ZA_Ouvrier_Brule,ZA_Ouvrier_Infecte',
     'heliport': 'ZA_Soldat_Infecte,ZA_Soldat_Infecte,ZA_Armored',
+    'grue': 'ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte',
+    'chantier': 'ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte,ZA_Brute,ZA_Crawler',
     'parc_vehicules': 'ZA_Soldat_Infecte,ZA_Armored,ZA_Brute',
     'armurerie': 'ZA_Soldat_Infecte,ZA_Armored,ZA_Armored',
     'champ_tir': 'ZA_Soldat_Infecte,ZA_Runner',

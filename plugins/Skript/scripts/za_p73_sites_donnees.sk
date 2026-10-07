@@ -57,58 +57,59 @@ function za_sites_donnees() :: texts:
     add "gare_brigitte_gare0|gare|Gare de Sainte-Brigitte|2350|71|1884|35|8|ZA_Citoyen_Infecte,ZA_Runner,ZA_Ouvrier_Infecte" to {_r::*}
     add "laurentia_t00_eglise0|eglise|Église de Le Golf|-2104|68|3261|10|15|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
     add "laurentia_t01_ecole0|ecole|École primaire de Le Faubourg|-2135|68|3670|15|12|ZA_Child,ZA_Child,ZA_Citoyen_Infecte" to {_r::*}
-    add "laurentia_t01_parc1|parc|Parc Molson|-1923|68|3565|34|28|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
+    add "laurentia_t01_parc1|parc|Parc Laval|-1923|68|3565|34|28|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
     add "laurentia_t02_ecole0|ecole|École primaire de Petite-Rivière|-2018|68|3896|15|12|ZA_Child,ZA_Child,ZA_Citoyen_Infecte" to {_r::*}
     add "laurentia_t02_parc1|parc|Piscine municipale|-2069|68|3918|16|12|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
-    add "laurentia_t10_tour0|tour|Tour Montcalm|-1781|68|3258|11|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
-    add "laurentia_t10_tour1|tour|Tour Étoile|-1761|68|3258|11|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
-    add "laurentia_t10_tour2|tour|Tour Frontenac|-1741|68|3258|12|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
-    add "laurentia_t10_tour3|tour|Centre Laval|-1721|68|3258|11|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
-    add "laurentia_t10_tour4|tour|Tour Cartier|-1781|68|3299|11|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
-    add "laurentia_t10_tour5|tour|Tour Assurances Nord|-1761|68|3299|12|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
-    add "laurentia_t10_tour6|tour|Tour du Groupe Boréal|-1739|68|3299|12|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
-    add "laurentia_t10_tour7|tour|Le Boréal|-1717|68|3299|12|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
-    add "laurentia_t10_tour8|tour|Tour Laurentide|-1717|68|3423|12|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
-    add "laurentia_t10_tour9|tour|Tour du Lac|-1696|68|3423|11|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_t10_grue0|grue|Grue de chantier|-1753|68|3265|30|6|ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte" to {_r::*}
+    add "laurentia_t10_chantier1|chantier|Chantier de construction|-1774|68|3265|45|30|ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte,ZA_Brute,ZA_Crawler" to {_r::*}
+    add "laurentia_t10_tour2|tour|Tour Assurances Nord|-1718|68|3423|11|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_t10_tour3|tour|Tour Montcalm|-1697|68|3423|11|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_t10_tour4|tour|Maison de la radio|-1717|68|3463|12|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_t10_tour5|tour|Centre Laval|-1695|68|3463|12|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_t10_tour6|tour|Tour Frontenac|-1781|68|3422|11|11|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_t10_tour7|tour|Tour du Groupe Boréal|-1759|68|3422|12|11|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_t10_tour8|tour|Tour du Lac|-1780|68|3465|12|11|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_t10_tour9|tour|Tour Laurentide|-1758|68|3465|11|11|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_t10_tour10|tour|Tour Étoile|-1783|68|3442|11|11|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
     add "laurentia_t11_metro0|metro|Station de métro 1|-1839|68|3600|22|9|ZA_Crawler,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Stalker" to {_r::*}
     add "laurentia_t11_metro1|metro|Station de métro 2|-1766|68|3600|22|9|ZA_Crawler,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Stalker" to {_r::*}
-    add "laurentia_t11_place2|place|Place d'Youville|-1839|68|3635|32|29|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
-    add "laurentia_t11_banque3|banque|Caisse populaire de Laurentia|-1857|68|3683|12|11|ZA_Citoyen_Infecte,ZA_Policier_Infecte" to {_r::*}
-    add "laurentia_t11_autoroute4|autoroute|Autoroute 20 (voie surélevée)|-1800|68|3600|360|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Crawler,ZA_FakeDead" to {_r::*}
+    add "laurentia_t11_banque2|banque|Caisse populaire de Laurentia|-1857|68|3617|12|11|ZA_Citoyen_Infecte,ZA_Policier_Infecte" to {_r::*}
+    add "laurentia_t11_place3|place|Place Champlain|-1768|68|3635|26|29|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
+    add "laurentia_t11_place4|place|Place du Marché|-1771|68|3562|23|31|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
+    add "laurentia_t11_depanneur5|depanneur|Rôtisserie du Coin|-1715|68|3681|9|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "laurentia_t11_depanneur6|depanneur|Casse-croûte Chez Ti-Jean|-1708|68|3698|9|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "laurentia_t11_autoroute7|autoroute|Autoroute 20 (voie surélevée)|-1800|68|3600|360|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Crawler,ZA_FakeDead" to {_r::*}
     add "laurentia_t12_eglise0|eglise|Église de Petite-Rivière|-1917|68|3899|10|15|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
-    add "laurentia_t12_grand_magasin1|grand_magasin|Supermarché|-1890|68|3758|24|17|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Child" to {_r::*}
-    add "laurentia_t12_cinema2|cinema|Cinéma Royal|-1781|68|3893|11|9|ZA_FakeDead,ZA_Shambler,ZA_Shambler,ZA_Stalker" to {_r::*}
-    add "laurentia_t12_depanneur3|depanneur|Pizzéria Laurentienne|-1764|68|3943|9|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
-    add "laurentia_t12_depanneur4|depanneur|Pizzéria Laurentienne|-1785|68|3910|9|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
-    add "laurentia_t12_depanneur5|depanneur|Casse-croûte Chez Ti-Jean|-1783|68|3802|9|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
-    add "laurentia_t12_depanneur6|depanneur|Pizzéria Laurentienne|-1785|68|3839|9|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
-    add "laurentia_t12_depanneur7|depanneur|Casse-croûte Chez Ti-Jean|-1753|68|3819|9|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "laurentia_t12_depanneur1|depanneur|Patate Chez Mado|-1853|68|3816|9|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "laurentia_t12_cinema2|cinema|Cinéma Royal|-1851|68|3866|11|9|ZA_FakeDead,ZA_Shambler,ZA_Shambler,ZA_Stalker" to {_r::*}
+    add "laurentia_t12_depanneur3|depanneur|Rôtisserie du Coin|-1833|68|3866|9|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "laurentia_t12_grand_magasin4|grand_magasin|Supermarché|-1890|68|3758|24|17|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Child" to {_r::*}
+    add "laurentia_t12_grand_magasin5|grand_magasin|Supermarché|-1768|68|3905|22|17|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Child" to {_r::*}
+    add "laurentia_t12_grand_magasin6|grand_magasin|Supermarché|-1769|68|3814|21|17|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Child" to {_r::*}
+    add "laurentia_t12_grand_magasin7|grand_magasin|Supermarché|-1721|68|3758|24|17|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Child" to {_r::*}
     add "laurentia_t12_grand_magasin8|grand_magasin|Supermarché|-1831|68|3758|20|17|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Child" to {_r::*}
-    add "laurentia_t12_depanneur9|depanneur|Restaurant Le Boréal|-1890|68|3816|9|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
-    add "laurentia_t12_depanneur10|depanneur|Rôtisserie du Coin|-1907|68|3866|9|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
-    add "laurentia_t12_depanneur11|depanneur|Pizzéria Laurentienne|-1909|68|3833|9|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
-    add "laurentia_t12_depanneur12|depanneur|Pizzéria Laurentienne|-1909|68|3848|9|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "laurentia_t12_grand_magasin9|grand_magasin|Supermarché|-1894|68|3828|20|17|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Child" to {_r::*}
     add "laurentia_t20_ecole0|ecole|École primaire de Villeray|-1500|68|3258|15|12|ZA_Child,ZA_Child,ZA_Citoyen_Infecte" to {_r::*}
-    add "laurentia_t20_tour1|tour|Maison de la radio|-1676|68|3423|11|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
-    add "laurentia_t20_arena2|arena|Stade Villeray|-1610|68|3356|29|33|ZA_Citoyen_Infecte,ZA_Brute,ZA_Shambler" to {_r::*}
-    add "laurentia_t20_parc3|parc|Parc des Pionniers|-1479|68|3434|31|40|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
+    add "laurentia_t20_tour1|tour|Tour Cartier|-1676|68|3423|12|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_t20_tour2|tour|Le Boréal|-1673|68|3463|12|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_t20_arena3|arena|Stade Villeray|-1610|68|3356|29|33|ZA_Citoyen_Infecte,ZA_Brute,ZA_Shambler" to {_r::*}
+    add "laurentia_t20_parc4|parc|Parc du Souvenir|-1479|68|3353|31|33|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
     add "laurentia_t21_metro0|metro|Station de métro 3|-1625|68|3600|22|9|ZA_Crawler,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Stalker" to {_r::*}
     add "laurentia_t21_hopital_ville1|hopital_ville|Hôpital régional de Laurentia|-1625|68|3660|58|46|ZA_Patient_Infecte,ZA_Patient_Infecte,ZA_Medecin_Infecte,ZA_Spitter" to {_r::*}
     add "laurentia_t21_poste_electrique2|poste_electrique|Poste électrique|-1500|68|3667|50|58|ZA_Ouvrier_Brule,ZA_Ouvrier_Infecte" to {_r::*}
     add "laurentia_t21_hotel_ville3|hotel_ville|Hôtel de ville de Laurentia|-1648|68|3580|17|13|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
     add "laurentia_t21_place4|place|Place Laurentia|-1648|68|3525|42|41|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
     add "laurentia_t21_parking5|parking|Stationnement étagé|-1557|68|3538|34|46|ZA_Citoyen_Infecte,ZA_Crawler,ZA_FakeDead" to {_r::*}
-    add "laurentia_t21_commissariat6|commissariat|Poste de police de Laurentia|-1489|68|3582|15|11|ZA_Policier_Infecte,ZA_Policier_Infecte,ZA_Armored" to {_r::*}
-    add "laurentia_t21_caserne7|caserne|Caserne de pompiers de Laurentia|-1492|68|3493|10|9|ZA_Pompier_Infecte,ZA_Pompier_Infecte,ZA_Ouvrier_Brule" to {_r::*}
     add "laurentia_t22_ecole0|ecole|École primaire de Les Tanneries|-1566|68|3826|15|12|ZA_Child,ZA_Child,ZA_Citoyen_Infecte" to {_r::*}
     add "laurentia_t22_garage1|garage|Dépôt d'autobus|-1556|68|3754|26|17|ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte" to {_r::*}
     add "saint_remi_t00_banque0|banque|Caisse populaire de Saint-Rémi-de-la-Voie|1156|68|4081|12|11|ZA_Citoyen_Infecte,ZA_Policier_Infecte" to {_r::*}
     add "saint_remi_t01_poste_electrique0|poste_electrique|Poste électrique|1021|68|4388|52|41|ZA_Ouvrier_Brule,ZA_Ouvrier_Infecte" to {_r::*}
     add "saint_remi_t01_garage1|garage|Dépôt d'autobus|1113|68|4361|26|17|ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte" to {_r::*}
     add "saint_remi_t01_depot_carburant2|depot_carburant|Réservoirs de carburant|1000|68|4296|28|28|ZA_Ouvrier_Brule,ZA_Bloater" to {_r::*}
-    add "saint_remi_t01_gare3|gare|Gare de Saint-Rémi-de-la-Voie|1140|68|4321|32|14|ZA_Citoyen_Infecte,ZA_Runner,ZA_Ouvrier_Infecte" to {_r::*}
-    add "saint_remi_t01_entrepot4|entrepot|Entrepôt|994|68|4226|24|16|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
-    add "saint_remi_t01_entrepot5|entrepot|Entrepôt|1044|68|4226|24|16|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "saint_remi_t01_grue3|grue|Grue de chantier|1064|68|4321|30|6|ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte" to {_r::*}
+    add "saint_remi_t01_gare4|gare|Gare de Saint-Rémi-de-la-Voie|1140|68|4321|32|14|ZA_Citoyen_Infecte,ZA_Runner,ZA_Ouvrier_Infecte" to {_r::*}
+    add "saint_remi_t01_entrepot5|entrepot|Entrepôt|994|68|4226|24|16|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "saint_remi_t01_entrepot6|entrepot|Entrepôt|1044|68|4226|24|16|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
     add "saint_remi_t10_cinema0|cinema|Cinéma Royal|1237|68|4079|11|9|ZA_FakeDead,ZA_Shambler,ZA_Shambler,ZA_Stalker" to {_r::*}
     add "saint_remi_t10_depanneur1|depanneur|Casse-croûte Chez Ti-Jean|1274|68|4079|9|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
     add "saint_remi_t10_depanneur2|depanneur|Casse-croûte Chez Ti-Jean|1217|68|4118|9|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
@@ -118,10 +119,12 @@ function za_sites_donnees() :: texts:
     add "saint_remi_t10_depanneur6|depanneur|Patate Chez Mado|1276|68|3992|9|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
     add "saint_remi_t11_tunnel0|tunnel|Passage sous la voie ferrée|1200|68|4257|6|24|ZA_Crawler,ZA_Stalker,ZA_FakeDead,ZA_Citoyen_Infecte" to {_r::*}
     add "saint_remi_t11_depot_carburant1|depot_carburant|Réservoirs de carburant|1303|68|4296|28|28|ZA_Ouvrier_Brule,ZA_Bloater" to {_r::*}
-    add "saint_remi_t11_depot_carburant2|depot_carburant|Réservoirs de carburant|1395|68|4296|28|28|ZA_Ouvrier_Brule,ZA_Bloater" to {_r::*}
-    add "saint_remi_t11_entrepot3|entrepot|Entrepôt|1234|68|4286|24|20|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
-    add "saint_remi_t11_entrepot4|entrepot|Entrepôt|1319|68|4226|24|16|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
-    add "saint_remi_t11_entrepot5|entrepot|Entrepôt|1389|68|4226|24|16|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "saint_remi_t11_grue2|grue|Grue de chantier|1336|68|4321|30|6|ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte" to {_r::*}
+    add "saint_remi_t11_depot_carburant3|depot_carburant|Réservoirs de carburant|1395|68|4296|28|28|ZA_Ouvrier_Brule,ZA_Bloater" to {_r::*}
+    add "saint_remi_t11_grue4|grue|Grue de chantier|1416|68|4321|30|6|ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte" to {_r::*}
+    add "saint_remi_t11_entrepot5|entrepot|Entrepôt|1234|68|4286|24|20|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "saint_remi_t11_entrepot6|entrepot|Entrepôt|1319|68|4226|24|16|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "saint_remi_t11_entrepot7|entrepot|Entrepôt|1389|68|4226|24|16|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
     add "sainte_agathe_t00_parc0|parc|Parc régional|-461|70|2830|54|64|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
     add "sainte_agathe_t00_ecole1|ecole|École primaire de Les Pins|-554|70|2916|15|12|ZA_Child,ZA_Child,ZA_Citoyen_Infecte" to {_r::*}
     add "sainte_agathe_t00_parc2|parc|Piscine municipale|-606|70|2933|16|12|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
@@ -141,9 +144,6 @@ function za_sites_donnees() :: texts:
     add "fort_lafleche_t10_hangar3|hangar|Hangar militaire|3485|69|2889|15|19|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
     add "fort_lafleche_t10_parc_vehicules4|parc_vehicules|Parc de véhicules blindés|3457|69|3035|46|50|ZA_Soldat_Infecte,ZA_Armored,ZA_Brute" to {_r::*}
     add "fort_lafleche_t11_grand_magasin0|grand_magasin|Supermarché|3476|69|3299|22|17|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Child" to {_r::*}
-    add "fort_lafleche_t11_banque1|banque|Caisse populaire de Fort-Laflèche|3420|69|3117|12|11|ZA_Citoyen_Infecte,ZA_Policier_Infecte" to {_r::*}
-    add "fort_lafleche_t11_grand_magasin2|grand_magasin|Supermarché|3429|69|3237|19|17|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Child" to {_r::*}
-    add "fort_lafleche_t11_place3|place|Place Champlain|3432|69|3185|26|22|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
     add "mont_levis_t00_labo_civil0|labo_civil|Pavillon de virologie|-3085|68|3006|17|13|ZA_Medecin_Infecte,ZA_Spitter,ZA_Patient_Infecte" to {_r::*}
     add "mont_levis_t00_universite1|universite|Pavillon Casault|-3090|68|3083|14|10|ZA_Citoyen_Infecte,ZA_Runner,ZA_Shambler" to {_r::*}
     add "mont_levis_t00_universite2|universite|Pavillon Pouliot|-3065|68|3083|14|10|ZA_Citoyen_Infecte,ZA_Runner,ZA_Shambler" to {_r::*}
@@ -156,9 +156,8 @@ function za_sites_donnees() :: texts:
     add "mont_levis_t00_universite9|universite|Pavillon Vachon|-3090|68|2926|11|14|ZA_Citoyen_Infecte,ZA_Runner,ZA_Shambler" to {_r::*}
     add "mont_levis_t00_universite10|universite|Pavillon Jean-Brillant|-3018|68|2903|11|16|ZA_Citoyen_Infecte,ZA_Runner,ZA_Shambler" to {_r::*}
     add "mont_levis_t00_universite11|universite|Pavillon Roger-Gaudry|-3018|68|2931|11|14|ZA_Citoyen_Infecte,ZA_Runner,ZA_Shambler" to {_r::*}
-    add "mont_levis_t00_depanneur12|depanneur|Patate Chez Mado|-3185|68|3028|9|9|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "mont_levis_t00_grand_magasin12|grand_magasin|Supermarché|-3206|68|3012|24|15|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Child" to {_r::*}
     add "mont_levis_t00_universite13|universite|Pavillon Casault|-3136|68|3004|16|11|ZA_Citoyen_Infecte,ZA_Runner,ZA_Shambler" to {_r::*}
-    add "mont_levis_t00_universite14|universite|Pavillon Pouliot|-3136|68|3032|16|11|ZA_Citoyen_Infecte,ZA_Runner,ZA_Shambler" to {_r::*}
     add "mont_levis_t01_parc0|parc|Parc de la Source|-3182|68|3283|52|48|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
     add "mont_levis_t01_parc1|parc|Parc régional|-3066|68|3283|59|48|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
     add "mont_levis_t01_parc2|parc|Parc des Prés|-3178|68|3198|56|27|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
@@ -201,13 +200,13 @@ function za_sites_donnees() :: texts:
     add "saint_jacques_t01_port2|port|Capitainerie du Vieux-Port|1827|65|1418|10|8|ZA_Noye,ZA_Ouvrier_Infecte,ZA_Citoyen_Infecte" to {_r::*}
     add "saint_jacques_t01_entrepot3|entrepot|Entrepôt|1829|65|1453|14|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
     add "saint_jacques_t01_entrepot4|entrepot|Entrepôt|1854|65|1453|12|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
-    add "saint_jacques_t01_entrepot5|entrepot|Entrepôt|1876|65|1453|12|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "saint_jacques_t01_entrepot5|entrepot|Entrepôt|1877|65|1453|12|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
     add "saint_jacques_t01_entrepot6|entrepot|Entrepôt|1818|65|1369|12|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
-    add "saint_jacques_t01_entrepot7|entrepot|Entrepôt|1841|65|1369|12|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
-    add "saint_jacques_t01_entrepot8|entrepot|Entrepôt|1863|65|1369|12|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
-    add "saint_jacques_t01_entrepot9|entrepot|Entrepôt|1818|65|1391|12|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
-    add "saint_jacques_t01_entrepot10|entrepot|Entrepôt|1843|65|1391|14|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
-    add "saint_jacques_t01_entrepot11|entrepot|Entrepôt|1868|65|1391|12|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "saint_jacques_t01_entrepot7|entrepot|Entrepôt|1840|65|1369|12|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "saint_jacques_t01_entrepot8|entrepot|Entrepôt|1862|65|1369|12|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "saint_jacques_t01_entrepot9|entrepot|Entrepôt|1820|65|1391|14|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "saint_jacques_t01_entrepot10|entrepot|Entrepôt|1847|65|1391|14|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "saint_jacques_t01_entrepot11|entrepot|Entrepôt|1873|65|1391|14|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
     add "saint_jacques_t01_port12|port|Le Vieux-Port|1849|65|1380|94|51|ZA_Noye,ZA_Ouvrier_Infecte,ZA_Citoyen_Infecte" to {_r::*}
     add "saint_jacques_t10_riviere0|riviere|Les quais de la rivière Blanche|1900|65|1297|240|49|ZA_Noye,ZA_Noye,ZA_Citoyen_Infecte" to {_r::*}
     add "saint_jacques_t10_pont1|pont|Le grand pont|1900|65|1297|8|42|ZA_Citoyen_Infecte,ZA_Runner,ZA_Shambler" to {_r::*}
@@ -216,11 +215,11 @@ function za_sites_donnees() :: texts:
     add "saint_jacques_t11_ecole0|ecole|École primaire de Les Érables|2094|65|1422|15|12|ZA_Child,ZA_Child,ZA_Citoyen_Infecte" to {_r::*}
     add "saint_jacques_t11_parc1|parc|Piscine municipale|1932|65|1454|16|12|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
     add "saint_jacques_t11_entrepot2|entrepot|Entrepôt|1920|65|1369|12|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
-    add "saint_jacques_t11_entrepot3|entrepot|Entrepôt|1942|65|1369|12|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
-    add "saint_jacques_t11_entrepot4|entrepot|Entrepôt|1966|65|1369|14|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
-    add "saint_jacques_t11_entrepot5|entrepot|Entrepôt|1920|65|1391|12|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
-    add "saint_jacques_t11_entrepot6|entrepot|Entrepôt|1944|65|1391|14|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
-    add "saint_jacques_t11_entrepot7|entrepot|Entrepôt|1969|65|1391|14|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "saint_jacques_t11_entrepot3|entrepot|Entrepôt|1944|65|1369|14|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "saint_jacques_t11_entrepot4|entrepot|Entrepôt|1967|65|1369|12|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "saint_jacques_t11_entrepot5|entrepot|Entrepôt|1922|65|1391|14|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "saint_jacques_t11_entrepot6|entrepot|Entrepôt|1945|65|1391|12|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "saint_jacques_t11_entrepot7|entrepot|Entrepôt|1970|65|1391|14|10|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
     add "route_exode0|exode|L'exode — bouchon de l'autoroute 40|-1124|79|274|110|25|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Child,ZA_Runner,ZA_Crawler" to {_r::*}
     add "route_carambolage1|carambolage|Carambolage de l'autoroute 40|948|72|356|40|40|ZA_Citoyen_Infecte,ZA_Crawler,ZA_Runner,ZA_Shambler" to {_r::*}
     add "route_carambolage2|carambolage|Carambolage de l'autoroute 40|-101|67|300|40|40|ZA_Citoyen_Infecte,ZA_Crawler,ZA_Runner,ZA_Shambler" to {_r::*}

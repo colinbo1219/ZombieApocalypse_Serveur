@@ -185,6 +185,10 @@ function za_site_ambiance(t: text) :: text:
         return "URGENCE. Les lits sont alignés jusque dans le stationnement. Le sous-sol, personne n'y descend."
     if {_t} is "parking":
         return "Quatre étages de voitures. Des alarmes, parfois, quand quelque chose bouge entre elles."
+    if {_t} is "grue":
+        return "Une grue au-dessus du chantier. Elle grince au moindre coup de vent. Ne reste pas dessous."
+    if {_t} is "chantier":
+        return "Le chantier s'est arrêté au Jour 8. Les échafaudages tiennent encore. Pour l'instant."
     if {_t} is "heliport":
         return "Les pales ne tournent plus. Une manche à air orange claque dans le vent, pour personne."
     if {_t} is "parc_vehicules":
@@ -243,6 +247,8 @@ every 5 seconds:
                         za_souvenir_ajouter({_u}, "site:%{_k}%", "decouverte", "Découvert : %{_nom}%.")
                     else:
                         send action bar "&7%{_nom}%" to {_p}
+                    # panneau d'entrée : ce que tu sais de ce lieu (za_p129)
+                    za_panneau_entree({_p}, {_k})
 
 # ---------------------------------------------------------------- installation (une fois, sur le nouveau monde)
 

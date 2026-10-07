@@ -32,20 +32,23 @@ Ajoutés après l'audit : 45 offensives (p121), 62 classement et 65 annonce de r
 98 informateur et filature, 101 opérations NORDA, 112 témoins (p123).
 Fusionnés : 17, 21, 37, 40, 51.
 
-**En partie (🟡)**
+**Terminés côté serveur après la seconde passe (p129 et générateur)** : 7 panneau d'entrée (fiche datée, brouillard
+d'information) ; 26 viande saignante comme appât ; 32 grue qui tombe (+ remise debout par l'admin, qui sert de
+« retour en arrière » pour cette catastrophe) ; 34 scènes posées dans les maisons des villes (dernier souper, porte
+barricadée, valises, horloges arrêtées à 4 h 12 le Jour 8, traînée de sang, ruban de quarantaine) ; 35 tableaux
+d'affichage Supplementaries (avis de recherche, prix du Jour 7, évacuation), drapeaux de faction, cendres des
+quartiers brûlés ; S-2 fiabilité : balles déviées et enrayage selon l'état du tireur (ZAMoteur).
+
+**Ce qui reste en partie (🟡)**
 
 | N° | Ce qui existe | Ce qui manque |
 |---|---|---|
-| 7 Fiche d'état de chaque lieu | `/ville` avec le brouillard d'information (p122) | panneau dynamique à l'entrée |
 | 14 Événements sans annonce | largage, survivant poursuivi, alarme, chien, patrouille (Directeur) | à vérifier en jeu |
-| 26 Trace de sang | piste d'odeur du moteur, sang = piste forte | taches visibles au sol 📦, viande crue comme appât |
-| 32 Catastrophes | incendies (p98), barrage (p119), tempêtes (p55), effondrements et dépôt de carburant (p125) ; les villes générées ont maintenant des grues | chute de grue en jeu, « photo » avant dégâts pour les retours en arrière |
-| 34 Habillage du monde | notes, graffitis, embuscades ; villes générées : bouchons figés, pont effondré, travée d'autoroute tombée, quarantaines, zones de guerre | petites scènes dans les maisons (dernier souper, horloges arrêtées) |
-| 35 Mods déco | lampadaires Macaw's | tableaux d'affichage Supplementaries (avis de recherche, prix), drapeaux de faction 🔍 |
-| 24 Démembrement | côté serveur (p124) | modèles 📦 |
-| 39 Mutation visible | côté serveur (p124) | effets d'écran et peau 📦 |
-| 54 Sang, impacts, cadavres | corps de joueurs (p13), particules | décalques de sang 📦 |
-| 56, 57 Pack de ressources, musique | voix, sons | interface, écran titre, musique en couches 📦 |
+| 26 Trace de sang | piste d'odeur du moteur, appât de viande | taches visibles au sol 📦 |
+| 32 Catastrophes | incendie, barrage, tempête, effondrement, dépôt de carburant, grue | « photo » générale avant dégâts (seule la grue se remet debout) |
+| 34 Habillage | scènes dans les maisons des villes générées | les mêmes scènes dans les villages (demanderait de régénérer toute la carte) |
+| 24, 39, 54, 56, 57 | partie serveur faite | modèles, peaux, décalques, interface, musique 📦 |
+| S-2 munitions | | munitions subsoniques et artisanales (ce que TaCZ permet de lire 🔍) |
 
 **Manquants (❌)**
 
@@ -58,7 +61,4 @@ Fusionnés : 17, 21, 37, 40, 51.
 
 ## Reste faisable ici, côté serveur
 
-7 (panneau d'état à l'entrée des lieux), 14 (vérifier en jeu), 26 (viande crue comme appât), 32 (chute de grue),
-34 (scènes posées dans les maisons), 35 (tableaux d'affichage Supplementaries, si le bloc est lisible par le générateur),
-S-2 (fiabilité des armes selon l'état du tireur ; munitions selon ce que TaCZ expose).
-Le reste dépend du mod client 📦 ou de l'hébergeur 🔍.
+Rien d'important : vérifier 14 en jeu. Tout le reste dépend du mod client 📦 ou de l'hébergeur 🔍.

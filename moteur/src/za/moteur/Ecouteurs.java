@@ -5,7 +5,9 @@ import org.bukkit.entity.Animals;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Monster;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
+import org.bukkit.util.Vector;
 import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -190,6 +192,8 @@ public final class Ecouteurs implements Listener {
         }
         if (!t.contains("BULLET") || !survie(e)) return;
         Entity tireur = e instanceof Projectile && ((Projectile) e).getShooter() instanceof Entity ? (Entity) ((Projectile) e).getShooter() : null;
+        // S-2 : fiabilité selon l'état du tireur (tags posés par za_p129 : blessé, épuisé, affamé, stressé...)
+        if (tireur instanceof Player && fiabilite((Player) tireur, e, ev)) return;
         UUID u = tireur == null ? new UUID(0, 0) : tireur.getUniqueId();
         long now = System.currentTimeMillis();
         Long d = dernierTir.get(u);
@@ -206,6 +210,29 @@ public final class Ecouteurs implements Listener {
             Region r = z.monde.graphe.region(l.getX(), l.getZ());
             if (r != null) r.habitudes.merge("armes_feu", 0.5, Double::sum);
         }
+    }
+
+    private final java.util.Random alea = new java.util.Random();
+
+    /** Main qui tremble : la balle part de travers (dispersion selon l'état) ; à bout de forces, l'arme s'enraye
+     *  parfois (la balle ne sort pas). Renvoie vrai si le tir est annulé. */
+    private boolean fiabilite(Player p, Entity balle, EntitySpawnEvent ev) {
+        java.util.Set<String> tags = p.getScoreboardTags();
+        double dispersion = tags.contains("za_tremble2") ? 0.09 : tags.contains("za_tremble") ? 0.04 : 0;
+        if (dispersion == 0) return false;
+        if (tags.contains("za_tremble2") && alea.nextDouble() < 0.07) {
+            ev.setCancelled(true);
+            p.playSound(p.getLocation(), Sound.BLOCK_DISPENSER_FAIL, 1f, 1.6f);
+            p.sendMessage("§c✖ Enrayé ! §7Tes mains tremblent trop.");
+            return true;
+        }
+        Vector v = balle.getVelocity();
+        double n = v.length();
+        if (n < 1e-6) return false;
+        Vector d = v.clone().normalize().add(new Vector(alea.nextGaussian(), alea.nextGaussian(), alea.nextGaussian())
+                .multiply(dispersion)).normalize().multiply(n);
+        balle.setVelocity(d);
+        return false;
     }
 
     /** canons de Create Big Cannons (43) : un énorme bruit (300 blocs), et NORDA s'intéresse au tireur le plus proche */

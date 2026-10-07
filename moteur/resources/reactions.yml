@@ -371,6 +371,15 @@ reactions:
       - skript zaevt set blocus::carburant 1
       - horde attirer
       - attentionZ +30
+  # une grue s'effondre (p129) : le fracas s'entend de loin, la rue est coupée
+  - nom: grue_fracas
+    si: grue_effondree
+    proba: 100
+    delai: 0
+    alors:
+      - attentionZ +20
+      - panique +5
+      - horde attirer
   # offensives entre factions (p121)
   - nom: offensive_tension
     si: offensive_declaree

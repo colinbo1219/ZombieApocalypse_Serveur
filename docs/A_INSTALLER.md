@@ -444,6 +444,7 @@ Chronique, les rumeurs et la mémoire du monde.
 | `za_p125_catastrophes2` | une explosion dans un quartier ou un village peut faire s'effondrer un pan de bâtiment (≤ 150 blocs, jamais à moins de 80 blocs d'une base) ; le dépôt de carburant de l'aéroport explose en chaîne (une fois par saison). ⚠️ Les blocs détruits par `fill ... destroy` ne sont pas journalisés par CoreProtect |
 | `za_p126_liens` | branchements : `/convoi escorter\|attaquer` quand un convoi de faction passe (embuscades, récompense ou vendetta, épave, pénurie à destination) ; faction sans territoire → exode et vautours ; hôpital tombé → pénurie de médicaments (et retour) |
 | `za_p127_societe_base` | liens entre survivants d'une base (amitié, couple, haine, bagarre, départ avec une partie de la Réserve, deuil) ; `/liens` |
+| `za_p129_finitions` | panneau d'entrée des quartiers et villages (ce que tu en sais, daté) ; viande saignante (accroupi + clic droit avec de la viande crue : appât) ; grues qui tombent (explosion proche, orage violent ; `/zagrue liste`, `tomber <id>`, `reparer <id>`) ; mains qui tremblent (blessé, épuisé, affamé… : tirs déviés, enrayage, géré par ZAMoteur, **nouveau jar**) |
 | `za_p116_campagne` | chapitres du serveur calculés à partir du monde, décisions par joueur et poids du monde sur le vote de fin, dans `/campagne` (S-7) |
 
 **Règles de serveur à annoncer** : l'arrestation (p115) ne touche que les joueurs qui ont une prime (`/prime`). Les
@@ -498,7 +499,7 @@ python3 generateur_monde/generer.py --forcer --regions=-10,6/-10,7/-9,6/-9,7/-8,
 l'autoroute traverse tout le sud (rangées rz 6 et 7) et la route 117, des fermes et la rivière passent dans plusieurs de
 ces régions : **vérifier qu'aucune base n'y est**. Ensuite, en jeu : `/zasites installer`, puis un par un :
 `sk reload za_p128_villes_donnees`, `sk reload za_p128_villes`, `sk reload za_p97_quartiers`,
-`sk reload za_p73_sites_donnees`, `sk reload za_p73_sites`. Le moteur relit `graphe.yml` au prochain redémarrage.
+`sk reload za_p73_sites_donnees`, `sk reload za_p73_sites`, `sk reload za_p129_finitions`. Le moteur relit `graphe.yml` au prochain redémarrage.
 Admin : `/zavilles` (état des quartiers et des lumières ; `allumer` / `eteindre` pour tester).
 
 **Testé** : les six villes se construisent sans erreur ; régions générées en test et relues (vue du dessus, vues

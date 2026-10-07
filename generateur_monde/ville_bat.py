@@ -401,7 +401,25 @@ def place(ch, B, nom):
             RU.banc(ch.R0, cx + k, cz + 8, 'north')
             RU.banc(ch.R0, cx + k, cz - 8, 'south')
     ch.panneau(cx, 64, cz + 5, ['PLACE', nom[:15], _nv(ch)[:15], ''], rotation=0)
+    tableau_affichage(ch, cx - 2, cz - 12)
     ch.lieu(ch.rep(x1, z1, 'south'), x2 - x1, z2 - z1, 'place', 'Place ' + nom)
+
+
+AVIS = [['AVIS DE', 'RECHERCHE', 'Martin Pelletier', '9 ans'], ['ÉVACUATION', 'Autobus au', 'stade, 7 h', 'Ordre no 7'],
+        ['PRIX — JOUR 7', 'Pain 4 $', 'Eau 6 $', 'Essence 3 $/L'], ['PERDU : CHIEN', 'Caramel', 'Récompense', ''],
+        ['QUARANTAINE', 'Ne touchez pas', 'les morts.', 'Santé Québec'], ['ON EST AU', 'STADE. VENEZ.', 'Famille', 'Tremblay'],
+        ['DON DE SANG', 'Annulé', '', ''], ['COUVRE-FEU', '20 h', 'Restez chez', 'vous.']]
+
+
+def tableau_affichage(ch, x, z):
+    """Tableau d'affichage (Supplementaries) avec ses avis épinglés : recherche, prix du dernier jour, évacuation."""
+    m, rng = ch.m, ch.rng
+    for k in range(3):
+        m.set(x + k, 64, z, S('spruce_log', axis='y'))
+        m.set(x + k, 65, z, S('supplementaries:notice_board', facing='south', has_book='false'))
+        m.set(x + k, 66, z, S('spruce_slab', type='bottom'))
+    for k, avis in enumerate(rng.sample(AVIS, 3)):
+        ch.panneau(x + k, 64, z + 1, avis, mur='south')
 
 
 def parc(ch, B, nom):
@@ -535,6 +553,8 @@ def grue(ch, x, z, h=46, bras=28):
     m.fill(x - 10, 63 + h, z - 1, x - 6, 66 + h, z + 1, S('gray_concrete'))
     m.fill(x + bras - 4, 50 + h, z, x + bras - 4, 66 + h, z, S('chain', axis='y', waterlogged=False))
     m.fill(x + bras - 6, 47 + h, z - 1, x + bras - 2, 49 + h, z + 1, S('orange_concrete'))
+    # centre du lieu = le mât (za_p129 sait la faire tomber : h=46, bras=28)
+    ch.lieux.append(('grue', 'Grue de chantier', x, z, bras + 2, 6))
 
 
 def conteneurs(ch, B, n):

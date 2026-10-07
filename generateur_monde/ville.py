@@ -971,6 +971,7 @@ def metro(ch, pv, quartiers):
 def maison_riche(ch, R, L, P):
     BA.maison(ch, R, L, P, etages=2, mur=ch.rng.choice(['white_terracotta', 'stone_bricks', 'light_gray_concrete', 'bricks']),
               toit='dark_oak')
+    scene_maison(ch, R, L, P)
     # piscine creusée dans la cour arrière, haie
     R.fill(2, 62, -9, L - 3, 63, -4, S('white_concrete'))
     R.fill(3, 63, -8, L - 4, 63, -5, S('water', level=0))
@@ -991,6 +992,7 @@ def duplex(ch, R, L, P):
     R.fill(L - 3, 68, P, L - 1, 68, P + 1, S('spruce_planks'))
     R.fill(L - 3, 69, P + 1, L - 1, 69, P + 1, S('iron_bars'))
     ZM.porte(R, L - 2, 68, P - 1, 'north', 'spruce')
+    scene_maison(ch, R, L, P)
 
 
 def petite_maison(ch, R, L, P):
@@ -1518,6 +1520,7 @@ def maison_vieille(ch, R, L, P):
               toit=rng.choice(['dark_oak', 'spruce', 'deepslate_tile', 'mangrove']))
     # lucarnes et cheminée
     R.fill(1, 72, P // 2, 1, 75, P // 2, S('bricks'))
+    scene_maison(ch, R, L, P)
 
 
 def capitainerie(ch, R, L, P):
@@ -1598,10 +1601,127 @@ def paves(ch, pv):
         sub[masque & (k == i)] = nid
 
 
+# ============================================================================ scènes posées (bible 34) : ce que les gens ont laissé
+HEURE_ARRET = '4 h 12'      # toutes les horloges de la région se sont arrêtées au même moment (Jour 8)
+
+
+def scene_maison(ch, R, L, P):
+    """Une petite scène dans une maison sur trois : le dernier souper, la porte barricadée de l'intérieur, les valises
+    prêtes, l'horloge arrêtée, la quarantaine sur la porte. Hasard à part : la ville ne change pas d'un bloc ailleurs."""
+    if L < 7 or P < 7:
+        return
+    rng = ch.__dict__.setdefault('rng_scenes', random.Random(ch.site['graine'] + 34))
+    m = ch.m
+    sort = getattr(ch, 'sort_courant', 'abandon')
+
+    def libre(a, y, b):
+        x, z = R.xz(a, b)
+        return m.dedans(x, y, z) and m.est_air(x, y, z)
+
+    def poser(a, y, b, st):
+        if libre(a, y, b):
+            R.set(a, y, b, st)
+            return True
+        return False
+    r = rng.random()
+    if r > 0.38:
+        return
+    pa = L // 2
+    choix = rng.choice(['souper', 'barricade', 'valises', 'horloge', 'horloge', 'sang'] +
+                       (['quarantaine', 'quarantaine'] if sort == 'quarantaine' else []) +
+                       (['valises', 'valises'] if sort == 'evacuee' else []))
+    if choix == 'souper':
+        # le dernier souper : le gâteau entamé, les bocaux, les chaises repoussées
+        R.set(pa, 65, P // 2, S('cake', bites=rng.randint(1, 5)))
+        poser(2, 65, 1, S('supplementaries:jar'))
+        poser(3, 65, 1, S('candle', candles=2, lit=False, waterlogged=False))
+    elif choix == 'barricade':
+        # ils se sont enfermés : planches derrière la porte, un mot pour ceux qui viendraient
+        for a in (pa - 1, pa, pa + 1):
+            for y in (64, 65):
+                poser(a, y, P - 2, S('oak_planks'))
+        x, z = R.xz(pa, P)
+        ch.panneau(x, 66, z, ['NE PAS', 'OUVRIR', 'On est', 'là-dedans.'], mur=R.d('south'))
+        if libre(1, 64, 2):
+            ch.coffre(R, 1, 64, 2, 'south', SI.LOOT_MAISON)
+    elif choix == 'valises':
+        # partis à la hâte : sacs et valises près de la porte, jamais pris
+        for a, b in ((pa - 2, P - 2), (pa + 2, P - 2), (pa - 2, P - 3)):
+            poser(a, 64, b, S('supplementaries:sack', open='false'))
+        poser(pa + 2, 64, P - 3, R.S('barrel', facing='up', open=True))
+    elif choix == 'horloge':
+        # l'horloge de la cuisine, arrêtée à la même minute que toutes les autres
+        R.set(0, 66, P // 2, R.S('supplementaries:clock_block', facing='east', two_faced='false'))
+        if libre(1, 67, P // 2):
+            x, z = R.xz(1, P // 2)
+            ch.panneau(x, 67, z, ['Arrêtée à', HEURE_ARRET, 'Jour 8', ''], mur=R.d('east'))
+    elif choix == 'sang':
+        # une traînée de sang de la porte au lit ; un mot griffonné
+        b0 = P - 2
+        for k in range(rng.randint(3, 6)):
+            poser(pa + rng.choice((-1, 0, 0, 1)), 64, b0 - k, S('redstone_wire', east='none', west='none',
+                                                                     north='side', south='side', power=0))
+        if libre(1, 66, 1):
+            x, z = R.xz(1, 1)
+            ch.panneau(x, 66, z, ['AIDEZ-NOUS', '', 'Il a été', 'mordu.'], mur=R.d('south'))
+    elif choix == 'quarantaine':
+        # ruban jaune sur la façade, avis officiel
+        for a in range(0, L):
+            x, z = R.xz(a, P)
+            if m.dedans(x, 65, z) and m.est_air(x, 65, z):
+                m.set(x, 65, z, S('yellow_stained_glass_pane'))
+        x, z = R.xz(pa + 2, P)
+        ch.panneau(x, 66, z, ['QUARANTAINE', 'Ne pas entrer', 'Santé Québec', 'Jour 6'], mur=R.d('south'))
+
+
+def chantier(ch, B):
+    """Chantier : une tour en construction (ossature de béton, échafaudages), sa grue, sa clôture de chantier."""
+    m, rng = ch.m, ch.rng
+    x1, z1, x2, z2 = B
+    m.fill(x1 + 2, 63, z1 + 2, x2 - 2, 63, z2 - 2, S('coarse_dirt'))
+    L, P = min(26, x2 - x1 - 24), min(24, z2 - z1 - 10)
+    ox, oz = x1 + 4, z1 + 4
+    et = rng.randint(6, 10)
+    for e in range(et + 1):
+        y = 63 + 4 * e
+        if e < et:
+            m.fill(ox, y, oz, ox + L - 1, y, oz + P - 1, S('light_gray_concrete'))
+        for (a, b) in ((0, 0), (L - 1, 0), (0, P - 1), (L - 1, P - 1), (L // 2, 0), (L // 2, P - 1), (0, P // 2),
+                       (L - 1, P // 2)):
+            if e < et:
+                m.fill(ox + a, y + 1, oz + b, ox + a, y + 3, oz + b, S('gray_concrete'))
+            else:
+                m.fill(ox + a, y + 1, oz + b, ox + a, y + 1 + rng.randint(0, 3), oz + b, S('iron_bars'))
+    # échafaudages sur la façade
+    for y in range(64, 63 + 4 * et, 2):
+        for a in range(0, L):
+            if a % 3 == 0:
+                m.set(ox + a, y, oz + P, S('scaffolding', bottom=False, distance=0, waterlogged=False))
+    for k in range(4 * et):
+        m.set(ox - 1, 64 + k, oz + 2, S('ladder', facing='west', waterlogged=False))
+    VB.grue(ch, min(x2 - 8, ox + L + 8), oz + P // 2)
+    # palissade de chantier
+    for x in range(x1 + 1, x2):
+        for z in (z1 + 1, z2 - 1):
+            m.fill(x, 64, z, x, 65, z, S('white_concrete'))
+    for z in range(z1 + 1, z2):
+        for x in (x1 + 1, x2 - 1):
+            m.fill(x, 64, z, x, 65, z, S('white_concrete'))
+    m.vide((x1 + x2) // 2 - 2, 64, z2 - 1, (x1 + x2) // 2 + 2, 65, z2 - 1)
+    ch.panneau((x1 + x2) // 2 + 3, 66, z2, ['CHANTIER', 'Tour ' + _nv(ch)[:10], 'Livraison', 'printemps'], mur='south')
+    for _ in range(4):
+        x, z = rng.randint(x1 + 4, x2 - 4), rng.randint(z1 + 4, z2 - 4)
+        if m.est_air(x, 64, z):
+            m.set(x, 64, z, rng.choice([S('smooth_stone_slab', type='bottom'), S('iron_bars'), S('barrel', facing='up',
+                                                                                                  open=False)]))
+    ch.lieux.append(('chantier', 'Chantier de construction', ox + L // 2, oz + P // 2, (x2 - x1) // 2, (z2 - z1) // 2))
+
+
 # ============================================================================ recettes d'îlots (le rythme d'un quartier)
 def recettes(ch, b, q, uniques, v):
     """Choisit et pose la recette d'un îlot. b : îlot ; q : quartier ; uniques : bâtiments déjà posés dans la ville."""
     rng = ch.rng
+    ch.sort_courant = q['sort']
     if b.get('nature'):
         campagne(ch, b)
         return
@@ -1618,6 +1738,7 @@ def recettes(ch, b, q, uniques, v):
     def maisons(fn=None, larg=(9, 10, 11)):
         def poser(c, R, L, P):
             (fn or BA.maison)(c, R, L, P) if fn else BA.maison(c, R, L, P, etages=2 if rng.random() < 0.3 else 1)
+            scene_maison(c, R, L, P)
             for a in range(-1, L + 1):
                 R.set(a, 64, P + 1, S('spruce_fence', waterlogged=False))
             R.set(L // 2, 64, P + 1, AIR)
@@ -1647,6 +1768,9 @@ def recettes(ch, b, q, uniques, v):
         R = ch.rep(B[0] + 4, B[1] + 4, 'south')
         BA.commerce(ch, R, min(60, W - 8), min(40, H - 16), 'MAGASIN À RAYONS')
         ch.lieu(R, min(60, W - 8), min(40, H - 16), 'grand_magasin', 'Magasin à rayons ' + v['nom'])
+        return
+    if g in ('centre', 'affaires') and petit >= 54 and W >= 60 and unique('chantier'):
+        chantier(ch, B)
         return
     if g in ('civique', 'centre', 'affaires') and petit >= 56 and unique('parking'):
         VB.parking_etage(ch, B)
@@ -1705,7 +1829,8 @@ def recettes(ch, b, q, uniques, v):
     if g == 'logements':
         mur, toit = rng.choice([('white_terracotta', 'dark_oak'), ('light_gray_concrete', 'spruce'),
                                 ('smooth_sandstone', 'dark_oak'), ('white_concrete', 'deepslate_tile')])
-        perimetre(ch, B, 10, lambda: (9, lambda c, R, L, P: BA.maison(c, R, L, P, etages=1, mur=mur, toit=toit)))
+        perimetre(ch, B, 10, lambda: (9, lambda c, R, L, P: (BA.maison(c, R, L, P, etages=1, mur=mur, toit=toit),
+                                                              scene_maison(c, R, L, P))))
         cour_(10, 'banlieue')
         return
     # ---- ville universitaire
@@ -1970,6 +2095,12 @@ def detail_sort(ch, q):
 
     def libre(x, z, y=64):
         return m.est_air(x, y, z) and not m.est_air(x, y - 1, z)
+    if s == 'brulee':
+        # cendres au sol (Supplementaries)
+        for _ in range(n * 40):
+            x, z = rng.randint(x1, x2), rng.randint(z1, z2)
+            if libre(x, z):
+                m.set(x, 64, z, S('supplementaries:ash', layers=str(rng.randint(1, 3))))
     if s in ('brulee', 'guerre'):
         for _ in range(n * 2):
             x, z = rng.randint(x1, x2), rng.randint(z1, z2)
@@ -2031,7 +2162,10 @@ def detail_sort(ch, q):
         for _ in range(n * 3):
             x, z = rng.randint(x1, x2), rng.randint(z1, z2)
             if libre(x, z):
-                m.set(x, 64, z, S('green_banner', rotation=rng.randint(0, 15)))
+                # mât et drapeau de la faction (Supplementaries)
+                m.fill(x, 64, z, x, 67, z, S('spruce_fence', waterlogged=False))
+                if m.est_air(x + 1, 67, z):
+                    m.set(x + 1, 67, z, S('supplementaries:flag_green'))
         for _ in range(n * 2):
             x, z = rng.randint(x1, x2 - 3), rng.randint(z1, z2 - 3)
             if all(m.est_air(x + dx, 64, z + dz) and m.get(x + dx, 63, z + dz) == m.id(S('grass_block', snowy=False))
