@@ -66,6 +66,7 @@ function za_aide_categorie(p: player, cat: text):
         send "&e/arme &7niveau, état, histoire de l'arme en main | &e/arme reparer &7(Mécano ou Atelier mécanique) | &e/arme demonter" to {_p}
     else if {_cat} is "Exploration":
         send "&e/faussaire &7faux papiers, fausses pistes, leurres | &e/marchenoir <mot> &7(radio pirate) | &e/plans &7plans rares en morceaux" to {_p}
+        send "&e/fumigene &7semer ses poursuivants (Charognard, ou à fabriquer)" to {_p}
         send "&e/barrage &7le barrage de la Rivière-Blanche | &e/cassettes &7tes enregistrements" to {_p}
         send "&e/proces <joueur> &7| &e/jury coupable|innocent &7| &e/evasion &8(Menottes : capturer un recherché)" to {_p}
         send "&e/peage &7barrages et péages | &e/frigo &7frigo médical | &e/analyser &7vrai ou faux remède (labo)" to {_p}

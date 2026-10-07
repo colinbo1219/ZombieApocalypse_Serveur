@@ -18,6 +18,7 @@ on load:
     add "paper|Bandage|&f|Soigne 3 coeurs|3|1|0" to {za::offre::charognard::*}
     add "iron sword|Epee abimee|&7|Ebrechee mais tranchante|6|1|0" to {za::offre::charognard::*}
     add "stone axe|Hache de fortune|&7|Ca coupe... a peu pres|4|1|0" to {za::offre::charognard::*}
+    add "gray dye|Fumigene|&7|Clic droit : 20 secondes ou ils ne te voient plus|4|1|0" to {za::offre::charognard::*}
     add "shield|Bouclier de fortune|&7|Une porte clouee : 16 utilisations, pas plus|4|1|0|minecraft:shield{Damage:320,display:{Name:'{""text"":""Bouclier de fortune"",""color"":""gray"",""italic"":false}'}}" to {za::offre::charognard::*}
     add "honey bottle|Antidote|&a|Stoppe l'infection avant 10 min|12|1|0" to {za::offre::medecin::*}
     add "paper|Bandage|&f|Soigne 3 coeurs|3|2|0" to {za::offre::medecin::*}

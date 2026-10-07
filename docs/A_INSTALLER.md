@@ -436,6 +436,7 @@ Chronique, les rumeurs et la mémoire du monde.
 | `za_p117_camps_politique` | disputes dans les camps à arbitrer (menu du chef), élection, quarantaine à l'entrée (test qui peut se tromper, Certificat de sante du Trafiquant) |
 | `za_p118_cassettes` | dix cassettes en quatre arcs (coffres loin des bases, morts, boss) ; clic droit pour écouter, Baladeur (Collectionneur) pour rester discret ; `/cassettes` ; la bande de morse donne le 73.6 |
 | `za_p119_barrage_colonnes` | `/barrage` (colmater, réparer trois turbines = courant pour la vallée ; s'il cède, la vallée en aval est noyée) ; colonnes de réfugiés à escorter, nourrir, examiner (clic droit sur le guide) |
+| `za_p120_semer` | Fumigène (Charognard, `/fumigene fabriquer`) : 20 s où les morts ne voient ni ne sentent plus (tag `za_fumee`, lu par ZAMoteur ; cibles lâchées) |
 | `za_p116_campagne` | chapitres du serveur calculés à partir du monde, décisions par joueur et poids du monde sur le vote de fin, dans `/campagne` (S-7) |
 
 **Règles de serveur à annoncer** : l'arrestation (p115) ne touche que les joueurs qui ont une prime (`/prime`). Les
