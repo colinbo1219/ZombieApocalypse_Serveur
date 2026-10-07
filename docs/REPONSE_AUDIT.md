@@ -26,7 +26,7 @@ Rien n'a été testé en jeu : il n'y a pas de serveur de test ici. Chaque corre
 | N4 Rattachement des apparitions | Corrigé (c614f20) | Rattachement seulement pendant la commande MythicMobs en cours. |
 | N5 Bases | Corrigé (c614f20) | `basesdebut` / `basesfin`, appelés par `za_mot_base_sync`. |
 | N6 Frontière asynchrone | Corrigé (d4e1a9c) | Télémétrie synchronisée ; instantané `nuitObservee`. |
-| N7 Budget de l'IA | Corrigé (788afc1) | |
+| N7 Budget de l'IA | Corrigé (788afc1) | Chaque monstre traité une fois par passage (UUID), zones des joueurs à tour de rôle, budget partagé. |
 | N8 Événements privés | Corrigé (d4e1a9c) | Un événement `prive` ne se répand plus dans la région (vérifié au simulateur). |
 | N9 Réputation | Corrigé (8c0e358) | Plafonds par paire de joueurs et par jour. |
 | N10 Échéances des accords | Corrigé (8c0e358) | Échéances vérifiées, crédit hors ligne. |
@@ -41,7 +41,7 @@ Rien n'a été testé en jeu : il n'y a pas de serveur de test ici. Chaque corre
 | M2 Bandages | Corrigé (3296b0b) | Un seul gestionnaire. |
 | M3 Soleil | Corrigé (3296b0b) | Condition OU. |
 | M4 Météo | Corrigé (ae59e53) | `za_meteo_prendre` / `za_meteo_rendre` (`{za::meteo::proprio}`). Une catastrophe prime : pas de Blood Moon, de pluie acide ni d'événement aléatoire pendant qu'elle dure. Le drapeau Blood Moon est remis à zéro au chargement. |
-| M5 Escouades | Corrigé (3296b0b) | |
+| M5 Escouades | Corrigé (3296b0b) | Une seule appartenance : changer de squad quitte proprement l'ancien. |
 | M6 Caches | Corrigé (eb63ac7) | Les `{-…}` sont des variables mémoire : Skript ne les sauvegarde pas, le filtre CSV n'a donc pas besoin de changer. Elles grossissaient quand même pendant que le serveur tourne. Purge à la mort du zombie, plus une purge des délais expirés toutes les 10 min. |
 | M7 Menus | Corrigé (fbff9c5) | `za_menu` : table case → action (`{za::menu::slot::*}`). Clics hors du coffre (inventaire du joueur, maj-clic) ignorés. Glisser annulé dans tous les menus (», Aide, Dialogue, Marchand). |
 | M8 Types de bâtiments | Corrigé (3296b0b) | `za_bat_types()`. |
