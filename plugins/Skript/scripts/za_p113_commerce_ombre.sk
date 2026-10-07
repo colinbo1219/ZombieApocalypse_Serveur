@@ -339,11 +339,21 @@ function za_peage_fouille(p: player, i: number):
     else:
         add "Explosif artisanal" and "Grenade EMP" to {_cb::*}
     set {_n} to 0
+    set {_fac} to {za::peage::%{_i}%::fac} ? "norda"
     loop items in inventory of {_p}:
         set {_nm} to uncolored name of loop-item ? ""
         loop {_cb::*}:
             if {_nm} starts with loop-value-2:
                 add loop-item to {_saisie::*}
+        # arsenal (49) : armes de niveau 3-4 interdites aux barrages NORDA et aux péages de la Milice ;
+        # le numéro de série est fiché (une preuve... ou une fausse piste)
+        if za_arme_est_arme(loop-item) is true:
+            set {_s} to za_arme_serie_de(loop-item)
+            if {_s} is not "":
+                if ({za::arme::niv::%{_s}%} ? 0) >= 3:
+                    if {_fac} is "norda" or "milice":
+                        add loop-item to {_saisie::*}
+                        set {za::arme::fiche::%{_s}%} to {_fac}
     loop {_saisie::*}:
         add item amount of loop-value to {_n}
         remove loop-value from inventory of {_p}
