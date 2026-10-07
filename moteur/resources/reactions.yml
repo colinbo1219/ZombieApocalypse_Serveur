@@ -61,7 +61,7 @@ reactions:
     proba: 100
     delai: 15-40
     plafond: 4
-    alors: radio lea Des nouvelles de {lieu} : une horde a frappé. On ne sait pas encore combien sont restés.
+    alors: "radio lea Des nouvelles de {lieu} : une horde a frappé. On ne sait pas encore combien sont restés."
   - nom: rival_s_installe
     si: horde_attaque_lieu
     condition: moral < 30
@@ -206,7 +206,7 @@ reactions:
     proba: 100
     delai: 0
     alors:
-      - radio lea Tous les postes : {texte} est en mouvement. Je répète, une MÉGAHORDE. Barricadez tout.
+      - "radio lea Tous les postes : {texte} est en mouvement. Je répète, une MÉGAHORDE. Barricadez tout."
       - signes
   - nom: frappe_radio
     si: frappe_incendiaire
@@ -419,7 +419,7 @@ reactions:
     proba: 60
     delai: 30-120
     plafond: 1
-    alors: radio lea Attention : des faux sérums circulent. Même couleur, même étiquette. Si vous pouvez, faites-les analyser.
+    alors: "radio lea Attention : des faux sérums circulent. Même couleur, même étiquette. Si vous pouvez, faites-les analyser."
   # un survivant sauvé : le coin reprend espoir
   - nom: sauve_espoir
     si: survivant_sauve
