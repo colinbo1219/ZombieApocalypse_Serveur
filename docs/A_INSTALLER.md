@@ -413,3 +413,33 @@ python3 generateur_monde/generer.py --forcer --regions=-8,-2/-8,-1/-8,0/-8,1/-7,
 lieux rejoignent la mémoire du monde). **Testé** : les dix structures se construisent sans erreur, deux régions
 (gare de Saint-Aurèle + rails, pont détruit de la voie ferrée) générées sans erreur. **Pas testé** : le rendu en jeu, la
 forme des rails dans les virages et les pentes, l'accès aux étages (échafaudages).
+
+## 12. Systèmes de jeu de la bible v2 (scripts p105 à p115)
+
+Aucun jar à installer : ce sont des scripts Skript (`sk reload <fichier>` un par un, jamais `sk reload all`) et le
+`plugins/ZAMoteur.jar` à jour. Ils fonctionnent sans le moteur (fonctions réduites) ; avec lui, tout passe dans la
+Chronique, les rumeurs et la mémoire du monde.
+
+| Script | Ce que les joueurs font |
+|---|---|
+| `za_p105_corps` | `/etat` : corps, survie, maladies, moral en un coup d'œil (S-1) |
+| `za_p106_compagnons` | `/garde suivre\|patrouille\|replier\|solde` : soldats de la milice, moral, désertion, vétérans (IA-14) |
+| `za_p107_social` | `/promesse`, `/accord` (le serveur garde le dépôt), `/avis` (avis de recherche), surnoms, `/station` (S-4, S-5) |
+| `za_p108_terrain` | `/bestiaire`, `/faussaire` (faux papiers, fausses pistes, leurres), eau contaminée, chiens de garde |
+| `za_p109_science` | `/recherche` (échantillons, labo), `/detecteur`, `/marchenoir <mot>`, `/vendreinfo`, `/plans` |
+| `za_p110_defense_soins` | `/barricade`, barbelés, projecteurs, `/sang`, `/donsang`, `/chirurgie`, `/pommade` |
+| `za_p111_secrets` | survivant mordu qui se tait (menu : « Faire un test », « Lui donner un Sérum »), refuges trop utilisés, `/proie`, `/deserteurs` |
+| `za_p112_reconquete` | `/reprise` (reprendre une ville en six étapes), `/base abandonner` ; admin `/zarec abandonner <joueur>` |
+| `za_p113_commerce_ombre` | faux remèdes du Trafiquant, `/analyser`, `/contrefaire`, Vaccin NORDA (balise), `/frigo`, `/peage` |
+| `za_p114_aide` | aide adaptative : le monde aide le joueur qui meurt toujours de la même façon (S-10) |
+| `za_p115_justice` | Menottes (Trafiquant) : capturer un **recherché** au lieu de le tuer, `/proces`, `/jury`, `/evasion` |
+
+**Règles de serveur à annoncer** : l'arrestation (p115) ne touche que les joueurs qui ont une prime (`/prime`). Les
+péages de joueurs (p113) ne sont jamais des pièges : un garde PNJ demande, le joueur paie ou fait demi-tour.
+
+### Pas testé (à vérifier en premier)
+- `set custom model data` sur les faux remèdes (p113) : acheter un faux Sérum au Trafiquant, `/analyser` au labo doit
+  dire « faux », le boire ne doit rien faire. S'il dit « Authentique », me le dire (Skript ne pose pas la donnée).
+- La cellule de la prison (`za_jus_cellule`) : il faut que `/zasites installer` ait été fait (sinon pas d'arrestation).
+- Les menus des survivants (nouvelles options), le frigo sur un frigo moddé (Refurbished Furniture), le garde du péage.
+- `/reprise` : la horde-test ne part que la nuit, avec un joueur dans la zone, une fois par jour serveur.

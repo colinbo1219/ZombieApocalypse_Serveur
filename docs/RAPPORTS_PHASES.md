@@ -727,3 +727,21 @@ freins OK) ; vérificateur Skript (111 scripts, aucune anomalie).
 **RESTE À FAIRE (bible)** : S-1 corps du joueur (`/etat`), IA-9 mensonges lisibles des PNJ, IA-14 ordres élargis des
 compagnons, S-2 combat (dépend de TaCZ 🔍), S-4 social (promesses, contrats à dépôt), S-5 réseau radio complet, S-7
 campagne, nouveaux lieux du générateur (aéroport, centre d'achat, aréna, prison, gare...), mod `za_modeles` 2.0.
+
+### Bible v2, suite : systèmes de jeu (p105 à p115)
+
+**NOUVEAU** : `za_p105_corps` (S-1), `za_p106_compagnons` (IA-14), `za_p107_social` (S-4/S-5), `za_p108_terrain`,
+`za_p109_science` (19, 78, 91, 114), `za_p110_defense_soins` (41, 42, 72, 73), `za_p111_secrets` (67, 71, 88, 110),
+`za_p112_reconquete` (8, 69, 70), `za_p113_commerce_ombre` (94, 97, 101, 109), `za_p114_aide` (S-10),
+`za_p115_justice` (48). Moteur : infection cachée (Mensonges), refuges improvisés (Télémétrie), Déserteurs de Bravo
+(Société), réputation de proie.
+
+**MODIFIÉ** : p7 (Kit de dépistage, faux remèdes, Menottes), p8 (`/base abandonner`, reprise d'une ancienne base),
+p10 (`/aide`), p27 et za_infection (faux remèdes sans effet), p43 (menu du survivant), p85 (`/frequence 98.5` était
+refusée), p103 (routage des nouveaux `zaevt`, barrages NORDA → péages), p108 (chien qui flaire un infecté caché).
+
+**TESTS** : vérificateur Skript (122 scripts, aucune anomalie) ; compilation du moteur. **NON TESTÉ** : tout en jeu
+(A_INSTALLER §12).
+
+**RESTE À FAIRE (bible)** : S-7 campagne (état de campagne, fins multiples), 49 arsenal de faction (TaCZ 🔍), S-2
+combat, mod `za_modeles` 2.0 (drones, corbeaux).

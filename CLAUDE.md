@@ -10,7 +10,7 @@ Phase 1 = analyse seule, aucune modification.
 
 ## Pile technique
 - `arclight-5dc8683.jar` : Forge 1.20.1 + API Bukkit/Spigot dans le même serveur.
-- Skript 2.9.5 : presque toute la logique de jeu (`plugins/Skript/scripts/za_*.sk`, 111 fichiers).
+- Skript 2.9.5 : presque toute la logique de jeu (`plugins/Skript/scripts/za_*.sk`, 122 fichiers).
 - MythicMobs 5.7.2 : zombies et PNJ (`plugins/MythicMobs/Mobs|Skills|Items|RandomSpawns/`).
 - Plugin maison `plugins/ZAMonde.jar` : ville, PNJ, props, HUD, caméras (données dans `plugins/ZAMonde/`).
 - ~64 mods Forge (liste et SHA-1 dans [JARS.txt](JARS.txt), dont 16 mods décoratifs Macaw's / Handcrafted / Supplementaries / Create Deco utilisés par la ville, et des add-ons Create : voir docs/A_INSTALLER.md §6 bis ; Design Decor 0.4.0b et Create D&D 0.1b sont INCOMPATIBLES avec Create 6), configs dans `config/`, `defaultconfigs/`, `world/serverconfig/`.
@@ -31,6 +31,12 @@ Phase 1 = analyse seule, aucune modification.
   bases vivantes + cerveau des survivants (IA-15/IA-8, `za_p104_bases_vivantes.sk`, /communaute), factions + économie
   (IA-10/S-3), Ω facultatif (IA-16, désactivé, clé d'API). Admin : `/zaadmin`.
 - MythicMobs `Mobs/ZA_Norda.yml` : agents NORDA (tag `za_norda`), zombies de saison, chiens infectés.
+- Systèmes de jeu v2 : `za_p105_corps` (/etat), `za_p106_compagnons` (/garde), `za_p107_social` (/promesse, /accord,
+  /avis, /station), `za_p108_terrain`, `za_p109_science` (/recherche, /marchenoir, /plans), `za_p110_defense_soins`
+  (barricades `{za::barr::*}`, /sang), `za_p111_secrets` (infecté caché, /proie, /deserteurs), `za_p112_reconquete`
+  (/reprise `{za::reprise::*}` — pas `{za::rep::*}` qui est la réputation ; /base abandonner `{za::aband::*}`),
+  `za_p113_commerce_ombre` (faux remèdes = donnée de modèle 7, /frigo, /peage), `za_p114_aide` (aide adaptative),
+  `za_p115_justice` (prison, /proces). Liste et tests : docs/A_INSTALLER.md §12.
 
 ## Ce que le dépôt ne contient pas
 - **Les jars publics** : exclus par `.gitignore`, voir JARS.txt. Seuls `ZAMonde.jar`, `ZAPaperCompat.jar` et
@@ -67,7 +73,7 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
 
 ## Pièges connus
 - Numéros en double : `za_p7_economie` / `za_p7_progression`, `za_p38_lieux` / `za_p38_prologue`.
-- LISEZMOI.txt annonce 41 scripts : il y en a 111.
+- LISEZMOI.txt annonce 41 scripts : il y en a 122.
 - Colin utilise Java 25 en local, alors que le serveur exige Java 17 ou 21.
 
 ## Travail des phases 2 à 15 (voir docs/RAPPORTS_PHASES.md)
