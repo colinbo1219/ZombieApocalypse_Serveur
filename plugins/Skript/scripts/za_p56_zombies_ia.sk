@@ -216,6 +216,13 @@ function za_ia_zone_toxique(l: location):
 # ---------------------------------------------------------------- mort d'un zombie : Alpha, Bloater, fragment de carte, statistiques d'adaptation
 
 on death of zombie:
+    # caches par zombie : rien ne doit survivre au corps
+    set {_vu} to "%uuid of victim%"
+    delete {-ia::cri::%{_vu}%}
+    delete {-ia::disperse::%{_vu}%}
+    delete {-ia::stare::%{_vu}%}
+    delete {-ia::tp::%{_vu}%}
+    delete {-ia::repas::%{_vu}%}
     if za_pro(victim) is true:
         stop
     set {_n} to uncolored name of victim
@@ -382,6 +389,27 @@ function za_ia_manger(c: entity, k: text):
     loop all players in radius 40 around {_l}:
         if za_pro(loop-player) is false:
             send action bar "&6Un Charognard dévore un cadavre... il en ressort plus gros." to loop-player
+
+# purge des délais expirés (zombies déchargés ou disparus sans mourir)
+every 10 minutes:
+    loop indices of {-ia::cri::*}:
+        if {-ia::cri::%loop-value%} is less than now:
+            delete {-ia::cri::%loop-value%}
+    loop indices of {-ia::cri_j::*}:
+        if {-ia::cri_j::%loop-value%} is less than now:
+            delete {-ia::cri_j::%loop-value%}
+    loop indices of {-ia::disperse::*}:
+        if {-ia::disperse::%loop-value%} is less than now:
+            delete {-ia::disperse::%loop-value%}
+    loop indices of {-ia::tp::*}:
+        if {-ia::tp::%loop-value%} is less than now:
+            delete {-ia::tp::%loop-value%}
+            delete {-ia::stare::%loop-value%}
+    # les compteurs sans date repartent de zéro au-delà d'une taille raisonnable
+    if size of {-ia::stare::*} is greater than 500:
+        delete {-ia::stare::*}
+    if size of {-ia::repas::*} is greater than 500:
+        delete {-ia::repas::*}
 
 # nettoyage des appâts dont le corps a disparu
 every 60 seconds:
