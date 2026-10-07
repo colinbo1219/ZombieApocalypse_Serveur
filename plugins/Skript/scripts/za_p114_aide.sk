@@ -1,0 +1,77 @@
+# za_p114_aide.sk — aide adaptative (bible v2, S-10)
+#  Le monde repère ce qu'un joueur ne comprend pas et lui envoie quelqu'un, un indice ou un objet, une seule fois :
+#  * il meurt deux fois de soif → une vieille dame lui apprend à faire bouillir l'eau (+2 Eau purifiee) ;
+#  * il meurt deux fois infecté → un message du Dr Lefort sur l'Antidote et le Sérum (+1 Antidote) ;
+#  * il meurt deux fois la nuit, dehors → Léa lui parle des abris et de /base definir ;
+#  * une heure de jeu sans jamais toucher la radio → une radio qui grésille dans la maison d'à côté (/frequence 98.5) ;
+#  * trois heures sans base → un survivant lui conseille un toit.
+#  Rien n'est forcé : un message, puis le joueur fait ce qu'il veut. Variables : {za::aide::<uuid>::*}
+
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    set {_u} to "%victim's uuid%"
+    set {_c} to ""
+    if ({za::soif::%{_u}%} ? 100) <= 10:
+        set {_c} to "soif"
+    else if {za::infection::%{_u}%} is set:
+        set {_c} to "infection"
+    else if za_nuit_serveur() is true:
+        if attacker is a monster:
+            if {za::base::%{_u}%} is not set:
+                set {_c} to "nuit"
+            else if world of victim is not world of {za::base::%{_u}%}:
+                set {_c} to "nuit"
+            else if distance between victim and {za::base::%{_u}%} > 60:
+                set {_c} to "nuit"
+    if {_c} is "":
+        stop
+    add 1 to {za::aide::%{_u}%::morts::%{_c}%}
+    if {za::aide::%{_u}%::morts::%{_c}%} >= 2:
+        if {za::aide::%{_u}%::fait::%{_c}%} is not set:
+            set {za::aide::%{_u}%::a_faire} to {_c}
+
+on respawn:
+    if za_pro(player) is true:
+        stop
+    set {_u} to "%player's uuid%"
+    set {_c} to {za::aide::%{_u}%::a_faire}
+    if {_c} is not set:
+        stop
+    delete {za::aide::%{_u}%::a_faire}
+    wait 30 seconds
+    if player is online:
+        za_aide(player, {_c})
+
+every 5 minutes:
+    loop za_monde_joueurs():
+        if za_pro(loop-value) is false:
+            set {_u} to "%loop-value's uuid%"
+            add 5 to {za::aide::%{_u}%::min}
+            if {za::aide::%{_u}%::min} >= 60:
+                if {za::freq::ecoute::%{_u}%} is not set:
+                    za_aide(loop-value, "radio")
+            if {za::aide::%{_u}%::min} >= 180:
+                if {za::base::%{_u}%} is not set:
+                    za_aide(loop-value, "base")
+
+function za_aide(p: player, c: text):
+    set {_u} to "%{_p}'s uuid%"
+    if {za::aide::%{_u}%::fait::%{_c}%} is set:
+        stop
+    set {za::aide::%{_u}%::fait::%{_c}%} to {za::serveur::jours} ? 0
+    if {_c} is "soif":
+        send "&eUne vieille dame &8» &f« T'as bu l'eau des flaques, hein ? Comme mon neveu. Fais-la bouillir : un feu de camp, clic droit avec la bouteille. Tiens, prends ça. »" to {_p}
+        give {_p} za_item("potion of water", "Eau purifiee", "&b", 2)
+        za_tel_sms({_u}, "Inconnue", "L'eau se fait bouillir sur un feu de camp. Bouteille en main, clic droit. Bois pas n'importe quoi.")
+    else if {_c} is "infection":
+        send "&eDr Lefort &8(radio) &8» &f« Une morsure, c'est dix minutes pour l'Antidote. Après, seul un Sérum peut quelque chose. Le médecin de rue en vend. Je vous en laisse un, au cas où. »" to {_p}
+        give {_p} za_item("honey bottle", "Antidote", "&a", 1)
+    else if {_c} is "nuit":
+        send "&bLéa &8(sur ta fréquence) &8» &f« La nuit, ils sont deux fois plus. Trouve un toit, ferme la porte, éteins la lumière. Un endroit à toi, ça se déclare : /base definir. »" to {_p}
+    else if {_c} is "radio":
+        send "&8Un grésillement, dans la maison d'à côté. Une radio allumée, toute seule. Une voix de femme, très loin... &7(/frequence 98.5 : Léa. La radio dit où sont les dangers, les marchands, les autres.)" to {_p}
+        play sound "block.note_block.bit" with volume 0.6 and pitch 0.5 at {_p}
+    else if {_c} is "base":
+        za_tel_sms({_u}, "Un survivant", "Tu dors encore dehors ? Trouve quatre murs, déclare-les (/base definir). Seul dehors, on ne dure pas.")
+        send "&7Ton téléphone vibre. &8(Un survivant t'écrit : /base definir.)" to {_p}

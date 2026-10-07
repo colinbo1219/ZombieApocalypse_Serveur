@@ -179,8 +179,10 @@ command /frequence [<text>]:
             send "&7Radio coupée." to player
             stop
         if {za::freq::connue::%{_u}%::%arg-1%} is not set:
-            send "&8Rien que du souffle sur %arg-1%." to player
-            stop
+            # CKZA 98.5 (Léa) est connue de tous
+            if arg-1 is not "98.5":
+                send "&8Rien que du souffle sur %arg-1%." to player
+                stop
         set {za::freq::ecoute::%{_u}%} to arg-1
         send "&3📻 Tu écoutes le &b%arg-1% &8(%za_radio_nom(arg-1)%)&7. Les émissions arrivent toutes les 3 minutes." to player
         za_freq_emettre(player, arg-1)
