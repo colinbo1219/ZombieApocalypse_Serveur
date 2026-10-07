@@ -23,6 +23,7 @@ command /base <text>:
             if {za::base::%{_u}%} is set:
                 send "&cTu as deja une base. /base supprimer d'abord." to player
             else:
+                za_rec_reprendre(player)
                 set {za::base::%{_u}%} to location of player
                 set {za::base::taille::%{_u}%} to 0
                 set {za::base::entretien::%{_u}%} to now
@@ -35,6 +36,8 @@ command /base <text>:
             delete {za::base::taille::%{_u}%}
             delete {za::base::entretien::%{_u}%}
             send "&7Base supprimee." to player
+        else if arg-1 is "abandonner":
+            za_rec_abandonner(player)
         else if arg-1 is "info":
             if {za::base::%{_u}%} is not set:
                 send "&cAucune base. /base definir" to player
@@ -53,7 +56,7 @@ command /base <text>:
                     add 3 days to {za::base::entretien::%{_u}%}
                     send "&aBase entretenue (-%{_c}% jetons). Prochain entretien dans 3 jours." to player
         else:
-            send "&cUsage: /base <definir|supprimer|info|entretien>" to player
+            send "&cUsage: /base <definir|supprimer|abandonner|info|entretien>" to player
 
 # taille de la base = blocs poses pres du centre (torches et lanternes comptent triple : la lumiere attire)
 on place:
