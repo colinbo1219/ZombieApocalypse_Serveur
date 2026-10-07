@@ -1,0 +1,178 @@
+# za_p122_ville_classement.sk — fiche de lieu, classement, redémarrage annoncé (bible v2, points 7, 62, 65)
+#  * /ville [nom] (7) : la fiche d'un quartier ou d'un village (zones de p97), mais seulement ce que TU sais.
+#    Chaque passage dans une zone note ce que tu y as vu ; ailleurs, des « ? ». L'information vieillit :
+#    « Dernières nouvelles : il y a 3 jours ».
+#  * /classement (62) : jours survécus d'affilée (record), Némésis abattues, villes reprises, recherche apportée.
+#    Jamais de classement des joueurs tués.
+#  * Redémarrage (65) : /zaredemarrer [minutes] (admin, ou la console de l'hébergeur) : Léa annonce une « coupure de
+#    courant générale », compte à rebours, sauvegarde, puis arrêt (l'hébergeur relance le serveur).
+#  Variables : {za::ville::<uuid>::<zone>::*}, {za::stat::<clé>::<uuid>} (za_stat de p42), {za::clas::*}
+
+# ---------------------------------------------------------------- /ville (7)
+
+# ce que le joueur voit en passant (toutes les 30 s ; la zone est calculée par p112)
+every 30 seconds:
+    loop za_monde_joueurs():
+        set {_z} to {za::reprise::ici::%loop-value's uuid%} ? ""
+        if {_z} is not "":
+            za_ville_noter("%loop-value's uuid%", {_z})
+
+function za_ville_noter(u: text, z: text):
+    set {_c} to za_qz_centre({_z})
+    if {_c} is not set:
+        stop
+    set {za::ville::%{_u}%::%{_z}%::jour} to {za::serveur::jours} ? 0
+    set {za::ville::%{_u}%::%{_z}%::etat} to za_qz_etat({_z})
+    set {za::ville::%{_u}%::%{_z}%::pression} to floor({za::qz::%{_z}%::pression} ? 30)
+    set {za::ville::%{_u}%::%{_z}%::courant} to za_rep_courant({_z})
+    set {za::ville::%{_u}%::%{_z}%::reprise} to za_rep_etape({_z})
+    set {za::ville::%{_u}%::%{_z}%::fac} to za_qz_faction({_z})
+    set {_n} to 0
+    if za_nid_proche({_c}, za_qz_rayon({_z}) + 80) is not 0:
+        set {_n} to 1
+    set {za::ville::%{_u}%::%{_z}%::nid} to {_n}
+
+function za_ville_age(j: number) :: text:
+    set {_d} to ({za::serveur::jours} ? 0) - {_j}
+    if {_d} <= 0:
+        return "aujourd'hui"
+    if {_d} is 1:
+        return "hier"
+    return "il y a %{_d}% jours"
+
+command /ville [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        if arg-1 is not set:
+            send "&6&l━━ LIEUX QUE TU CONNAIS ━━" to player
+            set {_k} to 0
+            loop za_qz_liste():
+                if {za::ville::%{_u}%::%loop-value%::jour} is set:
+                    add 1 to {_k}
+                    send "&f%za_qz_nom(loop-value)% &8— %za_ville_age({za::ville::%{_u}%::%loop-value%::jour})%" to player
+            if {_k} is 0:
+                send "&7Aucun. Va voir par toi-même, ou écoute la radio." to player
+            send "&8/ville <nom> pour la fiche." to player
+            stop
+        set {_q} to lowercase arg-1
+        loop za_qz_liste():
+            if {_z} is not set:
+                set {_nm} to uncolored za_qz_nom(loop-value)
+                set {_nm} to lowercase {_nm}
+                if {_nm} contains {_q}:
+                    set {_z} to loop-value
+        if {_z} is not set:
+            send "&7Aucun lieu de ce nom. &8(/ville pour la liste de ceux que tu connais)" to player
+            stop
+        send "&6&l━━ %za_qz_nom({_z})% ━━" to player
+        if {za::ville::%{_u}%::%{_z}%::jour} is not set:
+            send "&8État : ? · Danger : ? · Courant : ? · Faction : ?" to player
+            send "&7Tu n'y es jamais allé. Tout ce que tu en sais, c'est ce qu'on raconte. &8(/infos)" to player
+            stop
+        set {_j} to {za::ville::%{_u}%::%{_z}%::jour}
+        send "&7État : %za_qz_etat_nom({za::ville::%{_u}%::%{_z}%::etat})% &8· &7pression des morts : &f%{za::ville::%{_u}%::%{_z}%::pression}%/100" to player
+        set {_cour} to "&8aucun"
+        if {za::ville::%{_u}%::%{_z}%::courant} is true:
+            set {_cour} to "&aoui"
+        set {_f} to {za::ville::%{_u}%::%{_z}%::fac} ? ""
+        set {_ft} to "&8personne"
+        if {_f} is not "":
+            set {_ft} to za_terr_fnom({_f})
+        send "&7Courant : %{_cour}% &8· &7tenu par : %{_ft}%" to player
+        if {za::ville::%{_u}%::%{_z}%::nid} is 1:
+            send "&cUn nid tout près." to player
+        if ({za::ville::%{_u}%::%{_z}%::reprise} ? 0) > 0:
+            send "&7Reprise : &f%{za::ville::%{_u}%::%{_z}%::reprise}%/6" to player
+        loop {za::reprise::%{_z}%::histoire::*}:
+            send "&8  %loop-value%" to player
+        send "&8Dernières nouvelles : %za_ville_age({_j})%. &7(Ça a pu changer depuis.)" to player
+
+# ---------------------------------------------------------------- /classement (62)
+
+# jours survécus d'affilée : le compteur repart à chaque mort
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    set {_u} to "%victim's uuid%"
+    za_clas_survie({_u})
+    set {za::clas::vie::%{_u}%} to {za::serveur::jours} ? 0
+
+on join:
+    if za_pro(player) is true:
+        stop
+    set {za::clas::nom::%player's uuid%} to "%player%"
+    if {za::clas::vie::%player's uuid%} is not set:
+        set {za::clas::vie::%player's uuid%} to {za::serveur::jours} ? 0
+
+function za_clas_survie(u: text):
+    set {_d} to ({za::serveur::jours} ? 0) - ({za::clas::vie::%{_u}%} ? ({za::serveur::jours} ? 0))
+    if {_d} > za_stat({_u}, "survie_record"):
+        set {za::stat::survie_record::%{_u}%} to {_d}
+
+function za_clas_titre(k: text) :: text:
+    if {_k} is "survie_record":
+        return "Jours survécus d'affilée"
+    if {_k} is "nemesis":
+        return "Némésis abattues"
+    if {_k} is "villes_reprises":
+        return "Villes reprises"
+    return "Recherche apportée"
+
+# les 5 premiers d'une catégorie
+function za_clas_top(p: player, k: text):
+    send "&e%za_clas_titre({_k})%" to {_p}
+    set {_deja::*} to ""
+    loop 5 times:
+        set {_best} to 0
+        delete {_bu}
+        set {_uus::*} to indices of {za::clas::nom::*}
+        loop {_uus::*}:
+            set {_u} to loop-value-2
+            if {_deja::*} does not contain {_u}:
+                if {_k} is "recherche":
+                    set {_v} to {za::sci::don::%{_u}%} ? 0
+                else:
+                    set {_v} to za_stat({_u}, {_k})
+                if {_v} > {_best}:
+                    set {_best} to {_v}
+                    set {_bu} to {_u}
+        if {_bu} is set:
+            add {_bu} to {_deja::*}
+            send "&7  %loop-value-1%. &f%{za::clas::nom::%{_bu}%}% &8— &f%floor({_best})%" to {_p}
+
+command /classement:
+    trigger:
+        za_clas_survie("%player's uuid%")
+        send "&6&l━━ CLASSEMENT ━━" to player
+        za_clas_top(player, "survie_record")
+        za_clas_top(player, "nemesis")
+        za_clas_top(player, "villes_reprises")
+        za_clas_top(player, "recherche")
+        send "&8(Pas de classement des joueurs tués. Ici, on compte ce qu'on a sauvé.)" to player
+
+# ---------------------------------------------------------------- redémarrage annoncé (65)
+
+on load:
+    delete {za::clas::redem}
+
+command /zaredemarrer [<number>]:
+    permission: za.admin
+    trigger:
+        if {za::clas::redem} is true:
+            send "&7Un redémarrage est déjà annoncé." to sender
+            stop
+        set {za::clas::redem} to true
+        set {_m} to arg-1 ? 5
+        za_radio("&bLéa", "Hydro annonce une coupure de courant générale dans %{_m}% minutes. Mettez-vous à l'abri, finissez ce que vous faites. On se retrouve après.")
+        while {_m} > 1:
+            wait 1 minute
+            remove 1 from {_m}
+            za_diffuser("&e⚡ Coupure de courant générale dans &f%{_m}% &eminute(s).")
+        wait 50 seconds
+        za_diffuser("&c⚡ Coupure dans 10 secondes. &7Léa : « À tout de suite. »")
+        execute console command "save-all"
+        wait 10 seconds
+        delete {za::clas::redem}
+        execute console command "stop"

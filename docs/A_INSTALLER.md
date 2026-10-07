@@ -438,6 +438,7 @@ Chronique, les rumeurs et la mémoire du monde.
 | `za_p119_barrage_colonnes` | `/barrage` (colmater, réparer trois turbines = courant pour la vallée ; s'il cède, la vallée en aval est noyée) ; colonnes de réfugiés à escorter, nourrir, examiner (clic droit sur le guide) |
 | `za_p120_semer` | Fumigène (Charognard, `/fumigene fabriquer`) : 20 s où les morts ne voient ni ne sentent plus (tag `za_fumee`, lu par ZAMoteur ; cibles lâchées) |
 | `za_p121_offensives` | `/offensive declarer` (réputation 50, à 60 blocs d'un territoire ennemi), ultimatum 24 h, céder ou tribut ; fenêtre seulement avec un défenseur connecté (sinon, après 30 min, les gardes défendent seuls) ; tenir le cœur 3 min ; **JcJ permis entre les deux camps** ; prisonniers de guerre avec Menottes. Admin `/zaoffensive fin\|ouvrir` |
+| `za_p122_ville_classement` | `/ville [nom]` (fiche d'un lieu, seulement ce que tu y as vu, avec son âge), `/classement` (survie, Némésis, villes reprises, recherche ; jamais les joueurs tués), `/zaredemarrer [minutes]` (Léa annonce la coupure, sauvegarde puis `stop` : l'hébergeur doit relancer le serveur) |
 | `za_p116_campagne` | chapitres du serveur calculés à partir du monde, décisions par joueur et poids du monde sur le vote de fin, dans `/campagne` (S-7) |
 
 **Règles de serveur à annoncer** : l'arrestation (p115) ne touche que les joueurs qui ont une prime (`/prime`). Les

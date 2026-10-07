@@ -410,6 +410,7 @@ function za_mot_nemesis_tue(tueur: text, victime: text, nom: text):
     if {_p} is not set:
         stop
     za_souvenir_ajouter({_tueur}, "nemesis", "victoire", "A abattu %{_nom}%.")
+    za_stat_ajouter({_tueur}, "nemesis", 1)
     za_jetons_ajouter({_p}, 25)
     if {_tueur} is {_victime}:
         send "&6&lLE REVENANT. &7Tu as abattu celui qui t'avait tué. Ton équipement est à terre, avec sa tête." to {_p}
