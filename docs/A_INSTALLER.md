@@ -434,6 +434,7 @@ Chronique, les rumeurs et la mémoire du monde.
 | `za_p114_aide` | aide adaptative : le monde aide le joueur qui meurt toujours de la même façon (S-10) |
 | `za_p115_justice` | Menottes (Trafiquant) : capturer un **recherché** au lieu de le tuer, `/proces`, `/jury`, `/evasion` |
 | `za_p117_camps_politique` | disputes dans les camps à arbitrer (menu du chef), élection, quarantaine à l'entrée (test qui peut se tromper, Certificat de sante du Trafiquant) |
+| `za_p118_cassettes` | dix cassettes en quatre arcs (coffres loin des bases, morts, boss) ; clic droit pour écouter, Baladeur (Collectionneur) pour rester discret ; `/cassettes` ; la bande de morse donne le 73.6 |
 | `za_p116_campagne` | chapitres du serveur calculés à partir du monde, décisions par joueur et poids du monde sur le vote de fin, dans `/campagne` (S-7) |
 
 **Règles de serveur à annoncer** : l'arrestation (p115) ne touche que les joueurs qui ont une prime (`/prime`). Les

@@ -136,6 +136,8 @@ command /zaregboss <text> [<text>]:
             za_journal("%za_rb_nom({_id})% est tombé à %za_rb_lieu_nom({_id})%. Par :%{_noms}%.")
             if {_l} is set:
                 za_mot_evt("boss_tue", {_l}, 4, "-", uncolored za_rb_nom({_id}))
+                # une cassette sur le corps (za_p118)
+                drop za_cass_hasard() at {_l}
             za_monde_legende("Saison %{_n}% : %za_rb_nom({_id})% est tombé à %za_rb_lieu_nom({_id})%.")
             za_diffuser("&8[Radio] &bLéa &8» &7%za_rb_nom({_id})% ne rôde plus à %za_rb_lieu_nom({_id})%. Merci à ceux qui y sont allés.")
             # les quatre lieutenants tombés

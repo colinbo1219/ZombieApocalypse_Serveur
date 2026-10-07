@@ -56,6 +56,7 @@ on load:
     add "iron ingot|Plaque de blindage|&7|Pour l'equipement|3|4|0" to {za::offre::trafiquant::*}
     add "compass|Boussole de survivant|&b|Indique le point de depart|10|1|0" to {za::offre::collectionneur::*}
     add "paper|Carte d'acces|&b|Ouvre un laboratoire scelle pendant une Blood Moon|40|1|80" to {za::offre::collectionneur::*}
+    add "clock|Baladeur|&7|Ecouter les cassettes sans bruit (dans l'autre main)|6|1|0" to {za::offre::collectionneur::*}
     add "iron ingot|Pieces de generateur|&7|Composants mecaniques|4|4|0" to {za::offre::mecano::*}
     add "blaze powder|Essence (carburant)|&e|Rare et precieuse|8|1|0" to {za::offre::mecano::*}
     add "comparator|Composant electronique|&b|Circuits recuperes|6|1|0" to {za::offre::mecano::*}
