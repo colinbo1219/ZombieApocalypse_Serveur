@@ -184,6 +184,10 @@ public final class Ecouteurs implements Listener {
     public void tirModde(EntitySpawnEvent ev) {
         Entity e = ev.getEntity();
         String t = e.getType().name();
+        if (t.startsWith("CREATEBIGCANNONS") && survie(e)) {
+            canon(e.getLocation());
+            return;
+        }
         if (!t.contains("BULLET") || !survie(e)) return;
         Entity tireur = e instanceof Projectile && ((Projectile) e).getShooter() instanceof Entity ? (Entity) ((Projectile) e).getShooter() : null;
         UUID u = tireur == null ? new UUID(0, 0) : tireur.getUniqueId();
@@ -201,6 +205,31 @@ public final class Ecouteurs implements Listener {
         synchronized (z.monde) {
             Region r = z.monde.graphe.region(l.getX(), l.getZ());
             if (r != null) r.habitudes.merge("armes_feu", 0.5, Double::sum);
+        }
+    }
+
+    /** canons de Create Big Cannons (43) : un énorme bruit (300 blocs), et NORDA s'intéresse au tireur le plus proche */
+    private long dernierCanon;
+
+    private void canon(Location l) {
+        long now = System.currentTimeMillis();
+        if (now - dernierCanon < 2000) return;
+        dernierCanon = now;
+        bruit(l, 300);
+        z.publier(new Evenement("tir_canon").a(l.getX(), l.getZ()).grav(3));
+        Player proche = null;
+        double best = 48 * 48;
+        for (Player p : l.getWorld().getPlayers()) {
+            double d = p.getLocation().distanceSquared(l);
+            if (d < best) {
+                best = d;
+                proche = p;
+            }
+        }
+        if (proche != null) {
+            synchronized (z.monde) {
+                z.norda.preuve(proche.getUniqueId().toString(), "canon", 8, l.getX(), l.getZ(), z.jour(), 0);
+            }
         }
     }
 

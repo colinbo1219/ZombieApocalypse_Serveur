@@ -314,3 +314,13 @@ reactions:
     alors:
       - nid +1
       - graffiti ILS DORMENT ICI. NOUS AUSSI ON SAIT.
+
+  # ---------------------------------------------------------------- Canons (point 43)
+  - nom: canon_entendu
+    si: tir_canon
+    proba: 60
+    delai: 5-20
+    plafond: 1
+    alors:
+      - attentionZ +15
+      - radio lea Quelqu'un a un canon. On l'a entendu jusqu'ici. Eux aussi l'ont entendu. Et NORDA, sûrement.
