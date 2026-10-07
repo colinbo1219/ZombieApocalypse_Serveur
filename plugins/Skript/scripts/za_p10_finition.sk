@@ -131,6 +131,8 @@ function za_aide_slot(p: player, s: number, mat: text, nom: text):
 on inventory click:
     if uncolored name of (player's current inventory) is "Aide":
         cancel the event
+        if event-inventory is not player's current inventory:
+            stop
         if event-item is not air:
             set {_n} to uncolored name of event-item
             close player's inventory

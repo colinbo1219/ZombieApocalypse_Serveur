@@ -211,6 +211,8 @@ function za_dial_go(p: player, npc: text, node: text):
 on inventory click:
     if uncolored name of (player's current inventory) starts with "Dialogue - ":
         cancel the event
+        if event-inventory is not player's current inventory:
+            stop
         if event-item is not air:
             set {_u} to "%player's uuid%"
             loop 4 times:

@@ -38,6 +38,7 @@ function za_stat(u: text, k: text) :: number:
 function za_menu(p: player, mod: text, titre: text, texte: text, opts: texts):
     set {_u} to "%{_p}'s uuid%"
     delete {za::menu::opt::%{_u}%::*}
+    delete {za::menu::slot::%{_u}%::*}
     set {za::menu::mod::%{_u}%} to {_mod}
     open chest inventory with 3 rows named "&8» %{_titre}%" to {_p}
     set {_it} to za_item("paper", {_titre}, "&e", 1)
@@ -61,26 +62,34 @@ function za_menu(p: player, mod: text, titre: text, texte: text, opts: texts):
                 set {_o} to za_item("book", {_lib}, "&a", 1)
                 set lore of {_o} to "&8Clique pour choisir"
                 add "%uncolored {_lib}%|%{_e::2}%" to {za::menu::opt::%{_u}%::*}
+                set {_case} to {_s} + {_i}
+                set {za::menu::slot::%{_u}%::%{_case}%} to {_e::2}
             set slot ({_s} + {_i}) of (current inventory of {_p}) to {_o}
             add 1 to {_i}
 
 on inventory click:
     if uncolored name of (player's current inventory) starts with "» ":
         cancel the event
-        if event-item is not air:
-            set {_u} to "%player's uuid%"
-            set {_nom} to uncolored name of event-item
-            loop {za::menu::opt::%{_u}%::*}:
-                set {_e::*} to split loop-value at "|"
-                if {_e::1} is {_nom}:
-                    set {_node} to {_e::2}
-                    exit loop
-            if {_node} is set:
-                set {_mod} to {za::menu::mod::%{_u}%}
-                close player's inventory
-                delete {za::menu::opt::%{_u}%::*}
-                if {_node} is not "quit":
-                    execute console command "%{_mod}% %player% %{_node}%"
+        # seule une case du menu compte (pas l'inventaire du joueur, ni maj-clic, ni touche numérique)
+        if event-inventory is not player's current inventory:
+            stop
+        set {_u} to "%player's uuid%"
+        set {_node} to {za::menu::slot::%{_u}%::%index of event-slot%}
+        if {_node} is set:
+            set {_mod} to {za::menu::mod::%{_u}%}
+            close player's inventory
+            delete {za::menu::opt::%{_u}%::*}
+            delete {za::menu::slot::%{_u}%::*}
+            if {_node} is not "quit":
+                execute console command "%{_mod}% %player% %{_node}%"
+
+# glisser des objets dans un menu ne fait rien
+on inventory drag:
+    set {_t} to uncolored name of (player's current inventory)
+    if {_t} starts with "» " or "Dialogue - " or "Marchand: ":
+        cancel the event
+    else if {_t} is "Aide":
+        cancel the event
 
 # ---------------------------------------------------------------- bâtiments spéciaux (générés par za_p35)
 #  types : hopital, police, super, station, labo2, caserne, ecole, centrale

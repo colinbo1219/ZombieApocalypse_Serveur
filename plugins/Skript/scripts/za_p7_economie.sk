@@ -435,6 +435,8 @@ function za_ouvrir_marchand(p: player, m: text):
 on inventory click:
     if uncolored name of (player's current inventory) starts with "Marchand: ":
         cancel the event
+        if event-inventory is not player's current inventory:
+            stop
         set {_mp::*} to split (uncolored name of (player's current inventory)) at ": "
         set {_m} to {_mp::2}
         if event-item is not air:

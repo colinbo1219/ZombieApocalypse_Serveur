@@ -482,6 +482,7 @@ function za_s_titre_retirer(p: player):
 function za_succes_menu(p: player):
     set {_u} to {_p}'s uuid
     delete {za::menu::opt::%{_u}%::*}
+    delete {za::menu::slot::%{_u}%::*}
     set {za::menu::mod::%{_u}%} to "zasuccesclic"
     open chest inventory with 4 rows named "&8» Titres des succès" to {_p}
     set {_i} to 0
@@ -497,6 +498,7 @@ function za_succes_menu(p: player):
                 set {_lo::3} to "&aClique pour porter ce titre"
             set lore of {_it} to {_lo::*}
             add "%{-zs::nom::%{_id}%}%|t_%{_id}%" to {za::menu::opt::%{_u}%::*}
+            set {za::menu::slot::%{_u}%::%{_i}%} to "t_%{_id}%"
         else:
             set {_it} to za_item("gray dye", "???", "&8", 1)
             set lore of {_it} to "&8Un succès secret." and "&8Ils se méritent."
@@ -506,6 +508,7 @@ function za_succes_menu(p: player):
     set lore of {_r} to "&7Ne plus porter de titre de succès."
     set slot 31 of (current inventory of {_p}) to {_r}
     add "Retirer mon titre|retirer" to {za::menu::opt::%{_u}%::*}
+    set {za::menu::slot::%{_u}%::31} to "retirer"
 
 command /zasuccesclic <player> <text>:
     executable by: console
