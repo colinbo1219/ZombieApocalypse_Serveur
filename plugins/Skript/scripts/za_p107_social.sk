@@ -45,17 +45,29 @@ command /promesse [<text>] [<text>] [<text>]:
                 send "&7Seul celui à qui la promesse a été faite peut dire qu'elle est tenue." to player
                 stop
             set {_d} to {za::prom::%{_i}%::de}
-            add {@rep_tenue} to {za::rep::%{_d}%}
+            # réputation plafonnée : une fois par jour pour une même paire, trois fois par jour au plus (audit N9)
+            set {_jr} to {za::serveur::jours} ? 0
+            set {_gain} to 0
+            if {_d} is not {_u}:
+                if ({za::prom::paire::%{_d}%::%{_u}%} ? -1) is not {_jr}:
+                    if ({za::prom::gain::%{_d}%::%{_jr}%} ? 0) < 3:
+                        set {_gain} to {@rep_tenue}
+                        set {za::prom::paire::%{_d}%::%{_u}%} to {_jr}
+                        add 1 to {za::prom::gain::%{_d}%::%{_jr}%}
+            add {_gain} to {za::rep::%{_d}%}
             za_mot_evt("promesse_tenue", location of player, 2, "%{_d}%,%{_u}%", "%{za::prom::%{_i}%::denom}% a tenu parole : %{za::prom::%{_i}%::texte}%")
             send "&aPromesse tenue, c'est noté." to player
             set {_p} to za_mot_joueur({_d})
             if {_p} is set:
-                send "&a%player% confirme : tu as tenu parole. &8(réputation +{@rep_tenue})" to {_p}
+                send "&a%player% confirme : tu as tenu parole. &8(réputation +%{_gain}%)" to {_p}
             za_prom_effacer({_i})
             stop
         # nouvelle promesse : /promesse <joueur> <jours> <texte>
         set {_cible} to arg-1 parsed as player
         set {_j} to arg-2 parsed as number
+        if "%{_cible}'s uuid%" is {_u}:
+            send "&7Une promesse se fait à quelqu'un d'autre." to player
+            stop
         if {_cible} is not set:
             send "&7/promesse <joueur> <jours> <ce que tu promets>" to player
             stop
@@ -109,6 +121,9 @@ command /accord [<text>] [<text>] [<number>] [<number>] [<text>]:
             if {_c} is not set:
                 send "&7/accord proposer <joueur> <jetons> <jours> <ce qu'il doit faire>" to player
                 stop
+            if {_c} is player:
+                send "&7Un accord se passe avec quelqu'un d'autre." to player
+                stop
             if arg-3 is not set:
                 send "&7/accord proposer <joueur> <jetons> <jours> <ce qu'il doit faire>" to player
                 stop
@@ -116,6 +131,9 @@ command /accord [<text>] [<text>] [<number>] [<number>] [<text>]:
                 send "&7Dis ce qu'il doit faire." to player
                 stop
             if arg-3 < 1:
+                stop
+            if arg-3 is not floor(arg-3):
+                send "&cUn nombre entier de jetons." to player
                 stop
             if za_jetons(player) < arg-3:
                 send "&cIl faut avoir le dépôt : %arg-3% jetons." to player
@@ -197,13 +215,8 @@ command /accord [<text>] [<text>] [<number>] [<number>] [<text>]:
         else if {_a} is "rendre":
             if {za::acc::%{_i}%::pour} is not {_u}:
                 stop
-            set {_p} to za_mot_joueur({za::acc::%{_i}%::payeur})
-            if {_p} is set:
-                za_jetons_ajouter({_p}, {za::acc::%{_i}%::montant})
-                send "&7Le dépôt de l'accord n°%{_i}% t'a été rendu." to {_p}
-                za_acc_effacer({_i})
-            else:
-                send "&7Il faut que le payeur soit connecté." to player
+            za_acc_rembourser({_i}, "Le bénéficiaire te rend le dépôt de l'accord n°%{_i}%.")
+            send "&7Dépôt rendu au payeur." to player
 
 function za_acc_avertir(u: text, m: text):
     set {_p} to za_mot_joueur({_u})
@@ -214,22 +227,54 @@ function za_acc_effacer(i: number):
     remove {_i} from {za::acc::liste::*}
     delete {za::acc::%{_i}%::*}
 
+# versement au bénéficiaire, même hors ligne (crédit par UUID) ; réputation plafonnée par paire et par jour (N9)
 function za_acc_verser(i: number):
-    set {_c} to za_mot_joueur({za::acc::%{_i}%::pour})
-    if {_c} is not set:
-        stop
-    za_jetons_ajouter({_c}, {za::acc::%{_i}%::montant})
-    add 3 to {za::rep::%{za::acc::%{_i}%::pour}%}
-    send "&aL'accord n°%{_i}% est rempli : &e+%{za::acc::%{_i}%::montant}% jetons&a." to {_c}
-    za_mot_evt("livraison", location of {_c}, 2, "%{za::acc::%{_i}%::pour}%,%{za::acc::%{_i}%::payeur}%", "Accord rempli : %{za::acc::%{_i}%::texte}%")
+    set {_b} to {za::acc::%{_i}%::pour}
+    set {_pa} to {za::acc::%{_i}%::payeur}
+    za_jetons_crediter({_b}, {za::acc::%{_i}%::montant})
+    set {_jr} to {za::serveur::jours} ? 0
+    if {_b} is not {_pa}:
+        if ({za::acc::paire::%{_b}%::%{_pa}%} ? -1) is not {_jr}:
+            set {za::acc::paire::%{_b}%::%{_pa}%} to {_jr}
+            add 3 to {za::rep::%{_b}%}
+    za_acc_avertir({_b}, "&aL'accord n°%{_i}% est rempli : &e+%{za::acc::%{_i}%::montant}% jetons&a.")
+    set {_w} to world "world"
+    set {_c} to za_mot_joueur({_b})
+    set {_l} to spawn of {_w}
+    if {_c} is set:
+        set {_l} to location of {_c}
+    za_mot_evt("livraison", {_l}, 2, "%{_b}%,%{_pa}%", "Accord rempli : %{za::acc::%{_i}%::texte}%")
     za_acc_effacer({_i})
 
+# le dépôt revient au payeur, même hors ligne
+function za_acc_rembourser(i: number, m: text):
+    za_jetons_crediter({za::acc::%{_i}%::payeur}, {za::acc::%{_i}%::montant})
+    za_acc_avertir({za::acc::%{_i}%::payeur}, "&7%{_m}% &e+%{za::acc::%{_i}%::montant}% jetons&7.")
+    za_acc_effacer({_i})
+
+# échéances (audit N10) : toute proposition, tout accord non livré ou contesté finit dans un état terminal
 every 5 minutes:
+    set {_jr} to {za::serveur::jours} ? 0
     loop {za::acc::liste::*}:
         set {_i} to loop-value
-        if {za::acc::%{_i}%::etat} is "livre":
+        set {_e} to {za::acc::%{_i}%::etat}
+        set {_fin} to {za::acc::%{_i}%::fin} ? 0
+        if {_e} is "livre":
             if (unix timestamp of now) - ({za::acc::%{_i}%::livre_ts} ? 0) > 1200:
                 za_acc_verser({_i})
+        else if {_e} is "propose":
+            if {_jr} > {_fin}:
+                za_acc_avertir({za::acc::%{_i}%::pour}, "&7La proposition d'accord n°%{_i}% a expiré.")
+                za_acc_rembourser({_i}, "Personne n'a accepté l'accord n°%{_i}% à temps : dépôt rendu.")
+        else if {_e} is "en_cours":
+            if {_jr} > {_fin}:
+                za_acc_avertir({za::acc::%{_i}%::pour}, "&cL'accord n°%{_i}% est échu sans livraison. Le dépôt retourne au payeur.")
+                za_acc_rembourser({_i}, "L'accord n°%{_i}% n'a pas été livré à temps : dépôt rendu.")
+        else if {_e} is "conteste":
+            # arbitrage borné : trois jours après l'échéance, le dépôt revient au payeur
+            if {_jr} > {_fin} + 3:
+                za_acc_avertir({za::acc::%{_i}%::pour}, "&7La contestation de l'accord n°%{_i}% n'a pas été réglée : le dépôt retourne au payeur.")
+                za_acc_rembourser({_i}, "Contestation non réglée à temps (accord n°%{_i}%) : dépôt rendu.")
 
 # ---------------------------------------------------------------- avis de recherche
 

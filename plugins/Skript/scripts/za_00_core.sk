@@ -120,6 +120,12 @@ function za_audit(txt: text, montant: number):
             if loop-player has permission "za.admin":
                 send "&c[Audit] %{_txt}%" to loop-player
 
+# créditer un joueur même hors ligne (par UUID) : dépôts rendus, accords versés (audit N10)
+function za_jetons_crediter(u: text, n: number):
+    if {_n} >= 200:
+        za_audit("GAIN %{_u}% : %{_n}% jetons", {_n})
+    add {_n} to {za::jetons::%{_u}%}
+
 function za_jetons_ajouter(p: player, n: number):
     if {_n} >= 200:
         za_audit("GAIN %{_p}% : %{_n}% jetons", {_n})

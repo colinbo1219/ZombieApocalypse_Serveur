@@ -94,6 +94,9 @@ every 5 seconds:
 function za_jus_liberer(p: player, motif: text):
     set {_u} to "%{_p}'s uuid%"
     delete {za::justice::%{_u}%::*}
+    if {za::justice::proces} is {_u}:
+        delete {za::justice::proces}
+        delete {za::justice::proces_id}
     if {_motif} is "fin":
         send "&aLa porte s'ouvre. &7Tu es libre. &8(Ne recommence pas.)" to {_p}
     else if {_motif} is "innocent":
@@ -118,9 +121,13 @@ command /proces <player>:
             stop
         set {za::justice::%{_u}%::etat} to "proces"
         set {za::justice::proces} to {_u}
-        delete {za::justice::vote::*}
+        # chaque procès a son identifiant ; les votes lui appartiennent (audit N11)
+        add 1 to {za::justice::proces_n}
+        set {_id} to {za::justice::proces_n}
+        set {za::justice::proces_id} to {_id}
+        set {za::justice::%{_u}%::proces_id} to {_id}
         za_diffuser("&6&lPROCÈS &7%arg-1% est jugé. Deux minutes pour voter : &c/jury coupable &7ou &a/jury innocent&7.")
-        za_jus_verdict({_u})
+        za_jus_verdict({_u}, {_id})
 
 command /jury <text>:
     trigger:
@@ -136,20 +143,27 @@ command /jury <text>:
         if arg-1 is not "coupable" or "innocent":
             send "&7/jury coupable · /jury innocent" to player
             stop
-        set {za::justice::vote::%player's uuid%} to arg-1
+        set {za::justice::vote::%{za::justice::proces_id}%::%player's uuid%} to arg-1
         send "&7Ton vote est noté : &f%arg-1%&7." to player
 
-function za_jus_verdict(u: text):
+function za_jus_verdict(u: text, id: number):
     wait 120 seconds
     set {_c} to 0
     set {_i} to 0
-    loop {za::justice::vote::*}:
+    loop {za::justice::vote::%{_id}%::*}:
         if loop-value is "coupable":
             add 1 to {_c}
         else:
             add 1 to {_i}
-    delete {za::justice::vote::*}
-    delete {za::justice::proces}
+    delete {za::justice::vote::%{_id}%::*}
+    if {za::justice::proces_id} is {_id}:
+        delete {za::justice::proces}
+        delete {za::justice::proces_id}
+    # le procès est-il toujours celui-là, la détention toujours la même ? (évasion, libération, nouvelle arrestation)
+    if {za::justice::%{_u}%::proces_id} is not {_id}:
+        stop
+    if {za::justice::%{_u}%::etat} is not "proces":
+        stop
     set {_p} to za_mot_joueur({_u})
     if {_c} > {_i}:
         set {za::justice::%{_u}%::etat} to "condamne"
@@ -184,6 +198,10 @@ command /evasion:
         set {za::justice::%{_u}%::essai} to unix timestamp of now
         if chance of 25%:
             delete {za::justice::%{_u}%::*}
+            # un procès en cours tombe avec l'évasion (audit N11)
+            if {za::justice::proces} is {_u}:
+                delete {za::justice::proces}
+                delete {za::justice::proces_id}
             send "&aUn barreau descellé, une gouttière, la nuit. &7Tu es dehors. Cours." to player
             add 1 to {za::prime::next}
             set {_id} to {za::prime::next}
