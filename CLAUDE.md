@@ -10,7 +10,7 @@ Phase 1 = analyse seule, aucune modification.
 
 ## Pile technique
 - `arclight-5dc8683.jar` : Forge 1.20.1 + API Bukkit/Spigot dans le même serveur.
-- Skript 2.9.5 : presque toute la logique de jeu (`plugins/Skript/scripts/za_*.sk`, 127 fichiers).
+- Skript 2.9.5 : presque toute la logique de jeu (`plugins/Skript/scripts/za_*.sk`, 128 fichiers).
 - MythicMobs 5.7.2 : zombies et PNJ (`plugins/MythicMobs/Mobs|Skills|Items|RandomSpawns/`).
 - Plugin maison `plugins/ZAMonde.jar` : ville, PNJ, props, HUD, caméras (données dans `plugins/ZAMonde/`).
 - ~64 mods Forge (liste et SHA-1 dans [JARS.txt](JARS.txt), dont 16 mods décoratifs Macaw's / Handcrafted / Supplementaries / Create Deco utilisés par la ville, et des add-ons Create : voir docs/A_INSTALLER.md §6 bis ; Design Decor 0.4.0b et Create D&D 0.1b sont INCOMPATIBLES avec Create 6), configs dans `config/`, `defaultconfigs/`, `world/serverconfig/`.
@@ -39,7 +39,8 @@ Phase 1 = analyse seule, aucune modification.
   `za_p115_justice` (prison, /proces), `za_p116_campagne` (chapitres, décisions `za_cmpg_decision`, poids du vote p80 ;
   `{za::cmpg::*}`, pas `{za::camp::*}` qui est aux camps), `za_p117_camps_politique` (disputes, quarantaine des camps),
   `za_p118_cassettes` (textes en attendant les voix de za_modeles), `za_p119_barrage_colonnes` (`{za::digue::*}`, colonnes
-  `{za::col::*}` ; `za_elec_pres` de p61 consulte le barrage), `za_p120_semer` (fumigène, tag `za_fumee`). Liste et tests : docs/A_INSTALLER.md §12.
+  `{za::col::*}` ; `za_elec_pres` de p61 consulte le barrage), `za_p120_semer` (fumigène, tag `za_fumee`),
+  `za_p121_offensives` (offensives de territoire `{za::off::*}`, JcJ permis entre les camps). Liste et tests : docs/A_INSTALLER.md §12.
 
 ## Ce que le dépôt ne contient pas
 - **Les jars publics** : exclus par `.gitignore`, voir JARS.txt. Seuls `ZAMonde.jar`, `ZAPaperCompat.jar` et
@@ -76,7 +77,7 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
 
 ## Pièges connus
 - Numéros en double : `za_p7_economie` / `za_p7_progression`, `za_p38_lieux` / `za_p38_prologue`.
-- LISEZMOI.txt annonce 41 scripts : il y en a 127.
+- LISEZMOI.txt annonce 41 scripts : il y en a 128.
 - Colin utilise Java 25 en local, alors que le serveur exige Java 17 ou 21.
 
 ## Travail des phases 2 à 15 (voir docs/RAPPORTS_PHASES.md)

@@ -40,7 +40,6 @@ Fusionnés : 17, 21, 37, 40, 51.
 | 32 Catastrophes | incendies (p98), barrage (p119), tempêtes (p55) | effondrement d'un bâtiment, dépôt de carburant qui explose en chaîne, grue |
 | 34 Habillage du monde | notes, graffitis, embuscades | scènes posées par le générateur (dernier souper, horloges arrêtées) |
 | 35 Mods déco | lampadaires Macaw's | tableaux d'affichage Supplementaries (avis de recherche, prix), drapeaux de faction 🔍 |
-| 45 Offensives de territoire | raids et reconquêtes (p45), guerres des factions PNJ (moteur) | **déclaration avec ultimatum, points de capture, fenêtre d'attaque seulement si un défenseur est connecté** |
 | 54 Sang, impacts, cadavres | corps de joueurs (p13), particules | décalques de sang 📦 |
 | 56, 57 Pack de ressources, musique | voix, sons | interface, écran titre, musique en couches 📦 |
 | 96 Antenne de base | réseau près du courant (p70) | **antenne à construire, signature pour NORDA, camouflage** |

@@ -1,5 +1,6 @@
 # za_p115_justice.sk — arrestation, prison et procès (bible v2, point 48 ; S-4)
-#  ⚠ Ne concerne que les joueurs RECHERCHÉS (une prime /prime pèse sur eux) : jamais un joueur ordinaire.
+#  ⚠ Ne concerne que les joueurs RECHERCHÉS (une prime /prime pèse sur eux), ou les ennemis d'une offensive ouverte
+#    (za_p121, prisonniers de guerre) : jamais un joueur ordinaire.
 #  * ARRESTATION : un recherché qui tomberait sous les coups d'un joueur qui tient des « Menottes » est capturé au lieu
 #    d'être tué. Le chasseur touche la prime. Le prisonnier est conduit au Bloc cellulaire A de la prison (monde généré).
 #  * PROCÈS : /proces <joueur> ouvre un vote de 2 minutes ; tout joueur en ligne peut voter /jury coupable|innocent
@@ -44,8 +45,10 @@ on damage of player:
         stop
     set {_u} to "%victim's uuid%"
     set {_id} to za_jus_prime({_u})
+    # pendant une offensive (za_p121), un ennemi peut être fait prisonnier même sans prime
     if {_id} is 0:
-        stop
+        if za_off_ennemis(attacker, victim) is false:
+            stop
     if za_jus_cellule() is not set:
         stop
     cancel event
@@ -53,9 +56,11 @@ on damage of player:
 
 function za_jus_arreter(p: player, chasseur: player, id: number):
     set {_u} to "%{_p}'s uuid%"
-    set {_m} to {za::prime::%{_id}%::montant} ? 0
-    remove {_id} from {za::prime::liste::*}
-    delete {za::prime::%{_id}%::*}
+    set {_m} to 0
+    if {_id} > 0:
+        set {_m} to {za::prime::%{_id}%::montant} ? 0
+        remove {_id} from {za::prime::liste::*}
+        delete {za::prime::%{_id}%::*}
     za_jetons_ajouter({_chasseur}, {_m})
     za_cmpg_decision("%{_chasseur}'s uuid%", "Tu as arrêté %{_p}% au lieu de le tuer.")
     set {za::justice::%{_u}%::fin} to (unix timestamp of now) + {@attente}

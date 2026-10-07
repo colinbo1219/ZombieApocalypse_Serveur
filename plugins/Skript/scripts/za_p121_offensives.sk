@@ -1,0 +1,251 @@
+# za_p121_offensives.sk — offensives de territoire (bible v2, point 45)
+#  Un joueur reconnu (réputation 50) par une faction déclare une offensive contre un territoire voisin (p45) d'une
+#  autre faction : /offensive declarer, à moins de 60 blocs du territoire. ULTIMATUM de 24 heures : les défenseurs
+#  peuvent céder (/offensive ceder) ou payer un tribut de 30 jetons (/offensive tribut) pour l'éviter.
+#  Puis la FENÊTRE d'attaque s'ouvre, mais seulement quand un défenseur est connecté (règle 2 ; si la faction n'a aucun
+#  joueur, ses gardes se défendent seuls : des vagues de tireurs). JcJ permis entre attaquants et défenseurs.
+#  OBJECTIF : tenir le cœur du territoire (10 blocs) 3 minutes sans défenseur dessus. Réussite : le territoire change de
+#  main, puis un traité (relations p67). La fenêtre dure 3 heures au plus ; sinon l'offensive échoue.
+#  Avec des Menottes, un ennemi de l'offensive est fait prisonnier au lieu d'être tué (p115).
+#  Une seule offensive à la fois. Admin : /zaoffensive fin | ouvrir
+#  Variables : {za::off::*}
+
+options:
+    ultimatum: 86400
+    fenetre: 10800
+    tenir: 180
+
+# faction d'un joueur : celle qui le reconnaît le plus (50 au moins), "" sinon
+function za_off_faction(p: player) :: text:
+    set {_best} to 49
+    set {_r} to ""
+    loop "milice", "scientifiques", "marchands", "pilleurs", "survivants" and "culte":
+        set {_v} to za_terr_repval({_p}, loop-value)
+        if {_v} > {_best}:
+            set {_best} to {_v}
+            set {_r} to loop-value
+    return {_r}
+
+function za_off_camp(p: player) :: text:
+    if {za::off::cle} is not set:
+        return ""
+    set {_f} to za_off_faction({_p})
+    if {_f} is "":
+        return ""
+    if {_f} is {za::off::att}:
+        return "att"
+    if {_f} is {za::off::def}:
+        return "def"
+    return ""
+
+# deux joueurs dans des camps opposés de l'offensive ouverte ?
+function za_off_ennemis(a: player, b: player) :: boolean:
+    if {za::off::etat} is not "ouverte":
+        return false
+    set {_ca} to za_off_camp({_a})
+    set {_cb} to za_off_camp({_b})
+    if {_ca} is "":
+        return false
+    if {_cb} is "":
+        return false
+    if {_ca} is {_cb}:
+        return false
+    return true
+
+function za_off_defenseur_en_ligne() :: boolean:
+    loop za_monde_joueurs():
+        if za_off_camp(loop-value) is "def":
+            return true
+    return false
+
+function za_off_annonce(t: text):
+    za_diffuser("&4&l⚔ OFFENSIVE &7%{_t}%")
+
+function za_off_finir(issue: text):
+    set {_cle} to {za::off::cle}
+    set {_att} to {za::off::att}
+    set {_def} to {za::off::def}
+    set {_nom} to za_terr_nom({_cle})
+    if {_issue} is "prise":
+        za_terr_change({_cle}, {_att}, 40)
+        za_off_annonce("%za_terr_fnom({_att})% &7a pris %{_nom}% à %za_terr_fnom({_def})%&7. Un traité est signé dans la soirée.")
+        za_radio("&bLéa", "%{_nom}% a changé de mains. Il y a eu des morts, des vivants cette fois. Un traité est signé ce soir. Espérons qu'il tienne.")
+        za_monde_legende("Jour %{za::serveur::jours} ? 0% : offensive sur %{_nom}%, prise par %uncolored za_terr_fnom({_att})%.")
+        za_diplo_ajouter({_att}, {_def}, 10)
+        loop za_monde_joueurs():
+            if za_off_camp(loop-value) is "att":
+                za_cmpg_decision("%loop-value's uuid%", "Tu as pris part à la prise de %{_nom}%.")
+    else if {_issue} is "cede":
+        za_terr_change({_cle}, {_att}, 30)
+        za_off_annonce("%za_terr_fnom({_def})% &7cède %{_nom}% sans combattre.")
+        za_diplo_ajouter({_att}, {_def}, 5)
+    else if {_issue} is "tribut":
+        za_off_annonce("%za_terr_fnom({_def})% &7paie le tribut. L'offensive sur %{_nom}% est levée.")
+        za_diplo_ajouter({_att}, {_def}, -5)
+    else:
+        za_off_annonce("L'offensive sur %{_nom}% a échoué. %za_terr_fnom({_def})% &7tient bon.")
+        za_radio("&bLéa", "%{_nom}% a tenu. Les attaquants se replient. Ce soir, on compte les blessés des deux côtés.")
+        za_diplo_ajouter({_att}, {_def}, -10)
+    za_mot_evt("offensive_%{_issue}%", za_terr_loc({_cle}), 4, "faction:%{_att}%,faction:%{_def}%", "Offensive sur %{_nom}%")
+    delete {za::off::*}
+
+# ---------------------------------------------------------------- /offensive
+
+command /offensive [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_a} to arg-1 ? ""
+        set {_u} to "%player's uuid%"
+        if {_a} is "declarer":
+            if {za::off::cle} is set:
+                send "&7Une offensive est déjà en cours (/offensive)." to player
+                stop
+            set {_f} to za_off_faction(player)
+            if {_f} is "":
+                send "&7Aucune faction ne te reconnaît assez (réputation 50) pour déclarer une offensive en son nom." to player
+                stop
+            set {_cles::*} to za_terr_proches(location of player, 60)
+            loop {_cles::*}:
+                if {_cle} is not set:
+                    set {_o} to za_terr_fac(loop-value)
+                    if za_terr_reelle({_o}) is true:
+                        if {_o} is not {_f}:
+                            set {_cle} to loop-value
+            if {_cle} is not set:
+                send "&7Aucun territoire d'une autre faction à moins de 60 blocs." to player
+                stop
+            set {za::off::cle} to {_cle}
+            set {za::off::att} to {_f}
+            set {za::off::def} to za_terr_fac({_cle})
+            set {za::off::par} to {_u}
+            set {za::off::etat} to "ultimatum"
+            set {za::off::ouvre} to (unix timestamp of now) + {@ultimatum}
+            za_off_annonce("%za_terr_fnom({_f})% &7déclare une offensive sur %za_terr_nom({_cle})% (%za_terr_fnom({za::off::def})%&7). Ultimatum : 24 heures.")
+            za_radio("&bLéa", "Une déclaration de guerre, en bonne et due forme. %uncolored za_terr_fnom({_f})% veut %za_terr_nom({_cle})%. Vingt-quatre heures. Après, ça tire.")
+            za_mot_evt("offensive_declaree", za_terr_loc({_cle}), 3, "faction:%{_f}%", "Ultimatum sur %za_terr_nom({_cle})%")
+            stop
+        if {za::off::cle} is not set:
+            send "&7Aucune offensive en cours. &8(/offensive declarer : réputation 50 auprès d'une faction, à moins de 60 blocs d'un territoire ennemi)" to player
+            stop
+        if {_a} is "ceder" or "tribut":
+            if za_off_camp(player) is not "def":
+                send "&7Seul un défenseur (réputation 50 auprès de %za_terr_fnom({za::off::def})%&7) peut décider ça." to player
+                stop
+            if {za::off::etat} is not "ultimatum":
+                send "&7Trop tard : l'offensive a commencé." to player
+                stop
+            if {_a} is "tribut":
+                if za_jetons(player) < 30:
+                    send "&cIl faut 30 jetons." to player
+                    stop
+                za_jetons_ajouter(player, -30)
+                set {_ch} to za_mot_joueur({za::off::par})
+                if {_ch} is set:
+                    za_jetons_ajouter({_ch}, 30)
+                za_off_finir("tribut")
+            else:
+                za_off_finir("cede")
+            stop
+        set {_nom} to za_terr_nom({za::off::cle})
+        set {_c} to za_terr_loc({za::off::cle})
+        send "&4&l━━ OFFENSIVE ━━ &7%za_terr_fnom({za::off::att})% &7contre %za_terr_fnom({za::off::def})%" to player
+        send "&7Objectif : %{_nom}% &8(X %floor(x-coordinate of {_c})% Z %floor(z-coordinate of {_c})%)" to player
+        if {za::off::etat} is "ultimatum":
+            set {_h} to ceil(({za::off::ouvre} - (unix timestamp of now)) / 3600)
+            send "&eUltimatum : encore %{_h}% h. &8(défenseurs : /offensive ceder · /offensive tribut, 30 jetons)" to player
+        else:
+            send "&cOuverte. &7Tenir le cœur du territoire : %{za::off::prog} ? 0%/{@tenir} s. &8(JcJ permis entre les deux camps)" to player
+        set {_camp} to za_off_camp(player)
+        if {_camp} is "att":
+            send "&7Tu es dans le camp des attaquants." to player
+        else if {_camp} is "def":
+            send "&7Tu es dans le camp des défenseurs." to player
+
+command /zaoffensive <text>:
+    permission: za.admin
+    trigger:
+        if {za::off::cle} is not set:
+            send "&7Aucune offensive." to sender
+            stop
+        if arg-1 is "fin":
+            za_off_finir("echec")
+        else if arg-1 is "ouvrir":
+            set {za::off::ouvre} to unix timestamp of now
+            send "&7L'ultimatum est levé : la fenêtre s'ouvrira au prochain passage (défenseur connecté)." to sender
+
+# ---------------------------------------------------------------- le déroulement (toutes les 5 s)
+
+every 5 seconds:
+    if {za::off::cle} is not set:
+        stop
+    set {_now} to unix timestamp of now
+    if {za::off::etat} is "ultimatum":
+        if {_now} >= {za::off::ouvre}:
+            set {za::off::etat} to "attente"
+    if {za::off::etat} is "attente":
+        # la fenêtre ne s'ouvre que si un défenseur est là, ou si la faction n'a aucun joueur (ses gardes défendent)
+        set {_ok} to za_off_defenseur_en_ligne()
+        if {za::off::sans_joueur} is true:
+            set {_ok} to true
+        if {_ok} is false:
+            if {za::off::cherche} is not set:
+                set {za::off::cherche} to {_now}
+            # 30 minutes sans défenseur en ligne depuis la fin de l'ultimatum : leurs gardes défendront seuls
+            if {_now} - {za::off::cherche} > 1800:
+                set {za::off::sans_joueur} to true
+            stop
+        set {za::off::etat} to "ouverte"
+        set {za::off::fin} to {_now} + {@fenetre}
+        set {za::off::prog} to 0
+        za_off_annonce("La fenêtre est ouverte sur %za_terr_nom({za::off::cle})%. &cJcJ permis entre les deux camps.")
+        stop
+    if {za::off::etat} is not "ouverte":
+        stop
+    if {_now} > {za::off::fin}:
+        za_off_finir("echec")
+        stop
+    set {_c} to za_terr_loc({za::off::cle})
+    set {_na} to 0
+    set {_nd} to 0
+    loop za_monde_joueurs():
+        if world of loop-value is world of {_c}:
+            if distance between loop-value and {_c} < 10:
+                set {_cp} to za_off_camp(loop-value)
+                if {_cp} is "att":
+                    add 1 to {_na}
+                else if {_cp} is "def":
+                    add 1 to {_nd}
+    # sans joueurs défenseurs, les gardes de la faction tirent sur ceux qui tiennent le cœur
+    if {za::off::sans_joueur} is true:
+        if {_na} > 0:
+            if ({za::off::vague} ? 0) < {_now} - 60:
+                set {za::off::vague} to {_now}
+                loop 3 times:
+                    set {_t} to "ZA_Pillard"
+                    if chance of 40%:
+                        set {_t} to "ZA_Pillard_Tireur"
+                    za_spawn_at({_c}, {_t}, 10, 18)
+    if {_na} > 0:
+        if {_nd} is 0:
+            add 5 to {za::off::prog}
+            if mod({za::off::prog}, 30) is 0:
+                loop za_monde_joueurs():
+                    if za_off_camp(loop-value) is not "":
+                        send "&4[Offensive] &7Le cœur de %za_terr_nom({za::off::cle})% est tenu par les attaquants : %{za::off::prog}%/{@tenir} s." to loop-value
+            if {za::off::prog} >= {@tenir}:
+                za_off_finir("prise")
+        else:
+            if ({za::off::contest} ? 0) < {_now} - 30:
+                set {za::off::contest} to {_now}
+                loop za_monde_joueurs():
+                    if za_off_camp(loop-value) is not "":
+                        send "&4[Offensive] &7Le cœur est disputé : personne n'avance." to loop-value
+
+# au retour d'un défenseur : il apprend la guerre
+on join:
+    if za_pro(player) is true:
+        stop
+    if {za::off::cle} is set:
+        if za_off_camp(player) is "def":
+            send "&4&l⚔ &c%za_terr_fnom({za::off::att})% &cattaque %za_terr_nom({za::off::cle})%. &7/offensive" to player
