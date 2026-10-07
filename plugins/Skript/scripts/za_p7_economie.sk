@@ -97,18 +97,27 @@ command /jetons [<text>] [<number>]:
         if arg-1 is not set:
             send "&6Jetons de Survie: &e%za_jetons(player)% &7| Rang: &e%za_rang(player)% &7(score %za_score(player)%, remise %floor(za_remise(player) * 100)% pourcent)" to player
         else if arg-1 is "deposer":
-            set {_n} to za_count_named(player, "Jeton de Survie")
+            # seulement des pépites d'or au nom du jeton (audit C1)
+            set {_n} to 0
+            loop all items in inventory of player:
+                if loop-item is a gold nugget:
+                    if uncolored name of loop-item is "Jeton de Survie":
+                        add item amount of loop-item to {_n}
             if {_n} is 0:
                 send "&7Tu n'as aucun jeton en main/sur toi." to player
             else:
-                if za_take_named(player, "Jeton de Survie", {_n}) is true:
-                    za_jetons_ajouter(player, {_n})
-                    send "&6+%{_n}% jeton(s). Solde: &e%za_jetons(player)%" to player
+                remove {_n} of gold nugget named "&6Jeton de Survie" from player's inventory
+                za_jetons_ajouter(player, {_n})
+                send "&6+%{_n}% jeton(s). Solde: &e%za_jetons(player)%" to player
         else if arg-1 is "retirer":
             if arg-2 is not set:
                 send "&cUsage: /jetons retirer <nombre>" to player
             else if arg-2 <= 0:
                 send "&cNombre invalide." to player
+            else if arg-2 is not floor(arg-2):
+                send "&cUn nombre entier, s'il te plaît." to player
+            else if arg-2 > 640:
+                send "&cPas plus de 640 jetons à la fois." to player
             else if za_jetons(player) < arg-2:
                 send "&cSolde insuffisant." to player
             else:

@@ -184,21 +184,26 @@ function za_pro_vers(p: player, run: number, jour: number):
 
 function za_pro_lancer(p: player):
     set {_u} to "%{_p}'s uuid%"
+    # prérequis d'abord, AVANT de toucher à l'inventaire (audit C2)
+    if world("za_prologue") is not set:
+        # monde du prologue indisponible (plugin ZAMonde absent ?) : survie directe, l'inventaire n'est pas touché
+        if {za::pro::etat::%{_u}%} is not set:
+            set {za::pro::etat::%{_u}%} to "fini"
+            za_intro_survie({_p})
+        else:
+            send "&cLe prologue est indisponible pour l'instant (monde za_prologue absent)." to {_p}
+        stop
     add 1 to {za::pro::run::%{_u}%}
     set {_run} to {za::pro::run::%{_u}%}
-    # sac de départ mis de côté (joueur qui refait le prologue)
-    if {za::pro::retour::%{_u}%} is not set:
-        if za_pro({_p}) is false:
-            set {za::pro::retour::%{_u}%} to location of {_p}
-    delete {za::pro::sac::%{_u}%::*}
-    loop all items in inventory of {_p}:
-        add loop-item to {za::pro::sac::%{_u}%::*}
+    if za_pro({_p}) is false:
+        # rejeu : seulement pour un joueur qui a déjà fini un prologue (audit M1) ; un nouveau joueur a sa vraie arrivée
+        if {za::pro::etat::%{_u}%} is "fini":
+            if {za::pro::retour::%{_u}%} is not set:
+                set {za::pro::retour::%{_u}%} to location of {_p}
+        # le sac : jamais écrasé tant qu'il n'a pas été rendu ; on y ajoute ce que le joueur porte maintenant
+        loop all items in inventory of {_p}:
+            add loop-item to {za::pro::sac::%{_u}%::*}
     clear {_p}'s inventory
-    if world("za_prologue") is not set:
-        # monde du prologue indisponible (plugin ZAMonde absent ?) : on passe directement à la survie
-        set {za::pro::etat::%{_u}%} to "fini"
-        za_intro_survie({_p})
-        stop
     set {za::pro::etat::%{_u}%} to "j0"
     delete {za::pro::ville::%{_u}%}
     za_zm("noir %{_p}% 0 120 0")
@@ -987,6 +992,16 @@ function za_pro_blackout(p: player, run: number):
 
 # ---------------------------------------------------------------- JOUR 8 : réveil dans la ville en ruine
 
+# rend le sac mis de côté au lancement du prologue (une seule fois ; ce qui ne rentre pas tombe aux pieds)
+function za_pro_rendre_sac(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    loop {za::pro::sac::%{_u}%::*}:
+        if {_p} can hold loop-value:
+            give {_p} loop-value
+        else:
+            drop loop-value at {_p}
+    delete {za::pro::sac::%{_u}%::*}
+
 function za_pro_arrivee(p: player):
     set {_u} to "%{_p}'s uuid%"
     add 1 to {za::pro::run::%{_u}%}
@@ -1012,14 +1027,13 @@ function za_pro_arrivee(p: player):
         # joueur qui avait déjà une partie : retour là où il était, avec son sac
         teleport {_p} to {za::pro::retour::%{_u}%}
         delete {za::pro::retour::%{_u}%}
-        loop {za::pro::sac::%{_u}%::*}:
-            give {_p} loop-value
-        delete {za::pro::sac::%{_u}%::*}
+        za_pro_rendre_sac({_p})
         set {_p}'s gamemode to survival
         za_zm("titre %{_p}% 20 60 30 &7JOUR_8 &8De_retour_dans_les_ruines.")
         stop
     teleport {_p} to spawn of world("world")
     za_zm("tp %{_p}% arrivee:reveil")
+    za_pro_rendre_sac({_p})
     set {_p}'s gamemode to survival
     heal {_p}
     wait 1 second

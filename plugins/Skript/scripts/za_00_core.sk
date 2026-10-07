@@ -195,7 +195,41 @@ function za_take_named(p: player, nom: text, n: number) :: boolean:
 function za_item(mat: text, nom: text, col: text, qte: number) :: itemtype:
     set {_it} to ({_mat} parsed as itemtype)
     set name of {_it} to "%{_col}%%{_nom}%"
+    # nom réservé : personne ne pourra le recopier à l'enclume (audit C1)
+    set {_k} to lowercase (uncolored {_nom})
+    if {za::noms::%{_k}%} is not set:
+        set {za::noms::%{_k}%} to true
     return {_qte} of {_it}
+
+# ---------- noms réservés (audit C1) : un objet ordinaire renommé à l'enclume ne doit jamais passer pour un objet du jeu
+# (monnaie, composants, clés, documents). Les objets de za_item s'inscrivent d'eux-mêmes ; s'ajoutent les objets de
+# MythicMobs (Items/*.yml) et les familles de noms variables.
+function za_nom_protege(n: text) :: boolean:
+    set {_l} to lowercase (uncolored {_n})
+    if {za::noms::%{_l}%} is set:
+        return true
+    loop "jeton", "plaque d'identité", "clé ", "fragment de plan", "documents de", "effets personnels", "note ", "dossier", "carte d'acces", "carte d'accès", "rapport ", "échantillon", "essence", "sang infecte", "composant", "serum", "antidote", "antibiotique", "bandage", "coeur de l'overlord", "banniere de l'overlord", "glande acide", "poche de gaz", "griffe de leaper", "cuir de brute", "faux papiers", "certificat", "disque de données", "relique", "médaillon", "couperet", "casque fondu", "plaque du gardien":
+        if {_l} starts with loop-value:
+            return true
+    return false
+
+# l'enclume : le résultat d'un renommage vers un nom réservé ne peut pas être pris
+on inventory click:
+    if "%inventory type of event-inventory%" does not contain "anvil":
+        stop
+    if index of event-slot is not 2:
+        stop
+    if event-inventory is not player's current inventory:
+        stop
+    set {_res} to uncolored name of event-item ? ""
+    if {_res} is "":
+        stop
+    set {_src} to uncolored name of slot 0 of event-inventory ? ""
+    if {_src} is {_res}:
+        stop
+    if za_nom_protege({_res}) is true:
+        cancel event
+        send "&cCe nom est réservé. &7Tu ne peux pas fabriquer un « %{_res}% » à l'enclume." to player
 
 # ---------- outils admin ----------
 command /za <text> [<text>]:
