@@ -302,8 +302,12 @@ de région** (`world/region/r.X.Z.mca`). Minecraft ne génère rien : il lit ce 
    ```
    python generateur_monde/generer.py
    ```
-   Il affiche l'avancement (400 régions, ~8 s chacune par cœur de processeur : ~13 min sur 4 cœurs, ~7 min sur 8).
-   Il faut ~1 Go de mémoire par cœur utilisé (limiter : `--processus 2`) et ~1,8 Go de disque.
+   **C'est la seule génération à faire** : la carte complète inclut tout (les six villes, l'autoroute 20, les lieux de
+   la bible, les scènes dans les maisons). Les commandes `--regions` plus bas ne servent que si un jour on modifie le
+   générateur alors que le monde est déjà ouvert.
+   Il affiche l'avancement (400 régions, ~10 s chacune par cœur de processeur : ~15 min sur 4 cœurs, ~8 min sur 8 ;
+   il construit d'abord les six villes, ~1 min). Il faut ~1,5 Go de mémoire par cœur utilisé (limiter :
+   `--processus 2`) et ~2 Go de disque.
    S'il s'arrête (erreur, PC éteint), **relance la même commande** : il reprend là où il en était.
    Il écrit aussi `plugins/ZAMonde/placements.yml` (position des ruines et de l'autobus, pour les POIs).
 5. Démarre le serveur. Le Nether et l'End se recréent tout seuls.
@@ -404,8 +408,8 @@ cellulaires, armurerie, levier qui ouvre toutes les cellules, traces de l'émeut
 rivière) : passages obligés, aussi pour les hordes du moteur (`graphe.yml`, liens « pont_detruit »).
 Chaque sous-lieu a son nom à l'entrée, sa phrase et ses zombies (za_p73 ; noyés au port, givrés sur la patinoire).
 
-**À faire (serveur ARRÊTÉ, avant que les joueurs construisent dans ces zones)** : régénérer seulement les 47 régions
-touchées (≈ 5 minutes) :
+**Monde pas encore généré : rien à faire**, c'est inclus dans la génération complète (§ monde, étape 4).
+Seulement si le monde est déjà ouvert un jour : régénérer les 47 régions touchées (serveur arrêté) :
 ```
 python3 generateur_monde/generer.py --forcer --regions=-8,-2/-8,-1/-8,0/-8,1/-7,-1/-7,0/-4,-5/-4,-4/-4,-3/-4,-2/-3,-2/-3,-1/-2,-2/-2,-1/-1,-2/-1,-1/-1,0/-1,1/0,-2/0,-1/0,0/0,1/0,2/0,3/1,-3/1,-2/1,-1/1,0/1,1/1,2/1,3/2,-3/2,-2/2,0/2,1/2,3/3,3/4,0/4,1/4,2/4,3/5,0/5,1/7,0/7,1/7,2/7,3
 ```
@@ -491,7 +495,9 @@ Fort-Laflèche produit des munitions, l'hôpital des médicaments, l'industrie d
 phrase d'entrée et zombies : héliport, parc de blindés, dépôt de munitions, champ de tir, quais, pont, pont effondré,
 tunnel, autoroute (soldats infectés et blindés à la base, noyés à la rivière, rampants dans le tunnel).
 
-**À faire (serveur ARRÊTÉ)** : régénérer les **55 régions** des villes et de l'autoroute (≈ 6 minutes) :
+**Monde pas encore généré : rien à faire**, c'est inclus dans la génération complète (§ monde, étape 4), puis
+`/zasites installer` au premier démarrage. Seulement si le monde est déjà ouvert un jour : régénérer les **55 régions**
+des villes et de l'autoroute (serveur arrêté) :
 ```
 python3 generateur_monde/generer.py --forcer --regions=-10,6/-10,7/-9,6/-9,7/-8,6/-8,7/-7,5/-7,6/-7,7/-6,5/-6,6/-6,7/-5,6/-5,7/-4,6/-4,7/-3,6/-3,7/-2,5/-2,6/-2,7/-1,5/-1,6/-1,7/0,6/0,7/0,8/1,6/1,7/1,8/2,6/2,7/2,8/3,1/3,2/3,3/3,6/3,7/4,1/4,2/4,3/4,6/4,7/5,6/5,7/6,5/6,6/6,7/7,5/7,6/7,7/8,6/8,7/9,6/9,7
 ```

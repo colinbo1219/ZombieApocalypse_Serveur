@@ -34,7 +34,7 @@ Fusionnés : 17, 21, 37, 40, 51.
 
 **Terminés côté serveur après la seconde passe (p129 et générateur)** : 7 panneau d'entrée (fiche datée, brouillard
 d'information) ; 26 viande saignante comme appât ; 32 grue qui tombe (+ remise debout par l'admin, qui sert de
-« retour en arrière » pour cette catastrophe) ; 34 scènes posées dans les maisons des villes (dernier souper, porte
+« retour en arrière » pour cette catastrophe) ; 34 scènes posées dans les maisons des villes, villages, fermes et chalets (dernier souper, porte
 barricadée, valises, horloges arrêtées à 4 h 12 le Jour 8, traînée de sang, ruban de quarantaine) ; 35 tableaux
 d'affichage Supplementaries (avis de recherche, prix du Jour 7, évacuation), drapeaux de faction, cendres des
 quartiers brûlés ; S-2 fiabilité : balles déviées et enrayage selon l'état du tireur (ZAMoteur).
@@ -46,7 +46,6 @@ quartiers brûlés ; S-2 fiabilité : balles déviées et enrayage selon l'état
 | 14 Événements sans annonce | largage, survivant poursuivi, alarme, chien, patrouille (Directeur) | à vérifier en jeu |
 | 26 Trace de sang | piste d'odeur du moteur, appât de viande | taches visibles au sol 📦 |
 | 32 Catastrophes | incendie, barrage, tempête, effondrement, dépôt de carburant, grue | « photo » générale avant dégâts (seule la grue se remet debout) |
-| 34 Habillage | scènes dans les maisons des villes générées | les mêmes scènes dans les villages (demanderait de régénérer toute la carte) |
 | 24, 39, 54, 56, 57 | partie serveur faite | modèles, peaux, décalques, interface, musique 📦 |
 | S-2 munitions | | munitions subsoniques et artisanales (ce que TaCZ permet de lire 🔍) |
 

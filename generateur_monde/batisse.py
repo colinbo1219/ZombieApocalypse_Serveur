@@ -163,6 +163,12 @@ def degrader(m, rng, force=0.5):
 
 
 # ============================================================================ bâtiments
+def scene(ch, R, L, P):
+    """Scène posée dans une maison (bible 34) : même passe que les villes (ville.scene_maison)."""
+    import ville
+    ville.scene_maison(ch, R, L, P)
+
+
 def maison(ch, R, L, P, etages=1, mur=None, toit=None, bois='spruce', butin=SI.LOOT_MAISON):
     rng = ch.rng
     mur = S(mur or rng.choice(MURS))
@@ -429,6 +435,7 @@ def village(site, plan):
             caserne(ch, R, L, P, vn)
         else:
             maison(ch, R, L, P, etages=2 if rng.random() < 0.3 else 1)
+            scene(ch, R, L, P)
             # cour : clôture à piquets et arbre
             for a in range(-1, L + 1):
                 R.set(a, 64, -2, S('spruce_fence'))
@@ -458,6 +465,7 @@ def ferme(site, plan):
     m, rng = ch.m, ch.rng
     R = ch.rep(-W // 2 + 6, -D // 2 + 6, 'south')
     maison(ch, R, 11, 10, etages=2, mur=rng.choice(['white_terracotta', 'birch_planks', 'bricks']), toit='dark_oak')
+    scene(ch, R, 11, 10)
     # grange rouge
     G = ch.rep(4, -D // 2 + 4, 'south')
     G.fill(0, 59, 0, 15, 63, 19, S('stone'))
@@ -802,6 +810,7 @@ def chalet(site, plan):
     ch = Chantier(site, site['larg'], site['prof'])
     R = ch.rep(-6, -5, 'south')
     maison(ch, R, 11, 9, mur='spruce_log', toit='dark_oak', bois='spruce')
+    scene(ch, R, 11, 9)
     ch.m.set(-8, 64, 6, S('campfire', facing='north', lit=False, signal_fire=False, waterlogged=False))
     ch.panneau(-9, 64, 7, ['Chalet', site.get('lac', '')[:15], '« Fermé pour', 'l\'hiver »'], rotation=0)
     return ch.terminer(0.5)

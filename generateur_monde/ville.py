@@ -1610,7 +1610,8 @@ def scene_maison(ch, R, L, P):
     prêtes, l'horloge arrêtée, la quarantaine sur la porte. Hasard à part : la ville ne change pas d'un bloc ailleurs."""
     if L < 7 or P < 7:
         return
-    rng = ch.__dict__.setdefault('rng_scenes', random.Random(ch.site['graine'] + 34))
+    graine = ch.site.get('graine', sum(map(ord, ch.site.get('id', ''))))
+    rng = ch.__dict__.setdefault('rng_scenes', random.Random(graine + 34))
     m = ch.m
     sort = getattr(ch, 'sort_courant', 'abandon')
 
