@@ -743,5 +743,16 @@ refusée), p103 (routage des nouveaux `zaevt`, barrages NORDA → péages), p108
 **TESTS** : vérificateur Skript (122 scripts, aucune anomalie) ; compilation du moteur. **NON TESTÉ** : tout en jeu
 (A_INSTALLER §12).
 
-**RESTE À FAIRE (bible)** : S-7 campagne (état de campagne, fins multiples), 49 arsenal de faction (TaCZ 🔍), S-2
-combat, mod `za_modeles` 2.0 (drones, corbeaux).
+**SUITE** : `za_p116_campagne` (S-7 : chapitres calculés, décisions, voix du monde au vote de fin),
+`za_p117_camps_politique` (90, 95), `za_p118_cassettes` (52), `za_p119_barrage_colonnes` (87, 89), `za_p120_semer`
+(104 : fumigène, tag `za_fumee` lu par le moteur). Moteur : obus de Create Big Cannons (43 : bruit 300, NORDA, Léa).
+Arsenal (49) : armes de niveau 3-4 saisies aux barrages NORDA et péages de la Milice, séries fichées.
+Correctifs : `za_menu` n'affichait que 7 choix (le menu du survivant en base en avait 9) → 9 choix + sous-menu ;
+`/frequence 98.5` refusée.
+
+**TESTS** : vérificateur Skript (127 scripts, aucune anomalie) ; moteur compilé ; simulateur relancé avec la règle
+`canon_entendu`. **NON TESTÉ** : tout en jeu (A_INSTALLER §12).
+
+**RESTE À FAIRE (bible)** : 45 offensives déclarées entre joueurs (règles JcJ à fixer par Colin), S-2 combat
+(dépend de TaCZ), 26 taches de sang visibles et 39 mutation visible (mod client), mod `za_modeles` 2.0 (drones,
+corbeaux, voix des cassettes).
