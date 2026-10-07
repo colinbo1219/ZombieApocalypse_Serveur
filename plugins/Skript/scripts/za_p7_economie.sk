@@ -24,6 +24,7 @@ on load:
     add "honey bottle|Serum|&d|Guerit l'infection a tout stade|30|1|25" to {za::offre::medecin::*}
     add "golden apple|Pomme doree|&6|Regeneration puissante|10|1|0" to {za::offre::medecin::*}
     add "honey bottle|Antibiotique|&b|Soigne plaie, grippe et fievre|8|1|0" to {za::offre::medecin::*}
+    add "paper|Kit de depistage|&e|Test de terrain : se trompe parfois|6|1|10" to {za::offre::medecin::*}
     add "leather cap|Masque a gaz|&2|Filtre la pluie acide et l'air contamine (porte-le en casque)|15|1|25" to {za::offre::medecin::*}
     add "arrow|Fleches|&7|Pour arcs, arbaletes et tourelles|2|16|0" to {za::offre::trafiquant::*}
     add "bow|Arc renforce|&e|Solide|8|1|0" to {za::offre::trafiquant::*}

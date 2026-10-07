@@ -50,7 +50,47 @@ public final class Societe {
 
     // ---------------------------------------------------------------- les cycles
 
+    /** les Déserteurs de Bravo (88) : chaque jour NORDA s'approche ; au palier 4, les joueurs choisissent leur sort */
+    private void deserteurs() {
+        Factions.Faction f = cerveau.faction("deserteurs");
+        if (f.stabilite <= 0 || f.moral >= 200) return;   // détruits, ou déjà protégés (moral 200 = sous protection)
+        int palier;
+        synchronized (z.monde) {
+            za.moteur.coeur.Norda.Dossier d = z.norda.dossier("faction:deserteurs");
+            d.nom = "Déserteurs de Bravo";
+            z.norda.preuve("faction:deserteurs", "rumeur", 6, 4050, 330, z.jour(), 0);
+            palier = d.palier;
+        }
+        if (palier >= 4) {
+            z.pont.zaevt("deserteurs_menaces");
+            z.pont.radio("bravo", "Bravo à tous les postes. Opération de récupération demain, secteur station-service est. Cibles : anciens de Bravo-3. Fin.");
+        }
+    }
+
+    /** zam deserteurs <proteger|livrer> <uuid> */
+    void deserteursChoix(String choix, String u) {
+        Factions.Faction f = cerveau.faction("deserteurs");
+        if (f.stabilite <= 0) return;
+        if (choix.equals("livrer")) {
+            f.stabilite = 0;
+            synchronized (z.monde) {
+                z.norda.effacer(u, 0, -30, z.jour());
+            }
+            publier("deserteurs_livres", 4050, 330, 4, "Les Déserteurs de Bravo ont été livrés à NORDA", "deserteurs");
+            z.pont.radio("pirate", "Quelqu'un a vendu les gars de Bravo à NORDA. On sait que ça s'est fait. On finira par savoir qui.");
+        } else {
+            f.moral = 200;
+            synchronized (z.monde) {
+                z.norda.preuve(u, "complice", 15, 4050, 330, z.jour(), 0);
+                z.norda.effacer("faction:deserteurs", 0, -50, z.jour());
+            }
+            publier("deserteurs_proteges", 4050, 330, 3, "Des survivants ont protégé les Déserteurs de Bravo", "deserteurs");
+            z.pont.radio("lea", "Il paraît que des gens se sont levés pour protéger les anciens soldats de Bravo. Il reste des gens bien.");
+        }
+    }
+
     void jour() {
+        deserteurs();
         List<Factions.Ordre> o;
         synchronized (z.monde) {
             o = cerveau.cycle(z.jour(), z.monde.graphe);

@@ -39,6 +39,7 @@ public final class Bases {
         public final List<String> journal = new ArrayList<>();
         public String intention = "";        // « bois@matin » : ce qu'il a décidé de faire plus tard
         public int intentionJour = -1;
+        public int infecteDepuis = -1;      // jour où l'infection cachée a été notée (110)
         public int missions, reussites;
         public String derniereMission = "";
         public long vu;                      // dernière mise à jour par Skript
@@ -163,7 +164,8 @@ public final class Bases {
         }
         // un secret, parfois : il décidera de mentir pour le protéger (IA-9)
         double t = r.nextDouble();
-        if (t < 0.06 && s.honnetete < 55) s.secret = "informateur";
+        if (t < 0.05) s.secret = "infecte_cache";
+        else if (t < 0.10 && s.honnetete < 55) s.secret = "informateur";
         else if (t < 0.13 && s.avidite > 35) s.secret = "voleur";
         else if (t < 0.22) s.secret = "ancien_pillard";
     }

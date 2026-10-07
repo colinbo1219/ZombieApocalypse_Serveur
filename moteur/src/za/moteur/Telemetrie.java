@@ -34,6 +34,9 @@ public final class Telemetrie {
     public final List<String> suspects = new ArrayList<>();
     private final Map<String, Long> immobiles = new HashMap<>();
     private final Map<String, Location> dernierePos = new HashMap<>();
+    /** refuges improvisés (67) : case de 16 x 16 -> minutes passées à l'abri hors de toute base enregistrée */
+    public final Map<Long, Double> refuges = new HashMap<>();
+    private final Map<String, Long> refugeAvis = new HashMap<>();
     public final List<String> dernierRapport = new ArrayList<>();
     private static final String[] SYSTEMES = {"horde_attaque_lieu", "colonne_refugies", "nid_ne", "megahorde", "nemesis_nee",
             "nemesis_vaincue", "region_perdue", "region_reprise", "quarantaine", "frappe_incendiaire", "mutation", "labo_detruit",
@@ -90,6 +93,20 @@ public final class Telemetrie {
         } else immobiles.remove(u);
         // habitudes (IA-6) : camper sur les toits, la lumière forte, les mêmes routes
         int sol = l.getWorld().getHighestBlockYAt(l);
+        // à l'abri (toit au-dessus) et loin de toute base : un refuge improvisé que les morts finiront par connaître
+        if (sol > l.getBlockY() + 1 && !z.mat.presBase(l, 60)) {
+            long c = (((long) (l.getBlockX() >> 4)) << 32) ^ ((l.getBlockZ() >> 4) & 0xffffffffL);
+            double m = refuges.merge(c, 0.5, Double::sum);
+            String cle = u + c;
+            long now = System.currentTimeMillis();
+            Long av = refugeAvis.get(cle);
+            if (m >= 60 && (av == null || now - av > 10 * 60_000L)) {
+                refugeAvis.put(cle, now);
+                if (m < 90) z.pont.zaevt("refuge_signe " + u);
+                else z.pont.zaevt("refuge_embuscade " + u);
+                if (m >= 150) z.publier(new za.moteur.coeur.Evenement("refuge_connu").a(l.getX(), l.getZ()).grav(2).acteur(u));
+            }
+        }
         synchronized (z.monde) {
             if (l.getBlockY() >= sol && l.getBlock().getRelative(0, -1, 0).getType().isSolid() && l.getBlockY() - l.getWorld().getHighestBlockYAt(l.getBlockX() + 3, l.getBlockZ() + 3) > 5)
                 r.habitudes.merge("toits", 1.0, Double::sum);
@@ -128,6 +145,9 @@ public final class Telemetrie {
         } catch (Exception e) {
             ZAMoteur.log().warning("Rapport : " + e.getMessage());
         }
+        // les morts oublient lentement un refuge qu'on n'utilise plus
+        refuges.replaceAll((k, v) -> v * 0.85);
+        refuges.values().removeIf(v -> v < 5);
         // la journée suivante repart à zéro (le fichier garde l'historique)
         morts.clear();
         mortsRegion.clear();

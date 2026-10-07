@@ -252,6 +252,8 @@ function za_chien_sentir(p: player, l: location):
         if ({za::chien::avis::%{_o}%} ? 0) < (unix timestamp of now) - 60:
             set {za::chien::avis::%{_o}%} to unix timestamp of now
             send "&6[Base] &eLe chien gronde vers l'extérieur. &7(%{_n}% mort(s) approchent)" to {_p}
+    # un survivant mordu qui se tait (za_p111)
+    za_sec_chien({_p}, {_l})
     # un infecté qui se cache (110) : le chien le sent
     loop all players in radius 8 around {_l}:
         if {za::infection::%loop-player's uuid%} is set:

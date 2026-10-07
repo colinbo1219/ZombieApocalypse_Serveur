@@ -89,6 +89,10 @@ public final class Factions {
         identite("pilleurs", "criminelle", "agressive", "Prendre un dépôt de carburant", "Piller les convois", "Faire tomber la milice");
         identite("survivants", "civile", "isolationniste", "Nourrir tout le monde", "Garder les fermes", "Retrouver les familles");
         identite("culte", "criminelle", "expansionniste", "Convertir les camps", "Gagner la radio", "Ouvrir un nid « sacré »");
+        // les Déserteurs de Bravo (88) : retranchés dans la station-service de l'est, NORDA les cherche
+        identite("deserteurs", "militaire", "prudente", "Survivre loin de NORDA", "Vendre de l'équipement militaire", "Vendre les secrets de NORDA au plus offrant");
+        faction("deserteurs").stocks.put("munitions", 40);
+        faction("deserteurs").stocks.put("vivres", 10);
     }
 
     private void identite(String id, String type, String perso, String o, String s, String c) {
@@ -158,7 +162,8 @@ public final class Factions {
         for (Faction f : factions.values()) {
             if (f.dernierCycle == jour) continue;
             f.dernierCycle = jour;
-            if (f.territoires == 0 && !f.id.equals("marchands")) continue;
+            if (f.territoires == 0 && !f.id.equals("marchands") && !f.id.equals("deserteurs")) continue;
+            if (f.stabilite <= 0) continue;   // faction détruite
             String r = besoin(f);
             if (r == null) {
                 // pas de besoin : renforcer ou commercer son surplus

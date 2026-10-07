@@ -304,3 +304,13 @@ reactions:
     delai: 60-240
     plafond: 2
     alors: radio pirate Un pilleur de coffres court les camps. On ne dit pas de nom. Mais tout le monde le connaît déjà.
+
+  # ---------------------------------------------------------------- refuges trop utilisés (67)
+  - nom: refuge_devient_nid
+    si: refuge_connu
+    proba: 30
+    delai: 30-120
+    plafond: 2
+    alors:
+      - nid +1
+      - graffiti ILS DORMENT ICI. NOUS AUSSI ON SAIT.

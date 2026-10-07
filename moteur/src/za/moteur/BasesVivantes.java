@@ -27,7 +27,7 @@ public final class BasesVivantes {
         this.cerveau = new Bases(new java.util.Random());
     }
 
-    private static boolean enLigne(String uuid) {
+    static boolean enLigne(String uuid) {
         try {
             return Bukkit.getPlayer(UUID.fromString(uuid)) != null;
         } catch (IllegalArgumentException e) {

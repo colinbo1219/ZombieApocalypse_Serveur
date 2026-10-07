@@ -255,6 +255,15 @@ final class Commandes {
             case "retourner":
                 z.mensonges.retourner(a[1], i(a[2]));
                 return true;
+            case "deserteurs":
+                z.societe.deserteursChoix(a[1], a[2]);
+                return true;
+            case "testpnj":
+                z.mensonges.tester(a[1], i(a[2]), a.length > 3 && a[3].equals("1"));
+                return true;
+            case "soignerpnj":
+                z.mensonges.soigner(a[1], i(a[2]));
+                return true;
             case "rel":
                 z.societe.relation(a);
                 return true;

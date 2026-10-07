@@ -131,8 +131,56 @@ public final class Mensonges {
         z.pont.zaevt("pnj_dit " + u + " " + id + " D'accord. Je leur dirai que tu es parti vers l'autre bout de la région. Ils me croient, eux.");
     }
 
+    /** infection cachée (110, chaîne 8) : des indices pendant deux ou trois jours, puis la bascule, la nuit */
+    private void infections() {
+        for (Bases.Survivant s : z.vivantes.cerveau.survivants.values()) {
+            if (!s.secret.equals("infecte_cache") || s.base.isEmpty() || s.etat.equals("mort")) continue;
+            if (s.infecteDepuis < 0) s.infecteDepuis = z.jour();
+            int age = z.jour() - s.infecteDepuis;
+            z.pont.set("infecte::" + s.id, "1");
+            String[] indices = {s.nom + " tousse beaucoup depuis hier. « Un rhume », dit-il.",
+                    s.nom + " porte un bandage au bras. Il ne veut pas dire pourquoi.",
+                    s.nom + " évite le chien. Le chien, lui, ne le lâche pas des yeux.",
+                    s.nom + " n'a pas touché à son assiette. Il a les yeux brillants."};
+            if (age < 3) {
+                z.pont.zaevt("base_journal " + s.base + " " + indices[(age + s.id) % indices.length]);
+            } else if (age >= 3 && (BasesVivantes.enLigne(s.base) || age >= 6)) {
+                // la bascule : seulement si le propriétaire est là (règle 2), sinon elle attend (au plus 6 jours)
+                if (!BasesVivantes.enLigne(s.base)) continue;
+                s.secret = "";
+                s.etat = "mort";
+                z.pont.zaevt("pnj_bascule " + s.base + " " + s.id);
+                Bases.Base b = z.vivantes.cerveau.bases.get(s.base);
+                Evenement e = new Evenement("infecte_bascule").grav(4).acteur("pnj:" + s.id).acteur(s.base).dit(s.nom + " s'est transformé à l'intérieur de la base");
+                if (b != null) e.a(b.x, b.z);
+                z.publier(e);
+            }
+        }
+    }
+
+    /** zam testpnj <uuid> <id> <labo 0|1> : le kit peut se tromper ; l'analyse de sang au labo, non (95, 110) */
+    void tester(String u, int id, boolean labo) {
+        Bases.Survivant s = z.vivantes.cerveau.survivant(id);
+        boolean infecte = s.secret.equals("infecte_cache");
+        boolean positif = labo ? infecte : (infecte ? rng.nextDouble() < 0.8 : rng.nextDouble() < 0.1);
+        z.pont.zaevt("msg " + u + " Test de " + s.nom + " : " + (positif ? "POSITIF. Il pâlit." : "négatif.") + (labo ? " (analyse de laboratoire : fiable)" : " (un kit de terrain peut se tromper)"));
+    }
+
+    /** zam soignerpnj <uuid> <id> : un Sérum sauve un infecté caché avant la bascule */
+    void soigner(String u, int id) {
+        Bases.Survivant s = z.vivantes.cerveau.survivant(id);
+        if (s.secret.equals("infecte_cache")) {
+            s.secret = "";
+            z.pont.set("infecte::" + s.id, "0");
+            z.pont.zaevt("msg " + u + " " + s.nom + " grelotte toute la nuit, puis la fièvre tombe. Tu l'as sauvé. Il ne l'oubliera pas.");
+            Evenement e = new Evenement("survivant_sauve").grav(2).acteur(u).acteur("pnj:" + id).dit("sérum à temps");
+            z.publier(e);
+        } else z.pont.zaevt("msg " + u + " " + s.nom + " te regarde, perplexe. « J'en avais pas besoin. Mais merci. »");
+    }
+
     /** chaque jour : les informateurs rapportent (98, chaîne 4) */
     void jour() {
+        infections();
         for (Bases.Survivant s : z.vivantes.cerveau.survivants.values()) {
             if (!s.secret.equals("informateur") || s.base.isEmpty() || s.etat.equals("mort")) continue;
             Bases.Base b = z.vivantes.cerveau.bases.get(s.base);
