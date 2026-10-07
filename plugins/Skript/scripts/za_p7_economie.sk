@@ -46,6 +46,9 @@ on load:
     add "iron bars|Silencieux Ursus|&8|Reduit fortement le bruit des tirs (donc les zombies attires)|15|1|25|tacz:attachment{AttachmentId:""tacz:muzzle_silencer_ursus""}" to {za::offre::trafiquant::*}
     add "compass|Lunette ELCAN 4x|&b|Viseur grossissant|20|1|80|tacz:attachment{AttachmentId:""tacz:scope_elcan_4x""}" to {za::offre::trafiquant::*}
     add "hopper|Chargeur etendu|&b|Plus de coups dans le chargeur|12|1|25|tacz:attachment{AttachmentId:""tacz:extended_mag_1""}" to {za::offre::trafiquant::*}
+    # faux remèdes (za_p113) : identiques aux vrais, moins chers, sans effet
+    add "honey bottle|Serum|&d|Guerit l'infection a tout stade (prix d'ami)|16|1|0|faux" to {za::offre::trafiquant::*}
+    add "honey bottle|Antibiotique|&b|Soigne plaie, grippe et fievre|4|1|0|faux" to {za::offre::trafiquant::*}
     add "tnt|Explosif artisanal|&c|Fait du bruit... beaucoup|9|1|80" to {za::offre::trafiquant::*}
     add "iron ingot|Plaque de blindage|&7|Pour l'equipement|3|4|0" to {za::offre::trafiquant::*}
     add "compass|Boussole de survivant|&b|Indique le point de depart|10|1|0" to {za::offre::collectionneur::*}
@@ -431,7 +434,9 @@ on inventory click:
                         set {_prix} to za_prix_marchand(player, {_m}, {_parts::2}, ({_parts::5} parsed as number))
                         if za_jetons(player) >= {_prix}:
                             za_jetons_ajouter(player, 0 - {_prix})
-                            if {_parts::8} is set:
+                            if {_parts::8} is "faux":
+                                give za_faux_item({_parts::1}, {_parts::2}, {_parts::3}, ({_parts::6} parsed as number)) to player
+                            else if {_parts::8} is set:
                                 execute console command "give %player% %{_parts::8}% %{_parts::6}%"
                             else:
                                 give za_item({_parts::1}, {_parts::2}, {_parts::3}, ({_parts::6} parsed as number)) to player

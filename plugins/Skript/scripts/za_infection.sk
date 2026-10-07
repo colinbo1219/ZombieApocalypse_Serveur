@@ -190,6 +190,11 @@ every 4 seconds:
 on consume:
     if za_pro(player) is true:
         stop
+    # faux remède (za_p113) : aucun effet
+    if uncolored name of event-item is "Antidote" or "Serum":
+        if za_faux(event-item) is true:
+            za_faux_effet(player, uncolored name of event-item)
+            stop
     if uncolored name of event-item is "Antidote":
         set {_w} to za_param(za_souche_id(player), "fenetre")
         if za_role(player) is "medecin":

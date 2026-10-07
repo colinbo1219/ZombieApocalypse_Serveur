@@ -66,6 +66,7 @@ function za_aide_categorie(p: player, cat: text):
         send "&e/arme &7niveau, état, histoire de l'arme en main | &e/arme reparer &7(Mécano ou Atelier mécanique) | &e/arme demonter" to {_p}
     else if {_cat} is "Exploration":
         send "&e/faussaire &7faux papiers, fausses pistes, leurres | &e/marchenoir <mot> &7(radio pirate) | &e/plans &7plans rares en morceaux" to {_p}
+        send "&e/peage &7barrages et péages | &e/frigo &7frigo médical | &e/analyser &7vrai ou faux remède (labo)" to {_p}
         send "&e/reprise &7reprendre une ville en six étapes | &e/base abandonner &7ta base devient un lieu du monde" to {_p}
         send "&e/proie &7ce que les morts retiennent de toi | &e/deserteurs &7le sort des anciens de Bravo" to {_p}
         send "&e/lieux &7ce qu'on trouve dans chaque bâtiment | &e/enigme &7coffres scellés NORDA | &e/code <####> | &e/carte &7fragments A-B-C et bunker | &e/enquete &7ton carnet d'indices" to {_p}

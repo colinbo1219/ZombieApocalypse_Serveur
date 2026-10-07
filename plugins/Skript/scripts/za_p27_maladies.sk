@@ -29,6 +29,9 @@ on consume:
     if za_pro(player) is true:
         stop
     if uncolored name of event-item is "Antibiotique":
+        if za_faux(event-item) is true:
+            za_faux_effet(player, "Antibiotique")
+            stop
         set {_u} to "%player's uuid%"
         set {_ok} to false
         if any:

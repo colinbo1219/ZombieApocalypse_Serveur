@@ -234,6 +234,7 @@ function za_mot_evt_serveur(t: text, ligne: text):
         za_mot_controle({_a::2})
     else if {_t} is "norda_barrage":
         za_journal("Un point de contrôle NORDA a été vu sur une route (X %{_a::2}% Z %{_a::3}%).")
+        za_peage_norda({_a::2} parsed as number, {_a::3} parsed as number)
     else if {_t} is "drone_abattu":
         set {_p} to za_mot_joueur({_a::2})
         if {_p} is set:
