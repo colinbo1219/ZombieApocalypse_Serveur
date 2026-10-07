@@ -152,6 +152,7 @@ public final class ZAMoteur extends JavaPlugin {
         new BukkitRunnable() {
             @Override
             public void run() {
+                nuitObservee = estNuit();   // instantané du monde pour la simulation asynchrone (audit N6)
                 if (actif("directeur")) directeur.tick1s();
                 if (actif("cerveaux")) cerveaux.tick1s();
                 if (actif("norda")) nordaReel.tick1s();
@@ -165,7 +166,7 @@ public final class ZAMoteur extends JavaPlugin {
             public void run() {
                 List<Materialisation.Pos> joueurs = new ArrayList<>(mat.positionsJoueurs());
                 synchronized (monde) {
-                    monde.nuit = estNuit();
+                    monde.nuit = nuitObservee;
                     if (actif("hordes")) monde.tick30s();
                     jourSiBesoin();
                 }
@@ -217,6 +218,9 @@ public final class ZAMoteur extends JavaPlugin {
         World w = Bukkit.getWorld("world");
         return w != null ? w : Bukkit.getWorlds().get(0);
     }
+
+    /** lu par la tâche asynchrone : jamais d'appel Bukkit hors du fil principal */
+    public volatile boolean nuitObservee;
 
     public boolean estNuit() {
         World w = mondePrincipal();

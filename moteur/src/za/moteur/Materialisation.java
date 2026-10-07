@@ -50,7 +50,7 @@ public final class Materialisation {
 
     private final Deque<Demande> demandes = new ArrayDeque<>();
     private final Map<Integer, Set<UUID>> reels = new HashMap<>();
-    private final Map<Integer, Long> derniereProximite = new HashMap<>();
+    private final Map<Integer, Long> derniereProximite = new java.util.concurrent.ConcurrentHashMap<>();   // écrite hors du fil principal (audit N6)
     /** position d'un joueur, relevée sur le fil principal */
     public static final class Pos {
         public final double x, z, y, yaw;

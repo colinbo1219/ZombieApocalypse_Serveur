@@ -46,17 +46,17 @@ public final class Telemetrie {
         this.z = z;
     }
 
-    void evenement(Evenement e) {
+    synchronized void evenement(Evenement e) {
         evenements.merge(e.type, 1, Integer::sum);
     }
 
-    public void mortJoueur(String cause, String region) {
+    public synchronized void mortJoueur(String cause, String region) {
         morts.merge(cause, 1, Integer::sum);
         mortsRegion.merge(region, 1, Integer::sum);
     }
 
     /** un zombie tué : par quelle arme, quel type, et où (pour repérer les farms) */
-    public void kill(String arme, String type, Location l) {
+    public synchronized void kill(String arme, String type, Location l) {
         killsArme.merge(arme, 1, Integer::sum);
         killsType.merge(type, 1, Integer::sum);
         long now = System.currentTimeMillis();
@@ -77,7 +77,7 @@ public final class Telemetrie {
     }
 
     /** toutes les 30 s (depuis Ecosysteme.tick30s) : temps par zone, AFK, habitudes de joueurs */
-    void echantillon(Player p) {
+    synchronized void echantillon(Player p) {
         Location l = p.getLocation();
         Region r;
         synchronized (z.monde) {
@@ -123,7 +123,7 @@ public final class Telemetrie {
     }
 
     /** le rapport quotidien (/zaadmin rapport, et un fichier par jour) */
-    void jour() {
+    synchronized void jour() {
         dernierRapport.clear();
         dernierRapport.add("=== Rapport du jour " + z.jour() + " ===");
         dernierRapport.add("Morts de joueurs par cause : " + morts);
@@ -165,11 +165,11 @@ public final class Telemetrie {
         return r.toString();
     }
 
-    void sauver(ConfigurationSection s) {
+    synchronized void sauver(ConfigurationSection s) {
         for (Map.Entry<String, Integer> e : evenements.entrySet()) s.set("evenements." + e.getKey(), e.getValue());
     }
 
-    void charger(ConfigurationSection s) {
+    synchronized void charger(ConfigurationSection s) {
         if (s == null) return;
         ConfigurationSection e = s.getConfigurationSection("evenements");
         if (e != null) for (String k : e.getKeys(false)) evenements.put(k, e.getInt(k));

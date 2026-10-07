@@ -67,7 +67,9 @@ public final class Information {
         i.nature = e.verite.equals("faux") ? "fausse" : "vraie";
         i.source = sourceDe(e);
         i.fiabilite = Math.min(e.fiabilite, i.nature.equals("vraie") ? 75 : 45);
-        apprendre("region:" + e.region, i, t, i.fiabilite, "temoin", 0);
+        // privé : seuls les acteurs et les témoins le savent ; la région (et donc la circulation automatique) jamais
+        // (audit N8). Public : la région l'apprend et la rumeur voyage.
+        if (!e.visibilite.equals("prive")) apprendre("region:" + e.region, i, t, i.fiabilite, "temoin", 0);
         for (String a : e.acteurs) apprendre(cle(a), i, t, 95, "vecu", 0);
         for (String a : e.temoins) apprendre(cle(a), i, t, 85, "temoin", 0);
         return i;

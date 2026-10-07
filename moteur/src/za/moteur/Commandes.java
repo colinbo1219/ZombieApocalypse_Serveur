@@ -452,7 +452,10 @@ final class Commandes {
                 return true;
             }
             case "rapport": {
-                List<String> l = z.telemetrie.dernierRapport;
+                List<String> l;
+                synchronized (z.telemetrie) {
+                    l = new ArrayList<>(z.telemetrie.dernierRapport);
+                }
                 if (l.isEmpty()) s.sendMessage("§7Pas encore de rapport (il sort à chaque changement de jour). État : " + z.resumeSystemes());
                 for (String x : l) s.sendMessage("§7" + x);
                 return true;
