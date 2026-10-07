@@ -55,6 +55,66 @@ function za_sites_donnees() :: texts:
     add "gare_val_gare0|gare|Gare de Val-des-Pins|-1950|77|-976|35|8|ZA_Citoyen_Infecte,ZA_Runner,ZA_Ouvrier_Infecte" to {_r::*}
     add "gare_sa_gare0|gare|Gare de Saint-Aurèle|-330|67|-296|35|8|ZA_Citoyen_Infecte,ZA_Runner,ZA_Ouvrier_Infecte" to {_r::*}
     add "gare_brigitte_gare0|gare|Gare de Sainte-Brigitte|2350|71|1884|35|8|ZA_Citoyen_Infecte,ZA_Runner,ZA_Ouvrier_Infecte" to {_r::*}
+    add "laurentia_erables_ecole0|ecole|École primaire des Érables|-2121|68|3256|15|12|ZA_Child,ZA_Child,ZA_Citoyen_Infecte" to {_r::*}
+    add "laurentia_erables_depanneur1|depanneur|Dépanneur des Érables|-2059|68|3252|9|8|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "laurentia_erables_parc2|parc|Parc des Pionniers|-1981|68|3299|55|55|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
+    add "laurentia_erables_parc3|parc|Terrain de soccer des Érables|-2100|68|3405|40|30|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
+    add "laurentia_erables_eglise4|eglise|Église des Érables|-1996|68|3379|10|15|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
+    add "laurentia_erables_depanneur5|depanneur|Dépanneur des Érables|-1939|68|3372|9|8|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "laurentia_saint_joseph_parc0|parc|Terrain de soccer de Saint-Joseph|-1860|68|3285|40|30|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
+    add "laurentia_saint_joseph_eglise1|eglise|Église Saint-Joseph|-1756|68|3259|10|15|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
+    add "laurentia_saint_joseph_depanneur2|depanneur|Dépanneur de Saint-Joseph|-1699|68|3252|9|8|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "laurentia_saint_joseph_ecole3|ecole|École primaire de Saint-Joseph|-1881|68|3376|15|12|ZA_Child,ZA_Child,ZA_Citoyen_Infecte" to {_r::*}
+    add "laurentia_saint_joseph_depanneur4|depanneur|Dépanneur de Saint-Joseph|-1819|68|3372|9|8|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "laurentia_saint_joseph_parc5|parc|Parc du Souvenir|-1741|68|3419|55|55|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
+    add "laurentia_laurier_usine0|usine|Usine Boréal Métal|-1621|68|3292|45|38|ZA_Ouvrier_Infecte,ZA_Ouvrier_Brule,ZA_Brute" to {_r::*}
+    add "laurentia_laurier_depot_carburant1|depot_carburant|Réservoirs de carburant|-1522|68|3278|28|28|ZA_Ouvrier_Brule,ZA_Bloater" to {_r::*}
+    add "laurentia_laurier_entrepot2|entrepot|Entrepôt|-1645|68|3392|25|22|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "laurentia_laurier_entrepot3|entrepot|Entrepôt|-1593|68|3392|25|22|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "laurentia_laurier_entrepot4|entrepot|Entrepôt|-1525|68|3392|25|22|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "laurentia_laurier_entrepot5|entrepot|Entrepôt|-1473|68|3392|25|22|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "laurentia_vieux_ecole0|ecole|École primaire de Vieux-Laurentia|-2121|68|3496|15|12|ZA_Child,ZA_Child,ZA_Citoyen_Infecte" to {_r::*}
+    add "laurentia_vieux_depanneur1|depanneur|Dépanneur de Vieux-Laurentia|-2059|68|3492|9|8|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "laurentia_vieux_eglise2|eglise|Église de Vieux-Laurentia|-1996|68|3499|10|15|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
+    add "laurentia_vieux_depanneur3|depanneur|Dépanneur de Vieux-Laurentia|-1939|68|3492|9|8|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "laurentia_vieux_parc4|parc|Parc du Souvenir|-2101|68|3659|55|55|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
+    add "laurentia_vieux_parc5|parc|Terrain de soccer de Vieux-Laurentia|-1980|68|3645|40|30|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
+    add "laurentia_centre_metro0|metro|Station de métro de Laurentia|-1755|68|3595|30|10|ZA_Crawler,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Stalker" to {_r::*}
+    add "laurentia_centre_place1|place|Place Champlain|-1741|68|3659|55|55|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
+    add "laurentia_centre_tour2|tour|Tour Laurentia|-1900|68|3497|13|13|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_centre_banque3|banque|Caisse populaire de Laurentia|-1901|68|3582|12|13|ZA_Citoyen_Infecte,ZA_Policier_Infecte" to {_r::*}
+    add "laurentia_centre_tour4|tour|Tour Laurentide|-1827|68|3497|12|13|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_centre_tour5|tour|Maison de la radio|-1903|68|3521|13|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_centre_hotel6|hotel|Hôtel Boréal|-1779|68|3497|14|13|ZA_Citoyen_Infecte,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_centre_tour7|tour|Tour Cartier|-1756|68|3497|11|13|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_centre_tour8|tour|Le Boréal|-1783|68|3582|11|13|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_centre_tour9|tour|Centre Laval|-1745|68|3582|12|13|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_centre_tour10|tour|Tour du Groupe Boréal|-1723|68|3582|11|13|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_centre_tour11|tour|Tour Étoile|-1703|68|3582|12|13|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_centre_tour12|tour|Tour Montcalm|-1698|68|3537|13|12|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_centre_tour13|tour|Tour du Lac|-1887|68|3617|11|13|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_centre_tour14|tour|Tour Assurances Nord|-1867|68|3617|11|13|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_centre_tour15|tour|Tour Frontenac|-1902|68|3702|12|13|ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead" to {_r::*}
+    add "laurentia_hopital_metro0|metro|Station de métro de Laurentia|-1515|68|3595|30|10|ZA_Crawler,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Stalker" to {_r::*}
+    add "laurentia_hopital_hopital_ville1|hopital_ville|Hôpital régional de Laurentia|-1501|68|3532|48|40|ZA_Patient_Infecte,ZA_Patient_Infecte,ZA_Medecin_Infecte,ZA_Spitter" to {_r::*}
+    add "laurentia_hopital_parking2|parking|Stationnement étagé|-1501|68|3659|47|47|ZA_Citoyen_Infecte,ZA_Crawler,ZA_FakeDead" to {_r::*}
+    add "laurentia_hopital_commissariat3|commissariat|Poste de police de Laurentia|-1655|68|3584|15|11|ZA_Policier_Infecte,ZA_Policier_Infecte,ZA_Armored" to {_r::*}
+    add "laurentia_hopital_hotel_ville4|hotel_ville|Hôtel de ville de Laurentia|-1629|68|3497|17|13|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
+    add "laurentia_hopital_caserne5|caserne|Caserne de pompiers de Laurentia|-1584|68|3587|10|9|ZA_Pompier_Infecte,ZA_Pompier_Infecte,ZA_Ouvrier_Brule" to {_r::*}
+    add "laurentia_les_pins_parc0|parc|Parc Laval|-2101|68|3779|55|55|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
+    add "laurentia_les_pins_parc1|parc|Terrain de soccer des Pins|-1980|68|3765|40|30|ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker" to {_r::*}
+    add "laurentia_les_pins_ecole2|ecole|École primaire des Pins|-2121|68|3856|15|12|ZA_Child,ZA_Child,ZA_Citoyen_Infecte" to {_r::*}
+    add "laurentia_les_pins_depanneur3|depanneur|Dépanneur des Pins|-2059|68|3852|9|8|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "laurentia_les_pins_eglise4|eglise|Église des Pins|-1996|68|3859|10|15|ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer" to {_r::*}
+    add "laurentia_les_pins_depanneur5|depanneur|Dépanneur des Pins|-1939|68|3852|9|8|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner" to {_r::*}
+    add "laurentia_commerces_grand_magasin0|grand_magasin|Magasin à rayons Laurentia|-1758|68|3872|32|22|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Child" to {_r::*}
+    add "laurentia_commerces_station1|station|Station-service du boulevard|-1758|68|3933|18|12|ZA_Pompier_Infecte,ZA_Citoyen_Infecte,ZA_Ouvrier_Brule" to {_r::*}
+    add "laurentia_industriel_sud_usine0|usine|Usine Boréal Métal|-1621|68|3772|45|38|ZA_Ouvrier_Infecte,ZA_Ouvrier_Brule,ZA_Brute" to {_r::*}
+    add "laurentia_industriel_sud_depot_carburant1|depot_carburant|Réservoirs de carburant|-1522|68|3758|28|28|ZA_Ouvrier_Brule,ZA_Bloater" to {_r::*}
+    add "laurentia_industriel_sud_entrepot2|entrepot|Entrepôt|-1645|68|3872|25|22|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "laurentia_industriel_sud_entrepot3|entrepot|Entrepôt|-1593|68|3872|25|22|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "laurentia_industriel_sud_entrepot4|entrepot|Entrepôt|-1525|68|3872|25|22|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
+    add "laurentia_industriel_sud_entrepot5|entrepot|Entrepôt|-1473|68|3872|25|22|ZA_Ouvrier_Infecte,ZA_Brute" to {_r::*}
     add "route_exode0|exode|L'exode — bouchon de l'autoroute 40|-1124|79|274|110|25|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Child,ZA_Runner,ZA_Crawler" to {_r::*}
     add "route_carambolage1|carambolage|Carambolage de l'autoroute 40|948|72|356|40|40|ZA_Citoyen_Infecte,ZA_Crawler,ZA_Runner,ZA_Shambler" to {_r::*}
     add "route_carambolage2|carambolage|Carambolage de l'autoroute 40|-101|67|300|40|40|ZA_Citoyen_Infecte,ZA_Crawler,ZA_Runner,ZA_Shambler" to {_r::*}
@@ -172,6 +232,15 @@ function za_sites_donnees() :: texts:
     add "gare_val|gare|Gare de Val-des-Pins|-1950|77|-980|43|23|ZA_Citoyen_Infecte,ZA_Runner,ZA_Ouvrier_Infecte" to {_r::*}
     add "gare_sa|gare|Gare de Saint-Aurèle|-330|67|-300|43|23|ZA_Citoyen_Infecte,ZA_Runner,ZA_Ouvrier_Infecte" to {_r::*}
     add "gare_brigitte|gare|Gare de Sainte-Brigitte|2350|71|1880|43|23|ZA_Citoyen_Infecte,ZA_Runner,ZA_Ouvrier_Infecte" to {_r::*}
+    add "laurentia_erables|quartier|Laurentia — Les Érables|-2040|68|3360|128|128|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Runner,ZA_Crawler" to {_r::*}
+    add "laurentia_saint_joseph|quartier|Laurentia — Saint-Joseph|-1800|68|3360|128|128|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Runner,ZA_Crawler" to {_r::*}
+    add "laurentia_laurier|quartier|Laurentia — Parc d'affaires Laurier|-1560|68|3360|128|128|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Runner,ZA_Crawler" to {_r::*}
+    add "laurentia_vieux|quartier|Laurentia — Vieux-Laurentia|-2040|68|3600|128|128|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Runner,ZA_Crawler" to {_r::*}
+    add "laurentia_centre|quartier|Laurentia — Centre-ville|-1800|68|3600|128|128|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Runner,ZA_Crawler" to {_r::*}
+    add "laurentia_hopital|quartier|Laurentia — Quartier de l'Hôpital|-1560|68|3600|128|128|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Runner,ZA_Crawler" to {_r::*}
+    add "laurentia_les_pins|quartier|Laurentia — Les Pins|-2040|68|3840|128|128|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Runner,ZA_Crawler" to {_r::*}
+    add "laurentia_commerces|quartier|Laurentia — Boulevard des Commerces|-1800|68|3840|128|128|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Runner,ZA_Crawler" to {_r::*}
+    add "laurentia_industriel_sud|quartier|Laurentia — Zone industrielle sud|-1560|68|3840|128|128|ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Runner,ZA_Crawler" to {_r::*}
     return {_r::*}
 
 function za_sites_apparitions() :: texts:

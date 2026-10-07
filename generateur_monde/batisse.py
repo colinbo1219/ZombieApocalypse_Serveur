@@ -902,3 +902,9 @@ def cimetiere(site, plan):
 
 # ============================================================================ grands lieux de la bible (Partie 3)
 from grands_lieux import aeroport, centre_achat, arena, prison, gare, universite, port, hotel  # noqa: E402,F401
+
+
+# ============================================================================ Laurentia (directeur artistique)
+def quartier(site, plan):
+    import laurentia
+    return laurentia.quartier(site, plan)

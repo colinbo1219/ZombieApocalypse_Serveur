@@ -25,7 +25,7 @@ function za_qz_liste() :: texts:
         add "sa_hopital", "sa_police", "sa_commerce" and "sa_residentiel" to {_r::*}
     loop za_sites_donnees():
         set {_c::*} to split loop-value at "|"
-        if {_c::2} is "village":
+        if {_c::2} is "village" or "quartier":
             add "v_%{_c::1}%" to {_r::*}
     return {_r::*}
 
@@ -99,6 +99,25 @@ function za_qz_init(z: text):
         set {_p} to 50
     else if {_z} is "sa_residentiel":
         set {_p} to 45
+    # Laurentia : chaque quartier commence avec le sort que le générateur lui a donné
+    else if {_z} is "v_laurentia_erables":
+        set {_p} to 50
+    else if {_z} is "v_laurentia_saint_joseph":
+        set {_p} to 12
+        set {za::qz::%{_z}%::presence} to 60
+    else if {_z} is "v_laurentia_laurier":
+        set {_p} to 75
+    else if {_z} is "v_laurentia_vieux":
+        set {_p} to 45
+    else if {_z} is "v_laurentia_centre":
+        set {_p} to 80
+    else if {_z} is "v_laurentia_hopital":
+        set {_p} to 32
+        set {za::qz::%{_z}%::presence} to 40
+    else if {_z} is "v_laurentia_les_pins" or "v_laurentia_industriel_sud":
+        set {_p} to 70
+    else if {_z} is "v_laurentia_commerces":
+        set {_p} to 55
     set {za::qz::%{_z}%::pression} to {_p}
     set {za::qz::%{_z}%::etat} to za_qz_calcul({_z})
 

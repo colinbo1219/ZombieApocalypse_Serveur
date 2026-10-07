@@ -455,3 +455,41 @@ péages de joueurs (p113) ne sont jamais des pièges : un garde PNJ demande, le 
 - La cellule de la prison (`za_jus_cellule`) : il faut que `/zasites installer` ait été fait (sinon pas d'arrestation).
 - Les menus des survivants (nouvelles options), le frigo sur un frigo moddé (Refurbished Furniture), le garde du péage.
 - `/reprise` : la horde-test ne part que la nuit, avec un joueur dans la zone, une fois par jour serveur.
+
+## 13. Laurentia, la ville (directeur artistique)
+
+Une vraie ville de neuf quartiers (720 × 720 blocs) dans les plaines du sud, centrée en **X -1800, Z 3600**, reliée à
+la route 117 par le **boulevard Laurentien**. Aperçu vu du dessus : `docs/apercus/laurentia.png`
+(générateur : `generateur_monde/laurentia.py`).
+
+| Quartier | Genre | Sort |
+|---|---|---|
+| Les Érables | banlieue (maisons, école, église, parc, terrain de soccer) | évacué : embouteillage de l'exode, panneaux d'évacuation |
+| Saint-Joseph | banlieue | tenu par une faction : barricades, bannières, potagers, nature entretenue |
+| Parc d'affaires Laurier | industriel (usine, citernes, grue, entrepôts, conteneurs, rails) | envahi |
+| Vieux-Laurentia | banlieue | abandonné : la nature reprend la chaussée |
+| Centre-ville | tours (jusqu'à 20 étages, héliports, enseignes géantes), banque, hôtel, place Champlain, **métro** | envahi |
+| Quartier de l'Hôpital | hôpital régional (urgences, morgue, héliport), police, hôtel de ville, caserne, stationnement étagé, **métro** | quarantaine militaire : clôture, tentes, sacs de sable |
+| Les Pins | banlieue | brûlé |
+| Boulevard des Commerces | commerces, magasin à rayons, station-service | pillé |
+| Zone industrielle sud | industriel | brûlé |
+
+**Branchée au reste** (règle de l'équipe) : chaque quartier est une zone vivante de p97 (son état de départ vient de son
+sort, puis il évolue), se reprend avec `/reprise` (p112), et ses lampadaires se rallument quand il retrouve le courant
+(`za_p128_laurentia.sk` : sous-station, génératrice ou barrage ; le moteur l'apprend). Les quartiers industriels
+produisent de l'énergie et l'hôpital des médicaments dans l'économie du moteur (`graphe.yml`). Chaque lieu a son nom,
+sa phrase d'entrée et ses zombies (p73).
+
+**À faire (serveur ARRÊTÉ)** : régénérer les 9 régions de la ville et du boulevard (≈ 1 minute) :
+```
+python3 generateur_monde/generer.py --forcer --regions=-5,6/-4,6/-3,6/-5,7/-4,7/-3,7/-2,7/-1,7/0,7
+```
+⚠️ Une région régénérée perd ce que les joueurs y ont construit : la ville est sur un terrain vide, mais **r.0.7**
+contient un bout de la route 117 (vers Z 3600) ; vérifier qu'aucune base n'y est. Ensuite, en jeu : `/zasites installer`
+(les nouveaux lieux), puis `sk reload za_p128_laurentia_donnees`, `sk reload za_p128_laurentia`, `sk reload za_p97_quartiers`,
+`sk reload za_p73_sites`, `sk reload za_p73_sites_donnees` (un par un). Le moteur relit `graphe.yml` (la ville dans
+l'économie) au prochain redémarrage. Admin : `/zalaurentia` (état des quartiers et des lumières ; `allumer` / `eteindre` pour tester).
+
+**Testé** : les neuf quartiers se construisent sans erreur ; les 9 régions se génèrent (44 s) ; le reste de la carte est
+identique (sites, routes, ponts, épaves comparés à l'ancien plan). **Pas testé** : le rendu en jeu, la circulation dans
+les tours (échelles), le métro, les mods décoratifs dans ces bâtiments, les performances d'une ville aussi dense.

@@ -170,6 +170,35 @@ function za_site_ambiance(t: text) :: text:
         return "Les bateaux ont tous été pris. Il reste le quai, et ce qui flotte dessous."
     if {_t} is "hotel":
         return "Complet. Les clients ne sont jamais partis."
+    # Laurentia, la ville
+    if {_t} is "quartier":
+        return "Laurentia. Soixante mille habitants, avant. Les feux de circulation clignotent encore, parfois."
+    if {_t} is "tour":
+        return "Trente étages de bureaux. Les ascenseurs sont morts ; il reste l'échelle de service."
+    if {_t} is "banque":
+        return "La chambre forte est ouverte. L'argent ne vaut plus rien ; ce qu'il y a à côté, peut-être."
+    if {_t} is "hotel_ville":
+        return "Les registres de la ville sont empilés dans le hall. Quelqu'un comptait les morts, au début."
+    if {_t} is "commissariat":
+        return "Les cellules sont pleines. Personne n'est venu ouvrir."
+    if {_t} is "hopital_ville":
+        return "URGENCE. Les lits sont alignés jusque dans le stationnement. Le sous-sol, personne n'y descend."
+    if {_t} is "parking":
+        return "Quatre étages de voitures. Des alarmes, parfois, quand quelque chose bouge entre elles."
+    if {_t} is "metro":
+        return "Ligne 1. Le dernier train n'est jamais reparti. Le tunnel continue dans le noir."
+    if {_t} is "usine":
+        return "Boréal Métal. Les cheminées ne fument plus. Les chaînes de montage, elles, n'ont pas fini leur journée."
+    if {_t} is "entrepot":
+        return "Des palettes à perte de vue. Quelqu'un a déjà fait le tri."
+    if {_t} is "grand_magasin":
+        return "SOLDES — TOUT DOIT PARTIR. Tout est parti."
+    if {_t} is "place":
+        return "La fontaine coule encore. Les bancs sont tournés vers la rue, comme s'ils attendaient quelqu'un."
+    if {_t} is "parc":
+        return "Une balançoire bouge toute seule. Ce n'est que le vent. Probablement."
+    if {_t} is "depot_carburant":
+        return "Des réservoirs pleins. Une étincelle et tout le quartier y passe."
     return "Un lieu que la région a oublié."
 
 # ---------------------------------------------------------------- entrée dans un lieu

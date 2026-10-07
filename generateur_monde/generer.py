@@ -128,6 +128,20 @@ ZOMBIES = {
     'residences': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner',
     'port': 'ZA_Noye,ZA_Ouvrier_Infecte,ZA_Citoyen_Infecte',
     'hotel': 'ZA_Citoyen_Infecte,ZA_Stalker,ZA_FakeDead',
+    # Laurentia (directeur artistique) : quartiers et lieux de la ville
+    'quartier': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Runner,ZA_Crawler',
+    'tour': 'ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead',
+    'banque': 'ZA_Citoyen_Infecte,ZA_Policier_Infecte',
+    'hotel_ville': 'ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer',
+    'commissariat': 'ZA_Policier_Infecte,ZA_Policier_Infecte,ZA_Armored',
+    'hopital_ville': 'ZA_Patient_Infecte,ZA_Patient_Infecte,ZA_Medecin_Infecte,ZA_Spitter',
+    'parking': 'ZA_Citoyen_Infecte,ZA_Crawler,ZA_FakeDead',
+    'metro': 'ZA_Crawler,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Stalker',
+    'usine': 'ZA_Ouvrier_Infecte,ZA_Ouvrier_Brule,ZA_Brute',
+    'entrepot': 'ZA_Ouvrier_Infecte,ZA_Brute',
+    'grand_magasin': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Child',
+    'place': 'ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer',
+    'parc': 'ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker',
     # souterrains (reconnus seulement près de leur profondeur, voir za_p73)
     'sous_norda': 'ZA_Patient_Infecte,ZA_Medecin_Infecte,ZA_Spitter,ZA_Stalker,ZA_Crawler',
     'sous_bunker': 'ZA_Soldat_Infecte,ZA_Soldat_Infecte,ZA_Armored,ZA_Stalker',
@@ -208,7 +222,30 @@ def ecrire_skript(pl):
     out.append('    return {_r::*}')
     chemin = os.path.join(RACINE, 'plugins', 'Skript', 'scripts', 'za_p73_sites_donnees.sk')
     open(chemin, 'w', encoding='utf-8').write('\n'.join(out) + '\n')
+    ecrire_lampes(pl)
     return chemin
+
+
+def ecrire_lampes(pl):
+    """za_p128_laurentia_donnees.sk : les lampadaires de chaque quartier de Laurentia (généré, ne pas modifier)."""
+    import sites
+    out = ['# =====================================================================',
+           '#  LAURENTIA - LAMPADAIRES (généré par generateur_monde/generer.py : NE PAS MODIFIER)',
+           '#  quartier -> "x;y;z" de chaque tête de lampadaire, lu par za_p128_laurentia.sk',
+           '# =====================================================================',
+           '',
+           'function za_lau_lampes(q: text) :: texts:']
+    for s in pl['sites']:
+        if s['type'] != 'quartier':
+            continue
+        st = sites.structure_de(s, pl)
+        bx, by, bz = sites.base_de(s, st)
+        out.append('    if {_q} is "%s":' % s['cle'])
+        for (x, y, z) in getattr(st, 'lampes', []):
+            out.append('        add "%d;%d;%d" to {_r::*}' % (bx + x, by + y, bz + z))
+    out.append('    return {_r::*}')
+    chemin = os.path.join(RACINE, 'plugins', 'Skript', 'scripts', 'za_p128_laurentia_donnees.sk')
+    open(chemin, 'w', encoding='utf-8').write('\n'.join(out) + '\n')
 
 
 # ---------------------------------------------------------------- lanceur

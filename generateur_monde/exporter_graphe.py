@@ -59,7 +59,8 @@ def main():
     poids = {'ruines': 100, 'norda': 90, 'barrage': 85, 'militaire': 80, 'village': 70, 'industriel': 60,
              'carriere': 55, 'emetteur': 50, 'cimetiere': 45, 'arrivee': 40, 'ferme': 20, 'motel': 20,
              'station': 20, 'checkpoint': 25, 'refuge': 5, 'chalet': 5, 'camp_chasse': 5,
-             'aeroport': 75, 'prison': 72, 'centre_achat': 65, 'universite': 62, 'arena': 50, 'gare': 35, 'hotel': 30, 'port': 30}
+             'aeroport': 75, 'prison': 72, 'centre_achat': 65, 'universite': 62, 'arena': 50, 'gare': 35, 'hotel': 30, 'port': 30,
+             'quartier': 95}
     noms = {}
     for s in sites:
         i, j = reg(s['x'], s['z'])
@@ -90,7 +91,9 @@ def main():
     for s in sites:
         i, j = reg(s['x'], s['z'])
         lignes.append('  %s:' % s['id'])
-        lignes.append('    type: %s' % s['type'])
+        # quartiers de Laurentia : le genre compte pour l'économie (industriel → énergie, hôpital → médicaments)
+        typ = s['type'] if s['type'] != 'quartier' else 'quartier_' + {'civique': 'hopital'}.get(s['genre'], s['genre'])
+        lignes.append('    type: %s' % typ)
         lignes.append('    nom: %s' % yq(s['nom']))
         lignes.append('    x: %d' % int(s['x']))
         lignes.append('    z: %d' % int(s['z']))

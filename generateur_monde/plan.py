@@ -197,6 +197,11 @@ def construire(graine=GRAINE):
              poser_libre('gare_sa', 'gare', 'Gare de Saint-Aurèle', -330, -300, 70, 30),
              poser_libre('gare_brigitte', 'gare', 'Gare de Sainte-Brigitte', 2350, 1880, 70, 30)]
 
+    # ---------------------------------------------------------------- Laurentia (directeur artistique) : la vraie ville,
+    # neuf quartiers dans les plaines du sud (emplacement libre et plat vérifié ; « bible » : rien d'autre ne bouge)
+    import laurentia
+    sites.extend(laurentia.sites_du_plan())
+
     # ---------------------------------------------------------------- routes
     routes = []
     a40 = [(-LIMITE - 100, 300)]
@@ -244,9 +249,12 @@ def construire(graine=GRAINE):
         r = _route('Ligne Laurentienne', 'rail', rail)
         routes.append(r)
 
+    # boulevard Laurentien : de la rue centrale de Laurentia à la route 117 (ajouté en dernier : rien ne bouge)
+    routes.append(_route('Boulevard Laurentien', 'route', [(-1440, 3600), (-700, 3600), (80, 3600)]))
+
     principaux = routes[0]['points'] + routes[1]['points']
     for s in sites:
-        if s['type'] in ('ruines', 'arrivee', 'station', 'checkpoint', 'motel'):
+        if s['type'] in ('ruines', 'arrivee', 'station', 'checkpoint', 'motel', 'quartier'):
             continue
         genre = 'route' if s['type'] in ('militaire', 'norda', 'barrage', 'industriel', 'village') else 'rang'
         if s['type'] in ('camp_chasse', 'refuge'):

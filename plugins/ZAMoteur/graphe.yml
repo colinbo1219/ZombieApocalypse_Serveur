@@ -496,29 +496,29 @@ regions:
     riviere: false
     routes: []
   r_2_8:
-    nom: "Ferme Ouellet"
+    nom: "Laurentia — Les Érables"
     x: -2500
     z: 3500
     riviere: false
     routes: ["-2207;3112;rang", "-2064;3086;rang"]
   r_3_8:
-    nom: "Terres du sud"
+    nom: "Laurentia — Saint-Joseph"
     x: -1500
     z: 3500
     riviere: false
-    routes: ["-1919;3074;rang", "-1776;3046;rang", "-1635;3012;rang", "-1488;3015;rang"]
+    routes: ["-1440;3600;route", "-1292;3600;route", "-1144;3600;route", "-1919;3074;rang", "-1776;3046;rang", "-1635;3012;rang", "-1488;3015;rang"]
   r_4_8:
     nom: "Ferme Lavoie"
     x: -500
     z: 3500
     riviere: false
-    routes: ["0;3243;route", "-286;3506;rang", "-139;3457;rang"]
+    routes: ["0;3243;route", "-996;3600;route", "-848;3600;route", "-700;3600;route", "-553;3600;route", "-407;3600;route", "-261;3600;route", "-115;3600;route", "-286;3506;rang", "-139;3457;rang"]
   r_5_8:
     nom: "Terres du sud"
     x: 500
     z: 3500
     riviere: false
-    routes: ["20;3091;route", "43;3384;route", "72;3527;route", "78;3672;route", "75;3818;route", "40;3961;route", "15;3443;rang", "974;3450;rang", "829;3475;rang", "685;3506;rang", "536;3491;rang", "391;3518;rang"]
+    routes: ["20;3091;route", "43;3384;route", "72;3527;route", "78;3672;route", "75;3818;route", "40;3961;route", "31;3600;route", "15;3443;rang", "974;3450;rang", "829;3475;rang", "685;3506;rang", "536;3491;rang"]
   r_6_8:
     nom: "Ferme Tremblay"
     x: 1500
@@ -1234,6 +1234,60 @@ lieux:
     x: 2350
     z: 1880
     region: r_7_6
+  laurentia_erables:
+    type: quartier_banlieue
+    nom: "Laurentia — Les Érables"
+    x: -2040
+    z: 3360
+    region: r_2_8
+  laurentia_saint_joseph:
+    type: quartier_banlieue
+    nom: "Laurentia — Saint-Joseph"
+    x: -1800
+    z: 3360
+    region: r_3_8
+  laurentia_laurier:
+    type: quartier_industriel
+    nom: "Laurentia — Parc d'affaires Laurier"
+    x: -1560
+    z: 3360
+    region: r_3_8
+  laurentia_vieux:
+    type: quartier_banlieue
+    nom: "Laurentia — Vieux-Laurentia"
+    x: -2040
+    z: 3600
+    region: r_2_8
+  laurentia_centre:
+    type: quartier_centre
+    nom: "Laurentia — Centre-ville"
+    x: -1800
+    z: 3600
+    region: r_3_8
+  laurentia_hopital:
+    type: quartier_hopital
+    nom: "Laurentia — Quartier de l'Hôpital"
+    x: -1560
+    z: 3600
+    region: r_3_8
+  laurentia_les_pins:
+    type: quartier_banlieue
+    nom: "Laurentia — Les Pins"
+    x: -2040
+    z: 3840
+    region: r_2_8
+  laurentia_commerces:
+    type: quartier_commercial
+    nom: "Laurentia — Boulevard des Commerces"
+    x: -1800
+    z: 3840
+    region: r_3_8
+  laurentia_industriel_sud:
+    type: quartier_industriel
+    nom: "Laurentia — Zone industrielle sud"
+    x: -1560
+    z: 3840
+    region: r_3_8
 liens:
   - "r_0_0;r_1_0;3;terre"
   - "r_0_0;r_0_1;3;terre"
