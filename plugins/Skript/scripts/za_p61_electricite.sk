@@ -68,6 +68,9 @@ function za_elec_base(u: text) :: boolean:
 
 # une sous-station qui produit à moins de r blocs ?
 function za_elec_pres(l: location, r: number) :: boolean:
+    # le barrage remis en marche alimente toute la vallée (za_p119)
+    if za_digue_alimente({_l}) is true:
+        return true
     loop {za::elec2::ss::liste::*}:
         set {_i} to loop-value
         if ({za::elec2::ss::%{_i}%::prod} ? 0) > 0:
