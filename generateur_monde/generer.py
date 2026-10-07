@@ -128,8 +128,9 @@ ZOMBIES = {
     'residences': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner',
     'port': 'ZA_Noye,ZA_Ouvrier_Infecte,ZA_Citoyen_Infecte',
     'hotel': 'ZA_Citoyen_Infecte,ZA_Stalker,ZA_FakeDead',
-    # Laurentia (directeur artistique) : quartiers et lieux de la ville
+    # villes (ville.py) : quartiers et lieux
     'quartier': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Shambler,ZA_Runner,ZA_Crawler',
+    'poste_electrique': 'ZA_Ouvrier_Brule,ZA_Ouvrier_Infecte',
     'tour': 'ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker,ZA_FakeDead',
     'banque': 'ZA_Citoyen_Infecte,ZA_Policier_Infecte',
     'hotel_ville': 'ZA_Citoyen_Infecte,ZA_Shambler,ZA_Screamer',
@@ -146,6 +147,19 @@ ZOMBIES = {
     'sous_norda': 'ZA_Patient_Infecte,ZA_Medecin_Infecte,ZA_Spitter,ZA_Stalker,ZA_Crawler',
     'sous_bunker': 'ZA_Soldat_Infecte,ZA_Soldat_Infecte,ZA_Armored,ZA_Stalker',
     'sous_egouts': 'ZA_Crawler,ZA_Crawler,ZA_Shambler,ZA_Stalker,ZA_Bloater',
+}
+
+
+# zombies des quartiers selon leur genre
+ZOMBIES_QUARTIER = {
+    'industriel': 'ZA_Ouvrier_Infecte,ZA_Ouvrier_Infecte,ZA_Ouvrier_Brule,ZA_Shambler',
+    'gare': 'ZA_Citoyen_Infecte,ZA_Ouvrier_Infecte,ZA_Runner,ZA_Shambler',
+    'civique': 'ZA_Patient_Infecte,ZA_Citoyen_Infecte,ZA_Policier_Infecte,ZA_Shambler',
+    'affaires': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Runner,ZA_Stalker',
+    'riche': 'ZA_Citoyen_Infecte,ZA_Stalker,ZA_Shambler',
+    'pauvre': 'ZA_Citoyen_Infecte,ZA_Citoyen_Infecte,ZA_Child,ZA_Crawler,ZA_Runner',
+    'banlieue': 'ZA_Citoyen_Infecte,ZA_Child,ZA_Shambler,ZA_Runner',
+    'parc': 'ZA_Citoyen_Infecte,ZA_Child,ZA_Stalker',
 }
 
 
@@ -178,12 +192,16 @@ def ecrire_skript(pl):
         lignes.append('route_%s%d|%s|%s|%d|%d|%d|%d|%d|%s' % (e['type'], k, e['type'], e['nom'].replace('"', "'"), e['x'], y,
                                                              e['z'], e['dx'], e['dz'], ZOMBIES.get(e['type'], '')))
     for s in pl['sites']:
-        if s['type'] == 'ruines':
+        if s['type'] in ('ruines', 'ville_tuile'):
             continue
         y = T.y_site(s) + 1
         nom = s['nom'].replace('"', "'").replace('%', '%%').replace('|', '/')
         lignes.append('%s|%s|%s|%d|%d|%d|%d|%d|%s' % (s['id'], s['type'], nom, s['x'], y, s['z'],
                                                      s['larg'] // 2 + 8, s['prof'] // 2 + 8, ZOMBIES.get(s['type'], '')))
+    # quartiers des villes (après leurs lieux : un lieu a priorité sur le quartier qui le contient)
+    for q in pl.get('quartiers', []):
+        lignes.append('%s|quartier|%s|%d|%d|%d|%d|%d|%s' % (q['id'], q['nom'].replace('"', "'"), q['x'], q['y'] + 1, q['z'],
+                                                           q['dx'], q['dz'], ZOMBIES_QUARTIER.get(q['genre'], ZOMBIES['quartier'])))
     ruine = next(s for s in pl['sites'] if s['type'] == 'ruines')
     st = sites.structure_de(ruine, pl)
     bx, by, bz = sites.base_de(ruine, st)
@@ -226,25 +244,48 @@ def ecrire_skript(pl):
     return chemin
 
 
+# pression et présence de départ de chaque quartier, selon le sort que le générateur lui a jeté (lu par p97)
+SORT_DEBUT = {'envahie': (78, 0), 'guerre': (70, 35), 'quarantaine': (35, 45), 'pillee': (55, 0), 'evacuee': (22, 0),
+              'abandon': (45, 0), 'brulee': (68, 0), 'faction': (15, 60)}
+
+
 def ecrire_lampes(pl):
-    """za_p128_laurentia_donnees.sk : les lampadaires de chaque quartier de Laurentia (généré, ne pas modifier)."""
+    """za_p128_villes_donnees.sk : quartiers des villes, sort de départ et lampadaires (généré, ne pas modifier)."""
     import sites
     out = ['# =====================================================================',
-           '#  LAURENTIA - LAMPADAIRES (généré par generateur_monde/generer.py : NE PAS MODIFIER)',
-           '#  quartier -> "x;y;z" de chaque tête de lampadaire, lu par za_p128_laurentia.sk',
+           '#  VILLES - QUARTIERS ET LAMPADAIRES (généré par generateur_monde/generer.py : NE PAS MODIFIER)',
+           '#  lu par za_p128_villes.sk et za_p97_quartiers.sk',
            '# =====================================================================',
            '',
-           'function za_lau_lampes(q: text) :: texts:']
+           '# zones vivantes (p97) des quartiers des villes',
+           'function za_villes_quartiers() :: texts:']
+    qs = pl.get('quartiers', [])
+    for q in qs:
+        out.append('    add "v_%s" to {_r::*}' % q['id'])
+    out += ['    return {_r::*}', '',
+            '# "pression;présence" de départ d\'un quartier ("" : pas un quartier de ville)',
+            'function za_villes_debut(z: text) :: text:']
+    for q in qs:
+        p, pr = SORT_DEBUT.get(q['sort'], (40, 0))
+        out.append('    if {_z} is "v_%s":' % q['id'])
+        out.append('        return "%d;%d"' % (p, pr))
+    out += ['    return ""', '',
+            '# "x;y;z" de chaque tête de lampadaire d\'un quartier (zone v_...)',
+            'function za_villes_lampes(z: text) :: texts:']
+    par = {}
     for s in pl['sites']:
-        if s['type'] != 'quartier':
+        if s['type'] != 'ville_tuile':
             continue
         st = sites.structure_de(s, pl)
         bx, by, bz = sites.base_de(s, st)
-        out.append('    if {_q} is "%s":' % s['cle'])
-        for (x, y, z) in getattr(st, 'lampes', []):
-            out.append('        add "%d;%d;%d" to {_r::*}' % (bx + x, by + y, bz + z))
+        for (x, y, z, q) in getattr(st, 'lampes', []):
+            par.setdefault(q, []).append((bx + x, by + y, bz + z))
+    for q in qs:
+        out.append('    if {_z} is "v_%s":' % q['id'])
+        for (x, y, z) in par.get(q['id'], []):
+            out.append('        add "%d;%d;%d" to {_r::*}' % (x, y, z))
     out.append('    return {_r::*}')
-    chemin = os.path.join(RACINE, 'plugins', 'Skript', 'scripts', 'za_p128_laurentia_donnees.sk')
+    chemin = os.path.join(RACINE, 'plugins', 'Skript', 'scripts', 'za_p128_villes_donnees.sk')
     open(chemin, 'w', encoding='utf-8').write('\n'.join(out) + '\n')
 
 

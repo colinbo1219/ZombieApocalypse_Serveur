@@ -99,25 +99,15 @@ function za_qz_init(z: text):
         set {_p} to 50
     else if {_z} is "sa_residentiel":
         set {_p} to 45
-    # Laurentia : chaque quartier commence avec le sort que le générateur lui a donné
-    else if {_z} is "v_laurentia_erables":
-        set {_p} to 50
-    else if {_z} is "v_laurentia_saint_joseph":
-        set {_p} to 12
-        set {za::qz::%{_z}%::presence} to 60
-    else if {_z} is "v_laurentia_laurier":
-        set {_p} to 75
-    else if {_z} is "v_laurentia_vieux":
-        set {_p} to 45
-    else if {_z} is "v_laurentia_centre":
-        set {_p} to 80
-    else if {_z} is "v_laurentia_hopital":
-        set {_p} to 32
-        set {za::qz::%{_z}%::presence} to 40
-    else if {_z} is "v_laurentia_les_pins" or "v_laurentia_industriel_sud":
-        set {_p} to 70
-    else if {_z} is "v_laurentia_commerces":
-        set {_p} to 55
+    # quartiers des villes : le sort que le générateur leur a jeté (za_p128_villes_donnees.sk)
+    else if {_z} starts with "v_":
+        set {_d} to za_villes_debut({_z})
+        if {_d} is not "":
+            set {_v::*} to split {_d} at ";"
+            set {_p} to {_v::1} parsed as number
+            set {_pr} to {_v::2} parsed as number
+            if {_pr} > 0:
+                set {za::qz::%{_z}%::presence} to {_pr}
     set {za::qz::%{_z}%::pression} to {_p}
     set {za::qz::%{_z}%::etat} to za_qz_calcul({_z})
 

@@ -128,10 +128,13 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
   `za_p73_sites_donnees.sk` (versionné, généré : ne pas modifier à la main). Module de jeu : `za_p73_sites.sk`.
   Aussi : `epaves.py` (exode, carambolages, convois), `souterrains.py` (NORDA -2, bunker Bravo, tunnels ; vide de
   structure), `signalisation.py` (panneaux), bâtiments de village dans `batisse.py` (école, clinique, caserne).
-- **Laurentia** (directeur artistique) : `laurentia.py`, neuf quartiers de 240 × 240 (sites de type `quartier`, centre
-  (-1800, 3600), sol à y=67, chantier de y=48 à 163 pour le métro et les tours), boulevard Laurentien vers la route 117.
-  `generer.py` écrit aussi `za_p128_laurentia_donnees.sk` (lampadaires). Jeu : `za_p128_laurentia.sk` (lumière selon le
-  courant), zones p97 `v_laurentia_<clé>`. Aperçu : `docs/apercus/laurentia.png`. Installation : A_INSTALLER §13.
+- **Villes** (`ville.py`, conseil des 4) : ville → quartiers → routes hiérarchisées (avenues décalées, T, impasses,
+  rail, rond-point, métro) → îlots → recettes → bâtiments (`ville_bat.py` + `batisse.py`) → sort d'apocalypse par quartier.
+  `VILLES` : Laurentia (métropole, -1800/3600), Saint-Rémi-de-la-Voie (industrielle, 1200/4200), Sainte-Agathe-des-Champs
+  (résidentielle, -400/3000). Construite une fois puis découpée en sites `ville_tuile` de 240 ; les quartiers sont dans
+  `plan['quartiers']` (lignes `quartier` de p73, zones p97 `v_<id>`, lieux `quartier_<genre>` du graphe). `generer.py`
+  écrit `za_p128_villes_donnees.sk` (quartiers, sort de départ, lampadaires). Jeu : `za_p128_villes.sk` (lumière selon
+  le courant, `/zavilles`). Aperçus : `docs/apercus/`. Installation : A_INSTALLER §13.
 - Lost Cities retiré de l'overworld : `world/serverconfig/lostcities-server.toml` `selectedProfile = ""`.
 - Ville moddée : `ZA_sources/ville/blocs_mods.json.gz` (extrait des jars par `extraire_blocs_mods.py`) permet à
   `za_blocs.S()` d'accepter les blocs moddés (propriétés partielles) ; `za_meubles.py` (meubles) et `za_moderne.py`

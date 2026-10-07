@@ -1,17 +1,16 @@
-# za_p128_laurentia.sk — Laurentia, la ville (directeur artistique : « la lumière fait partie du jeu ET du visuel »)
-#  Neuf quartiers générés (generateur_monde/laurentia.py), tous zones vivantes de p97 (état qui évolue, décor) et
-#  reprenables avec /reprise (p112). Ici : la LUMIÈRE.
+# za_p128_villes.sk — les villes (generateur_monde/ville.py : Laurentia, Saint-Rémi-de-la-Voie, Sainte-Agathe-des-Champs)
+#  Chaque quartier de ville est une zone vivante de p97 (état qui évolue, sort de départ donné par le générateur :
+#  évacué, pillé, brûlé, envahi, quarantaine militaire, faction, zone de guerre) et se reprend avec /reprise (p112).
+#  Ici : la LUMIÈRE (directeur artistique : « la lumière fait partie du jeu ET du visuel »).
 #  * Tous les lampadaires sont éteints depuis le Jour 8. Un quartier qui retrouve le courant (sous-station à portée,
 #    génératrice qui tourne dans le quartier, ou les turbines du barrage : za_rep_courant de p112) se rallume,
 #    lampadaire après lampadaire. Le courant coupe : tout s'éteint d'un coup. Le moteur l'apprend (courant rétabli
 #    ou coupé : chaînes de réactions, frigos, Léa).
 #  * La lumière se voit de loin... et attire (règle 3) : un quartier allumé attire l'activité des morts la nuit.
-#  Données : za_p128_laurentia_donnees.sk (généré). Variables : {za::lau::*}
+#  Données : za_p128_villes_donnees.sk (généré : za_villes_quartiers, za_villes_debut, za_villes_lampes).
+#  Variables : {za::vil::*}
 
-function za_lau_quartiers() :: texts:
-    return "erables", "saint_joseph", "laurier", "vieux", "centre", "hopital", "les_pins", "commerces" and "industriel_sud"
-
-function za_lau_present(c: location, r: number) :: boolean:
+function za_vil_present(c: location, r: number) :: boolean:
     loop za_monde_joueurs():
         if world of loop-value is world of {_c}:
             if distance between loop-value and {_c} < {_r}:
@@ -19,12 +18,12 @@ function za_lau_present(c: location, r: number) :: boolean:
     return false
 
 # pose l'état voulu des lampadaires (un peu à la fois quand ils se rallument)
-function za_lau_appliquer(q: text, allume: boolean):
+function za_vil_appliquer(z: text, allume: boolean):
     set {_st} to "minecraft:gray_stained_glass"
     if {_allume} is true:
         set {_st} to "minecraft:ochre_froglight[axis=y]"
     set {_n} to 0
-    loop za_lau_lampes({_q}):
+    loop za_villes_lampes({_z}):
         set {_c::*} to split loop-value at ";"
         execute console command "execute in minecraft:overworld run setblock %{_c::1}% %{_c::2}% %{_c::3}% %{_st}%"
         add 1 to {_n}
@@ -33,22 +32,21 @@ function za_lau_appliquer(q: text, allume: boolean):
                 wait 5 ticks
 
 every 30 seconds:
-    loop za_lau_quartiers():
-        set {_q} to loop-value
-        set {_z} to "v_laurentia_%{_q}%"
+    loop za_villes_quartiers():
+        set {_z} to loop-value
         set {_c} to za_qz_centre({_z})
         if {_c} is set:
-            if za_lau_present({_c}, 200) is true:
-                za_lau_verifier({_q}, {_z}, {_c})
+            if za_vil_present({_c}, 200) is true:
+                za_vil_verifier({_z}, {_c})
 
-function za_lau_verifier(q: text, z: text, c: location):
+function za_vil_verifier(z: text, c: location):
     set {_veut} to za_rep_courant({_z})
-    set {_avant} to {za::lau::lum::%{_q}%} ? false
+    set {_avant} to {za::vil::lum::%{_z}%} ? false
     set {_now} to unix timestamp of now
     if {_veut} is not {_avant}:
-        set {za::lau::lum::%{_q}%} to {_veut}
-        set {za::lau::pose::%{_q}%} to {_now}
-        za_lau_appliquer({_q}, {_veut})
+        set {za::vil::lum::%{_z}%} to {_veut}
+        set {za::vil::pose::%{_z}%} to {_now}
+        za_vil_appliquer({_z}, {_veut})
         set {_nom} to za_qz_nom({_z})
         if {_veut} is true:
             za_mot("courant %floor(x-coordinate of {_c})% %floor(z-coordinate of {_c})% on")
@@ -66,37 +64,38 @@ function za_lau_verifier(q: text, z: text, c: location):
                         send "&8BOUM. &7Tout %{_nom}% s'éteint d'un coup. Il ne reste que la lune." to loop-value
         stop
     # les tronçons n'étaient peut-être pas tous chargés : on repose l'état toutes les 5 minutes quand quelqu'un est là
-    if {_now} - ({za::lau::pose::%{_q}%} ? 0) > 300:
-        set {za::lau::pose::%{_q}%} to {_now}
+    if {_now} - ({za::vil::pose::%{_z}%} ? 0) > 300:
+        set {za::vil::pose::%{_z}%} to {_now}
         if {_avant} is true:
-            za_lau_appliquer({_q}, true)
+            za_vil_appliquer({_z}, true)
 
 # un quartier allumé, la nuit, attire les morts (règle 3)
 every 60 seconds:
     if za_nuit_serveur() is false:
         stop
-    loop za_lau_quartiers():
-        if {za::lau::lum::%loop-value%} is true:
-            set {_c} to za_qz_centre("v_laurentia_%loop-value%")
+    loop za_villes_quartiers():
+        if {za::vil::lum::%loop-value%} is true:
+            set {_c} to za_qz_centre(loop-value)
             if {_c} is set:
                 za_activite_ajouter({_c}, 3)
 
-command /zalaurentia [<text>]:
+command /zavilles [<text>]:
     permission: za.admin
     trigger:
-        loop za_lau_quartiers():
-            set {_z} to "v_laurentia_%loop-value%"
+        loop za_villes_quartiers():
+            set {_z} to loop-value
             set {_l} to "&8éteint"
-            if {za::lau::lum::%loop-value%} is true:
+            if {za::vil::lum::%{_z}%} is true:
                 set {_l} to "&eallumé"
-            set {_ls::*} to za_lau_lampes(loop-value)
+            set {_ls::*} to za_villes_lampes({_z})
             send "&f%za_qz_nom({_z})% &7: %uncolored za_qz_etat_nom(za_qz_etat({_z}))% · %{_l}% &8(%size of {_ls::*}% lampadaires)" to sender
+            delete {_ls::*}
         if arg-1 is "allumer" or "eteindre":
             set {_b} to false
             if arg-1 is "allumer":
                 set {_b} to true
-            loop za_lau_quartiers():
-                za_lau_appliquer(loop-value, {_b})
-            loop za_lau_quartiers():
-                set {za::lau::lum::%loop-value%} to {_b}
+            loop za_villes_quartiers():
+                za_vil_appliquer(loop-value, {_b})
+            loop za_villes_quartiers():
+                set {za::vil::lum::%loop-value%} to {_b}
             send "&7Lampadaires : %arg-1% (test ; le prochain contrôle remet l'état réel)." to sender

@@ -456,40 +456,54 @@ péages de joueurs (p113) ne sont jamais des pièges : un garde PNJ demande, le 
 - Les menus des survivants (nouvelles options), le frigo sur un frigo moddé (Refurbished Furniture), le garde du péage.
 - `/reprise` : la horde-test ne part que la nuit, avec un joueur dans la zone, une fois par jour serveur.
 
-## 13. Laurentia, la ville (directeur artistique)
+## 13. Les villes : Laurentia, Saint-Rémi-de-la-Voie, Sainte-Agathe-des-Champs
 
-Une vraie ville de neuf quartiers (720 × 720 blocs) dans les plaines du sud, centrée en **X -1800, Z 3600**, reliée à
-la route 117 par le **boulevard Laurentien**. Aperçu vu du dessus : `docs/apercus/laurentia.png`
-(générateur : `generateur_monde/laurentia.py`).
+Générateur hiérarchique `generateur_monde/ville.py` (conseil des 4 : « garder les modules, ajouter la hiérarchie ») :
+**VILLE** (type, graine) → **QUARTIERS** (germes : genre + sort d'apocalypse) → **RÉSEAU ROUTIER** → **ÎLOTS** →
+**PARCELLES** → **BÂTIMENTS** (`ville_bat.py` + `batisse.py`, les modules d'avant) → **DÉTAILS** → **APOCALYPSE**.
 
-| Quartier | Genre | Sort |
-|---|---|---|
-| Les Érables | banlieue (maisons, école, église, parc, terrain de soccer) | évacué : embouteillage de l'exode, panneaux d'évacuation |
-| Saint-Joseph | banlieue | tenu par une faction : barricades, bannières, potagers, nature entretenue |
-| Parc d'affaires Laurier | industriel (usine, citernes, grue, entrepôts, conteneurs, rails) | envahi |
-| Vieux-Laurentia | banlieue | abandonné : la nature reprend la chaussée |
-| Centre-ville | tours (jusqu'à 20 étages, héliports, enseignes géantes), banque, hôtel, place Champlain, **métro** | envahi |
-| Quartier de l'Hôpital | hôpital régional (urgences, morgue, héliport), police, hôtel de ville, caserne, stationnement étagé, **métro** | quarantaine militaire : clôture, tentes, sacs de sable |
-| Les Pins | banlieue | brûlé |
-| Boulevard des Commerces | commerces, magasin à rayons, station-service | pillé |
-| Zone industrielle sud | industriel | brûlé |
+- **Types de ville** : `metropole` (métro, tours, rond-point central), `industrielle` (voie ferrée et gare au cœur,
+  usines, cours en gravier), `residentielle` (étalée, parcs, impasses). Ajouter une ville = une ligne dans `VILLES`.
+- **Routes hiérarchisées** : boulevards (13, terre-plein planté, rond-point), avenues (9) qui **se décalent d'une
+  rangée à l'autre** et **s'interrompent** (deux mailles fusionnent : carrefours en T), rues (7) et petites rues (5) qui
+  s'arrêtent sur les avenues, **impasses à rond de virage** en banlieue, ruelles derrière les commerces, voie ferrée avec
+  passages à niveau. Les petites villes s'effilochent : coins en **champs** ou en **boisés** au lieu d'un carré.
+- **Recettes d'îlots** selon le genre du quartier (centre, affaires, civique, commercial, résidentiel, banlieue, riche,
+  pauvre, industriel, gare, parc) ; grands équipements une fois par ville (hôpital, hôtel de ville + place, gare, magasin
+  à rayons, stationnement, écoles, églises, stade, piscine, poste électrique, dépôt d'autobus, cinéma).
+- **Apocalypse par quartier** : évacué, abandonné, pillé, brûlé, envahi, quarantaine militaire, faction, **zone de
+  guerre** (cratères, sacs de sable, barbelés). Le sort fixe aussi la pression et la présence de départ dans p97.
 
-**Branchée au reste** (règle de l'équipe) : chaque quartier est une zone vivante de p97 (son état de départ vient de son
-sort, puis il évolue), se reprend avec `/reprise` (p112), et ses lampadaires se rallument quand il retrouve le courant
-(`za_p128_laurentia.sk` : sous-station, génératrice ou barrage ; le moteur l'apprend). Les quartiers industriels
-produisent de l'énergie et l'hôpital des médicaments dans l'économie du moteur (`graphe.yml`). Chaque lieu a son nom,
-sa phrase d'entrée et ses zombies (p73).
+| Ville | Centre | Type | Quartiers (sort) |
+|---|---|---|---|
+| Laurentia | X -1800, Z 3600 (720 × 720) | métropole | Centre-ville (envahi), Quartier des affaires (guerre), Quartier de l'Hôpital (quarantaine), Boulevard des Commerces (pillé), Le Faubourg (évacué), Les Cèdres (abandonné), Les Bouleaux (brûlé), Mont-Royal-des-Pins (faction), Les Tanneries (envahi), Parc industriel (brûlé) |
+| Saint-Rémi-de-la-Voie | X 1200, Z 4200 (480 × 480) | industrielle | Centre-ville (guerre), La Fonderie (faction), Les Forges (envahi), Quartier de la Gare (quarantaine), Le Bas-de-la-Ville (envahi), Saint-Roch (brûlé), Les Galeries (pillé) |
+| Sainte-Agathe-des-Champs | X -400, Z 3000 (480 × 480) | résidentielle | Centre-ville (abandonné), Les Pins (évacué), Petite-Rivière (abandonné), Le Belvédère (faction), Bois-Joli (pillé), Les Prés (abandonné) |
 
-**À faire (serveur ARRÊTÉ)** : régénérer les 9 régions de la ville et du boulevard (≈ 1 minute) :
+Aperçus vus du dessus : `docs/apercus/laurentia.png`, `saint_remi.png`, `sainte_agathe.png`. Routes vers le réseau :
+boulevard Laurentien, rue de la Gare et chemin Sainte-Agathe (tous trois vers la route 117).
+
+**Branchées au reste** (règle de l'équipe) : chaque quartier est une zone vivante de p97 (`v_<ville>_<genre><n>` ; état
+de départ tiré de son sort, puis il évolue), se reprend avec `/reprise` (p112), et ses lampadaires se rallument quand il
+retrouve le courant (`za_p128_villes.sk` : sous-station, génératrice ou barrage ; le moteur l'apprend). Les quartiers
+industriels produisent de l'énergie et l'hôpital des médicaments dans l'économie du moteur (`graphe.yml`). Chaque lieu
+(tour, métro, gare, cinéma, poste électrique...) a son nom, sa phrase d'entrée et ses zombies (p73) ; chaque quartier a
+des zombies selon son genre (ouvriers à l'usine, patients près de l'hôpital, enfants en banlieue).
+
+**À faire (serveur ARRÊTÉ)** : régénérer les 19 régions des trois villes et de leurs routes (≈ 2 minutes) :
 ```
-python3 generateur_monde/generer.py --forcer --regions=-5,6/-4,6/-3,6/-5,7/-4,7/-3,7/-2,7/-1,7/0,7
+python3 generateur_monde/generer.py --forcer --regions=-5,6/-5,7/-4,6/-4,7/-3,6/-3,7/-2,5/-2,6/-2,7/-1,5/-1,6/-1,7/0,6/0,7/0,8/1,7/1,8/2,7/2,8
 ```
-⚠️ Une région régénérée perd ce que les joueurs y ont construit : la ville est sur un terrain vide, mais **r.0.7**
-contient un bout de la route 117 (vers Z 3600) ; vérifier qu'aucune base n'y est. Ensuite, en jeu : `/zasites installer`
-(les nouveaux lieux), puis `sk reload za_p128_laurentia_donnees`, `sk reload za_p128_laurentia`, `sk reload za_p97_quartiers`,
-`sk reload za_p73_sites`, `sk reload za_p73_sites_donnees` (un par un). Le moteur relit `graphe.yml` (la ville dans
-l'économie) au prochain redémarrage. Admin : `/zalaurentia` (état des quartiers et des lumières ; `allumer` / `eteindre` pour tester).
+⚠️ Une région régénérée perd ce que les joueurs y ont construit : les villes sont sur des terrains vides, mais
+**r.0.6, r.0.7, r.0.8, r.-1.5, r.-1.6** contiennent la route 117 et des fermes ; vérifier qu'aucune base n'y est.
+Ensuite, en jeu : `/zasites installer` (les nouveaux lieux), puis un par un : `sk reload za_p128_villes_donnees`,
+`sk reload za_p128_villes`, `sk reload za_p97_quartiers`, `sk reload za_p73_sites_donnees`, `sk reload za_p73_sites`.
+Si l'ancienne Laurentia était installée : supprimer `za_p128_laurentia.sk` et `za_p128_laurentia_donnees.sk` du serveur
+(remplacés). Le moteur relit `graphe.yml` au prochain redémarrage. Admin : `/zavilles` (état des quartiers et des
+lumières ; `allumer` / `eteindre` pour tester).
 
-**Testé** : les neuf quartiers se construisent sans erreur ; les 9 régions se génèrent (44 s) ; le reste de la carte est
-identique (sites, routes, ponts, épaves comparés à l'ancien plan). **Pas testé** : le rendu en jeu, la circulation dans
-les tours (échelles), le métro, les mods décoratifs dans ces bâtiments, les performances d'une ville aussi dense.
+**Testé** : les trois villes se construisent (Laurentia ≈ 20 s, les autres < 10 s) ; 4 régions générées en test
+(une par ville + route) et relues vue du dessus ; le reste de la carte est identique (sites, routes, ponts comparés à
+l'ancien plan) ; `verif_skript` et `verif_liens` sans anomalie nouvelle. **Pas testé** : le rendu en jeu, la
+circulation dans les tours (échelles), le métro, les mods décoratifs dans ces bâtiments, les performances d'une ville
+aussi dense, le raccord des chemins de ferme qui butent sur le bord de Saint-Rémi et de Sainte-Agathe.

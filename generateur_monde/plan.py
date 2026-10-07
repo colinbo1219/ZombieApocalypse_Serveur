@@ -197,10 +197,10 @@ def construire(graine=GRAINE):
              poser_libre('gare_sa', 'gare', 'Gare de Saint-Aurèle', -330, -300, 70, 30),
              poser_libre('gare_brigitte', 'gare', 'Gare de Sainte-Brigitte', 2350, 1880, 70, 30)]
 
-    # ---------------------------------------------------------------- Laurentia (directeur artistique) : la vraie ville,
-    # neuf quartiers dans les plaines du sud (emplacement libre et plat vérifié ; « bible » : rien d'autre ne bouge)
-    import laurentia
-    sites.extend(laurentia.sites_du_plan())
+    # ---------------------------------------------------------------- les villes (ville.py : ville -> quartiers -> îlots
+    # -> lots), découpées en fenêtres de 240 ; emplacements libres et plats vérifiés ; « bible » : rien d'autre ne bouge
+    import ville
+    sites.extend(ville.sites_du_plan())
 
     # ---------------------------------------------------------------- routes
     routes = []
@@ -249,19 +249,20 @@ def construire(graine=GRAINE):
         r = _route('Ligne Laurentienne', 'rail', rail)
         routes.append(r)
 
-    # boulevard Laurentien : de la rue centrale de Laurentia à la route 117 (ajouté en dernier : rien ne bouge)
-    routes.append(_route('Boulevard Laurentien', 'route', [(-1440, 3600), (-700, 3600), (80, 3600)]))
+    # sorties des villes vers le réseau (ajoutées en dernier : rien ne bouge)
+    for nom, pts in ville.routes_du_plan():
+        routes.append(_route(nom, 'route', pts))
 
     principaux = routes[0]['points'] + routes[1]['points']
     for s in sites:
-        if s['type'] in ('ruines', 'arrivee', 'station', 'checkpoint', 'motel', 'quartier'):
+        if s['type'] in ('ruines', 'arrivee', 'station', 'checkpoint', 'motel', 'ville_tuile'):
             continue
         genre = 'route' if s['type'] in ('militaire', 'norda', 'barrage', 'industriel', 'village') else 'rang'
         if s['type'] in ('camp_chasse', 'refuge'):
             continue
         relier(s, principaux + sum((r['points'] for r in routes[2:4]), []), genre)
     return {'graine': graine, 'limite': LIMITE, 'mer': MER, 'riviere': riv, 'lacs': LACS, 'routes': routes, 'sites': sites,
-            'breches': breches(routes, riv)}
+            'breches': breches(routes, riv), 'quartiers': ville.quartiers_du_plan()}
 
 
 def breches(routes, riv):

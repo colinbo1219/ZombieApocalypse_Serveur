@@ -448,7 +448,7 @@ regions:
     riviere: false
     routes: ["-1346;2982;rang", "-1205;2943;rang", "-1057;2951;rang", "-1865;2612;rang", "-1720;2605;rang", "-1577;2581;rang", "-1436;2549;rang", "-1289;2559;rang", "-1147;2528;rang", "-1006;2493;rang"]
   r_4_7:
-    nom: "Ferme Gauthier"
+    nom: "Sainte-Agathe-des-Champs — Centre-ville"
     x: -500
     z: 2500
     riviere: false
@@ -496,23 +496,23 @@ regions:
     riviere: false
     routes: []
   r_2_8:
-    nom: "Laurentia — Les Érables"
+    nom: "Laurentia — Le Faubourg"
     x: -2500
     z: 3500
     riviere: false
     routes: ["-2207;3112;rang", "-2064;3086;rang"]
   r_3_8:
-    nom: "Laurentia — Saint-Joseph"
+    nom: "Laurentia — Centre-ville"
     x: -1500
     z: 3500
     riviere: false
     routes: ["-1440;3600;route", "-1292;3600;route", "-1144;3600;route", "-1919;3074;rang", "-1776;3046;rang", "-1635;3012;rang", "-1488;3015;rang"]
   r_4_8:
-    nom: "Ferme Lavoie"
+    nom: "Sainte-Agathe-des-Champs — Petite-Rivière"
     x: -500
     z: 3500
     riviere: false
-    routes: ["0;3243;route", "-996;3600;route", "-848;3600;route", "-700;3600;route", "-553;3600;route", "-407;3600;route", "-261;3600;route", "-115;3600;route", "-286;3506;rang", "-139;3457;rang"]
+    routes: ["0;3243;route", "-996;3600;route", "-848;3600;route", "-700;3600;route", "-553;3600;route", "-407;3600;route", "-261;3600;route", "-115;3600;route", "-160;3000;route", "-286;3506;rang", "-139;3457;rang"]
   r_5_8:
     nom: "Terres du sud"
     x: 500
@@ -578,9 +578,9 @@ regions:
     x: 500
     z: 4500
     riviere: false
-    routes: ["63;4108;route", "62;4254;route", "7;4396;route", "40;4544;route", "35;4689;route", "9;4979;route", "326;4576;rang", "175;4561;rang", "995;4102;rang", "850;4106;rang", "704;4112;rang", "561;4080;rang"]
+    routes: ["63;4108;route", "62;4254;route", "7;4396;route", "40;4544;route", "35;4689;route", "9;4979;route", "960;4200;route", "814;4200;route", "669;4200;route", "524;4200;route", "377;4200;route", "230;4200;route"]
   r_6_9:
-    nom: "Refuge 79"
+    nom: "Saint-Rémi-de-la-Voie — Centre-ville"
     x: 1500
     z: 4500
     riviere: false
@@ -1234,60 +1234,144 @@ lieux:
     x: 2350
     z: 1880
     region: r_7_6
-  laurentia_erables:
-    type: quartier_banlieue
-    nom: "Laurentia — Les Érables"
-    x: -2040
-    z: 3360
-    region: r_2_8
-  laurentia_saint_joseph:
-    type: quartier_banlieue
-    nom: "Laurentia — Saint-Joseph"
-    x: -1800
-    z: 3360
-    region: r_3_8
-  laurentia_laurier:
-    type: quartier_industriel
-    nom: "Laurentia — Parc d'affaires Laurier"
-    x: -1560
-    z: 3360
-    region: r_3_8
-  laurentia_vieux:
-    type: quartier_banlieue
-    nom: "Laurentia — Vieux-Laurentia"
-    x: -2040
-    z: 3600
-    region: r_2_8
-  laurentia_centre:
+  laurentia_centre0:
     type: quartier_centre
     nom: "Laurentia — Centre-ville"
-    x: -1800
-    z: 3600
+    x: -1839
+    z: 3636
     region: r_3_8
-  laurentia_hopital:
+  laurentia_affaires1:
+    type: quartier_affaires
+    nom: "Laurentia — Quartier des affaires"
+    x: -1766
+    z: 3443
+    region: r_3_8
+  laurentia_civique2:
     type: quartier_hopital
     nom: "Laurentia — Quartier de l'Hôpital"
-    x: -1560
-    z: 3600
+    x: -1625
+    z: 3667
     region: r_3_8
-  laurentia_les_pins:
-    type: quartier_banlieue
-    nom: "Laurentia — Les Pins"
-    x: -2040
-    z: 3840
-    region: r_2_8
-  laurentia_commerces:
+  laurentia_commercial3:
     type: quartier_commercial
     nom: "Laurentia — Boulevard des Commerces"
-    x: -1800
-    z: 3840
+    x: -1769
+    z: 3834
     region: r_3_8
-  laurentia_industriel_sud:
+  laurentia_residentiel4:
+    type: quartier_residentiel
+    nom: "Laurentia — Le Faubourg"
+    x: -2001
+    z: 3568
+    region: r_2_8
+  laurentia_residentiel5:
+    type: quartier_residentiel
+    nom: "Laurentia — Les Cèdres"
+    x: -1610
+    z: 3356
+    region: r_3_8
+  laurentia_banlieue6:
+    type: quartier_banlieue
+    nom: "Laurentia — Les Bouleaux"
+    x: -2040
+    z: 3815
+    region: r_2_8
+  laurentia_riche7:
+    type: quartier_riche
+    nom: "Laurentia — Mont-Royal-des-Pins"
+    x: -1996
+    z: 3395
+    region: r_3_8
+  laurentia_pauvre8:
+    type: quartier_pauvre
+    nom: "Laurentia — Les Tanneries"
+    x: -1554
+    z: 3845
+    region: r_3_8
+  laurentia_industriel9:
     type: quartier_industriel
-    nom: "Laurentia — Zone industrielle sud"
-    x: -1560
-    z: 3840
+    nom: "Laurentia — Parc industriel"
+    x: -1516
+    z: 3764
     region: r_3_8
+  saint_remi_centre0:
+    type: quartier_centre
+    nom: "Saint-Rémi-de-la-Voie — Centre-ville"
+    x: 1224
+    z: 4164
+    region: r_6_9
+  saint_remi_industriel1:
+    type: quartier_industriel
+    nom: "Saint-Rémi-de-la-Voie — La Fonderie"
+    x: 1023
+    z: 4299
+    region: r_6_9
+  saint_remi_industriel2:
+    type: quartier_industriel
+    nom: "Saint-Rémi-de-la-Voie — Les Forges"
+    x: 1311
+    z: 4299
+    region: r_6_9
+  saint_remi_gare3:
+    type: quartier_gare
+    nom: "Saint-Rémi-de-la-Voie — Quartier de la Gare"
+    x: 1234
+    z: 4299
+    region: r_6_9
+  saint_remi_pauvre4:
+    type: quartier_pauvre
+    nom: "Saint-Rémi-de-la-Voie — Le Bas-de-la-Ville"
+    x: 1105
+    z: 4088
+    region: r_6_9
+  saint_remi_pauvre5:
+    type: quartier_pauvre
+    nom: "Saint-Rémi-de-la-Voie — Saint-Roch"
+    x: 1323
+    z: 4089
+    region: r_6_9
+  saint_remi_commercial6:
+    type: quartier_commercial
+    nom: "Saint-Rémi-de-la-Voie — Les Galeries"
+    x: 1230
+    z: 4034
+    region: r_6_9
+  sainte_agathe_centre0:
+    type: quartier_centre
+    nom: "Sainte-Agathe-des-Champs — Centre-ville"
+    x: -374
+    z: 2978
+    region: r_4_7
+  sainte_agathe_banlieue1:
+    type: quartier_banlieue
+    nom: "Sainte-Agathe-des-Champs — Les Pins"
+    x: -544
+    z: 2933
+    region: r_4_7
+  sainte_agathe_banlieue2:
+    type: quartier_banlieue
+    nom: "Sainte-Agathe-des-Champs — Petite-Rivière"
+    x: -310
+    z: 3125
+    region: r_4_8
+  sainte_agathe_riche3:
+    type: quartier_riche
+    nom: "Sainte-Agathe-des-Champs — Le Belvédère"
+    x: -210
+    z: 2876
+    region: r_4_7
+  sainte_agathe_banlieue4:
+    type: quartier_banlieue
+    nom: "Sainte-Agathe-des-Champs — Bois-Joli"
+    x: -478
+    z: 3139
+    region: r_4_8
+  sainte_agathe_parc5:
+    type: quartier_parc
+    nom: "Sainte-Agathe-des-Champs — Les Prés"
+    x: -374
+    z: 2930
+    region: r_4_7
 liens:
   - "r_0_0;r_1_0;3;terre"
   - "r_0_0;r_0_1;3;terre"

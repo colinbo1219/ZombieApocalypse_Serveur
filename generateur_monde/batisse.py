@@ -905,6 +905,6 @@ from grands_lieux import aeroport, centre_achat, arena, prison, gare, universite
 
 
 # ============================================================================ Laurentia (directeur artistique)
-def quartier(site, plan):
-    import laurentia
-    return laurentia.quartier(site, plan)
+def ville_tuile(site, plan):
+    import ville
+    return ville.tuile(site, plan)

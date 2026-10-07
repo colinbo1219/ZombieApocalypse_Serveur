@@ -37,7 +37,8 @@ def yq(s):
 def main():
     sortie = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), '..', 'plugins', 'ZAMoteur', 'graphe.yml')
     pl = P.construire()
-    sites = pl['sites']
+    # les fenêtres de ville ne sont pas des lieux : ce sont leurs quartiers qui comptent
+    sites = [s for s in pl['sites'] if s['type'] != 'ville_tuile'] + pl.get('quartiers', [])
     # routes par région
     routes = {}
     for r in pl['routes']:
@@ -91,7 +92,7 @@ def main():
     for s in sites:
         i, j = reg(s['x'], s['z'])
         lignes.append('  %s:' % s['id'])
-        # quartiers de Laurentia : le genre compte pour l'économie (industriel → énergie, hôpital → médicaments)
+        # quartiers des villes : le genre compte pour l'économie (industriel → énergie, hôpital → médicaments)
         typ = s['type'] if s['type'] != 'quartier' else 'quartier_' + {'civique': 'hopital'}.get(s['genre'], s['genre'])
         lignes.append('    type: %s' % typ)
         lignes.append('    nom: %s' % yq(s['nom']))
