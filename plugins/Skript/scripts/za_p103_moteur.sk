@@ -569,18 +569,24 @@ function za_mot_capture(u: text):
     set {_w} to world "world"
     if {_w} is not set:
         stop
+    if {za::mot::capt::%{_u}%::jour} is set:
+        stop
     za_zm("noir %{_p}% 4")
     za_effet({_p}, "blindness", 6, 0)
     wait 2 seconds
+    # après l'attente : le joueur est-il toujours là ? (audit N2)
+    set {_p} to za_mot_joueur({_u})
+    if {_p} is not set:
+        stop
     set {_cel} to location(2620.5, 53, -759.5, {_w})
     set {_cas} to location(2626.5, 53, -759.5, {_w})
+    # séquestre personnel (par UUID), complet, enregistré AVANT de vider le sac : rien ne se perd, rien ne se mélange
+    loop items in inventory of {_p}:
+        add loop-item to {za::mot::capt::%{_u}%::sac::*}
+    clear inventory of {_p}
+    set {za::mot::capt::%{_u}%::casier} to {_cas}
     if block at {_cas} is air:
         set block at {_cas} to chest
-        set {_b} to block at {_cas}
-        loop items in inventory of {_p}:
-            add loop-item to inventory of {_b}
-        clear inventory of {_p}
-        set {za::mot::capt::%{_u}%::casier} to {_cas}
     teleport {_p} to {_cel}
     set {za::mot::capt::%{_u}%::jour} to {za::serveur::jours}
     za_souvenir_ajouter({_u}, "norda", "capture", "Capturé par NORDA. Réveillé dans une cellule du niveau -2.")
@@ -617,8 +623,36 @@ command /interrogatoire <text>:
             delete {za::mot::capt::%{_u}%::rep}
             stop
         wait 60 seconds
-        send "&eUne coupure de courant. Les serrures magnétiques claquent. La porte est ouverte. &7(Ton équipement est dans un casier, à côté.)" to player
-        delete {za::mot::capt::%{_u}%::*}
+        send "&eUne coupure de courant. Les serrures magnétiques claquent. La porte est ouverte. &7(Ton équipement est dans un casier, à côté : ouvre-le.)" to player
+        # la détention prend fin ; le sac reste à toi tant que tu ne l'as pas repris
+        delete {za::mot::capt::%{_u}%::jour}
+        delete {za::mot::capt::%{_u}%::rep}
+
+# le casier : chacun y retrouve SON équipement (séquestre par UUID), une seule fois
+on right click on chest:
+    if za_pro(player) is true:
+        stop
+    set {_u} to "%player's uuid%"
+    if {za::mot::capt::%{_u}%::casier} is not set:
+        stop
+    if size of {za::mot::capt::%{_u}%::sac::*} is 0:
+        stop
+    if world of event-block is not world of {za::mot::capt::%{_u}%::casier}:
+        stop
+    if distance between event-block and {za::mot::capt::%{_u}%::casier} > 2:
+        stop
+    if {za::mot::capt::%{_u}%::jour} is set:
+        send "&7Le casier est verrouillé. Pas encore." to player
+        cancel event
+        stop
+    cancel event
+    loop {za::mot::capt::%{_u}%::sac::*}:
+        if player can hold loop-value:
+            give player loop-value
+        else:
+            drop loop-value at player
+    delete {za::mot::capt::%{_u}%::*}
+    send "&7Ton sac, tes armes, tout y est. Ils n'ont même pas fouillé. &8Ou alors, ils ont tout photographié." to player
 
 command /norda [<text>]:
     trigger:

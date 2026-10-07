@@ -148,23 +148,50 @@ public final class Cerveaux {
         if (odeurs.size() > 20000) odeurs.clear();
     }
 
+    // ---------------------------------------------------------------- qui est à nous (audit N1)
+
+    private static final String[] PAS_A_NOUS = {"za_allie", "za_garde", "za_norda", "za_drone", "za_mission",
+            "za_overlord", "za_overlord_final", "za_rb_boucher", "za_rb_matriarche", "za_rb_gardien", "za_rb_brule"};
+
+    /** un infecté : monstre, pas un garde (pillards et vindicateurs recrutés sont des Raider), pas un allié ni un
+     *  acteur de scénario (NORDA, drones, boss régionaux, Overlord) */
+    public static boolean infecte(Entity e) {
+        if (!(e instanceof Monster) || !(e instanceof Mob) || e instanceof org.bukkit.entity.Raider) return false;
+        for (String t : PAS_A_NOUS) if (e.getScoreboardTags().contains(t)) return false;
+        return true;
+    }
+
+    /** un infecté dont le cerveau est confié à ZAMoteur (les Némésis et boss scriptés gardent le leur) */
+    public static boolean geres(Entity e) {
+        return infecte(e) && !e.getScoreboardTags().contains("za_cerveau_libre");
+    }
+
     // ---------------------------------------------------------------- chaque seconde
+
+    private int curseur, tour;
 
     void tick1s() {
         deposerOdeurs();
         List<Player> ps = z.mondePrincipal().getPlayers();
         if (ps.isEmpty()) return;
-        int n = 0;
-        List<Mob> vus = new ArrayList<>();
-        for (Player p : ps) {
+        // chaque monstre une seule fois (UUID), zones des joueurs prises à tour de rôle, budget partagé équitablement
+        // (audit N7)
+        Map<UUID, Mob> cand = new java.util.LinkedHashMap<>();
+        int np = ps.size();
+        tour++;
+        for (int i = 0; i < np && cand.size() < budget * 3; i++) {
+            Player p = ps.get((tour + i) % np);
             for (Entity e : p.getNearbyEntities(48, 20, 48)) {
-                if (!(e instanceof Monster) || !(e instanceof Mob)) continue;
-                if (e.getScoreboardTags().contains("za_cerveau_libre")) continue;   // boss, PNJ hostiles scriptés
-                if (n++ >= budget) break;
-                vus.add((Mob) e);
+                if (!geres(e)) continue;
+                cand.putIfAbsent(e.getUniqueId(), (Mob) e);
+                if (cand.size() >= budget * 3) break;
             }
         }
-        for (Mob m : vus) penser(m, ps);
+        List<Mob> tous = new ArrayList<>(cand.values());
+        int k = Math.min(budget, tous.size());
+        int dep = tous.isEmpty() ? 0 : Math.floorMod(curseur, tous.size());
+        for (int i = 0; i < k; i++) penser(tous.get((dep + i) % tous.size()), ps);
+        curseur += k;
         // ménage
         cerveaux.keySet().removeIf(u -> Bukkit.getEntity(u) == null);
         tactique();
@@ -296,7 +323,7 @@ public final class Cerveaux {
         String nom = m.getCustomName() == null ? "" : m.getCustomName();
         double r = nom.contains("Screamer") ? 48 : 8;
         for (Entity e : m.getNearbyEntities(r, 6, r)) {
-            if (!(e instanceof Mob) || !(e instanceof Monster)) continue;
+            if (!geres(e)) continue;
             Cerveau c = cerveau(e);
             if (c.etat.equals("errance") || c.etat.equals("recherche")) {
                 c.derniere = p.getLocation();
@@ -309,7 +336,7 @@ public final class Cerveaux {
     /** panique (point 68) : explosion, feu, fusée : fuir 10 à 20 s ; les Alphas et vétérans résistent */
     public void panique(Location source, double rayon) {
         for (Entity e : source.getWorld().getNearbyEntities(source, rayon, 10, rayon)) {
-            if (!(e instanceof Mob) || !(e instanceof Monster)) continue;
+            if (!geres(e)) continue;
             String nom = e.getCustomName() == null ? "" : e.getCustomName();
             if (nom.contains("Alpha") || e.getScoreboardTags().contains("za_veteran") || nom.contains("Pompier")) continue;
             Cerveau c = cerveau(e);

@@ -75,7 +75,7 @@ public final class Ecouteurs implements Listener {
             z.nordaReel.droneAbattu(e, e.getKiller());
             return;
         }
-        if (!(e instanceof Monster)) return;
+        if (!Cerveaux.infecte(e)) return;   // un garde ou un acteur de scénario n'est pas un infecté (audit N1)
         Location l = e.getLocation();
         String type = typeDe(e);
         // charge de cadavres (1), pertes du génome (IA-6)
@@ -297,7 +297,7 @@ public final class Ecouteurs implements Listener {
         if (!z.actif("cerveaux")) return;
         if (!(ev.getEntity() instanceof Monster) || !(ev.getTarget() instanceof Player)) return;
         Entity e = ev.getEntity();
-        if (e.getScoreboardTags().contains("za_cerveau_libre") || !survie(e)) return;
+        if (!Cerveaux.geres(e) || !survie(e)) return;
         if (ev.getReason() == EntityTargetLivingEntityEvent.TargetReason.TARGET_ATTACKED_ENTITY
                 || ev.getReason() == EntityTargetLivingEntityEvent.TargetReason.TARGET_ATTACKED_NEARBY_ENTITY
                 || ev.getReason() == EntityTargetLivingEntityEvent.TargetReason.CUSTOM) return;

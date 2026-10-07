@@ -81,7 +81,7 @@ public final class Nemesis {
 
     /** un zombie vient de tuer un joueur (appelé avant que les objets tombent) */
     public void tueur(Player victime, LivingEntity tueur, List<ItemStack> drops) {
-        if (!z.actif("nemesis") || !(tueur instanceof Mob) || !(tueur instanceof Monster)) return;
+        if (!z.actif("nemesis") || !Cerveaux.infecte(tueur)) return;
         Fiche f = de(tueur);
         if (f != null) {
             // il tue encore : il monte en grade, son nom grandit
