@@ -756,3 +756,19 @@ Correctifs : `za_menu` n'affichait que 7 choix (le menu du survivant en base en 
 **RESTE À FAIRE (bible)** : 45 offensives déclarées entre joueurs (règles JcJ à fixer par Colin), S-2 combat
 (dépend de TaCZ), 26 taches de sang visibles et 39 mutation visible (mod client), mod `za_modeles` 2.0 (drones,
 corbeaux, voix des cassettes).
+
+### Après l'audit de la bible (docs/AUDIT_BIBLE.md)
+
+**NOUVEAU** : `za_p121_offensives` (45 : ultimatum, fenêtre avec défenseur connecté, JcJ permis entre les camps,
+prisonniers de guerre), `za_p122_ville_classement` (7, 62, 65), `za_p123_ombres` (112 témoins, 98 filature, 101
+opérations NORDA, 96 signature et camouflage de l'antenne), `za_p124_chairs` (24 et 39 côté serveur, suppression S-2,
+camouflage au sang de zombie), `za_p125_catastrophes2` (32 : effondrements, dépôt de carburant).
+Moteur : l'informateur sort la nuit (`informateur_sort`), tags `za_odeur_morte` et `za_fumee` lus par Cerveaux.
+**MODIFIÉ** : p9 (un meurtre n'est plus annoncé à tout le serveur : il passe par les témoins), p70 et p90 (antenne
+camouflée), p79 (un zombie sans bras ne casse plus les portes), p103 (Némésis au classement, routage), p112, p115.
+
+**TESTS** : vérificateur Skript (132 scripts, aucune anomalie), moteur compilé. **NON TESTÉ** : tout en jeu.
+
+**RESTE (hors du serveur ou côté client)** : modèles et effets d'écran (`za_modeles`), Discord, BlueMap, whitelist,
+shaders et optimisation (modpack), sauvegardes (hébergeur), munitions spéciales (TaCZ), panneaux Supplementaries,
+scènes dans les bâtiments (générateur).
