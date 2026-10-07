@@ -190,6 +190,7 @@ function za_rep_fete(z: text):
         za_effet(loop-value, "regeneration", 60, 0)
         za_zm("son %loop-value% minecraft:ui.toast.challenge_complete 1 0.8")
         za_faction_ajouter(loop-value, "survivants", 10)
+        za_cmpg_decision("%loop-value's uuid%", "Tu as repris %{_nom}% aux morts.")
         # le moral remonte dans les bases de ceux qui étaient là
         set {_u} to "%loop-value's uuid%"
         loop {za::surv::liste::*}:

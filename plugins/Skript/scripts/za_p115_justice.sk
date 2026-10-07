@@ -57,6 +57,7 @@ function za_jus_arreter(p: player, chasseur: player, id: number):
     remove {_id} from {za::prime::liste::*}
     delete {za::prime::%{_id}%::*}
     za_jetons_ajouter({_chasseur}, {_m})
+    za_cmpg_decision("%{_chasseur}'s uuid%", "Tu as arrêté %{_p}% au lieu de le tuer.")
     set {za::justice::%{_u}%::fin} to (unix timestamp of now) + {@attente}
     set {za::justice::%{_u}%::par} to "%{_chasseur}'s uuid%"
     set {za::justice::%{_u}%::etat} to "attente"

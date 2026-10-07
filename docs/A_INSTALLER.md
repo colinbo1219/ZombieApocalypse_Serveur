@@ -433,6 +433,7 @@ Chronique, les rumeurs et la mémoire du monde.
 | `za_p113_commerce_ombre` | faux remèdes du Trafiquant, `/analyser`, `/contrefaire`, Vaccin NORDA (balise), `/frigo`, `/peage` |
 | `za_p114_aide` | aide adaptative : le monde aide le joueur qui meurt toujours de la même façon (S-10) |
 | `za_p115_justice` | Menottes (Trafiquant) : capturer un **recherché** au lieu de le tuer, `/proces`, `/jury`, `/evasion` |
+| `za_p116_campagne` | chapitres du serveur calculés à partir du monde, décisions par joueur et poids du monde sur le vote de fin, dans `/campagne` (S-7) |
 
 **Règles de serveur à annoncer** : l'arrestation (p115) ne touche que les joueurs qui ont une prime (`/prime`). Les
 péages de joueurs (p113) ne sont jamais des pièges : un garde PNJ demande, le joueur paie ou fait demi-tour.

@@ -66,9 +66,10 @@ function za_fin_compter(c: text) :: number:
 
 function za_fin_cloturer():
     delete {za::fin::ouvert}
-    set {_d} to za_fin_compter("detruire")
-    set {_v} to za_fin_compter("verite")
-    set {_r} to za_fin_compter("remede")
+    # le monde vote aussi (za_p116, S-7) : traqués de NORDA, confiance de Léa, recherche et villes reprises
+    set {_d} to za_fin_compter("detruire") + za_cmpg_poids("detruire")
+    set {_v} to za_fin_compter("verite") + za_cmpg_poids("verite")
+    set {_r} to za_fin_compter("remede") + za_cmpg_poids("remede")
     set {_c} to "verite"
     if {_d} > {_v}:
         if {_d} >= {_r}:

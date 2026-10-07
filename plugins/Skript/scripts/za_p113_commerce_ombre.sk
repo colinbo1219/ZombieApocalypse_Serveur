@@ -72,6 +72,9 @@ command /contrefaire [<text>]:
         else:
             give player za_faux_item("honey bottle", "Antibiotique", "&b", 1)
         send "&8Ça a l'air vrai. C'est tout ce qui compte, non ?" to player
+        if {za::cmpg::faux::%player's uuid%} is not set:
+            set {za::cmpg::faux::%player's uuid%} to true
+            za_cmpg_decision("%player's uuid%", "Tu as fabriqué ton premier faux remède.")
         za_mot("preuve %player's uuid% contrefacon 3 %floor(x-coordinate of player)% %floor(z-coordinate of player)%")
 
 # le vaccin de NORDA : une balise (101)

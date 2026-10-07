@@ -1,0 +1,113 @@
+# za_p116_campagne.sk — l'état de campagne (bible v2, S-7)
+#  L'histoire n'est pas seulement écrite (prologue, fil, p40) : la simulation la fait avancer.
+#  * CHAPITRES DU SERVEUR, calculés chaque jour à partir du monde :
+#    1 La chute → 2 Les ombres de NORDA (un survivant au palier 2, ou virus niveau 2) → 3 La riposte (une ville reprise,
+#    ou 100 points de recherche) → 4 Le grand froid (virus niveau 4, ou trois villes reprises). Le vote de fin (p80) est
+#    le dernier chapitre. Chaque passage : Léa, la légende du monde, le journal.
+#  * DÉCISIONS : les choix qui comptent sont notés par joueur (za_cmpg_decision) et affichés dans /campagne.
+#  * FINS PONDÉRÉES : le vote de fin (p80) reçoit des voix du monde (au plus 3 par fin) :
+#    Détruire ← survivants traqués par NORDA (palier 3+) · Vérité ← ceux à qui Léa fait confiance (70+) ·
+#    Remède ← la recherche collective (1 par 100 points) et les villes reprises (1 pour 2).
+#  Variables : {za::cmpg::*} ({za::camp::*} est aux camps p44)
+
+function za_cmpg_titre(n: number) :: text:
+    if {_n} is 2:
+        return "Les ombres de NORDA"
+    if {_n} is 3:
+        return "La riposte"
+    if {_n} is 4:
+        return "Le grand froid"
+    return "La chute"
+
+function za_cmpg_villes() :: number:
+    set {_n} to 0
+    loop za_qz_liste():
+        if ({za::reprise::%loop-value%::etape} ? 0) is 6:
+            add 1 to {_n}
+    return {_n}
+
+function za_cmpg_traques() :: number:
+    set {_n} to 0
+    loop {za::mot::palier::*}:
+        if ("%loop-value%" parsed as number ? 0) >= 2:
+            add 1 to {_n}
+    return {_n}
+
+function za_cmpg_calcul() :: number:
+    set {_c} to 1
+    set {_evo} to za_evo_niveau()
+    set {_v} to za_cmpg_villes()
+    if any:
+        za_cmpg_traques() > 0
+        {_evo} >= 2
+    then:
+        set {_c} to 2
+    if any:
+        {_v} >= 1
+        ({za::sci::points} ? 0) >= 100
+    then:
+        set {_c} to 3
+    if any:
+        {_v} >= 3
+        {_evo} >= 4
+    then:
+        set {_c} to 4
+    return {_c}
+
+every 1 minute:
+    if {za::cmpg::jour} is not ({za::serveur::jours} ? 0):
+        set {za::cmpg::jour} to {za::serveur::jours} ? 0
+        set {_c} to za_cmpg_calcul()
+        if {_c} > ({za::cmpg::chapitre} ? 1):
+            set {za::cmpg::chapitre} to {_c}
+            set {_t} to za_cmpg_titre({_c})
+            za_diffuser("&6&l━━ CHAPITRE %{_c}% : %{_t}% ━━")
+            za_monde_legende("Jour %{za::serveur::jours} ? 0% : le monde entre dans un nouveau chapitre, « %{_t}% ».")
+            za_journal("Chapitre %{_c}% : %{_t}%.")
+            if {_c} is 2:
+                za_radio("&bLéa", "Il y a des gens en blanc sur les routes. Ils posent des questions. Ils prennent des photos. Faites attention à ce que vous dites.")
+            else if {_c} is 3:
+                za_radio("&bLéa", "Pour la première fois depuis le Jour 8, j'ai une bonne nouvelle. On reprend du terrain. Lentement. Mais on le reprend.")
+            else if {_c} is 4:
+                za_radio("&bLéa", "Ça change, dehors. Eux aussi, ils changent. Préparez-vous. Ce qui vient sera plus dur que tout ce qu'on a vu.")
+
+# une décision qui compte (appelée par les autres modules)
+function za_cmpg_decision(u: text, texte: text):
+    add "J%{za::serveur::jours} ? 0% — %{_texte}%" to {za::cmpg::dec::%{_u}%::*}
+    while size of {za::cmpg::dec::%{_u}%::*} > 12:
+        set {_ks::*} to indices of {za::cmpg::dec::%{_u}%::*}
+        delete {za::cmpg::dec::%{_u}%::%{_ks::1}%}
+
+# voix que le monde ajoute au vote de fin (p80)
+function za_cmpg_poids(c: text) :: number:
+    if {_c} is "detruire":
+        set {_n} to 0
+        loop {za::mot::palier::*}:
+            if ("%loop-value%" parsed as number ? 0) >= 3:
+                add 1 to {_n}
+        return min(3, {_n})
+    if {_c} is "verite":
+        set {_n} to 0
+        loop {za::rel::lea::*}:
+            if loop-value >= 70:
+                add 1 to {_n}
+        return min(3, {_n})
+    return min(3, floor(({za::sci::points} ? 0) / 100) + floor(za_cmpg_villes() / 2))
+
+# la suite de /campagne (za_p60) : le monde, tes décisions, les fins possibles
+function za_cmpg_afficher(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_c} to {za::cmpg::chapitre} ? 1
+    if {za::fin::ouvert} is set:
+        send "&6Chapitre du monde : &fLe choix &7(vote en cours : /choix)" to {_p}
+    else:
+        send "&6Chapitre du monde : &f%{_c}% — %za_cmpg_titre({_c})%" to {_p}
+    send "&7Villes reprises : &f%za_cmpg_villes()% &8· &7virus : niveau &f%za_evo_niveau()% &8· &7recherche : &f%{za::sci::points} ? 0% points" to {_p}
+    if size of {za::cmpg::dec::%{_u}%::*} > 0:
+        send "&8Tes décisions :" to {_p}
+        loop {za::cmpg::dec::%{_u}%::*}:
+            send "&8  · &7%loop-value%" to {_p}
+    set {_d} to za_cmpg_poids("detruire")
+    set {_v} to za_cmpg_poids("verite")
+    set {_r} to za_cmpg_poids("remede")
+    send "&8Ce que le monde pèse dans le choix final : &7Détruire +%{_d}% · Vérité +%{_v}% · Remède +%{_r}%" to {_p}

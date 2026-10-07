@@ -952,6 +952,7 @@ function za_campagne(p: player):
         else:
             send "&8·  ???" to {_p}
         add 1 to {_i}
+    za_cmpg_afficher({_p})
     send "&8Ce que le monde a retenu de toi : &7/souvenirs" to {_p}
     send "&8&m                                              " to {_p}
 
