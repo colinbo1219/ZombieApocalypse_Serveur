@@ -34,7 +34,7 @@ Fusionnés : 17, 21, 37, 40, 51.
 
 | N° | Ce qui existe | Ce qui manque |
 |---|---|---|
-| 7 Fiche d'état de chaque lieu | /zone, /lieu, /quartiers, /reprise | `/ville <nom>` avec le brouillard d'information (« dernières nouvelles : il y a 3 jours ») et le panneau à l'entrée |
+| 7 Fiche d'état de chaque lieu | `/ville` avec le brouillard d'information (p122) | panneau dynamique à l'entrée |
 | 14 Événements sans annonce | largage, survivant poursuivi, alarme, chien, patrouille (Directeur) | à vérifier en jeu |
 | 26 Trace de sang | piste d'odeur du moteur, sang = piste forte | taches visibles au sol 📦, viande crue comme appât |
 | 32 Catastrophes | incendies (p98), barrage (p119), tempêtes (p55) | effondrement d'un bâtiment, dépôt de carburant qui explose en chaîne, grue |
@@ -42,10 +42,6 @@ Fusionnés : 17, 21, 37, 40, 51.
 | 35 Mods déco | lampadaires Macaw's | tableaux d'affichage Supplementaries (avis de recherche, prix), drapeaux de faction 🔍 |
 | 54 Sang, impacts, cadavres | corps de joueurs (p13), particules | décalques de sang 📦 |
 | 56, 57 Pack de ressources, musique | voix, sons | interface, écran titre, musique en couches 📦 |
-| 96 Antenne de base | réseau près du courant (p70) | **antenne à construire, signature pour NORDA, camouflage** |
-| 98 Agents NORDA infiltrés | secrets des PNJ, taupes (p95), retourner (p103) | **filature la nuit, boîte aux lettres morte** |
-| 101 Opérations NORDA | barrages, drones, capture, vaccin-balise | **labo mobile, ratissage d'une région, désinformation à la radio, convoi de prisonniers** |
-| 112 Réputation avec témoins | témoins notés par le moteur (Mémoire) | **un crime qui ne compte que s'il est vu ; soudoyer ou intimider un témoin** |
 
 **Manquants (❌)**
 
@@ -55,7 +51,6 @@ Fusionnés : 17, 21, 37, 40, 51.
 | 39 Mutation visible | 📦 (effets d'écran, peau) ; côté serveur : chuchotements, chiens qui jappent, PNJ qui ont peur |
 | 58 Shaders et sons | 🔍 modpack |
 | 59 Discord, 60 BlueMap, 61 Whitelist | 🔍 hors du serveur Skript |
-| 62 Classement | **faisable** : jours survécus, Némésis, villes reprises, recherche ; jamais les joueurs tués |
 | 64 Mods d'optimisation | 🔍 modpack |
 | 65 Sauvegardes et redémarrages | 🔍 hébergeur ; **faisable** : l'annonce de Léa avant le redémarrage |
 

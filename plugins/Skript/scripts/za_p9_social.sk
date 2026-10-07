@@ -17,9 +17,8 @@ on death of player:
             if {za::rep::%{_v}%} is not set:
                 set {za::rep::%{_v}%} to 0
             if {za::rep::%{_v}%} >= 0:
-                remove 10 from {za::rep::%{_a}%}
-                send "&cTu as tue un survivant : reputation -10." to attacker
-                za_diffuser("&8&o%attacker% a tue %victim%...")
+                # un meurtre ne compte que s'il a été vu (za_p123, point 112)
+                za_tem_meurtre(attacker, victim)
             else:
                 add 3 to {za::rep::%{_a}%}
 

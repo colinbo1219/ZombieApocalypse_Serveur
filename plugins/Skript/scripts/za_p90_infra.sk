@@ -203,6 +203,18 @@ command /infra [<text>] [<text>]:
                 za_mot("preuve %{_u}% antenne 6 %{_bx}% %{_bz}%")
             send "&a%{_t}% en service." to player
             za_journal("%player% a construit un(e) %{_t}%.")
+        else if arg-1 is "camoufler":
+            # antenne de base (96) : camouflée, moins de portée, moins de signature pour NORDA
+            if {za::infra::%{_u}%::tour} is not set:
+                if {za::infra::%{_u}%::antenne} is not set:
+                    send "&7Tu n'as ni tour ni antenne." to player
+                    stop
+            if {za::infra::%{_u}%::camoufle} is true:
+                delete {za::infra::%{_u}%::camoufle}
+                send "&7Tu retires les filets et les branches. &8Pleine portée (300 blocs), pleine signature." to player
+            else:
+                set {za::infra::%{_u}%::camoufle} to true
+                send "&7Filets, branches, peinture mate. &8Portée réduite (120 blocs) ; NORDA a plus de mal à la repérer." to player
         else:
             send "&6&l━━ INFRASTRUCTURES ━━" to player
             loop "mirador", "tour", "infirmerie" and "antenne":
@@ -211,7 +223,7 @@ command /infra [<text>] [<text>]:
                 if {_l} is set:
                     set {_e} to "&aen service"
                 send "&7%loop-value% (%za_infra_cout(loop-value)% jetons + 1 composant) : %{_e}%" to player
-            send "&7/infra construire <type> en regardant le bloc, dans ta base." to player
+            send "&7/infra construire <type> en regardant le bloc, dans ta base. &8/infra camoufler : tour et antenne discrètes." to player
 
 every 10 seconds:
     loop za_monde_joueurs():

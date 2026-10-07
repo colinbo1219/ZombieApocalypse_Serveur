@@ -73,8 +73,11 @@ function za_tel_signal(p: player) :: boolean:
     # tour radio de sa base (za_p90) : capte à 300 blocs, même sans courant
     set {_t} to {za::infra::%{_p}'s uuid%::tour}
     if {_t} is set:
+        set {_por} to 300
+        if {za::infra::%{_p}'s uuid%::camoufle} is true:
+            set {_por} to 120
         if world of {_t} is world of {_p}:
-            if distance between {_t} and {_p} < 300:
+            if distance between {_t} and {_p} < {_por}:
                 return true
     if za_courant() is true:
         return true

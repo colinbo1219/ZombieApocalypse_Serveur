@@ -180,6 +180,7 @@ public final class ZAMoteur extends JavaPlugin {
                 if (actif("lea")) lea.tick30s();
                 infoJoueurs.tick30s();
                 if (actif("factions")) societe.tick30s();
+                if (actif("bases")) mensonges.nuit();
             }
         }.runTaskTimer(this, 300L, 600L);
         // sauvegarde toutes les 5 minutes

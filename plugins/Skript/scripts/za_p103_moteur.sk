@@ -304,6 +304,8 @@ function za_mot_evt_serveur(t: text, ligne: text):
             send "&7Ta jambe te lance, ton sac te scie les épaules, le froid te mord. &8(chaîne 12 : FATIGUÉ → BLESSÉ → MALADE)" to {_p}
     else if {_t} starts with "base_":
         za_bv_evt({_t}, {_ligne})
+    else if {_t} is "informateur_sort":
+        za_filat_sortie({_a::2}, {_a::3} parsed as number)
     else if {_t} is "pnj_bascule" or "refuge_signe" or "refuge_embuscade" or "deserteurs_menaces":
         za_sec_evt({_t}, {_ligne})
     else if {_t} is "legende":

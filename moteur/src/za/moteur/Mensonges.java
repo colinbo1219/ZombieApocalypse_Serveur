@@ -178,6 +178,22 @@ public final class Mensonges {
         } else z.pont.zaevt("msg " + u + " " + s.nom + " te regarde, perplexe. « J'en avais pas besoin. Mais merci. »");
     }
 
+    /** la nuit, l'informateur sort vers sa boîte aux lettres morte (98) : on peut le filer. Une fois par jour au plus. */
+    private final java.util.Map<Integer, Integer> sorties = new java.util.HashMap<>();
+
+    void nuit() {
+        if (!z.estNuit()) return;
+        for (Bases.Survivant s : z.vivantes.cerveau.survivants.values()) {
+            if (!s.secret.equals("informateur") || s.base.isEmpty() || s.etat.equals("mort")) continue;
+            if (!BasesVivantes.enLigne(s.base)) continue;
+            Integer j = sorties.get(s.id);
+            if (j != null && j == z.jour()) continue;
+            if (rng.nextDouble() > 0.08) continue;
+            sorties.put(s.id, z.jour());
+            z.pont.zaevt("informateur_sort " + s.base + " " + s.id);
+        }
+    }
+
     /** chaque jour : les informateurs rapportent (98, chaîne 4) */
     void jour() {
         infections();
