@@ -9,6 +9,7 @@
 #  * MUTATION VISIBLE (39) : au stade 2 de l'infection, chuchotements que toi seul entends ; au stade 3, les chiens
 #    jappent quand tu passes, les PNJ reculent, et les morts t'ignorent davantage : tu sens comme eux
 #    (tag za_odeur_morte, lu par le moteur ; une partie des cibles est lâchée).
+#  * SUPPRESSION (S-2) : une balle qui ne tue pas fige la cible une seconde et ralentit ceux qui chargent avec elle.
 
 # ---------------------------------------------------------------- démembrement (24)
 
@@ -147,3 +148,19 @@ on right click:
     if player is online:
         remove "za_camouflage" from scoreboard tags of player
         send "&7L'odeur s'est dissipée." to player
+
+# ---------------------------------------------------------------- suppression (S-2) : un tir qui ne tue pas casse quand même la charge
+
+on damage of zombie:
+    if attacker is not a player:
+        stop
+    if za_pro(attacker) is true:
+        stop
+    if damage cause is not projectile:
+        stop
+    if damage >= health of victim:
+        stop
+    apply potion of slowness of tier 4 to victim for 1 second
+    loop all zombies in radius 4 around victim:
+        if loop-entity is not victim:
+            apply potion of slowness of tier 2 to loop-entity for 1 second

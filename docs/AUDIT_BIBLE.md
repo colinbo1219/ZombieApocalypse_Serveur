@@ -15,7 +15,7 @@ Légende : ✅ fait · 🟡 en partie · ❌ manquant · 📦 côté client (mod
 | F8 Variables en SQLite | 🔍 | configuration de Skript, non faite |
 | IA-1 à IA-16 | ✅ | Directeur, Cerveaux, Némésis, génome, hordes, PNJ, mensonges, factions, NORDA, Léa, écosystème, compagnons, bases, Ω |
 | S-1 Corps | ✅ | p105, p53, p110 |
-| S-2 Combat et armes | 🟡 | numéros de série, usure, saisies (p49, p113). **Manque** : munitions subsoniques et artisanales, effet de suppression, fiabilité selon l'état du tireur |
+| S-2 Combat et armes | 🟡 | numéros de série, usure, saisies (p49, p113). suppression (p124). **Manque** : munitions subsoniques et artisanales (il faut savoir ce que TaCZ permet de lire 🔍), fiabilité selon l'état du tireur |
 | S-3 Économie | ✅ | prix régionaux, convois, blocus |
 | S-4 Social, S-5 Radio | ✅ | p107, p85, p109 |
 | S-6 Mémoire du monde | ✅ | p62, p64, moteur |
