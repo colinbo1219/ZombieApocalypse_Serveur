@@ -192,9 +192,14 @@ public final class Materialisation {
         Player p = Bukkit.getPlayer(d.joueur);
         if (p == null || p.getWorld().getName().equals("za_prologue")) return;
         if (totalReels() >= z.plafondReelsServeur) return;
-        int pres = 0;
-        for (Entity e : p.getNearbyEntities(64, 32, 64)) if (e.getScoreboardTags().contains("za_horde")) pres++;
-        if (pres >= z.plafondReelsJoueur) return;
+        // budget commun (audit N12) : les morts de horde ET tous les autres infectés présents (apparitions Skript,
+        // sièges, nids, missions) comptent ; au-delà de 60 autour du joueur, plus aucune apparition de horde
+        int pres = 0, tous = 0;
+        for (Entity e : p.getNearbyEntities(64, 32, 64)) {
+            if (e.getScoreboardTags().contains("za_horde")) pres++;
+            if (Cerveaux.infecte(e)) tous++;
+        }
+        if (pres >= z.plafondReelsJoueur || tous >= 60) return;
         Location l = pointHorsVue(p, 96, 128);
         if (l == null) return;
         Region r;

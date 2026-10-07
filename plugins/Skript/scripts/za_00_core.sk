@@ -66,6 +66,13 @@ function za_decay(wd: text, x1: number, y1: number, z1: number, x2: number, y2: 
         else:
             execute console command "execute in %{_wd}% run setblock %{_dx}% %{_dy}% %{_dz}% minecraft:coarse_dirt"
 
+# ---------- budget commun de population (audit N12) : on refuse de créer AVANT d'avoir à supprimer ----------
+# 60 zombies à moins de 48 blocs : plus d'apparition (le nettoyage de p10 ne commence qu'à 70 dans 64 blocs)
+function za_population_pleine(l: location) :: boolean:
+    if size of (all zombies in radius 48 around {_l}) >= 60:
+        return true
+    return false
+
 # ---------- fait apparaitre un mob MythicMobs autour d'un joueur ----------
 function za_spawn_near(p: player, t: text, dmin: number, dmax: number):
     if za_pro({_p}) is true:
@@ -74,6 +81,8 @@ function za_spawn_near(p: player, t: text, dmin: number, dmax: number):
         if {za::calme::fin} is greater than now:
             stop
     if za_zone_morte(location of {_p}) is true:
+        stop
+    if za_population_pleine(location of {_p}) is true:
         stop
     set {_l} to location of {_p}
     set {_d} to random number between {_dmin} and {_dmax}
@@ -93,6 +102,8 @@ function za_spawn_at(l: location, t: text, dmin: number, dmax: number):
     if "%world of {_l}%" is "za_prologue":
         stop
     if za_zone_morte({_l}) is true:
+        stop
+    if za_population_pleine({_l}) is true:
         stop
     set {_l2} to {_l}
     set {_d} to random number between {_dmin} and {_dmax}
