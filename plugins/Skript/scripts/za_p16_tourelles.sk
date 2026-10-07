@@ -130,11 +130,12 @@ every 2 seconds:
             loop {_nc} times:
                 if size of {_z::*} > 0:
                     set {_bd} to 999
-                    loop {_z::*}:
-                        set {_d} to distance between loop-value-3 and {_l}
+                    loop indices of {_z::*}:
+                        set {_ix} to loop-value-3
+                        set {_d} to distance between {_z::%{_ix}%} and {_l}
                         if {_d} < {_bd}:
                             set {_bd} to {_d}
-                            set {_bi} to loop-index-3
+                            set {_bi} to {_ix}
                     set {_t} to {_z::%{_bi}%}
                     delete {_z::%{_bi}%}
                     damage {_t} by {_deg}

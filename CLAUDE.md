@@ -87,6 +87,13 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
 - Numéros en double : `za_p7_economie` / `za_p7_progression`, `za_p38_lieux` / `za_p38_prologue`.
 - LISEZMOI.txt annonce 41 scripts : il y en a 136.
 - Colin utilise Java 25 en local, alors que le serveur exige Java 17 ou 21.
+- Erreurs vues sur le vrai serveur (Skript 2.9.5), détectées par `verif_skript.py` :
+  - `loop-index-N` n'existe pas (« There's no loop that matches ») : `loop indices of {_x::*}:` puis
+    `set {_i} to loop-value-N` et lire `{_x::%{_i}%}`.
+  - `push X horizontally towards Y` n'est pas compris : calculer dx/dz, normaliser, puis
+    `add vector(dx * v, 0, dz * v) to velocity of X`.
+  - Argument `<number>` comparé à du texte (`if arg-2 is "hache"`) : « Can't compare a number with a text ».
+    Déclarer `<text>` et utiliser `(arg-2 parsed as number) ? 0` là où il sert de nombre.
 
 ## Travail des phases 2 à 15 (voir docs/RAPPORTS_PHASES.md)
 - Nouveaux modules : `za_p61_electricite` (sous-stations Create/CCA/IE), `za_p63_echos` (personnages du prologue),

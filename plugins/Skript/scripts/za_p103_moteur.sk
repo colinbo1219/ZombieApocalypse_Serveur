@@ -709,8 +709,9 @@ every 5 minutes:
 
 # ce qui reste d'un convoi attaqué (S-3) : posé quand quelqu'un passe à côté
 every 30 seconds:
-    loop {za::mot::epave::*}:
-        set {_c::*} to split loop-value-1 at "|"
+    loop indices of {za::mot::epave::*}:
+        set {_ci} to loop-value-1
+        set {_c::*} to split {za::mot::epave::%{_ci}%} at "|"
         set {_x} to {_c::1} parsed as number
         set {_z} to {_c::2} parsed as number
         loop za_mot_pres({_x}, {_z}, 64):
@@ -729,7 +730,7 @@ every 30 seconds:
                 send "&7Une charrette renversée, des corps, des caisses éventrées. &8(le convoi de %uncolored za_faction_nom({_c::3})%)" to loop-value-2
                 za_spawn_at({_l}, "ZA_Shambler", 6, 14)
                 za_spawn_at({_l}, "ZA_Shambler", 6, 14)
-                delete {za::mot::epave::%loop-index-1%}
+                delete {za::mot::epave::%{_ci}%}
                 stop loop
 
 function za_mot_convoi_objet(r: text, n: number) :: itemtype:

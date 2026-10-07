@@ -64,8 +64,8 @@ function za_lieu_toutes() :: texts:
     set {_types::*} to za_bat_types()
     loop {_types::*}:
         set {_t} to loop-value-1
-        loop {za::bat::%{_t}%::liste::*}:
-            add "%{_t}%;%loop-index-2%" to {_r::*}
+        loop indices of {za::bat::%{_t}%::liste::*}:
+            add "%{_t}%;%loop-value-2%" to {_r::*}
     return {_r::*}
 
 # bâtiment le plus proche (centre) dans le rayon, "" sinon (remplace za_bat_proche du noyau)

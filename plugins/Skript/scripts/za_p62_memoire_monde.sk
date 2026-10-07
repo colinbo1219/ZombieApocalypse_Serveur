@@ -301,12 +301,13 @@ function za_lieux_sync():
     set {_ts::*} to za_bat_types()
     loop {_ts::*}:
         set {_t} to loop-value-1
-        loop {za::bat::%{_t}%::liste::*}:
-            set {_k} to "bat:%{_t}%;%loop-index-2%"
+        loop indices of {za::bat::%{_t}%::liste::*}:
+            set {_i} to loop-value-2
+            set {_k} to "bat:%{_t}%;%{_i}%"
             if za_lieu_existe({_k}) is false:
-                set {_c} to za_bat_centre_s(loop-value-2)
+                set {_c} to za_bat_centre_s({za::bat::%{_t}%::liste::%{_i}%})
                 if {_c} is set:
-                    za_lieu_creer({_k}, {_t}, za_lieu_nom_libre({_t}, loop-index-2 parsed as number), {_c}, true)
+                    za_lieu_creer({_k}, {_t}, za_lieu_nom_libre({_t}, {_i} parsed as number), {_c}, true)
     loop {za::camp::liste::*}:
         set {_k} to "camp:%loop-value%"
         if za_lieu_existe({_k}) is false:

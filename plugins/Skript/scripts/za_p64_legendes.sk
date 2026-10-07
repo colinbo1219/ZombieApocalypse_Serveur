@@ -142,13 +142,15 @@ function za_leg_migration_fin():
         za_leg_son_tous("za_modeles:sfx.sting_revelation", 1, 1)
         za_leg_titre_tous("&a&lLA MIGRATION EST PASSÉE", "&7Saint-Aurèle tient encore.", 5)
         za_diffuser("&a&lLa Grande Migration est passée. &7%{_k}% morts abattus. &fMeilleur tireur : &e%{_heros}% &7(%{_best}%).")
-        loop {za::leg::mig::k::*}:
-            if loop-value >= 5:
+        loop indices of {za::leg::mig::k::*}:
+            set {_uid} to loop-value-1
+            set {_tues} to {za::leg::mig::k::%{_uid}%}
+            if {_tues} >= 5:
                 loop all players:
-                    if "%loop-player's uuid%" is loop-index-1:
-                        za_jetons_ajouter(loop-player, 15 + min(35, floor(loop-value-1 / 2)))
+                    if "%loop-player's uuid%" is {_uid}:
+                        za_jetons_ajouter(loop-player, 15 + min(35, floor({_tues} / 2)))
                         za_faction_ajouter(loop-player, "milice", 8)
-                        za_stat_ajouter(loop-index-1, "territoires_defendus", 1)
+                        za_stat_ajouter({_uid}, "territoires_defendus", 1)
                         send "&a&lTU AS TENU. &7+jetons, Milice +8. On se souviendra de cette nuit." to loop-player
         za_monde_legende("La Grande Migration. Les survivants ont tenu (%{_k}% morts). Meilleur tireur : %{_heros}%.")
     else:
@@ -367,15 +369,16 @@ function za_leg_vega_fin():
         za_leg_son_tous("za_modeles:sfx.sting_revelation", 1, 1)
         za_leg_titre_tous("&6&lVEGA A TENU", "&7Le dernier carré n'est pas tombé.", 5)
         za_radio("&6Sergent Vega", "Vous êtes venus. Je ne l'oublierai pas. Jamais.")
-        loop {za::leg::vega::k::*}:
-            if loop-value >= 3:
+        loop indices of {za::leg::vega::k::*}:
+            set {_uid} to loop-value-1
+            if {za::leg::vega::k::%{_uid}%} >= 3:
                 loop all players:
-                    if "%loop-player's uuid%" is loop-index-1:
+                    if "%loop-player's uuid%" is {_uid}:
                         za_jetons_ajouter(loop-player, 30)
                         za_faction_ajouter(loop-player, "milice", 15)
                         za_rel_ajouter(loop-player, "vega", 20)
-                        if {za::titre::special::%loop-index-1%} is not set:
-                            set {za::titre::special::%loop-index-1%} to "&6Frère d'armes de Vega"
+                        if {za::titre::special::%{_uid}%} is not set:
+                            set {za::titre::special::%{_uid}%} to "&6Frère d'armes de Vega"
                         send "&6&lVEGA TE DOIT LA VIE. &7+30 jetons, Milice +15, confiance de Vega +20." to loop-player
         set {_txt} to "Le dernier carré de Vega, %{_ou}%. Il a tenu."
         if {_noms} is not "":

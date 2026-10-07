@@ -97,7 +97,8 @@ function za_meute_pyramide(z: entity, p: player):
         stop
     set {za::meute::pyr::%{_u}%} to now
     push {_z} upwards at speed 0.62
-    push {_z} horizontally towards {_p} at speed 0.25
+    set {_dd} to max(0.1, sqrt(({_dx} * {_dx}) + ({_dz} * {_dz})))
+    add vector(({_dx} / {_dd}) * 0.25, 0, ({_dz} / {_dd}) * 0.25) to velocity of {_z}
     execute console command "execute at %{_u}% run particle minecraft:block rooted_dirt ~ ~ ~ 0.3 0.2 0.3 0.1 6"
 
 every 5 seconds:

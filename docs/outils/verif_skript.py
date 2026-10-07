@@ -37,6 +37,8 @@ def verifier(fichiers):
         lignes = open(f, encoding='utf-8').read().split('\n')
         prec_bloc, prec_ind = False, 0
         fonction_retour = False
+        args_cmd = []       # types des arguments de la commande en cours
+        boucles = []        # (indentation, boucle sur une variable liste ?)
         for n, l in enumerate(lignes, 1):
             if '\t' in l[:len(l) - len(l.lstrip())]:
                 erreurs.append(f'{f}:{n}: tabulation dans l\'indentation')
@@ -59,6 +61,29 @@ def verifier(fichiers):
             cs = code.rstrip()
             prec_bloc = cs.endswith(':') and not cs.startswith('#')
             prec_ind = ind
+            # pièges vus sur le vrai serveur (Skript 2.9.5)
+            while boucles and boucles[-1][0] >= ind:
+                boucles.pop()
+            if re.search(r'loop-index-\d', l):
+                erreurs.append(f'{f}:{n}: « loop-index-N » n\'existe pas (Skript : « There\'s no loop that matches ») ; '
+                               f'boucler sur « indices of {{_x::*}} » et lire loop-value-N')
+            elif 'loop-index' in code and sum(1 for b in boucles if b[1]) >= 2:
+                AVERTISSEMENTS.append(f'{f}:{n}: « loop-index » dans des boucles imbriquées sur des listes : ambigu, '
+                                      f'préférer « loop indices of ... »')
+            if re.search(r'\bpush\b.*\btowards\b', code):
+                erreurs.append(f'{f}:{n}: « push ... towards » n\'est pas compris par Skript 2.9.5 ; '
+                               f'calculer le vecteur et « add vector(...) to velocity of ... »')
+            if ind == 0:
+                args_cmd = re.findall(r'<([\w ]+)>', s) if s.startswith('command ') else []
+            for mo in re.finditer(r'\barg[- ](\d)\s+is\s+(?:not\s+)?"', l):
+                k = int(mo.group(1)) - 1
+                if k < len(args_cmd) and args_cmd[k].strip() in ('number', 'integer', 'num', 'int'):
+                    erreurs.append(f'{f}:{n}: arg-{k + 1} est un <{args_cmd[k]}> comparé à du texte '
+                                   f'(« Can\'t compare a number with a text ») : déclarer <text> et utiliser '
+                                   f'(arg-{k + 1} parsed as number) ? 0 là où il sert de nombre')
+            ml = re.match(r'loop (.*):$', s)
+            if ml:
+                boucles.append((ind, bool(re.search(r'\{[^}]*::\*\}', ml.group(1))) and not ml.group(1).startswith('indices')))
             mc = re.match(r'command /([\w-]+)', s) if ind == 0 else None
             if mc:
                 nom = mc.group(1).lower()

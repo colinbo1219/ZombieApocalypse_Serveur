@@ -90,7 +90,7 @@ command /zagarde <text> [<text>] [<text>] [<number>] [<number>] [<number>]:
 
 # ---------------------------------------------------------------- joueur
 
-command /garde [<text>] [<number>]:
+command /garde [<text>] [<text>]:
     aliases: /gardes, /milice
     trigger:
         if za_pro(player) is true:
@@ -137,14 +137,14 @@ command /garde [<text>] [<number>]:
             send "&cLe poste doit être dans ta base (moins de {@rayon_base} blocs)." to player
         else if arg-1 is "renvoyer":
             set {_ids::*} to {za::garde::de::%{_u}%::*}
-            set {_id} to {_ids::%arg-2 ? 0%}
+            set {_id} to {_ids::%(arg-2 parsed as number) ? 0%}
             if {_id} is not set:
                 send "&c/garde renvoyer <n°> (voir /garde liste)" to player
                 stop
             set {za::garde::%{_id}%::renvoi} to true
             execute console command "kill %{za::garde::%{_id}%::uuid}%"
         else if arg-1 is "suivre" or "patrouille" or "replier" or "solde":
-            za_garde_ordre(player, arg-1, arg-2 ? 0)
+            za_garde_ordre(player, arg-1, (arg-2 parsed as number) ? 0)
         else if arg-1 is "liste":
             send "&6&l━━ TES SOLDATS &7(%za_garde_n({_u})%/{@max_gardes}) ━━" to player
             set {_i} to 0
