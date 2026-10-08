@@ -70,29 +70,31 @@ every 30 seconds:
                 set {za::gen::%{_k}%::actif} to false
                 za_mot_evt("generatrice_panne", {_l}, 2, {za::gen::%{_k}%::proprio} ? "-", "")
                 za_surv_avis({za::gen::%{_k}%::proprio} ? "", "&e[Base] La génératrice s'est arrêtée : plus d'essence. Le frigo ne tiendra pas longtemps.")
-        if block at {_l} is not blast furnace:
-            za_gen_retirer({_k})
-        else if {za::gen::%{_k}%::fin} is greater than now:
-            set {za::gen::%{_k}%::actif} to true
-            set {_near} to false
-            loop all players:
-                if za_pro(loop-player) is false:
-                    if world of loop-player is world of {_l}:
-                        if distance between loop-player and {_l} < 80:
-                            set {_near} to true
-                        if distance between loop-player and {_l} < 12:
-                            if {za::sanite::%loop-player's uuid%} is set:
-                                add 3 to {za::sanite::%loop-player's uuid%}
-            if {_near} is true:
-                set {_wd} to za_dim(world of {_l})
-                execute console command "execute in %{_wd}% run particle minecraft:campfire_cosy_smoke %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l} + 1)% %floor(z-coordinate of {_l})% 0.3 0.3 0.3 0.02 12 force"
-                execute console command "execute in %{_wd}% run playsound minecraft:block.beacon.ambient block @a %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% 2 0.5"
-                set {_n} to 1
-                set {_o} to {za::gen::%{_k}%::proprio}
-                if {za::base::taille::%{_o}%} is set:
-                    add floor({za::base::taille::%{_o}%} / 300) to {_n}
-                if chance of 55%:
-                    loop {_n} times:
-                        za_spawn_at({_l}, "ZA_Shambler", 12, 26)
-                if chance of 20%:
-                    za_spawn_at({_l}, "ZA_Runner", 12, 26)
+        # chunk déchargé : on attend (ne pas le charger à chaque passage)
+        if chunk at {_l} is loaded:
+            if block at {_l} is not blast furnace:
+                za_gen_retirer({_k})
+            else if {za::gen::%{_k}%::fin} is greater than now:
+                set {za::gen::%{_k}%::actif} to true
+                set {_near} to false
+                loop all players:
+                    if za_pro(loop-player) is false:
+                        if world of loop-player is world of {_l}:
+                            if distance between loop-player and {_l} < 80:
+                                set {_near} to true
+                            if distance between loop-player and {_l} < 12:
+                                if {za::sanite::%loop-player's uuid%} is set:
+                                    add 3 to {za::sanite::%loop-player's uuid%}
+                if {_near} is true:
+                    set {_wd} to za_dim(world of {_l})
+                    execute console command "execute in %{_wd}% run particle minecraft:campfire_cosy_smoke %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l} + 1)% %floor(z-coordinate of {_l})% 0.3 0.3 0.3 0.02 12 force"
+                    execute console command "execute in %{_wd}% run playsound minecraft:block.beacon.ambient block @a %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% 2 0.5"
+                    set {_n} to 1
+                    set {_o} to {za::gen::%{_k}%::proprio}
+                    if {za::base::taille::%{_o}%} is set:
+                        add floor({za::base::taille::%{_o}%} / 300) to {_n}
+                    if chance of 55%:
+                        loop {_n} times:
+                            za_spawn_at({_l}, "ZA_Shambler", 12, 26)
+                    if chance of 20%:
+                        za_spawn_at({_l}, "ZA_Runner", 12, 26)

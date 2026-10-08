@@ -65,23 +65,25 @@ every 6 seconds:
     loop {za::alarme::liste::*}:
         set {_k} to loop-value
         set {_l} to {za::alarme::%{_k}%::loc}
-        if block at {_l} is not bell:
-            remove {_k} from {za::alarme::liste::*}
-            delete {za::alarme::%{_k}%::*}
-        else if any:
-            {za::alarme::%{_k}%::cd} is not set
-            {za::alarme::%{_k}%::cd} is less than now
-        then:
-            set {_z::*} to all zombies in radius 24 around {_l}
-            if size of {_z::*} > 0:
-                set {za::alarme::%{_k}%::cd} to now
-                add 40 seconds to {za::alarme::%{_k}%::cd}
-                execute console command "playsound minecraft:block.bell.use block @a %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% 3 1"
-                set {_n} to size of {_z::*}
-                loop all players:
-                    if za_pro(loop-player) is false:
-                        if "%loop-player's uuid%" is {za::alarme::%{_k}%::proprio}:
-                            send "&c&lALARME ! &7%{_n}% zombie(s) approchent de ta cloche." to loop-player
+        # chunk déchargé : on attend (ne pas le charger à chaque passage)
+        if chunk at {_l} is loaded:
+            if block at {_l} is not bell:
+                remove {_k} from {za::alarme::liste::*}
+                delete {za::alarme::%{_k}%::*}
+            else if any:
+                {za::alarme::%{_k}%::cd} is not set
+                {za::alarme::%{_k}%::cd} is less than now
+            then:
+                set {_z::*} to all zombies in radius 24 around {_l}
+                if size of {_z::*} > 0:
+                    set {za::alarme::%{_k}%::cd} to now
+                    add 40 seconds to {za::alarme::%{_k}%::cd}
+                    execute console command "playsound minecraft:block.bell.use block @a %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% 3 1"
+                    set {_n} to size of {_z::*}
+                    loop all players:
+                        if za_pro(loop-player) is false:
+                            if "%loop-player's uuid%" is {za::alarme::%{_k}%::proprio}:
+                                send "&c&lALARME ! &7%{_n}% zombie(s) approchent de ta cloche." to loop-player
 
 # ===================== ZOMBIE-JOUEUR TEMPORAIRE =====================
 on respawn:

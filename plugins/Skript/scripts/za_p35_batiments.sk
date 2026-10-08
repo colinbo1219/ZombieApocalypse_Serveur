@@ -449,9 +449,11 @@ every 60 seconds:
         set {_i} to loop-index
         set {_l} to {za::bat::centrale::pos::%{_i}%}
         if {_l} is set:
-            if block at {_l} is not air:
-                if chance of 35%:
-                    za_spawn_at({_l}, "ZA_Shambler", 20, 35)
+            # chunk déchargé : on attend (ne pas le charger à chaque passage)
+            if chunk at {_l} is loaded:
+                if block at {_l} is not air:
+                    if chance of 35%:
+                        za_spawn_at({_l}, "ZA_Shambler", 20, 35)
 
 # =====================================================================
 #  DECLENCHEURS PERIODIQUES (l'admin peut forcer chaque type avec /evenement <nom>)

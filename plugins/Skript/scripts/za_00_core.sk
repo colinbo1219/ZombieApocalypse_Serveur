@@ -218,6 +218,28 @@ function za_item(mat: text, nom: text, col: text, qte: number) :: itemtype:
         set {za::noms::%{_k}%} to true
     return {_qte} of {_it}
 
+# retire jusqu'à n objets (matière + nom) case par case ; renvoie le nombre retiré.
+# « remove ... named ... » rate les objets qui ont un lore (objets du prologue, objets MythicMobs).
+function za_retirer_nomme(p: player, mat: text, nom: text, n: number) :: number:
+    set {_type} to {_mat} parsed as itemtype
+    set {_cible} to uncolored {_nom}
+    set {_reste} to {_n}
+    loop 41 times:
+        if {_reste} <= 0:
+            exit loop
+        set {_s} to loop-number - 1
+        set {_it} to slot {_s} of {_p}'s inventory
+        if {_it} is {_type}:
+            if uncolored name of {_it} is {_cible}:
+                set {_a} to item amount of {_it}
+                if {_a} <= {_reste}:
+                    set slot {_s} of {_p}'s inventory to air
+                    remove {_a} from {_reste}
+                else:
+                    set slot {_s} of {_p}'s inventory to (({_a} - {_reste}) of {_it})
+                    set {_reste} to 0
+    return {_n} - {_reste}
+
 # ---------- noms réservés (audit C1) : un objet ordinaire renommé à l'enclume ne doit jamais passer pour un objet du jeu
 # (monnaie, composants, clés, documents). Les objets de za_item s'inscrivent d'eux-mêmes ; s'ajoutent les objets de
 # MythicMobs (Items/*.yml) et les familles de noms variables.

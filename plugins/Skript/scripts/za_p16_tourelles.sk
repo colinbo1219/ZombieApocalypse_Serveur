@@ -101,47 +101,49 @@ every 2 seconds:
     loop {za::tour::liste::*}:
         set {_k} to loop-value
         set {_l} to {za::tour::%{_k}%::loc}
-        if block at {_l} is not dispenser:
-            za_tour_retirer({_k})
-        else:
-            set {_elec} to za_elec_pres({_l}, 48)
-            set {_ok} to {_elec}
-            if {za::tour::%{_k}%::munitions} > 0:
-                set {_ok} to true
-            set {_nv} to {za::tour::%{_k}%::niveau} ? 1
-            set {_r} to 14
-            set {_deg} to 3
-            set {_nc} to 1
-            if {_nv} is 2:
-                set {_r} to 18
-                set {_deg} to 4
-                set {_nc} to 2
-            else if {_nv} >= 3:
-                set {_r} to 22
-                set {_deg} to 6
-                set {_nc} to 3
-            if za_role_uuid({za::tour::%{_k}%::proprio}) is "ingenieur":
-                add 4 to {_r}
-                add 1 to {_deg}
-            if {_ok} is false:
-                set {_nc} to 0
-            set {_z::*} to za_tour_cibles({_l}, {_r})
-            # les plus proches d'abord
-            loop {_nc} times:
-                if size of {_z::*} > 0:
-                    set {_bd} to 999
-                    loop indices of {_z::*}:
-                        set {_ix} to loop-value-3
-                        set {_d} to distance between {_z::%{_ix}%} and {_l}
-                        if {_d} < {_bd}:
-                            set {_bd} to {_d}
-                            set {_bi} to {_ix}
-                    set {_t} to {_z::%{_bi}%}
-                    delete {_z::%{_bi}%}
-                    damage {_t} by {_deg}
-                    if {_elec} is false:
-                        remove 1 from {za::tour::%{_k}%::munitions}
-                    execute console command "playsound minecraft:entity.arrow.shoot block @a %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% 1 1"
-                    execute console command "execute at %uuid of {_t}% run particle minecraft:crit ~ ~1 ~ 0.2 0.3 0.2 0.1 8 force"
-                    if {_elec} is true:
-                        execute console command "execute at %uuid of {_t}% run particle minecraft:electric_spark ~ ~1 ~ 0.2 0.4 0.2 0.2 10 force"
+        # chunk déchargé : on attend (ne pas le charger à chaque passage)
+        if chunk at {_l} is loaded:
+            if block at {_l} is not dispenser:
+                za_tour_retirer({_k})
+            else:
+                set {_elec} to za_elec_pres({_l}, 48)
+                set {_ok} to {_elec}
+                if {za::tour::%{_k}%::munitions} > 0:
+                    set {_ok} to true
+                set {_nv} to {za::tour::%{_k}%::niveau} ? 1
+                set {_r} to 14
+                set {_deg} to 3
+                set {_nc} to 1
+                if {_nv} is 2:
+                    set {_r} to 18
+                    set {_deg} to 4
+                    set {_nc} to 2
+                else if {_nv} >= 3:
+                    set {_r} to 22
+                    set {_deg} to 6
+                    set {_nc} to 3
+                if za_role_uuid({za::tour::%{_k}%::proprio}) is "ingenieur":
+                    add 4 to {_r}
+                    add 1 to {_deg}
+                if {_ok} is false:
+                    set {_nc} to 0
+                set {_z::*} to za_tour_cibles({_l}, {_r})
+                # les plus proches d'abord
+                loop {_nc} times:
+                    if size of {_z::*} > 0:
+                        set {_bd} to 999
+                        loop indices of {_z::*}:
+                            set {_ix} to loop-value-3
+                            set {_d} to distance between {_z::%{_ix}%} and {_l}
+                            if {_d} < {_bd}:
+                                set {_bd} to {_d}
+                                set {_bi} to {_ix}
+                        set {_t} to {_z::%{_bi}%}
+                        delete {_z::%{_bi}%}
+                        damage {_t} by {_deg}
+                        if {_elec} is false:
+                            remove 1 from {za::tour::%{_k}%::munitions}
+                        execute console command "playsound minecraft:entity.arrow.shoot block @a %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% 1 1"
+                        execute console command "execute at %uuid of {_t}% run particle minecraft:crit ~ ~1 ~ 0.2 0.3 0.2 0.1 8 force"
+                        if {_elec} is true:
+                            execute console command "execute at %uuid of {_t}% run particle minecraft:electric_spark ~ ~1 ~ 0.2 0.4 0.2 0.2 10 force"

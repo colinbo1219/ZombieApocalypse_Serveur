@@ -392,7 +392,7 @@ command /extraction:
         if player does not have firework rocket named "&cFusée de détresse":
             send "&7Il te faut une &cFusée de détresse &7(caisses militaires du convoi, marché noir) pour appeler l'hélicoptère." to player
             stop
-        remove 1 firework rocket named "&cFusée de détresse" from player's inventory
+        za_retirer_nomme(player, "firework rocket", "Fusée de détresse", 1)
         za_extraction(player)
 
 function za_extraction(p: player):

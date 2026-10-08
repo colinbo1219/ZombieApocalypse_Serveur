@@ -434,7 +434,7 @@ function za_pro_j1_aide_fin(p: player, run: number):
     set {_u} to "%{_p}'s uuid%"
     set {za::pro::attend::%{_u}%} to "occupe"
     za_zm("objectif %{_p}% off")
-    remove all barrel named "&fCaisse de soluté" from {_p}'s inventory
+    za_retirer_nomme({_p}, "barrel", "Caisse de soluté", 64)
     za_zm("son %{_p}% minecraft:block.wooden_door.open 0.5 0.6")
     send "&8&o(Tu déposes la caisse. Une infirmière aux yeux rougis te remercie d'un signe de tête. Son badge : LEBLANC.)" to {_p}
     wait 4 seconds
@@ -1013,14 +1013,12 @@ function za_pro_arrivee(p: player):
     za_zm("calques-reset %{_p}%")
     za_pro_vider({_p})
     # objets du prologue : on garde la photo, le bâton, le pain ; l'argent ne vaut plus rien
-    set {_billet} to false
-    if {_p} has paper named "&fBillet de 20 $":
-        set {_billet} to true
-    remove all paper named "&fBillet de 20 $" from {_p}'s inventory
-    remove all paper named "&fMédicaments de grand-maman" from {_p}'s inventory
-    remove all clock named "&fTéléphone" from {_p}'s inventory
+    # objets avec lore : retirés case par case
+    set {_billet} to za_retirer_nomme({_p}, "paper", "Billet de 20 $", 64)
+    za_retirer_nomme({_p}, "paper", "Médicaments de grand-maman", 64)
+    za_retirer_nomme({_p}, "clock", "Téléphone", 64)
     remove all milk bucket from {_p}'s inventory
-    if {_billet} is true:
+    if {_billet} > 0:
         give {_p} 1 paper named "&8Billet de 20 $ (sans valeur)" with lore "&7Il y a huit jours, ça achetait du lait." and "&8Plus personne n'en veut."
     give {_p} 1 dead bush named "&8Cellulaire mort" with lore "&7Plus de réseau. Plus de batterie." and "&8Le dernier texto de Maman : « Je t'aime. »"
     if {za::pro::retour::%{_u}%} is set:
