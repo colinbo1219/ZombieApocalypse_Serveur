@@ -1,0 +1,262 @@
+# =====================================================================
+#  ZombieApocalypse - INCENDIES : le feu se propage, et tout suit
+#  feu -> fumée (visible de loin) -> les PNJ fuient -> le bruit attire les morts -> le bâtiment brûle (bois
+#  carbonisé, feuillages et tissus partis en fumée) -> le quartier change (pression +15, za_p97).
+#  DÉPARTS : la foudre pendant un orage (za_p55), un quartier abandonné ou infesté qui s'embrase tout seul (un jour
+#  sur douze), un joueur qui met le feu (briquet ou boule de feu dans un quartier ou un lieu), l'admin.
+#  PROPAGATION : le foyer grandit (jusqu'à 12 blocs), allume le bois, les feuilles, la laine, le foin autour de lui.
+#  Hors de vue des joueurs, il brûle « hors champ » et s'épuise. Jamais à moins de 64 blocs du centre d'une base.
+#  ÉTEINDRE : la pluie, un seau d'eau (clic droit près du foyer : -15), ou le temps (le combustible s'épuise).
+#  Joueur : /incendies   Admin : /zafeu allumer | eteindre <id> | etat
+# =====================================================================
+
+options:
+    max_foyers: 4
+    rayon_max: 12
+
+function za_feu_inflammable(t: text) :: boolean:
+    if {_t} contains "planks" or "log" or "wood" or "wool" or "leaves" or "fence" or "bookshelf" or "hay" or "carpet" or "stairs" or "slab" or "door" or "barrel" or "crafting" or "scaffolding":
+        if {_t} does not contain "stone":
+            if {_t} does not contain "brick":
+                if {_t} does not contain "iron":
+                    return true
+    return false
+
+function za_feu_allumer(l: location, cause: text) :: number:
+    if size of {za::feu::liste::*} >= {@max_foyers}:
+        return 0
+    if "%world of {_l}%" is not "world":
+        return 0
+    if za_eq_pres_base({_l}) is true:
+        return 0
+    loop {za::feu::liste::*}:
+        if distance between {za::feu::%loop-value%::loc} and {_l} < 20:
+            return 0
+    add 1 to {za::feu::n}
+    set {_i} to {za::feu::n}
+    set {za::feu::%{_i}%::loc} to {_l}
+    set {za::feu::%{_i}%::int} to random integer between 60 and 90
+    set {za::feu::%{_i}%::r} to 2
+    set {za::feu::%{_i}%::cause} to {_cause}
+    set {za::feu::%{_i}%::debut} to now
+    add {_i} to {za::feu::liste::*}
+    za_qz_feu({_l})
+    set {_nom} to za_feu_lieu({_l})
+    set {za::feu::%{_i}%::nom} to {_nom}
+    za_radio("&bLéa", "De la fumée au-dessus de %{_nom}%. Un incendie. Tout ce qui marche va aller voir.")
+    za_monde_evt("Un incendie ravage %{_nom}% (%{_cause}%).", {_l}, 2, "feu")
+    za_journal("Incendie : %{_nom}%.")
+    return {_i}
+
+function za_feu_lieu(l: location) :: text:
+    set {_z} to za_qz_ici({_l})
+    if {_z} is not "":
+        return za_qz_nom({_z})
+    set {_k} to za_site_ici({_l})
+    if {_k} is not "":
+        return {za::site::d::%{_k}%::nom}
+    return "X %floor(x-coordinate of {_l})%, Z %floor(z-coordinate of {_l})%"
+
+function za_feu_eteindre(i: number, raison: text):
+    set {_l} to {za::feu::%{_i}%::loc}
+    if {_l} is set:
+        if chunk at {_l} is loaded:
+            loop {za::feu::%{_i}%::flammes::*}:
+                if block at loop-value is fire:
+                    set block at loop-value to air
+    if {_raison} is not "":
+        set {_nm} to {za::feu::%{_i}%::nom} ? "là-bas"
+        za_radio("&bLéa", "L'incendie de %{_nm}% est éteint. %{_raison}%")
+    remove {_i} from {za::feu::liste::*}
+    delete {za::feu::%{_i}%::*}
+
+# ---------------------------------------------------------------- propagation (toutes les 5 s)
+
+every 5 seconds:
+    loop {za::feu::liste::*}:
+        za_feu_tick(loop-value)
+
+function za_feu_tick(i: number):
+    set {_l} to {za::feu::%{_i}%::loc}
+    if {_l} is not set:
+        remove {_i} from {za::feu::liste::*}
+        stop
+    set {_w} to world of {_l}
+    # pluie
+    if "%weather in {_w}%" is not "clear":
+        remove 6 from {za::feu::%{_i}%::int}
+    remove 1 from {za::feu::%{_i}%::int}
+    if {za::feu::%{_i}%::int} <= 0:
+        za_feu_eteindre({_i}, "Il ne reste que des cendres.")
+        stop
+    if difference between {za::feu::%{_i}%::debut} and now > 8 minutes:
+        za_feu_eteindre({_i}, "Il n'y avait plus rien à brûler.")
+        stop
+    if za_eq_joueur_pres({_l}, 96) is false:
+        stop
+    if chunk at {_l} is not loaded:
+        stop
+    set {_wd} to "minecraft:overworld"
+    set {_r} to {za::feu::%{_i}%::r}
+    # le foyer grandit
+    if {za::feu::%{_i}%::r} < min({@rayon_max}, 3 + ({za::feu::%{_i}%::int} / 10)):
+        add 0.4 to {za::feu::%{_i}%::r}
+    # fumée visible de loin
+    execute console command "execute in %{_wd}% run particle minecraft:campfire_signal_smoke %x-coordinate of {_l}% %y-coordinate of {_l} + 3% %z-coordinate of {_l}% %{_r} / 3% 2 %{_r} / 3% 0.03 %ceil(10 + {_r} * 3)% force"
+    execute console command "execute in %{_wd}% run particle minecraft:large_smoke %x-coordinate of {_l}% %y-coordinate of {_l} + 2% %z-coordinate of {_l}% %{_r} / 2% 1 %{_r} / 2% 0.02 20 force"
+    execute console command "execute in %{_wd}% run playsound minecraft:block.fire.ambient block @a %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% 2 0.8"
+    # le feu prend autour
+    loop 8 times:
+        set {_a} to random number between 0 and 360
+        set {_d} to random number between 0 and {_r}
+        set {_p} to location((x-coordinate of {_l}) + ({_d} * cos({_a})), (y-coordinate of {_l}) + (random integer between -1 and 6), (z-coordinate of {_l}) + ({_d} * sin({_a})), {_w})
+        if za_eq_pres_base({_p}) is false:
+            set {_t} to "%type of block at {_p}%"
+            if za_feu_inflammable({_t}) is true:
+                set {_haut} to location((x-coordinate of {_p}), ((y-coordinate of {_p}) + 1), (z-coordinate of {_p}), {_w})
+                if block at {_haut} is air:
+                    set block at {_haut} to fire
+                    add {_haut} to {za::feu::%{_i}%::flammes::*}
+                # le bois se carbonise, le reste part en fumée
+                if chance of 35%:
+                    if {_t} contains "leaves" or "wool" or "carpet" or "hay":
+                        set block at {_p} to air
+                    else:
+                        set block at {_p} to blackstone
+            else if block at {_p} is air:
+                set {_b} to location((x-coordinate of {_p}), ((y-coordinate of {_p}) - 1), (z-coordinate of {_p}), {_w})
+                if block at {_b} is solid:
+                    if chance of 25%:
+                        set block at {_p} to fire
+                        add {_p} to {za::feu::%{_i}%::flammes::*}
+    # le bruit attire les morts
+    za_activite_ajouter({_l}, 8)
+    if chance of 25%:
+        za_spawn_at({_l}, "ZA_Shambler", 18, 26)
+    # les PNJ fuient
+    loop all villagers in radius ({_r} + 10) around {_l}:
+        set {_tg} to "%scoreboard tags of loop-entity%"
+        if {_tg} does not contain "za_surv":
+            if {_tg} does not contain "za_terr":
+                if {_tg} does not contain "za_mis":
+                    set {_dx} to (x-coordinate of loop-entity) - (x-coordinate of {_l})
+                    set {_dz} to (z-coordinate of loop-entity) - (z-coordinate of {_l})
+                    set {_n} to max(1, sqrt(({_dx} * {_dx}) + ({_dz} * {_dz})))
+                    set {_dest} to za_eq_sol(location((x-coordinate of {_l}) + ({_dx} / {_n} * ({_r} + 22)), (y-coordinate of {_l}) + 3, (z-coordinate of {_l}) + ({_dz} / {_n} * ({_r} + 22)), {_w}))
+                    teleport loop-entity to {_dest}
+                    if {za::feu::%{_i}%::fuite} is not set:
+                        set {za::feu::%{_i}%::fuite} to true
+                        loop za_monde_joueurs():
+                            if world of loop-value-2 is {_w}:
+                                if distance between loop-value-2 and {_l} < 60:
+                                    send "&6Les survivants fuient l'incendie en criant." to loop-value-2
+    # un camp tout près souffre
+    if {za::feu::%{_i}%::camp} is not set:
+        set {za::feu::%{_i}%::camp} to true
+        set {_cp} to za_cmp_plus_proche({_l})
+        if {_cp} is not 0:
+            if distance between {za::camp::%{_cp}%::loc} and {_l} < 70:
+                za_cmp_champ({_cp}, "moral", -10)
+                za_cmp_champ({_cp}, "securite", -5)
+    # brûlures pour qui reste dans le foyer
+    loop za_monde_joueurs():
+        if world of loop-value is {_w}:
+            if distance between loop-value and {_l} < ({_r} * 0.6):
+                ignite loop-value for 2 seconds
+
+# ---------------------------------------------------------------- départs de feu
+
+on lightning strike:
+    set {_l} to location of event-entity
+    if "%world of {_l}%" is not "world":
+        stop
+    set {_ok} to false
+    if za_qz_ici({_l}) is not "":
+        set {_ok} to true
+    else if za_site_ici({_l}) is not "":
+        set {_ok} to true
+    if {_ok} is true:
+        if chance of 30%:
+            set {_i} to za_feu_allumer({_l}, "la foudre")
+
+every 1 minute:
+    if {za::feu::jour} is ({za::serveur::jours} ? 0):
+        stop
+    set {za::feu::jour} to {za::serveur::jours} ? 0
+    loop za_qz_liste():
+        set {_e} to za_qz_etat(loop-value)
+        if {_e} is "abandon" or "infestation":
+            if chance of 8%:
+                set {_c} to za_qz_centre(loop-value)
+                if {_c} is set:
+                    set {_i} to za_feu_allumer(za_qz_point({_c}, 25), "un court-circuit, une bougie oubliée, personne ne sait")
+
+on right click with flint and steel:
+    if za_pro(player) is true:
+        stop
+    za_feu_volontaire(player, event-block)
+
+on right click with fire charge:
+    if za_pro(player) is true:
+        stop
+    za_feu_volontaire(player, event-block)
+
+function za_feu_volontaire(p: player, b: block):
+    if {_b} is not set:
+        stop
+    if za_feu_inflammable("%type of {_b}%") is false:
+        stop
+    set {_l} to location of {_b}
+    if za_qz_ici({_l}) is "":
+        if za_site_ici({_l}) is "":
+            stop
+    set {_i} to za_feu_allumer({_l}, "mis par %{_p}%")
+    if {_i} > 0:
+        send "&6Le bois sec prend tout de suite. &7Tu as mis le feu à %za_feu_lieu({_l})%. &8Ça va se voir de loin." to {_p}
+        za_souvenir_ajouter("%{_p}'s uuid%", "feu:%{_i}%", "chute", "J'ai mis le feu à %za_feu_lieu({_l})%.")
+
+# ---------------------------------------------------------------- éteindre
+
+on right click with water bucket:
+    if za_pro(player) is true:
+        stop
+    loop {za::feu::liste::*}:
+        set {_l} to {za::feu::%loop-value%::loc}
+        if world of {_l} is world of player:
+            if distance between {_l} and player < ({za::feu::%loop-value%::r} + 6):
+                remove 15 from {za::feu::%loop-value%::int}
+                execute console command "execute at %player% run particle minecraft:splash ~ ~1 ~ 1.5 1 1.5 0.2 60 force"
+                execute console command "execute at %player% run playsound minecraft:block.fire.extinguish block @a ~ ~ ~ 1 1"
+                send action bar "&bL'eau siffle sur les flammes. &7(foyer : %max(0, {za::feu::%loop-value%::int})%)" to player
+                if {za::feu::%loop-value%::int} <= 0:
+                    za_souvenir_ajouter("%player's uuid%", "feu", "aide", "J'ai éteint l'incendie de %{za::feu::%loop-value%::nom}%.")
+                    za_feu_eteindre(loop-value, "Grâce à quelqu'un, un seau à la main.")
+                stop
+
+# ---------------------------------------------------------------- commandes
+
+command /incendies:
+    trigger:
+        if size of {za::feu::liste::*} is 0:
+            send "&7Aucun incendie en ce moment." to player
+            stop
+        loop {za::feu::liste::*}:
+            set {_l} to {za::feu::%loop-value%::loc}
+            send "&6🔥 %{za::feu::%loop-value%::nom}% &7(X %floor(x-coordinate of {_l})%, Z %floor(z-coordinate of {_l})%) &8— intensité %{za::feu::%loop-value%::int}%" to player
+
+command /zafeu [<text>] [<number>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "allumer":
+            set {_l} to location of player
+            set {_tb} to target block of player
+            if {_tb} is set:
+                set {_l} to location of {_tb}
+            set {_i} to za_feu_allumer({_l}, "l'admin")
+            send "&7Foyer #%{_i}% (0 = refusé : base proche, trop de foyers ou pas dans « world »)." to sender
+        else if arg-1 is "eteindre":
+            za_feu_eteindre(arg-2, "")
+            send "&7Foyer #%arg-2% éteint." to sender
+        else:
+            loop {za::feu::liste::*}:
+                send "&7#%loop-value% %{za::feu::%loop-value%::nom}% int %{za::feu::%loop-value%::int}% r %{za::feu::%loop-value%::r}%" to sender

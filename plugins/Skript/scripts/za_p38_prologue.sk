@@ -7,6 +7,7 @@
 #  le premier incident, le premier mort qui se relève, l'effondrement, le blackout. Puis il se réveille au JOUR 8 dans la
 #  ville en ruine (monde principal), près de l'autobus d'évacuation écrasé.  Durée : ~25 minutes.  Sautable : /prologue passer
 #
+#  États de la ville (action bar + {za::pro::ville::<uuid>}) : 1 VILLE NORMALE … 8 APOCALYPSE. Entractes des jours 2, 4, 6.
 #  Tout le décor par joueur (PNJ, zombies, véhicules, clôtures, feux, lumières, heure, météo) passe par /zamonde (plugin ZAMonde).
 #  Admin : /prologue lancer <joueur> | fin <joueur> | chapitre <joueur> <j0|j1|j3|j5|j7|blackout> | etat | reinit <joueur>
 #  Les anciens joueurs (intro déjà vue) ne sont PAS forcés : ils peuvent le vivre avec /prologue.
@@ -107,26 +108,104 @@ function za_pro_foule(p: player, n: number):
         set {_i} to loop-number
         za_pro_pnj({_p}, "passant%{_i}%", "passant%{_i}%", {_noms::%{_i}%}, "ia")
 
+# état de Saint-Aurèle vu par le joueur (1 à 8), publié dans {za::pro::ville::<uuid>}
+function za_pro_ville_nom(n: number) :: text:
+    set {_noms::*} to "&aVILLE NORMALE", "&eALERTE SANITAIRE", "&6QUARANTAINE", "&cPANIQUE", "&4ÉPIDÉMIE", "&4&lEFFONDREMENT", "&8&lBLACKOUT", "&4&lAPOCALYPSE"
+    return {_noms::%{_n}%}
+
+function za_pro_ville(p: player, n: number):
+    set {_u} to "%{_p}'s uuid%"
+    if {za::pro::ville::%{_u}%} is {_n}:
+        stop
+    set {za::pro::ville::%{_u}%} to {_n}
+    send action bar "&8Saint-Aurèle &7· %za_pro_ville_nom({_n})%" to {_p}
+    if {_n} > 1:
+        send "&8[Saint-Aurèle] &7La ville passe en état : %za_pro_ville_nom({_n})%" to {_p}
+
+# entractes des jours 2, 4 et 6 (voix de Léa : voix.radio_j2/j4/j6, pack 1.6.0) puis chapitre suivant
+function za_pro_vers(p: player, run: number, jour: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::pro::attend::%{_u}%} to "occupe"
+    za_zm("objectif %{_p}% off")
+    if {_jour} is 2:
+        za_pro_carte({_p}, "JOUR 2", "Les barrages", 4)
+    else if {_jour} is 4:
+        za_pro_carte({_p}, "JOUR 4", "Les voitures abandonnées", 4)
+    else:
+        za_pro_carte({_p}, "JOUR 6", "L'armée", 4)
+    wait 5 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    if {_jour} is 2:
+        send "&8&oDes blocs de béton sur le boulevard. Un policier que tu ne connais pas fait signe de rebrousser chemin." to {_p}
+        wait 4 seconds
+        if za_pro_ok({_p}, {_run}) is false:
+            stop
+        za_pro_sms({_p}, "Maman", "Ils ont fermé le pont. Ton oncle est pris de l'autre bord. C'est sûrement rien.")
+        wait 4 seconds
+        if za_pro_ok({_p}, {_run}) is false:
+            stop
+        send "&8[&3♫ CKZA 98,5&8] &bLéa &8» &7La direction de la santé publique parle d'une « grippe sévère ». On nous demande de ne pas employer d'autre mot." to {_p}
+        za_zm("son %{_p}% za_modeles:voix.radio_j2 1 1")
+    else if {_jour} is 4:
+        send "&8&oLes stations-service sont à sec. Sur la 117, des autos abandonnées, portières ouvertes, clés dans le contact." to {_p}
+        wait 4 seconds
+        if za_pro_ok({_p}, {_run}) is false:
+            stop
+        za_pro_sms({_p}, "Inconnu", "Si t'es encore à Saint-Aurèle, fais des réserves d'eau. Ils vont couper. — M.")
+        wait 4 seconds
+        if za_pro_ok({_p}, {_run}) is false:
+            stop
+        send "&8[&3♫ CKZA 98,5&8] &bLéa &8» &7On ne me laisse plus lire les chiffres. Alors ce soir, je vais lire des noms." to {_p}
+        za_zm("son %{_p}% za_modeles:voix.radio_j4 1 1")
+    else:
+        send "&8&oDes camions verts sur la rue Principale. Des hommes en masque à gaz. Personne n'explique rien." to {_p}
+        za_pro_sfx({_p}, "camion", 0.6)
+        wait 4 seconds
+        if za_pro_ok({_p}, {_run}) is false:
+            stop
+        za_pro_sms({_p}, "Maman", "Les soldats disent que des autobus vont venir. Garde ton cellulaire chargé. Je t'aime.")
+        wait 4 seconds
+        if za_pro_ok({_p}, {_run}) is false:
+            stop
+        send "&8[&3♫ CKZA 98,5&8] &bLéa &8» &7Sergent Vega, si vous m'écoutez : il reste des gens dans les tours de la rue des Érables." to {_p}
+        za_zm("son %{_p}% za_modeles:voix.radio_j6 1 1")
+    wait 4 seconds
+    if za_pro_ok({_p}, {_run}) is false:
+        stop
+    if {_jour} is 2:
+        za_pro_j3({_p}, {_run})
+    else if {_jour} is 4:
+        za_pro_j5({_p}, {_run})
+    else:
+        za_pro_j7({_p}, {_run})
+
 # ---------------------------------------------------------------- départ
 
 function za_pro_lancer(p: player):
     set {_u} to "%{_p}'s uuid%"
+    # prérequis d'abord, AVANT de toucher à l'inventaire (audit C2)
+    if world("za_prologue") is not set:
+        # monde du prologue indisponible (plugin ZAMonde absent ?) : survie directe, l'inventaire n'est pas touché
+        if {za::pro::etat::%{_u}%} is not set:
+            set {za::pro::etat::%{_u}%} to "fini"
+            za_intro_survie({_p})
+        else:
+            send "&cLe prologue est indisponible pour l'instant (monde za_prologue absent)." to {_p}
+        stop
     add 1 to {za::pro::run::%{_u}%}
     set {_run} to {za::pro::run::%{_u}%}
-    # sac de départ mis de côté (joueur qui refait le prologue)
-    if {za::pro::retour::%{_u}%} is not set:
-        if za_pro({_p}) is false:
-            set {za::pro::retour::%{_u}%} to location of {_p}
-    delete {za::pro::sac::%{_u}%::*}
-    loop all items in inventory of {_p}:
-        add loop-item to {za::pro::sac::%{_u}%::*}
+    if za_pro({_p}) is false:
+        # rejeu : seulement pour un joueur qui a déjà fini un prologue (audit M1) ; un nouveau joueur a sa vraie arrivée
+        if {za::pro::etat::%{_u}%} is "fini":
+            if {za::pro::retour::%{_u}%} is not set:
+                set {za::pro::retour::%{_u}%} to location of {_p}
+        # le sac : jamais écrasé tant qu'il n'a pas été rendu ; on y ajoute ce que le joueur porte maintenant
+        loop all items in inventory of {_p}:
+            add loop-item to {za::pro::sac::%{_u}%::*}
     clear {_p}'s inventory
-    if world("za_prologue") is not set:
-        # monde du prologue indisponible (plugin ZAMonde absent ?) : on passe directement à la survie
-        set {za::pro::etat::%{_u}%} to "fini"
-        za_intro_survie({_p})
-        stop
     set {za::pro::etat::%{_u}%} to "j0"
+    delete {za::pro::ville::%{_u}%}
     za_zm("noir %{_p}% 0 120 0")
     wait 1 second
     if {_p} is not online:
@@ -173,6 +252,7 @@ function za_pro_j0(p: player, run: number):
     if za_pro_ok({_p}, {_run}) is false:
         stop
     za_zm("titre %{_p}% 20 60 30 &f08:14 &7Une_journée_ordinaire.")
+    za_pro_ville({_p}, 1)
     give {_p} 1 clock named "&fTéléphone" with lore "&7Maman, Léa, les nouvelles." and "&8Un vieux cellulaire à l'écran fendu."
     give {_p} 1 paper named "&fPhoto de famille" with lore "&7Toi et Maman, au chalet de Saint-Donat." and "&8L'été où tout allait bien."
     give {_p} 2 water bottle named "&fBouteille d'eau"
@@ -269,6 +349,7 @@ function za_pro_j1(p: player, run: number):
     wait 1 second
     if za_pro_ok({_p}, {_run}) is false:
         stop
+    za_pro_ville({_p}, 2)
     za_pro_vider({_p})
     za_zm("tp %{_p}% reveil")
     za_zm("temps %{_p}% {@h_j1}")
@@ -353,8 +434,8 @@ function za_pro_j1_aide_fin(p: player, run: number):
     set {_u} to "%{_p}'s uuid%"
     set {za::pro::attend::%{_u}%} to "occupe"
     za_zm("objectif %{_p}% off")
-    remove all barrel named "&fCaisse de soluté" from {_p}'s inventory
-    za_pro_sfx({_p}, "porte_grince", 0.5)
+    za_retirer_nomme({_p}, "barrel", "Caisse de soluté", 64)
+    za_zm("son %{_p}% minecraft:block.wooden_door.open 0.5 0.6")
     send "&8&o(Tu déposes la caisse. Une infirmière aux yeux rougis te remercie d'un signe de tête. Son badge : LEBLANC.)" to {_p}
     wait 4 seconds
     if za_pro_ok({_p}, {_run}) is false:
@@ -389,6 +470,7 @@ function za_pro_j3(p: player, run: number):
     wait 1 second
     if za_pro_ok({_p}, {_run}) is false:
         stop
+    za_pro_ville({_p}, 3)
     za_pro_vider({_p})
     za_zm("tp %{_p}% passant6")
     za_zm("temps %{_p}% {@h_j3}")
@@ -429,6 +511,7 @@ function za_pro_j3_incident(p: player, run: number):
     za_zm("pnj %{_p}% arel villager 100.5 64 62.5 -90 Patient_Arel fige")
     za_pro_sfx_a({_p}, "verre", 2, "hopital_entree")
     za_zm("calque %{_p}% incident on")
+    za_pro_ville({_p}, 4)
     wait 1 second
     if za_pro_ok({_p}, {_run}) is false:
         stop
@@ -532,6 +615,7 @@ function za_pro_j5(p: player, run: number):
     wait 1 second
     if za_pro_ok({_p}, {_run}) is false:
         stop
+    za_pro_ville({_p}, 5)
     za_pro_vider({_p})
     za_zm("tp %{_p}% reveil")
     za_zm("temps %{_p}% {@h_j5}")
@@ -595,6 +679,7 @@ function za_pro_j5_gagnon(p: player, run: number):
     za_pro_mm({_p}, "gagnon", "ZA_Gagnon", "gagnon_debout")
     za_pro_sfx({_p}, "sting_danger", 1)
     za_zm("regarder %{_p}% gagnon %{_p}%")
+    za_zm("titre %{_p}% 0 40 10 &4&lQUELQUE_CHOSE &cvient_de_se_relever.")
     wait 3 seconds
     if za_pro_ok({_p}, {_run}) is false:
         stop
@@ -658,7 +743,7 @@ function za_pro_j5_provisions(p: player, run: number):
     give {_p} za_item("honey bottle", "Antibiotique", "&b", 1)
     give {_p} za_item("paper", "Bandage", "&f", 2)
     give {_p} 1 paper named "&fEnveloppe de Mme Gagnon" with lore "&7« Pour Théo, pour ses 13 ans. »" and "&8Soixante dollars. Ça ne vaudra bientôt plus rien."
-    za_pro_sfx({_p}, "porte_grince", 0.5)
+    za_zm("son %{_p}% minecraft:block.wooden_door.open 0.5 0.6")
     wait 2 seconds
     if za_pro_ok({_p}, {_run}) is false:
         stop
@@ -686,6 +771,7 @@ function za_pro_j7(p: player, run: number):
     wait 1 second
     if za_pro_ok({_p}, {_run}) is false:
         stop
+    za_pro_ville({_p}, 6)
     za_pro_vider({_p})
     za_zm("tp %{_p}% entree_immeuble")
     za_zm("temps %{_p}% {@h_j7}")
@@ -857,6 +943,7 @@ function za_pro_blackout(p: player, run: number):
     if za_pro_ok({_p}, {_run}) is false:
         stop
     za_zm("blackout %{_p}% 19 za_modeles:sfx.coupure")
+    za_pro_ville({_p}, 7)
     za_pro_sfx({_p}, "radio_statique", 0.6)
     wait 2 seconds
     if za_pro_ok({_p}, {_run}) is false:
@@ -905,6 +992,16 @@ function za_pro_blackout(p: player, run: number):
 
 # ---------------------------------------------------------------- JOUR 8 : réveil dans la ville en ruine
 
+# rend le sac mis de côté au lancement du prologue (une seule fois ; ce qui ne rentre pas tombe aux pieds)
+function za_pro_rendre_sac(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    loop {za::pro::sac::%{_u}%::*}:
+        if {_p} can hold loop-value:
+            give {_p} loop-value
+        else:
+            drop loop-value at {_p}
+    delete {za::pro::sac::%{_u}%::*}
+
 function za_pro_arrivee(p: player):
     set {_u} to "%{_p}'s uuid%"
     add 1 to {za::pro::run::%{_u}%}
@@ -916,28 +1013,25 @@ function za_pro_arrivee(p: player):
     za_zm("calques-reset %{_p}%")
     za_pro_vider({_p})
     # objets du prologue : on garde la photo, le bâton, le pain ; l'argent ne vaut plus rien
-    set {_billet} to false
-    if {_p} has paper named "&fBillet de 20 $":
-        set {_billet} to true
-    remove all paper named "&fBillet de 20 $" from {_p}'s inventory
-    remove all paper named "&fMédicaments de grand-maman" from {_p}'s inventory
-    remove all clock named "&fTéléphone" from {_p}'s inventory
+    # objets avec lore : retirés case par case
+    set {_billet} to za_retirer_nomme({_p}, "paper", "Billet de 20 $", 64)
+    za_retirer_nomme({_p}, "paper", "Médicaments de grand-maman", 64)
+    za_retirer_nomme({_p}, "clock", "Téléphone", 64)
     remove all milk bucket from {_p}'s inventory
-    if {_billet} is true:
+    if {_billet} > 0:
         give {_p} 1 paper named "&8Billet de 20 $ (sans valeur)" with lore "&7Il y a huit jours, ça achetait du lait." and "&8Plus personne n'en veut."
     give {_p} 1 dead bush named "&8Cellulaire mort" with lore "&7Plus de réseau. Plus de batterie." and "&8Le dernier texto de Maman : « Je t'aime. »"
     if {za::pro::retour::%{_u}%} is set:
         # joueur qui avait déjà une partie : retour là où il était, avec son sac
         teleport {_p} to {za::pro::retour::%{_u}%}
         delete {za::pro::retour::%{_u}%}
-        loop {za::pro::sac::%{_u}%::*}:
-            give {_p} loop-value
-        delete {za::pro::sac::%{_u}%::*}
+        za_pro_rendre_sac({_p})
         set {_p}'s gamemode to survival
         za_zm("titre %{_p}% 20 60 30 &7JOUR_8 &8De_retour_dans_les_ruines.")
         stop
     teleport {_p} to spawn of world("world")
     za_zm("tp %{_p}% arrivee:reveil")
+    za_pro_rendre_sac({_p})
     set {_p}'s gamemode to survival
     heal {_p}
     wait 1 second
@@ -951,7 +1045,11 @@ function za_pro_arrivee(p: player):
     if {_p} is not online:
         stop
     za_zm("son %{_p}% za_modeles:sfx.silence_ville 0.8 1")
+    za_pro_ville({_p}, 8)
     send "&8&oL'autobus est couché sur le flanc. Les autres passagers ne sont plus là. Le silence est énorme." to {_p}
+    # monde généré (za_p73) : la ville est à ~700 blocs à l'ouest, un panneau vert l'indique sur l'autoroute
+    if {za::site::installe} is set:
+        send "&8&oSur l'autoroute, un panneau vert, à peine lisible : SAINT-AURÈLE, tout droit. Vers l'ouest. Vers chez toi." to {_p}
     za_pro_recap({_p})
     za_intro_survie({_p})
 
@@ -996,6 +1094,8 @@ function za_pro_recap(p: player):
 function za_intro_survie(p: player):
     set {_u} to "%{_p}'s uuid%"
     set {za::intro::%{_u}%} to true
+    # fil discret des dix premières minutes (za_p81_guide)
+    za_guide_debut({_p})
     wait 3 seconds
     if {_p} is not online:
         stop
@@ -1030,17 +1130,17 @@ function za_pro_evt(p: player, e: text):
     else if {_e} is "hopital1":
         za_pro_j1_hopital({_p}, {_run})
     else if {_e} is "maison1":
-        za_pro_j3({_p}, {_run})
+        za_pro_vers({_p}, {_run}, 2)
     else if {_e} is "incident":
         za_pro_j3_incident({_p}, {_run})
     else if {_e} is "maison3":
-        za_pro_j5({_p}, {_run})
+        za_pro_vers({_p}, {_run}, 4)
     else if {_e} is "gagnon":
         za_pro_j5_gagnon({_p}, {_run})
     else if {_e} is "gagnon_fin":
         za_pro_j5_apres({_p}, {_run})
     else if {_e} is "sortie5":
-        za_pro_j7({_p}, {_run})
+        za_pro_vers({_p}, {_run}, 6)
     else if {_e} is "checkpoint":
         za_pro_j7_checkpoint({_p}, {_run})
     else if {_e} is "bus":

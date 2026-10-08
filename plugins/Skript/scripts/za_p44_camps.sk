@@ -1,7 +1,7 @@
 # =====================================================================
 #  ZombieApocalypse - CAMPS DE SURVIVANTS VIVANTS (module A2)
 #  * 3-4 camps palissadés (~21x21) générés loin des joueurs : tentes, feu de camp, caisses, tour de guet, cloche, panneaux à jour.
-#  * Chaque camp a des chiffres (pop, nourriture, sécurité, moral, contamination) qui évoluent chaque jour serveur.
+#  * Chaque camp a des chiffres (pop, nourriture, sécurité, moral, électricité, contamination) qui évoluent chaque jour serveur.
 #  * Chef de camp (clic droit) : état, donner (nourriture/matériaux/soins), défendre, recruter, commercer.
 #  * Attaques (zombies ou pillards) : naturelles ou /zacamp attaque ; vagues ~3 min, pertes selon les morts abattus.
 #  * Un camp peut être abandonné ou tomber pour de bon (ruines, panneau "tombé le jour N").
@@ -264,7 +264,7 @@ function za_cmp_tente(wd: text, ox: number, oy: number, oz: number, tx: number, 
     za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 2, 3, {_tz}, {_tx} + 2, 3, {_tz} + 4, {_w})
     za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 3, 2, {_tz}, {_tx} + 3, 2, {_tz} + 4, {_w})
     za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 4, 1, {_tz}, {_tx} + 4, 1, {_tz} + 4, {_w})
-    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 1, 1, {_tz} + 4, {_tx} + 3, 1, {_tz} + 4, {_w})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, ({_tx} + 1), 1, ({_tz} + 4), ({_tx} + 3), 1, ({_tz} + 4), {_w})
     za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 2, 2, {_tz} + 4, {_w})
     za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 2, 1, {_tz} + 2, "%{_lit}%_bed[facing=south,part=foot]")
     za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 2, 1, {_tz} + 3, "%{_lit}%_bed[facing=south,part=head]")
@@ -612,7 +612,7 @@ function za_cmp_npcs(id: number):
                     set {_nm} to za_surv_titre("infirmier", {_g}, {_nm})
                 set {_sx} to random integer between 6 and 14
                 set {_sz} to random integer between 6 and 12
-                za_cmp_npc({_id}, {_nm}, {_ox} + {_sx} + 0.5, {_oy} + 1, {_oz} + {_sz} + 0.5, "", false)
+                za_cmp_npc({_id}, {_nm}, ({_ox} + {_sx} + 0.5), ({_oy} + 1), ({_oz} + {_sz} + 0.5), "", false)
                 add 1 to {_have}
             add 1 to {_k}
     else if {_have} > {_want} + 1:
@@ -665,7 +665,7 @@ function za_cmp_ruine(id: number, force: number):
     loop 4 times:
         set {_hb} to highest block at location({_ox} + (mod(loop-number - 1, 2) * 20), 64, {_oz} + (floor((loop-number - 1) / 2) * 20), {_w})
     za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 10, 1, 10, "campfire[lit=false]")
-    za_decay({_wd}, {_ox}, {_oy} + 1, {_oz}, {_ox} + 20, {_oy} + 6, {_oz} + 20, {_force})
+    za_decay({_wd}, {_ox}, ({_oy} + 1), {_oz}, ({_ox} + 20), ({_oy} + 6), ({_oz} + 20), {_force})
     # brèches dans la palissade
     loop floor({_force} / 6) times:
         set {_a} to random integer between 1 and 19
@@ -1098,6 +1098,11 @@ function za_cmp_jour_camp(id: number):
     if {za::reseau::residentiel} is true:
         za_cmp_champ({_id}, "moral", 3)
         za_cmp_champ({_id}, "securite", 2)
+    # électricité (za_p61) : une sous-station qui produit à 64 blocs = lumière et confort... et du bruit
+    set {za::camp::%{_id}%::elec} to za_elec_pres({_l}, 64)
+    if {za::camp::%{_id}%::elec} is true:
+        za_cmp_champ({_id}, "moral", 2)
+        za_cmp_champ({_id}, "securite", 3)
     # bonus de la saison (module ressources) : une fois
     if {za::ressource::bonus_camps} is set:
         za_cmp_champ({_id}, "securite", {za::ressource::bonus_camps})
@@ -1117,6 +1122,8 @@ function za_cmp_jour_camp(id: number):
     # attaque naturelle
     if {za::camp::%{_id}%::attaque} is not set:
         set {_pa} to 6 + ((100 - {za::camp::%{_id}%::securite}) / 5) + (5 * za_danger({_l}))
+        if {za::camp::%{_id}%::elec} is true:
+            add 5 to {_pa}
         set {_pa} to min(45, {_pa})
         if chance of {_pa}%:
             set {_ty} to "zombies"
@@ -1129,10 +1136,15 @@ function za_cmp_jour_camp(id: number):
 
 function za_cmp_chef_menu(p: player, id: number):
     set {_u} to {_p}'s uuid
+    # quarantaine à l'entrée (za_p117)
+    if za_cpol_refuse({_p}, {_id}) is true:
+        stop
     set {za::camp::ctx::%{_u}%} to {_id}
     set {_nom} to {za::camp::%{_id}%::nom}
     set {_chef} to {za::camp::%{_id}%::chef}
     set {_o::*} to "État du camp|etat", "Donner|donner", "Défendre le camp|defendre", "Recruter quelqu'un|recruter", "Commercer|commerce", "Partir|quit"
+    if {za::cpol::%{_id}%::conflit} is set:
+        set {_o::*} to "Arbitrer une dispute|arbitrer", "État du camp|etat", "Donner|donner", "Défendre le camp|defendre", "Recruter quelqu'un|recruter", "Commercer|commerce" and "Partir|quit"
     set {_c} to za_cmp_conf({_u}, {_id})
     set {_txt} to "%{_chef}%. Bienvenue au %{_nom}%. %za_cmp_phrase({_id})% (Confiance du camp : %floor({_c})% %%)"
     if {za::camp::%{_id}%::attaque} is set:
@@ -1196,10 +1208,21 @@ function za_cmp_noeud(p: player, n: text):
     if distance between {_p} and {_l} > 40:
         send "&8&o(Tu es trop loin du camp.)" to {_p}
         stop
+    # disputes (za_p117)
+    if {_n} is "arbitrer":
+        za_cpol_menu({_p}, {_id})
+        stop
+    if {_n} starts with "arb_":
+        za_cpol_arbitrer({_p}, {_id}, {_n})
+        stop
     if {_n} is "etat":
         send "&6&l=== %{_nom}% ===" to {_p}
         send "&7Population : &f%floor({za::camp::%{_id}%::pop})% &8| &7Vivres : %za_surv_barre({za::camp::%{_id}%::nourriture})% &8| &7Sécurité : %za_surv_barre({za::camp::%{_id}%::securite})%" to {_p}
         send "&7Moral : %za_surv_barre({za::camp::%{_id}%::moral})% &8| &7Contamination : &c%floor({za::camp::%{_id}%::contam})% %%" to {_p}
+        if za_elec_pres({za::camp::%{_id}%::loc}, 64) is true:
+            send "&7Électricité : &a&lSOUS TENSION &8(moral et sécurité en hausse, mais le bruit attire les morts)" to {_p}
+        else:
+            send "&7Électricité : &8aucune &7— une sous-station à moins de 64 blocs changerait la vie du camp (/electricite)" to {_p}
         send "&e%{_chef}% &8» &f« %za_cmp_phrase({_id})% »" to {_p}
         set {_b} to za_cmp_besoins({_id})
         if {_b} is not "":
@@ -1413,7 +1436,7 @@ function za_cmp_accueillir(c: number, s: number, p: player):
     set {za::surv::%{_s}%::camp} to {_c}
     delete {za::surv::%{_s}%::base}
     delete {za::surv::%{_s}%::expire}
-    set {za::surv::%{_s}%::lieu} to location(x-coordinate of {_pt}, y-coordinate of {_cl}, z-coordinate of {_pt}, world of {_cl})
+    set {za::surv::%{_s}%::lieu} to location((x-coordinate of {_pt}), (y-coordinate of {_cl}), (z-coordinate of {_pt}), (world of {_cl}))
     za_cmp_pop_ajouter({_c}, 1)
     za_cmp_champ({_c}, "moral", 3)
     za_cmp_conf_ajouter({_u}, {_c}, 8)

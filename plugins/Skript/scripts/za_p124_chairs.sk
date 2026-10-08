@@ -1,0 +1,166 @@
+# za_p124_chairs.sk — démembrement et mutation visible, côté serveur (bible v2, points 24, 39)
+#  Les modèles et les effets d'écran viendront avec za_modeles ; ici, ce qui change le jeu :
+#  * DÉMEMBREMENT (24) : un coup qui emporte plus du tiers de sa vie peut arracher un membre (25 %%), selon la
+#    hauteur de l'impact (au tir : angle du tireur) ou au hasard (mêlée) :
+#      jambes → il rampe (très lent) et agrippe les chevilles (lenteur à qui il touche) ;
+#      bras  → il ne casse plus les portes (p79), il frappe moins fort... mais sa morsure infecte plus souvent.
+#    Le membre tombe au sol : « Membre arraché » (autopsie au labo, camouflage, appât).
+#    Un membre arraché seulement sur les humains principaux (Shambler, Runner, Brute, Armored, Citoyen, Soldat...).
+#  * MUTATION VISIBLE (39) : au stade 2 de l'infection, chuchotements que toi seul entends ; au stade 3, les chiens
+#    jappent quand tu passes, les PNJ reculent, et les morts t'ignorent davantage : tu sens comme eux
+#    (tag za_odeur_morte, lu par le moteur ; une partie des cibles est lâchée).
+#  * SUPPRESSION (S-2) : une balle qui ne tue pas fige la cible une seconde et ralentit ceux qui chargent avec elle.
+
+# ---------------------------------------------------------------- démembrement (24)
+
+function za_chair_humain(n: text) :: boolean:
+    loop "Shambler", "Runner", "Brute", "Armored", "Citoyen", "Soldat", "Patient", "Ouvrier", "Policier", "Medecin" and "Prisonnier":
+        if {_n} contains loop-value:
+            return true
+    return false
+
+on damage of zombie:
+    if attacker is not a player:
+        stop
+    if za_pro(attacker) is true:
+        stop
+    if damage < (max health of victim) / 3:
+        stop
+    if damage >= health of victim:
+        stop
+    set {_n} to uncolored name of victim ? ""
+    if za_chair_humain({_n}) is false:
+        stop
+    if za_surv_a_tag(victim, "za_demembre") is true:
+        stop
+    if chance of 75%:
+        stop
+    # hauteur de l'impact : au tir, d'après l'angle du tireur ; mêlée → au hasard
+    set {_zone} to random element out of "jambes" and "bras"
+    if damage cause is projectile:
+        # tir : on vise bas (regard vers le bas) → jambes, sinon le haut du corps
+        if pitch of attacker > 12:
+            set {_zone} to "jambes"
+        else:
+            set {_zone} to "bras"
+    add "za_demembre" to scoreboard tags of victim
+    if {_zone} is "jambes":
+        add "za_rampant" to scoreboard tags of victim
+        apply potion of slowness of tier 3 to victim for 9999 seconds
+        send "&8Ses jambes cèdent. Il continue... en rampant." to attacker
+    else:
+        add "za_sansbras" to scoreboard tags of victim
+        apply potion of weakness of tier 2 to victim for 9999 seconds
+        send "&8Un bras arraché. Il ne frappe plus aussi fort. Mais il mord." to attacker
+    drop za_item("rotten flesh", "Membre arraché", "&4", 1) at location of victim
+    execute console command "execute at %uuid of victim% run particle minecraft:block minecraft:redstone_block ~ ~0.6 ~ 0.2 0.3 0.2 0.1 25 force"
+    play sound "entity.zombie.break_wooden_door" with volume 0.6 and pitch 1.6 at victim
+
+# le rampant agrippe les chevilles ; le sans-bras mord (infection plus probable : stade 1 direct, rare)
+on damage of player:
+    if za_pro(victim) is true:
+        stop
+    if attacker is not a zombie:
+        stop
+    if za_surv_a_tag(attacker, "za_rampant") is true:
+        za_effet(victim, "slowness", 3, 2)
+        send action bar "&c Il t'agrippe la cheville !" to victim
+    else if za_surv_a_tag(attacker, "za_sansbras") is true:
+        if {za::infection::%victim's uuid%} is not set:
+            if chance of 10%:
+                set {za::infection::%victim's uuid%} to now
+                send "&4Il t'a mordu. Profondément." to victim
+
+# ---------------------------------------------------------------- mutation visible (39)
+
+function za_chair_stade(p: player) :: number:
+    set {_i} to {za::infection::%{_p}'s uuid%}
+    if {_i} is not set:
+        return 0
+    set {_v} to za_param(za_souche_id({_p}), "vitesse")
+    set {_t} to difference between {_i} and now
+    if {_t} >= ("%10 * {_v}% minutes" parsed as timespan):
+        return 3
+    if {_t} >= ("%5 * {_v}% minutes" parsed as timespan):
+        return 2
+    return 1
+
+every 10 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        set {_s} to 0
+        if za_pro({_p}) is false:
+            set {_s} to za_chair_stade({_p})
+        if {_s} >= 3:
+            add "za_odeur_morte" to scoreboard tags of {_p}
+        else:
+            remove "za_odeur_morte" from scoreboard tags of {_p}
+        if {_s} >= 2:
+            if chance of 20%:
+                set {_m} to random element out of "« ...rejoins-nous... »", "« ...tu as faim, hein... »", "« ...ils ne t'aiment plus... »" and "« ...c'est chaud, dedans... »"
+                send "&8&o%{_m}%" to {_p}
+                play sound "entity.allay.ambient_without_item" with volume 0.3 and pitch 0.4 to {_p}
+        if {_s} >= 3:
+            za_chair_peur({_p})
+
+function za_chair_peur(p: player):
+    set {_l} to location of {_p}
+    loop all wolves in radius 12 around {_l}:
+        play sound "entity.wolf.growl" with volume 1 and pitch 1.3 at location of loop-entity
+    loop all villagers in radius 6 around {_l}:
+        if chance of 30%:
+            send "&8Quelqu'un recule en te voyant. Un murmure : « Il est malade... »" to {_p}
+            exit loop
+
+# les morts t'ignorent davantage : il sent comme eux
+on target:
+    if target is not a player:
+        stop
+    if za_surv_a_tag(target, "za_odeur_morte") is false:
+        stop
+    if chance of 50%:
+        cancel event
+
+# ---------------------------------------------------------------- le membre arraché : camouflage ou appât
+
+on right click:
+    if za_pro(player) is true:
+        stop
+    set {_n} to uncolored name of player's tool ? ""
+    if {_n} is not "Membre arraché":
+        stop
+    cancel event
+    remove 1 of player's tool from player's inventory
+    if player is sneaking:
+        # appât (117) : lancé devant soi, son odeur attire les morts du coin
+        set {_l} to location of target block of player
+        if {_l} is not set:
+            set {_l} to location of player
+        drop za_item("rotten flesh", "Appât", "&4", 1) at {_l}
+        za_activite_ajouter({_l}, 12)
+        send "&8Tu le lances au loin. Ça sent fort. Ils vont venir voir." to player
+        stop
+    # camouflage au sang de zombie (IA-2) : 90 secondes, le moteur ne sent plus ta piste
+    add "za_camouflage" to scoreboard tags of player
+    send "&8Tu t'en frottes les bras, le cou, les vêtements. &7Pendant 90 secondes, tu sens comme eux. &8(Accroupi + clic droit : appât.)" to player
+    za_effet(player, "nausea", 6, 0)
+    wait 90 seconds
+    if player is online:
+        remove "za_camouflage" from scoreboard tags of player
+        send "&7L'odeur s'est dissipée." to player
+
+# ---------------------------------------------------------------- suppression (S-2) : un tir qui ne tue pas casse quand même la charge
+
+on damage of zombie:
+    if attacker is not a player:
+        stop
+    if za_pro(attacker) is true:
+        stop
+    if damage cause is not projectile:
+        stop
+    if damage >= health of victim:
+        stop
+    apply potion of slowness of tier 4 to victim for 1 second
+    loop all zombies in radius 4 around victim:
+        if loop-entity is not victim:
+            apply potion of slowness of tier 2 to loop-entity for 1 second

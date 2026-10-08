@@ -18,12 +18,14 @@ on load:
     add "paper|Bandage|&f|Soigne 3 coeurs|3|1|0" to {za::offre::charognard::*}
     add "iron sword|Epee abimee|&7|Ebrechee mais tranchante|6|1|0" to {za::offre::charognard::*}
     add "stone axe|Hache de fortune|&7|Ca coupe... a peu pres|4|1|0" to {za::offre::charognard::*}
+    add "gray dye|Fumigene|&7|Clic droit : 20 secondes ou ils ne te voient plus|4|1|0" to {za::offre::charognard::*}
     add "shield|Bouclier de fortune|&7|Une porte clouee : 16 utilisations, pas plus|4|1|0|minecraft:shield{Damage:320,display:{Name:'{""text"":""Bouclier de fortune"",""color"":""gray"",""italic"":false}'}}" to {za::offre::charognard::*}
     add "honey bottle|Antidote|&a|Stoppe l'infection avant 10 min|12|1|0" to {za::offre::medecin::*}
     add "paper|Bandage|&f|Soigne 3 coeurs|3|2|0" to {za::offre::medecin::*}
     add "honey bottle|Serum|&d|Guerit l'infection a tout stade|30|1|25" to {za::offre::medecin::*}
     add "golden apple|Pomme doree|&6|Regeneration puissante|10|1|0" to {za::offre::medecin::*}
     add "honey bottle|Antibiotique|&b|Soigne plaie, grippe et fievre|8|1|0" to {za::offre::medecin::*}
+    add "paper|Kit de depistage|&e|Test de terrain : se trompe parfois|6|1|10" to {za::offre::medecin::*}
     add "leather cap|Masque a gaz|&2|Filtre la pluie acide et l'air contamine (porte-le en casque)|15|1|25" to {za::offre::medecin::*}
     add "arrow|Fleches|&7|Pour arcs, arbaletes et tourelles|2|16|0" to {za::offre::trafiquant::*}
     add "bow|Arc renforce|&e|Solide|8|1|0" to {za::offre::trafiquant::*}
@@ -45,10 +47,17 @@ on load:
     add "iron bars|Silencieux Ursus|&8|Reduit fortement le bruit des tirs (donc les zombies attires)|15|1|25|tacz:attachment{AttachmentId:""tacz:muzzle_silencer_ursus""}" to {za::offre::trafiquant::*}
     add "compass|Lunette ELCAN 4x|&b|Viseur grossissant|20|1|80|tacz:attachment{AttachmentId:""tacz:scope_elcan_4x""}" to {za::offre::trafiquant::*}
     add "hopper|Chargeur etendu|&b|Plus de coups dans le chargeur|12|1|25|tacz:attachment{AttachmentId:""tacz:extended_mag_1""}" to {za::offre::trafiquant::*}
+    # 28 offres au plus par marchand (coffre de 5 rangées)
+    # faux remèdes (za_p113) : identiques aux vrais, moins chers, sans effet
+    add "honey bottle|Serum|&d|Guerit l'infection a tout stade (prix d'ami)|16|1|0|faux" to {za::offre::trafiquant::*}
+    add "honey bottle|Antibiotique|&b|Soigne plaie, grippe et fievre|4|1|0|faux" to {za::offre::trafiquant::*}
+    add "paper|Certificat de sante|&f|Passe le controle sanitaire des camps (si le chien ne grogne pas)|12|1|0" to {za::offre::trafiquant::*}
+    add "lead|Menottes|&7|Capture un recherche au lieu de le tuer (prison)|8|1|25" to {za::offre::trafiquant::*}
     add "tnt|Explosif artisanal|&c|Fait du bruit... beaucoup|9|1|80" to {za::offre::trafiquant::*}
     add "iron ingot|Plaque de blindage|&7|Pour l'equipement|3|4|0" to {za::offre::trafiquant::*}
     add "compass|Boussole de survivant|&b|Indique le point de depart|10|1|0" to {za::offre::collectionneur::*}
     add "paper|Carte d'acces|&b|Ouvre un laboratoire scelle pendant une Blood Moon|40|1|80" to {za::offre::collectionneur::*}
+    add "clock|Baladeur|&7|Ecouter les cassettes sans bruit (dans l'autre main)|6|1|0" to {za::offre::collectionneur::*}
     add "iron ingot|Pieces de generateur|&7|Composants mecaniques|4|4|0" to {za::offre::mecano::*}
     add "blaze powder|Essence (carburant)|&e|Rare et precieuse|8|1|0" to {za::offre::mecano::*}
     add "comparator|Composant electronique|&b|Circuits recuperes|6|1|0" to {za::offre::mecano::*}
@@ -88,18 +97,31 @@ command /jetons [<text>] [<number>]:
         if arg-1 is not set:
             send "&6Jetons de Survie: &e%za_jetons(player)% &7| Rang: &e%za_rang(player)% &7(score %za_score(player)%, remise %floor(za_remise(player) * 100)% pourcent)" to player
         else if arg-1 is "deposer":
-            set {_n} to za_count_named(player, "Jeton de Survie")
+            # seulement des pépites d'or au nom du jeton (audit C1)
+            # on vide exactement les cases comptées (les jetons lâchés par MythicMobs ont un lore : un « remove ... named »
+            # ne les retirait pas et le dépôt se répétait à l'infini)
+            set {_n} to 0
+            loop 41 times:
+                set {_s} to loop-number - 1
+                set {_it} to slot {_s} of player's inventory
+                if {_it} is a gold nugget:
+                    if uncolored name of {_it} is "Jeton de Survie":
+                        add item amount of {_it} to {_n}
+                        set slot {_s} of player's inventory to air
             if {_n} is 0:
                 send "&7Tu n'as aucun jeton en main/sur toi." to player
             else:
-                if za_take_named(player, "Jeton de Survie", {_n}) is true:
-                    za_jetons_ajouter(player, {_n})
-                    send "&6+%{_n}% jeton(s). Solde: &e%za_jetons(player)%" to player
+                za_jetons_ajouter(player, {_n})
+                send "&6+%{_n}% jeton(s). Solde: &e%za_jetons(player)%" to player
         else if arg-1 is "retirer":
             if arg-2 is not set:
                 send "&cUsage: /jetons retirer <nombre>" to player
             else if arg-2 <= 0:
                 send "&cNombre invalide." to player
+            else if arg-2 is not floor(arg-2):
+                send "&cUn nombre entier, s'il te plaît." to player
+            else if arg-2 > 640:
+                send "&cPas plus de 640 jetons à la fois." to player
             else if za_jetons(player) < arg-2:
                 send "&cSolde insuffisant." to player
             else:
@@ -383,7 +405,17 @@ command /reputation [<player>]:
 # =====================================================================
 # ---------- prix chez un marchand : remise Ingenieur sur les pieges du Mecano ----------
 function za_prix_marchand(p: player, m: text, nom: text, base: number) :: number:
-    set {_pr} to za_prix({_p}, {_base})
+    # cours du marché par catégorie (za_p68_cours)
+    set {_pr} to ceil(za_prix({_p}, {_base}) * za_cours_facteur({_nom}))
+    # prix de la région où l'on achète (ZAMoteur, S-3) : abondante ici, rare là-bas
+    set {_cat} to za_cours_categorie({_nom})
+    if {_cat} is not "":
+        set {_rl} to {za::mot::prix::%{_p}'s uuid%::%za_cours_ressource({_cat})%} parsed as number
+        if {_rl} is set:
+            set {_pr} to ceil({_pr} * {_rl})
+    # une rumeur de vol te précède (chaîne 14) : les marchands montent leurs prix
+    if ({za::mot::mefiance::%{_p}'s uuid%} ? 0) > unix timestamp of now:
+        set {_pr} to ceil({_pr} * 1.15)
     if {_m} is "mecano":
         if any:
             {_nom} contains "Piege"
@@ -407,6 +439,8 @@ function za_ouvrir_marchand(p: player, m: text):
 on inventory click:
     if uncolored name of (player's current inventory) starts with "Marchand: ":
         cancel the event
+        if event-inventory is not player's current inventory:
+            stop
         set {_mp::*} to split (uncolored name of (player's current inventory)) at ": "
         set {_m} to {_mp::2}
         if event-item is not air:
@@ -417,10 +451,12 @@ on inventory click:
                     if za_score(player) < {_min}:
                         send "&cRang insuffisant (score %{_min}% requis)." to player
                     else:
-                        set {_prix} to za_prix(player, ({_parts::5} parsed as number))
+                        set {_prix} to za_prix_marchand(player, {_m}, {_parts::2}, ({_parts::5} parsed as number))
                         if za_jetons(player) >= {_prix}:
                             za_jetons_ajouter(player, 0 - {_prix})
-                            if {_parts::8} is set:
+                            if {_parts::8} is "faux":
+                                give za_faux_item({_parts::1}, {_parts::2}, {_parts::3}, ({_parts::6} parsed as number)) to player
+                            else if {_parts::8} is set:
                                 execute console command "give %player% %{_parts::8}% %{_parts::6}%"
                             else:
                                 give za_item({_parts::1}, {_parts::2}, {_parts::3}, ({_parts::6} parsed as number)) to player

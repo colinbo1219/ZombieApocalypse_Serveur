@@ -1,0 +1,77 @@
+# ZombieApocalypse - compétences des boss régionaux (mêmes mécaniques que ZombieApocalypse.yml)
+ZA_Boucher_Crochet:
+  Cooldown: 5
+  Conditions:
+  - playerwithin{d=16} true
+  Skills:
+  - swingarm @self
+  - effect:sound{s=block.chain.break;v=1.5;p=0.6} @target
+  - pull{velocity=3} @target
+  - potion{type=SLOW;duration=40;level=2} @target
+ZA_Boucher_Couperet:
+  Cooldown: 7
+  Conditions:
+  - playerwithin{d=5} true
+  Skills:
+  - swingarm @self
+  - delay 8
+  - effect:sound{s=item.axe.strip;v=1.5;p=0.5} @self
+  - damage{a=10} @PIR{r=4}
+  - potion{type=WITHER;duration=80;level=1} @PIR{r=4}
+ZA_Boucher_Carcasses:
+  Cooldown: 40
+  Skills:
+  - command{c="zamsg <caster.l.w> <caster.l.x> <caster.l.y> <caster.l.z> 40 &4Le Boucher décroche ses carcasses. Elles se relèvent.";sync=true} @self
+  - summon{type=ZA_Shambler;amount=4;radius=5} @self
+ZA_Matriarche_Enfants:
+  Cooldown: 9
+  Conditions:
+  - playerwithin{d=24} true
+  Skills:
+  - swingarm @self
+  - effect:sound{s=entity.zombie_villager.ambient;v=1.5;p=1.8} @self
+  - summon{type=ZA_Child;amount=2;radius=3} @self
+ZA_Matriarche_Berceuse:
+  Cooldown: 13
+  Conditions:
+  - playerwithin{d=20} true
+  Skills:
+  - effect:sound{s=za_modeles:zombie.chuchote;v=1.5;p=0.7} @PIR{r=20}
+  - potion{type=CONFUSION;duration=120;level=0} @PIR{r=14}
+  - potion{type=DARKNESS;duration=100;level=0} @PIR{r=14}
+ZA_Gardien_Rafale:
+  Cooldown: 4
+  Conditions:
+  - playerwithin{d=24} true
+  Skills:
+  - swingarm @self
+  - effect:sound{s=entity.firework_rocket.blast;v=1.5;p=0.6} @self
+  - projectile{onTick=ZA_Gardien_Balle_Trace;onHit=ZA_Gardien_Balle;v=18;i=1;hR=0.4;vR=0.4;mr=26}
+  - delay 4
+  - projectile{onTick=ZA_Gardien_Balle_Trace;onHit=ZA_Gardien_Balle;v=18;i=1;hR=0.4;vR=0.4;mr=26}
+  - delay 4
+  - projectile{onTick=ZA_Gardien_Balle_Trace;onHit=ZA_Gardien_Balle;v=18;i=1;hR=0.4;vR=0.4;mr=26}
+ZA_Gardien_Balle_Trace:
+  Skills:
+  - effect:particles{p=crit;a=1;hS=0;vS=0;s=0} @origin
+ZA_Gardien_Balle:
+  Skills:
+  - damage{a=5}
+  - effect:sound{s=entity.arrow.hit_player;v=1;p=0.6} @target
+ZA_Brule_Brasier:
+  Cooldown: 10
+  Conditions:
+  - playerwithin{d=12} true
+  Skills:
+  - swingarm @self
+  - effect:sound{s=item.firecharge.use;v=1.5;p=0.6} @self
+  - effect:particles{p=flame;a=80;hS=3;vS=0.5;s=0.05} @self
+  - ignite{ticks=120} @PIR{r=6}
+  - damage{a=5} @PIR{r=6}
+ZA_Brule_Eruption:
+  Cooldown: 45
+  Skills:
+  - command{c="zamsg <caster.l.w> <caster.l.x> <caster.l.y> <caster.l.z> 40 &6Le Brûlé s'embrase. Les ouvriers de la centrale reviennent avec lui.";sync=true} @self
+  - effect:sound{s=entity.blaze.shoot;v=2;p=0.5} @self
+  - summon{type=ZA_Ouvrier_Brule;amount=3;radius=5} @self
+  - potion{type=INCREASE_DAMAGE;duration=400;level=1} @self

@@ -1,0 +1,182 @@
+# za_p118_cassettes.sk — cassettes à collectionner (bible v2, point 52)
+#  Dix enregistrements en quatre arcs (NORDA, Arel, la famille Gagnon, Bravo), plus une cassette de morse qui donne une
+#  fréquence cachée (93). On les trouve dans les coffres loin des bases (rarement), sur les morts (très rarement),
+#  sur les boss régionaux. Clic droit avec la cassette : avec un Baladeur dans l'autre main, on l'écoute seul ; sans,
+#  le petit haut-parleur grésille... et les morts entendent aussi (règle 3). La transcription reste dans /cassettes.
+#  Un arc complet : un souvenir, une légende, parfois une piste.
+#  Variables : {za::cass::<uuid>::<n>}, {za::cass::vu::<clé de coffre>}
+#  (Les voix enregistrées viendront avec za_modeles ; en attendant, texte + bruit de bande.)
+
+function za_cass_titre(n: number) :: text:
+    if {_n} is 1:
+        return "NORDA 1 — Réunion du 3 mai"
+    if {_n} is 2:
+        return "NORDA 2 — Protocole Silence"
+    if {_n} is 3:
+        return "NORDA 3 — Le dernier message"
+    if {_n} is 4:
+        return "Arel 1 — Journal de labo"
+    if {_n} is 5:
+        return "Arel 2 — Il ne tue pas"
+    if {_n} is 6:
+        return "Arel 3 — Pour ma fille"
+    if {_n} is 7:
+        return "Gagnon 1 — Bonne fête, Lucie"
+    if {_n} is 8:
+        return "Gagnon 2 — La cave"
+    if {_n} is 9:
+        return "Bravo — Ordre refusé"
+    return "Bande sans titre (bips)"
+
+function za_cass_lignes(n: number) :: texts:
+    if {_n} is 1:
+        return "« ... la population de Saint-Aurèle est idéale. Isolée, une seule route principale, un hôpital régional. »", "« Et si ça déborde ? »", "« Ça ne débordera pas. Le Z-01 ne passe pas d'un hôte à l'autre. » (Un rire.)" and "« Notez que je n'étais pas d'accord. Notez-le. »"
+    if {_n} is 2:
+        return "« Protocole Silence activé à 4 h 10. Coupure des antennes cellulaires, secteurs 2 à 7. »", "« Les familles vont appeler. »", "« Les familles vont tomber sur un message d'erreur. C'est le but. »" and "(Une sirène, au loin. Puis plus rien.)"
+    if {_n} is 3:
+        return "« Si quelqu'un trouve ça : le niveau moins deux n'est pas vide. On n'a pas tout évacué. »", "« Il y a encore des gens dans les cellules. Des gens VIVANTS, quand on est partis. »", "« Je m'appelle Martin Houde. Je suis technicien. Je suis désolé. »" and "(Des coups contre une porte de métal.)"
+    if {_n} is 4:
+        return "« Jour 41. L'échantillon réagit au son. Pas à la lumière, pas à la chaleur : au son. »", "« Il « écoute », si on peut dire. Je ne sais pas comment l'écrire dans le rapport sans passer pour un fou. »" and "« Vasseur veut accélérer. Je lui ai dit non. Il a souri. »"
+    if {_n} is 5:
+        return "« Le virus ne tue pas. Il réécrit. Le cœur s'arrête, mais le cerveau... le cerveau continue un programme. »", "« Une seule fonction : rejoindre les autres. Se rassembler. »" and "« C'est pour ça qu'ils font des nids. Ce ne sont pas des animaux. C'est un réseau. »"
+    if {_n} is 6:
+        return "« Émilie, si tu écoutes ça, c'est que papa n'est pas rentré. »", "« Mes notes sont au labo, rangées sous mon numéro d'employé. Il est sur mes reçus du Café du Coin. »", "« Donne-les à quelqu'un de bien. Pas à NORDA. Jamais à NORDA. »" and "« Je t'aime, ma puce. Ferme bien la porte. »"
+    if {_n} is 7:
+        return "(Des rires d'enfants.) « Bonne fête, Lucie ! Souffle, souffle ! »", "« Sept ans ! Sept ans, ma grande fille ! »", "(Une sirène d'ambulance passe dehors. Quelqu'un dit : « Encore une. C'est la troisième aujourd'hui. »)" and "« Bon. Qui veut du gâteau ? »"
+    if {_n} is 8:
+        return "« On est dans la cave depuis quatre jours. Lucie dort. Elle a de la fièvre. »", "« Elle a été griffée. Juste griffée, au bras. Ce n'est rien, hein ? Une griffure, ce n'est rien. »", "« Je ne dors plus. Je la regarde. » (Un long silence.)" and "« Si quelqu'un trouve ça... ne descendez pas dans la cave. »"
+    if {_n} is 9:
+        return "« Bravo-3 à commandement. On ne tire pas sur des civils. Répétez l'ordre. »", "« L'ordre est confirmé, Bravo-3. Zone rouge, aucune exception. »", "« Alors on ne fait plus partie de cette armée. Bravo-3, terminé. »" and "(Une radio qu'on jette contre un mur.)"
+    return "(Des bips. Longs, courts. Toujours les mêmes.)", "· · · — — — · · ·  (et puis des chiffres, en morse : sept, trois, point, six)" and "(Tu notes. 73.6. Une fréquence.)"
+
+function za_cass_arc(n: number) :: text:
+    if {_n} <= 3:
+        return "norda"
+    if {_n} <= 6:
+        return "arel"
+    if {_n} <= 8:
+        return "gagnon"
+    if {_n} is 9:
+        return "bravo"
+    return "morse"
+
+function za_cass_item(n: number) :: itemtype:
+    set {_it} to za_item("music disc 11", "Cassette — %za_cass_titre({_n})%", "&e", 1)
+    set lore of {_it} to "&7Une vieille cassette audio." and "&8Clic droit pour l'écouter (un Baladeur dans l'autre main, c'est plus discret)."
+    return {_it}
+
+function za_cass_hasard() :: itemtype:
+    set {_n} to random integer between 1 and 10
+    return za_cass_item({_n})
+
+function za_cass_num(nom: text) :: number:
+    loop 10 times:
+        if {_nom} is "Cassette — %za_cass_titre(loop-value)%":
+            return loop-value
+    return 0
+
+# ---------------------------------------------------------------- écouter
+
+on right click:
+    if za_pro(player) is true:
+        stop
+    set {_nom} to uncolored name of player's tool ? ""
+    if {_nom} does not start with "Cassette — ":
+        stop
+    cancel event
+    set {_n} to za_cass_num({_nom})
+    if {_n} is 0:
+        stop
+    set {_u} to "%player's uuid%"
+    if ({za::cass::ecoute::%{_u}%} ? 0) > (unix timestamp of now) - 20:
+        stop
+    set {za::cass::ecoute::%{_u}%} to unix timestamp of now
+    set {_discret} to false
+    if uncolored name of player's offhand tool is "Baladeur":
+        set {_discret} to true
+    za_cass_ecouter(player, {_n}, {_discret})
+
+function za_cass_ecouter(p: player, n: number, discret: boolean):
+    set {_u} to "%{_p}'s uuid%"
+    send "&8[&e▶ %za_cass_titre({_n})%&8]" to {_p}
+    if {_discret} is false:
+        send "&8(Le petit haut-parleur grésille. Fort. Trop fort.)" to {_p}
+        za_activite_ajouter(location of {_p}, 15)
+        za_mot("bruit %floor(x-coordinate of {_p})% %floor(z-coordinate of {_p})% 40")
+    play sound "block.note_block.hat" with volume 0.4 and pitch 0.5 at {_p}
+    loop za_cass_lignes({_n}):
+        wait 3 seconds
+        if {_p} is not online:
+            stop
+        send "&7%loop-value%" to {_p}
+    if {za::cass::%{_u}%::%{_n}%} is not set:
+        set {za::cass::%{_u}%::%{_n}%} to {za::serveur::jours} ? 0
+        za_souvenir_ajouter({_u}, "cassette:%{_n}%", "decouverte", "Écouté la cassette « %za_cass_titre({_n})% ».")
+        za_cass_arc_fini({_p}, za_cass_arc({_n}))
+    if {_n} is 10:
+        za_radio_decouvrir({_p}, "73.6")
+
+function za_cass_arc_fini(p: player, arc: text):
+    set {_u} to "%{_p}'s uuid%"
+    loop 10 times:
+        if za_cass_arc(loop-value) is {_arc}:
+            if {za::cass::%{_u}%::%loop-value%} is not set:
+                stop
+    if {za::cass::arc::%{_u}%::%{_arc}%} is set:
+        stop
+    set {za::cass::arc::%{_u}%::%{_arc}%} to true
+    if {_arc} is "norda":
+        send "&6Tu as toute l'histoire. &7NORDA savait. Dès le 3 mai. Quelqu'un devra l'entendre (Léa ? /choix, en fin de saison)." to {_p}
+        za_monde_legende("%{_p}% a réuni les bandes de NORDA : ils savaient, dès le 3 mai.")
+    else if {_arc} is "arel":
+        send "&6Les trois bandes d'Arel. &7Ses notes : au labo de l'hôpital, sous son numéro d'employé. Le numéro est sur un reçu du Café du Coin, à Saint-Aurèle." to {_p}
+        za_monde_legende("%{_p}% a écouté les trois bandes du Dr Arel.")
+    else if {_arc} is "gagnon":
+        send "&6Lucie Gagnon, sept ans. &7Tu sais maintenant ce qu'il y a dans la cave de la rue des Érables." to {_p}
+
+# ---------------------------------------------------------------- où les trouver
+
+on inventory open:
+    if za_pro(player) is true:
+        stop
+    set {_b} to target block of player
+    if {_b} is not set:
+        stop
+    if {_b} is not chest:
+        stop
+    set {_k} to za_lkey(location of {_b})
+    if {za::cass::vu::%{_k}%} is set:
+        stop
+    set {za::cass::vu::%{_k}%} to true
+    set {_u} to "%player's uuid%"
+    if {za::base::%{_u}%} is set:
+        if world of {za::base::%{_u}%} is world of player:
+            if distance between {za::base::%{_u}%} and player < 80:
+                stop
+    if chance of 3%:
+        add za_cass_hasard() to event-inventory
+
+on death:
+    if attacker is not a player:
+        stop
+    if victim is not a monster:
+        stop
+    if za_pro(attacker) is true:
+        stop
+    if chance of 0.4%:
+        drop za_cass_hasard() at location of victim
+
+command /cassettes:
+    trigger:
+        set {_u} to "%player's uuid%"
+        send "&e&l━━ CASSETTES ━━" to player
+        set {_k} to 0
+        loop 10 times:
+            if {za::cass::%{_u}%::%loop-value%} is set:
+                add 1 to {_k}
+                send "&e▶ &f%za_cass_titre(loop-value)%" to player
+                loop za_cass_lignes(loop-value-1):
+                    send "&8   %loop-value-2%" to player
+            else:
+                send "&8▶ ???" to player
+        send "&7%{_k}%/10 écoutées. &8(Clic droit avec une cassette ; un Baladeur dans l'autre main pour rester discret.)" to player

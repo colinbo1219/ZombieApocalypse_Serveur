@@ -1,0 +1,220 @@
+# =====================================================================
+#  ZombieApocalypse - LE CORPS DU JOUEUR (bible S-1, PlayerCondition)
+#  Un ÉTAT GÉNÉRAL lisible d'un coup d'œil, qui résulte de tout le reste : BON, FATIGUÉ, AFFAIBLI, MALADE, BLESSÉ,
+#  CRITIQUE. Il lit les systèmes existants sans les remplacer : soif, fatigue (p11), température (p15), maladies,
+#  hygiène, épuisement (p27), blessures (p53), stress et encombrement (p86), infection (za_infection), santé mentale.
+#  PLAFOND DE MALUS : les effets s'additionnent jusqu'à un maximum (lenteur II, faiblesse I) : le jeu pousse à décider,
+#  jamais à l'injouable. On ressent avant de savoir : « Tu te sens faible », pas « Maladie III ».
+#  Joueur : /etat (Corps · Survie · Maladies · Psychologique)
+#  Publié : {za::corps::etat::<uuid>}
+# =====================================================================
+
+# ---------------------------------------------------------------- lecture des systèmes
+
+function za_corps_stade(u: text) :: number:
+    set {_i} to {za::infection::%{_u}%}
+    if {_i} is not set:
+        return 0
+    set {_t} to difference between {_i} and now
+    if {_t} >= 10 minutes:
+        return 3
+    if {_t} >= 5 minutes:
+        return 2
+    return 1
+
+function za_corps_blessures(u: text) :: number:
+    set {_n} to 0
+    loop "tete", "bras", "torse" and "jambe":
+        add ({za::bless::%loop-value%::%{_u}%} ? 0) to {_n}
+    return {_n}
+
+function za_corps_malade(u: text) :: boolean:
+    if {za::mal::fievre::%{_u}%} is set:
+        return true
+    if {za::mal::grippe::%{_u}%} is set:
+        return true
+    if {za::mal::plaie::%{_u}%} is set:
+        return true
+    if za_corps_stade({_u}) >= 1:
+        return true
+    return false
+
+# le nombre de malus actifs (sert au plafond)
+function za_corps_malus(p: player) :: number:
+    set {_u} to "%{_p}'s uuid%"
+    set {_n} to 0
+    if ({za::bless::jambe::%{_u}%} ? 0) > 0:
+        add 1 to {_n}
+    if ({za::bless::bras::%{_u}%} ? 0) > 0:
+        add 1 to {_n}
+    if ({za::poids::%{_u}%} ? 0) > 60:
+        add 1 to {_n}
+    if ({za::temp::%{_u}%} ? 50) < 25:
+        add 1 to {_n}
+    if ({za::epuis::%{_u}%} ? 0) >= 70:
+        add 1 to {_n}
+    if ({za::stress::%{_u}%} ? 0) >= 60:
+        add 1 to {_n}
+    if food level of {_p} < 6:
+        add 1 to {_n}
+    if ({za::soif::%{_u}%} ? 100) < 20:
+        add 1 to {_n}
+    return {_n}
+
+function za_corps_etat(p: player) :: text:
+    set {_u} to "%{_p}'s uuid%"
+    set {_b} to za_corps_blessures({_u})
+    if health of {_p} <= 3:
+        return "CRITIQUE"
+    if za_corps_stade({_u}) >= 3:
+        return "CRITIQUE"
+    if {_b} >= 4:
+        return "CRITIQUE"
+    if {_b} > 0:
+        return "BLESSÉ"
+    if za_corps_malade({_u}) is true:
+        return "MALADE"
+    if food level of {_p} < 8:
+        return "AFFAIBLI"
+    if ({za::soif::%{_u}%} ? 100) < 25:
+        return "AFFAIBLI"
+    if ({za::temp::%{_u}%} ? 50) < 25:
+        return "AFFAIBLI"
+    if ({za::epuis::%{_u}%} ? 0) >= 60:
+        return "FATIGUÉ"
+    if ({za::fatigue::%{_u}%} ? 0) >= 2:
+        return "FATIGUÉ"
+    return "BON"
+
+function za_corps_couleur(e: text) :: text:
+    if {_e} is "BON":
+        return "&a"
+    if {_e} is "FATIGUÉ":
+        return "&e"
+    if {_e} is "AFFAIBLI":
+        return "&6"
+    if {_e} is "MALADE":
+        return "&2"
+    if {_e} is "BLESSÉ":
+        return "&c"
+    return "&4&l"
+
+function za_corps_phrase(e: text) :: text:
+    if {_e} is "FATIGUÉ":
+        return "Tes paupières pèsent. Tu devrais dormir."
+    if {_e} is "AFFAIBLI":
+        return "Tu te sens faible. Il te faut manger, boire, te réchauffer."
+    if {_e} is "MALADE":
+        return "Fièvre ? Mauvaise nuit ? Quelque chose ne va pas."
+    if {_e} is "BLESSÉ":
+        return "Ça lance. Tu peux encore te battre, mais fuir sera plus dur."
+    if {_e} is "CRITIQUE":
+        return "Tu ne tiendras pas longtemps comme ça. Trouve de l'aide. Maintenant."
+    return "Tu tiens debout. Pour l'instant."
+
+# ---------------------------------------------------------------- toutes les 5 s : état, changement, plafond
+
+every 5 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        set {_u} to "%{_p}'s uuid%"
+        set {_e} to za_corps_etat({_p})
+        if {za::corps::etat::%{_u}%} is not {_e}:
+            set {_avant} to {za::corps::etat::%{_u}%} ? "BON"
+            set {za::corps::etat::%{_u}%} to {_e}
+            send action bar "%za_corps_couleur({_e})%%{_e}% &8— &7%za_corps_phrase({_e})%" to {_p}
+            if {_e} is "CRITIQUE":
+                za_mot_evt("joueur_critique", location of {_p}, 2, {_u}, "")
+        # plafond de malus cumulés (S-1) : au-delà de 3 sources, la lenteur est ramenée à II et la faiblesse à I
+        if za_corps_malus({_p}) >= 3:
+            if {_p} has potion effect slowness:
+                remove slowness from {_p}
+                apply slowness 2 without particles to {_p} for 6 seconds
+            if {_p} has potion effect weakness:
+                remove weakness from {_p}
+                apply weakness 1 without particles to {_p} for 6 seconds
+
+# ---------------------------------------------------------------- /etat
+
+command /etat:
+    aliases: /corps
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        set {_e} to za_corps_etat(player)
+        send "&6&l━━ TON ÉTAT : %za_corps_couleur({_e})%%{_e}% &6&l━━" to player
+        send "&7&o%za_corps_phrase({_e})%" to player
+        # corps
+        set {_l} to ""
+        loop "tete", "bras", "torse" and "jambe":
+            set {_n} to {za::bless::%loop-value%::%{_u}%} ? 0
+            set {_m} to "&aça va"
+            if {_n} is 1:
+                set {_m} to "&eblessure légère"
+            else if {_n} >= 2:
+                set {_m} to "&cblessure grave"
+            set {_nom} to loop-value
+            if {_nom} is "tete":
+                set {_nom} to "tête"
+            set {_l} to "%{_l}% &7%{_nom}% : %{_m}% &8·"
+        send "&f&lCorps &8» %{_l}%" to player
+        # survie
+        set {_f} to food level of player
+        set {_s} to {za::soif::%{_u}%} ? 100
+        set {_t} to {za::temp::%{_u}%} ? 50
+        set {_ep} to {za::epuis::%{_u}%} ? 0
+        set {_fa} to "repos"
+        if {_ep} >= 70:
+            set {_fa} to "&cépuisé"
+        else if {_ep} >= 40:
+            set {_fa} to "&efatigué"
+        set {_tt} to "&aconfortable"
+        if {_t} < 25:
+            set {_tt} to "&bgelé"
+        else if {_t} < 40:
+            set {_tt} to "&3froid"
+        else if {_t} > 80:
+            set {_tt} to "&cbrûlant"
+        set {_ff} to "&arassasié"
+        if {_f} < 6:
+            set {_ff} to "&cmalnutrition"
+        else if {_f} < 12:
+            set {_ff} to "&efaim"
+        set {_ss} to "&adésaltéré"
+        if {_s} < 20:
+            set {_ss} to "&cdéshydraté"
+        else if {_s} < 50:
+            set {_ss} to "&esoif"
+        send "&f&lSurvie &8» &7faim : %{_ff}% &8· &7soif : %{_ss}% &8· &7corps : %{_fa}% &8· &7chaleur : %{_tt}%" to player
+        # maladies
+        set {_mal} to ""
+        if za_corps_stade({_u}) >= 1:
+            set {_mal} to "%{_mal}% &4infection (stade %za_corps_stade({_u})%)"
+        if {za::mal::fievre::%{_u}%} is set:
+            set {_mal} to "%{_mal}% &cfièvre"
+        if {za::mal::grippe::%{_u}%} is set:
+            set {_mal} to "%{_mal}% &eon tousse"
+        if {za::mal::plaie::%{_u}%} is set:
+            set {_mal} to "%{_mal}% &6plaie qui suinte"
+        if {_mal} is "":
+            set {_mal} to " &arien de visible"
+        send "&f&lMaladies &8»%{_mal}%" to player
+        # psychologique
+        set {_st} to {za::stress::%{_u}%} ? 0
+        set {_sa} to {za::sanite::%{_u}%} ? 100
+        set {_ps} to "&acalme"
+        if {_st} >= 80:
+            set {_ps} to "&4panique"
+        else if {_st} >= 60:
+            set {_ps} to "&cles mains tremblent"
+        else if {_st} >= 40:
+            set {_ps} to "&ele cœur bat vite"
+        set {_me} to "&aesprit clair"
+        if {_sa} < 30:
+            set {_me} to "&cça craque"
+        else if {_sa} < 60:
+            set {_me} to "&eles nerfs à vif"
+        send "&f&lPsychologique &8» %{_ps}% &8· %{_me}%" to player
+        if za_corps_malus(player) >= 3:
+            send "&8Tout s'additionne, mais ton corps tient encore : il y a toujours une porte de sortie (repos, soins, nourriture)." to player

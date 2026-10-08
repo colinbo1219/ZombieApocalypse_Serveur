@@ -1,0 +1,391 @@
+# za_p123_ombres.sk — témoins, filature d'un informateur, opérations NORDA (bible v2, points 98, 101, 112)
+#  * TÉMOINS (112) : un meurtre ne compte que s'il a été vu. Témoins : les joueurs à 32 blocs, les PNJ (survivants,
+#    gens des camps) à 16 blocs. Sans témoin : personne ne sait. Avec témoins : 5 minutes plus tard, la nouvelle
+#    tombe (réputation -10, rumeur, Chronique)... sauf si chaque témoin a été payé : /soudoyer <témoin> <jetons>.
+#    Un témoin peut parler tout de suite : /temoigner. La victime peut accuser, mais parole contre parole : -5.
+#    Pendant une offensive (p121), tuer un ennemi n'est pas un meurtre.
+#  * FILATURE (98) : la nuit, un informateur de NORDA caché dans ta base sort vers sa boîte aux lettres morte
+#    (zaevt informateur_sort). Le suivre sans se faire voir : s'il te repère à moins de 6 blocs, il fait demi-tour ;
+#    à 6-20 blocs quand il dépose sa lettre, tu as la preuve (« Lettre pour NORDA »). Ensuite : J'ai des soupçons sur
+#    toi (menu du survivant), /retourner, ou le livrer.
+#  * OPÉRATIONS NORDA (101) : une fois tous les deux jours environ, NORDA lance une opération : ratissage (autour du
+#    joueur le plus recherché), désinformation à la radio, convoi de prisonniers à libérer, labo mobile à piller.
+#    Ceux qui écoutent le 73.6 l'apprennent à l'avance, en code.
+#  Variables : {za::tem::*}, {za::filat::*} ({za::fil::*} est au guide p81), {za::nop::*}
+
+# ---------------------------------------------------------------- témoins (112)
+
+function za_tem_meurtre(a: player, v: player):
+    if za_off_ennemis({_a}, {_v}) is true:
+        send "&7Un ennemi de moins. &8(offensive : ce n'est pas un meurtre)" to {_a}
+        stop
+    add 1 to {za::tem::n}
+    set {_i} to {za::tem::n}
+    set {za::tem::%{_i}%::a} to "%{_a}'s uuid%"
+    set {za::tem::%{_i}%::an} to "%{_a}%"
+    set {za::tem::%{_i}%::v} to "%{_v}'s uuid%"
+    set {za::tem::%{_i}%::vn} to "%{_v}%"
+    set {za::tem::%{_i}%::loc} to location of {_v}
+    set {za::tem::%{_i}%::quand} to unix timestamp of now
+    set {_l} to location of {_v}
+    set {_k} to 0
+    loop za_monde_joueurs():
+        if loop-value is not {_a}:
+            if loop-value is not {_v}:
+                if world of loop-value is world of {_l}:
+                    if distance between loop-value and {_l} < 32:
+                        add "%loop-value's uuid%" to {za::tem::%{_i}%::temoins::*}
+                        add 1 to {_k}
+                        send "&eTu as vu %{_a}% tuer %{_v}%. &7/temoigner pour le dire tout de suite · ou te taire. &8(On pourrait te proposer de l'argent.)" to loop-value
+    set {_pnj} to 0
+    loop all villagers in radius 16 around {_l}:
+        add 1 to {_pnj}
+    set {za::tem::%{_i}%::pnj} to {_pnj}
+    if {_k} + {_pnj} is 0:
+        send "&8Personne n'a rien vu. Pour l'instant." to {_a}
+        za_tem_effacer({_i})
+        stop
+    add {_i} to {za::tem::liste::*}
+    if {_pnj} > 0:
+        send "&8Des yeux, derrière une fenêtre. Quelqu'un a vu. &7(Un PNJ ne se soudoie pas.)" to {_a}
+    else:
+        send "&8%{_k}% témoin(s). &7(/soudoyer <joueur> <jetons> : chacun doit être payé.)" to {_a}
+    send "&7Tu sais qui t'a tué. &8(/temoigner : ta parole contre la sienne.)" to {_v}
+    set {za::tem::victime::%{_v}'s uuid%} to {_i}
+
+function za_tem_effacer(i: number):
+    remove {_i} from {za::tem::liste::*}
+    delete {za::tem::%{_i}%::*}
+
+# la nouvelle tombe : réputation, rumeur, Chronique
+function za_tem_eclate(i: number, force: number):
+    set {_au} to {za::tem::%{_i}%::a}
+    set {_an} to {za::tem::%{_i}%::an}
+    set {_vn} to {za::tem::%{_i}%::vn}
+    set {_p} to za_mot_joueur({_au})
+    if {za::rep::%{_au}%} is not set:
+        set {za::rep::%{_au}%} to 0
+    remove {_force} from {za::rep::%{_au}%}
+    za_diffuser("&8&oOn raconte que %{_an}% a tué %{_vn}%. Il y a eu des témoins.")
+    if {_p} is set:
+        send "&cÇa se sait : tu as tué %{_vn}%. Réputation -%{_force}%." to {_p}
+    za_mot_evt("meurtre", {za::tem::%{_i}%::loc}, 3, {_au}, "%{_an}% a tué %{_vn}%")
+    za_tem_effacer({_i})
+
+every 30 seconds:
+    loop {za::tem::liste::*}:
+        set {_i} to loop-value
+        if (unix timestamp of now) - ({za::tem::%{_i}%::quand} ? 0) > 300:
+            add {_i} to {_mur::*}
+    loop {_mur::*}:
+        # tous les témoins joueurs payés, et aucun PNJ : le secret tient
+        if size of {za::tem::%loop-value%::temoins::*} is 0:
+            if ({za::tem::%loop-value%::pnj} ? 0) is 0:
+                set {_p} to za_mot_joueur({za::tem::%loop-value%::a})
+                if {_p} is set:
+                    send "&8Personne n'a parlé. Le silence s'achète." to {_p}
+                za_tem_effacer(loop-value)
+            else:
+                za_tem_eclate(loop-value, 10)
+        else:
+            za_tem_eclate(loop-value, 10)
+
+command /temoigner:
+    trigger:
+        set {_u} to "%player's uuid%"
+        # la victime : parole contre parole
+        set {_vi} to {za::tem::victime::%{_u}%}
+        if {_vi} is set:
+            delete {za::tem::victime::%{_u}%}
+            if {za::tem::%{_vi}%::a} is set:
+                if {za::rep::%{za::tem::%{_vi}%::a}%} is not set:
+                    set {za::rep::%{za::tem::%{_vi}%::a}%} to 0
+                remove 5 from {za::rep::%{za::tem::%{_vi}%::a}%}
+                send "&7Tu racontes ce qui t'est arrivé. &8Certains te croient. (réputation de ton tueur -5)" to player
+                stop
+        loop {za::tem::liste::*}:
+            if {za::tem::%loop-value%::temoins::*} contains {_u}:
+                set {_i} to loop-value
+        if {_i} is not set:
+            send "&7Tu n'as rien vu. Ou tu as déjà parlé." to player
+            stop
+        send "&7Tu racontes ce que tu as vu. &8(réputation +2)" to player
+        if {za::rep::%{_u}%} is not set:
+            set {za::rep::%{_u}%} to 0
+        add 2 to {za::rep::%{_u}%}
+        za_tem_eclate({_i}, 12)
+
+command /soudoyer <player> <number>:
+    trigger:
+        set {_a} to "%player's uuid%"
+        set {_t} to "%arg-1's uuid%"
+        if arg-2 < 1:
+            stop
+        loop {za::tem::liste::*}:
+            if {za::tem::%loop-value%::a} is {_a}:
+                if {za::tem::%loop-value%::temoins::*} contains {_t}:
+                    set {_i} to loop-value
+        if {_i} is not set:
+            send "&7%arg-1% n'a rien vu qui te concerne." to player
+            stop
+        if za_jetons(player) < arg-2:
+            send "&cPas assez de jetons." to player
+            stop
+        set {za::tem::offre::%{_t}%} to "%{_i}%|%{_a}%|%arg-2%"
+        send "&7Tu glisses une offre à %arg-1% : %arg-2% jetons pour oublier." to player
+        send "&e%player% t'offre %arg-2% jetons pour oublier ce que tu as vu. &7/oublier pour accepter. &8(Ou /temoigner.)" to arg-1
+
+command /oublier:
+    trigger:
+        set {_u} to "%player's uuid%"
+        set {_o} to {za::tem::offre::%{_u}%}
+        if {_o} is not set:
+            send "&7Personne ne t'a rien proposé." to player
+            stop
+        delete {za::tem::offre::%{_u}%}
+        set {_c::*} to split {_o} at "|"
+        set {_i} to {_c::1} parsed as number
+        set {_m} to {_c::3} parsed as number
+        set {_pa} to za_mot_joueur({_c::2})
+        if {_pa} is not set:
+            send "&7Il n'est plus là pour payer." to player
+            stop
+        if za_jetons({_pa}) < {_m}:
+            send "&7Il n'a plus de quoi payer." to player
+            stop
+        za_jetons_ajouter({_pa}, 0 - {_m})
+        za_jetons_ajouter(player, {_m})
+        remove {_u} from {za::tem::%{_i}%::temoins::*}
+        send "&8Tu n'as rien vu. &7(+%{_m}% jetons)" to player
+        send "&8%player% a accepté. &7Il n'a rien vu." to {_pa}
+
+# ---------------------------------------------------------------- filature (98)
+
+function za_filat_sortie(u: text, id: number):
+    set {_e} to za_surv_npc({_id})
+    if {_e} is not set:
+        stop
+    set {_p} to za_mot_joueur({_u})
+    if {_p} is not set:
+        stop
+    set {_nom} to {za::surv::%{_id}%::nom}
+    set {_dep} to location of {_e}
+    set {_bal} to za_point_loin_l({_dep}, 45)
+    if {_bal} is not set:
+        stop
+    send "&8Une porte grince, en bas. %{_nom}% sort, sans lampe. &7(Tu peux le suivre... de loin.)" to {_p}
+    set {za::filat::%{_id}%::suivi} to {_u}
+    # il marche vers sa boîte aux lettres morte en quatre étapes
+    loop 4 times:
+        wait 6 seconds
+        set {_e} to za_surv_npc({_id})
+        if {_e} is not set:
+            stop
+        set {_f} to loop-value / 4
+        set {_pt} to location(((x-coordinate of {_dep}) + {_f} * ((x-coordinate of {_bal}) - (x-coordinate of {_dep}))), (y-coordinate of {_dep}), ((z-coordinate of {_dep}) + {_f} * ((z-coordinate of {_bal}) - (z-coordinate of {_dep}))), (world of {_dep}))
+        set {_pt} to za_eq_sol({_pt})
+        if {_pt} is set:
+            teleport {_e} to {_pt}
+        if {_p} is online:
+            if world of {_p} is world of {_e}:
+                if distance between {_p} and {_e} < 6:
+                    send "&e%{_nom}% &8» &f« Ah ! ... Tu m'as fait peur. Je prenais l'air. » &7(Il rentre. Raté.)" to {_p}
+                    teleport {_e} to {_dep}
+                    stop
+    # au dépôt : le témoin est-il assez près pour voir ?
+    set {_e} to za_surv_npc({_id})
+    if {_e} is not set:
+        stop
+    set {_vu} to false
+    if {_p} is online:
+        if world of {_p} is world of {_e}:
+            if distance between {_p} and {_e} < 20:
+                set {_vu} to true
+    if {_vu} is true:
+        send "&7Il soulève une pierre, glisse une enveloppe, repart. &aTu la récupères : « Lettre pour NORDA ». &8(Preuve : son nom, ta base, tes sorties.)" to {_p}
+        give {_p} za_item("paper", "Lettre pour NORDA — %{_nom}%", "&4", 1)
+        set {za::filat::preuve::%{_u}%::%{_id}%} to true
+        za_cmpg_decision({_u}, "Tu as filé %{_nom}% jusqu'à sa boîte aux lettres morte.")
+    wait 10 seconds
+    set {_e} to za_surv_npc({_id})
+    if {_e} is set:
+        teleport {_e} to {_dep}
+    delete {za::filat::%{_id}%::*}
+
+# ---------------------------------------------------------------- opérations NORDA (101)
+
+function za_nop_annonce_code(t: text):
+    loop za_monde_joueurs():
+        if {za::freq::ecoute::%loop-value's uuid%} is "73.6":
+            send "&8[&7📻 73.6&8] &7« ...code Ivoire. %{_t}% Fin. »" to loop-value
+
+# le joueur le plus recherché (palier NORDA), en ligne
+function za_nop_cible() :: player:
+    set {_best} to 0
+    loop za_monde_joueurs():
+        set {_s} to {za::mot::palier::%loop-value's uuid%} ? "0"
+        set {_v} to ("%{_s}%" parsed as number) ? 0
+        if {_v} > {_best}:
+            set {_best} to {_v}
+            set {_r} to loop-value
+    return {_r}
+
+every 1 minute:
+    if {za::nop::jour} is ({za::serveur::jours} ? 0):
+        stop
+    set {za::nop::jour} to {za::serveur::jours} ? 0
+    if chance of 50%:
+        set {_t} to random element out of "ratissage", "desinformation", "convoi" and "labo"
+        za_nop_lancer({_t})
+
+function za_nop_lancer(t: text):
+    set {za::nop::type} to {_t}
+    if {_t} is "ratissage":
+        set {_c} to za_nop_cible()
+        if {_c} is not set:
+            stop
+        za_nop_annonce_code("Ratissage, secteur %floor(x-coordinate of {_c} / 100) * 100% / %floor(z-coordinate of {_c} / 100) * 100%. Cible prioritaire.")
+        za_mot_radio("norda", "Opération de sécurisation en cours. Restez chez vous. Toute personne en déplacement sera contrôlée.")
+        set {za::nop::ratissage} to "%{_c}'s uuid%"
+        set {za::nop::fin} to (unix timestamp of now) + 1800
+    else if {_t} is "desinformation":
+        set {_zs::*} to za_qz_liste()
+        set {_z} to random element out of {_zs::*}
+        za_nop_annonce_code("Diffusion du message Sérénité. Attirer les civils vers %za_qz_nom({_z})%.")
+        za_mot_radio("norda", "Zone sécurisée : %za_qz_nom({_z})%. Eau, vivres et soins pour tous. Présentez-vous sans arme.")
+        set {za::nop::piege} to {_z}
+    else if {_t} is "convoi":
+        set {_c} to za_nop_cible()
+        if {_c} is not set:
+            set {_js::*} to za_monde_joueurs()
+            set {_c} to random element out of {_js::*}
+        if {_c} is not set:
+            stop
+        set {_l} to za_point_loin({_c}, 120, 200)
+        if {_l} is not set:
+            stop
+        set {za::nop::convoi} to {_l}
+        set {za::nop::fin} to (unix timestamp of now) + 2400
+        za_nop_annonce_code("Transfert de détenus, X %floor(x-coordinate of {_l})% Z %floor(z-coordinate of {_l})%. Escorte légère.")
+        za_mot_radio("pirate", "Un camion blanc s'est arrêté sur la route, du côté de X %floor(x-coordinate of {_l})% Z %floor(z-coordinate of {_l})%. Il y a des gens attachés à l'arrière.")
+    else:
+        set {_js::*} to za_monde_joueurs()
+        set {_c} to random element out of {_js::*}
+        if {_c} is not set:
+            stop
+        set {_l} to za_point_loin({_c}, 250, 400)
+        if {_l} is not set:
+            stop
+        set {za::nop::labo} to {_l}
+        set {za::nop::fin} to (unix timestamp of now) + 3600
+        za_nop_annonce_code("Unité mobile Delta en position, X %floor(x-coordinate of {_l})% Z %floor(z-coordinate of {_l})%. Prélèvements.")
+    za_mot_evt("norda_operation", location(0, 64, 0, world("world")), 3, "-", "Opération NORDA : %{_t}%")
+
+# le déroulement (toutes les 10 s)
+every 10 seconds:
+    if {za::nop::fin} is set:
+        if {za::nop::fin} < unix timestamp of now:
+            delete {za::nop::fin}
+            delete {za::nop::ratissage}
+            delete {za::nop::convoi}
+            delete {za::nop::labo}
+            delete {za::nop::convoi_pose}
+            delete {za::nop::labo_pose}
+            stop
+    # ratissage : des patrouilles autour de la cible
+    if {za::nop::ratissage} is set:
+        set {_p} to za_mot_joueur({za::nop::ratissage})
+        if {_p} is set:
+            if chance of 15%:
+                za_mot_norda_patrouille({za::nop::ratissage}, x-coordinate of {_p}, z-coordinate of {_p})
+    # le convoi de prisonniers : posé quand quelqu'un approche, libéré quand l'escorte est tombée
+    if {za::nop::convoi} is set:
+        set {_l} to {za::nop::convoi}
+        loop za_monde_joueurs():
+            if world of loop-value is world of {_l}:
+                if distance between loop-value and {_l} < 50:
+                    set {_pr} to loop-value
+        if {_pr} is set:
+            if {za::nop::convoi_pose} is not set:
+                set {za::nop::convoi_pose} to true
+                za_spawn_at({_l}, "ZA_Agent_NORDA", 0, 3)
+                za_spawn_at({_l}, "ZA_Agent_NORDA", 0, 3)
+                za_spawn_at({_l}, "ZA_Chasseur_NORDA", 0, 3)
+                loop 3 times:
+                    execute console command "execute in minecraft:overworld run summon villager %x-coordinate of {_l}% %(y-coordinate of {_l}) + 1% %z-coordinate of {_l}% {CustomName:'""Prisonnier""',CustomNameVisible:1b,NoAI:1b,Invulnerable:1b,PersistenceRequired:1b,Tags:[""za_nop_prisonnier""]}"
+                send "&8Un camion blanc, des hommes en combinaison. À l'arrière, trois personnes attachées." to {_pr}
+            else:
+                set {_n} to 0
+                loop all entities in radius 24 around {_l}:
+                    if za_surv_a_tag(loop-entity, "za_norda") is true:
+                        add 1 to {_n}
+                if {_n} is 0:
+                    za_nop_liberer({_pr}, {_l})
+    # le labo mobile : piller les prélèvements
+    if {za::nop::labo} is set:
+        set {_l} to {za::nop::labo}
+        loop za_monde_joueurs():
+            if world of loop-value is world of {_l}:
+                if distance between loop-value and {_l} < 30:
+                    set {_pr} to loop-value
+        if {_pr} is set:
+            if {za::nop::labo_pose} is not set:
+                set {za::nop::labo_pose} to true
+                za_spawn_at({_l}, "ZA_Agent_NORDA", 0, 4)
+                za_spawn_at({_l}, "ZA_Agent_NORDA", 0, 4)
+                send "&8Des tentes blanches, un groupe électrogène, des glacières. Un labo mobile de NORDA." to {_pr}
+            else if distance between {_pr} and {_l} < 6:
+                set {_n} to 0
+                loop all entities in radius 24 around {_l}:
+                    if za_surv_a_tag(loop-entity, "za_norda") is true:
+                        add 1 to {_n}
+                if {_n} is 0:
+                    give {_pr} za_sci_echantillon("sang")
+                    give {_pr} za_sci_echantillon("sang")
+                    give {_pr} za_plan_fragment()
+                    send "&aLes glacières sont à toi : &7deux échantillons, et un morceau de plan dans un classeur." to {_pr}
+                    za_mot("preuve %{_pr}'s uuid% labo_mobile 10 %floor(x-coordinate of {_l})% %floor(z-coordinate of {_l})%")
+                    delete {za::nop::labo}
+
+function za_nop_liberer(p: player, l: location):
+    delete {za::nop::convoi}
+    execute console command "execute in minecraft:overworld run kill @e[type=villager,tag=za_nop_prisonnier]"
+    send "&aTu coupes les liens. &7Trois personnes, qui ne savent pas quoi dire. Elles partent vers le camp le plus proche." to {_p}
+    set {_c} to za_col_dest({_l})
+    if {_c} is not 0:
+        za_cmp_pop_ajouter({_c}, 3)
+    za_faction_ajouter({_p}, "survivants", 6)
+    za_cmpg_decision("%{_p}'s uuid%", "Tu as libéré des prisonniers de NORDA.")
+    za_mot("preuve %{_p}'s uuid% convoi_libere 12 %floor(x-coordinate of {_l})% %floor(z-coordinate of {_l})%")
+    za_radio("&bLéa", "Il paraît que quelqu'un a arrêté un camion de NORDA et libéré des gens. Je ne dirai pas qui. Mais merci.")
+
+# la désinformation : ceux qui y croient trouvent des morts, pas des vivres
+every 20 seconds:
+    set {_z} to {za::nop::piege}
+    if {_z} is not set:
+        stop
+    loop za_monde_joueurs():
+        if {za::reprise::ici::%loop-value's uuid%} is {_z}:
+            if {za::nop::piege_vu::%loop-value's uuid%} is not {za::serveur::jours}:
+                set {za::nop::piege_vu::%loop-value's uuid%} to {za::serveur::jours}
+                send "&8Pas de tentes, pas d'eau. Des barbelés et des corps. &cLe message de NORDA mentait." to loop-value
+                za_spawn_near(loop-value, "ZA_Shambler", 10, 18)
+                za_spawn_near(loop-value, "ZA_Runner", 14, 20)
+
+# ---------------------------------------------------------------- antenne de base (96) : la signature, chaque jour
+
+every 1 minute:
+    if {za::nop::antjour} is ({za::serveur::jours} ? 0):
+        stop
+    set {za::nop::antjour} to {za::serveur::jours} ? 0
+    loop za_monde_joueurs():
+        set {_u} to "%loop-value's uuid%"
+        set {_a} to {za::infra::%{_u}%::tour} ? {za::infra::%{_u}%::antenne}
+        if {_a} is set:
+            set {_f} to 3
+            if {za::infra::%{_u}%::camoufle} is true:
+                set {_f} to 0
+                if chance of 25%:
+                    set {_f} to 1
+            if {_f} > 0:
+                za_mot("preuve %{_u}% antenne %{_f}% %floor(x-coordinate of {_a})% %floor(z-coordinate of {_a})%")

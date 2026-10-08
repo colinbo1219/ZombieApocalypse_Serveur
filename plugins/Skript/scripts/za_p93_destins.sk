@@ -1,0 +1,999 @@
+# =====================================================================
+#  ZombieApocalypse - DESTINS : des quêtes qui se souviennent de toi
+#  Cinq histoires, chacune avec plusieurs chemins (réussite, échec, sacrifice, trahison, mensonge) et des
+#  CONSÉQUENCES qui arrivent des jours plus tard (jours serveur) :
+#    LE FRÈRE    — Marc Tremblay est coincé dans un commerce, les morts autour. Le sauver (il rejoint ta base ou
+#                  un camp), l'abandonner, ou le racketter d'abord. Plus tard, son frère Luc vient te voir.
+#                  Il sait ce que tu as fait. Ou il croit le savoir.
+#    LE CONVOI   — le caporal Bouchard escorte des médicaments. Rémi, des Pilleurs, te propose de vendre la route.
+#                  Escorter, trahir (chantage, puis la Milice peut l'apprendre), ou prévenir (et Rémi n'oublie pas).
+#    ÉMILIE      — une mère, sa fille mordue. Donner ton antidote (sacrifice), abréger, mentir, partir.
+#                  Ce que tu as choisi revient : un dessin d'enfant, un message, ou deux silhouettes au refuge.
+#    LA CACHE    — deux survivants s'accusent d'avoir volé la réserve commune. L'un des deux ment.
+#                  Croire l'un, l'autre, fouiller toi-même, ou tout garder.
+#    LA DETTE    — Gérard Lapointe te prête de l'équipement. 60 jetons dans 5 jours. Ou les recouvreurs.
+#  Une quête à la fois. Offerte de temps en temps (SMS, radio ou rencontre). /destins accepter dans les 10 minutes.
+#  Ton PROFIL (compassion, pragmatisme, trahison, sacrifice) s'affiche dans /destins et dans /monhistoire.
+#  Joueur : /destins [accepter|refuser|payer|abandonner]   Admin : /zadestin lancer <frere|convoi|emilie|cache|dette> <joueur> |
+#    suite <joueur> (avance d'un jour toutes ses suites) | etat
+# =====================================================================
+
+options:
+    rayon_arrivee: 22
+
+# ---------------------------------------------------------------- outils
+
+function za_dest_scen() :: texts:
+    return "frere", "convoi", "emilie", "cache" and "dette"
+
+function za_dest_titre(s: text) :: text:
+    if {_s} is "frere":
+        return "Le frère"
+    if {_s} is "convoi":
+        return "Le convoi"
+    if {_s} is "emilie":
+        return "Émilie"
+    if {_s} is "cache":
+        return "La cache"
+    if {_s} is "dette":
+        return "La dette"
+    return {_s}
+
+function za_dest_profil(u: text, k: text, n: number):
+    set {za::dest::profil::%{_u}%::%{_k}%} to ({za::dest::profil::%{_u}%::%{_k}%} ? 0) + {_n}
+
+function za_dest_jour() :: number:
+    return {za::serveur::jours} ? 0
+
+# programme une conséquence dans j jours
+function za_dest_suite(q: number, j: number, cle: text):
+    add "%za_dest_jour() + {_j}%|%{_q}%|%{_cle}%" to {za::dest::suites::*}
+
+function za_dest_joueur(q: number) :: player:
+    return za_surv_joueur({za::dest::%{_q}%::u} ? "")
+
+function za_dest_pnj(q: number, l: location, nom: text, bebe: boolean):
+    set {_wd} to za_dim(world of {_l})
+    set {_age} to ""
+    if {_bebe} is true:
+        set {_age} to "Age:-2000000000,"
+    execute console command "execute in %{_wd}% run summon villager %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% {NoAI:1b,Invulnerable:1b,Silent:1b,PersistenceRequired:1b,CustomNameVisible:1b,CustomName:'""%{_nom}%""',%{_age}%VillagerData:{profession:""minecraft:nitwit"",level:1,type:""minecraft:plains""},Tags:[""za_dest"",""za_dest_%{_q}%""]}"
+
+function za_dest_pnj_retirer(q: number):
+    execute console command "kill @e[type=villager,tag=za_dest_%{_q}%]"
+
+# zombie nommé (un proche qui s'est relevé)
+function za_dest_zombie(l: location, nom: text, bebe: boolean):
+    set {_b} to "0b"
+    if {_bebe} is true:
+        set {_b} to "1b"
+    execute console command "execute in %za_dim(world of {_l})% run summon zombie %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% {CustomName:'""%{_nom}%""',CustomNameVisible:1b,PersistenceRequired:1b,IsBaby:%{_b}%}"
+
+# point au sol près d'un joueur
+function za_dest_pres(p: player, d: number) :: location:
+    set {_l} to location of {_p}
+    set {_a} to random number between 0 and 360
+    set {_l2} to location(((x-coordinate of {_l}) + ({_d} * cos({_a}))), ((y-coordinate of {_l}) + 1), ((z-coordinate of {_l}) + ({_d} * sin({_a}))), (world of {_l}))
+    return za_eq_sol({_l2})
+
+function za_dest_dit(p: player, nom: text, t: text):
+    send "&e%{_nom}% &8» &f« %{_t}% »" to {_p}
+
+function za_dest_fin(q: number, issue: text):
+    set {_u} to {za::dest::%{_q}%::u}
+    set {_s} to {za::dest::%{_q}%::s}
+    set {za::dest::fait::%{_u}%::%{_s}%} to {_issue}
+    if {za::dest::actif::%{_u}%} is {_q}:
+        delete {za::dest::actif::%{_u}%}
+    remove {_q} from {za::dest::rencontres::*}
+    set {za::dest::dernier::%{_u}%} to za_dest_jour()
+    set {za::dest::%{_q}%::etape} to "fini"
+    za_dest_pnj_retirer({_q})
+
+# ---------------------------------------------------------------- offres
+
+function za_dest_offrir(p: player, s: text, forcer: boolean) :: boolean:
+    set {_u} to "%{_p}'s uuid%"
+    if {za::dest::actif::%{_u}%} is set:
+        if {_forcer} is false:
+            return false
+        za_dest_fin({za::dest::actif::%{_u}%}, "abandonne")
+    add 1 to {za::dest::n}
+    set {_q} to {za::dest::n}
+    set {za::dest::%{_q}%::s} to {_s}
+    set {za::dest::%{_q}%::u} to {_u}
+    set {za::dest::%{_q}%::etape} to "offre"
+    set {za::dest::%{_q}%::jour} to za_dest_jour()
+    set {za::dest::offre::%{_u}%} to {_q}
+    set {za::dest::offre_fin::%{_u}%} to now
+    add 10 minutes to {za::dest::offre_fin::%{_u}%}
+    # lieu
+    set {_ty} to ""
+    if {_s} is "frere":
+        set {_ty} to "station,depanneur,garage,motel"
+    else if {_s} is "convoi":
+        set {_ty} to "checkpoint,station,motel,convoi"
+    else if {_s} is "emilie":
+        set {_ty} to "chalet,refuge,camp_chasse"
+    else if {_s} is "cache":
+        set {_ty} to "ferme,village"
+    if {_ty} is not "":
+        set {_k} to za_eq_site_proche(location of {_p}, {_ty}, 150, 1600, "")
+        if {_k} is not "":
+            set {za::dest::%{_q}%::site} to {_k}
+            set {za::dest::%{_q}%::loc} to location({za::site::d::%{_k}%::x}, {za::site::d::%{_k}%::y}, {za::site::d::%{_k}%::z}, world of {_p})
+            set {za::dest::%{_q}%::lieu} to {za::site::d::%{_k}%::nom}
+        else:
+            set {_a} to random number between 0 and 360
+            set {za::dest::%{_q}%::loc} to location(((x-coordinate of {_p}) + (300 * cos({_a}))), (y-coordinate of {_p}), ((z-coordinate of {_p}) + (300 * sin({_a}))), (world of {_p}))
+            set {za::dest::%{_q}%::lieu} to "un bâtiment isolé"
+    set {_l} to {za::dest::%{_q}%::loc}
+    set {_pos} to ""
+    if {_l} is set:
+        set {_pos} to "%{za::dest::%{_q}%::lieu}% (X %floor(x-coordinate of {_l})%, Z %floor(z-coordinate of {_l})%)"
+    if {_s} is "frere":
+        za_tel_sms({_u}, "Inconnu", "Si quelqu'un reçoit ça... Je suis coincé à %{_pos}%. Ils sont autour. Je m'appelle Marc. Marc Tremblay.")
+        send "&8[Radio] &7Un message grésille : quelqu'un appelle à l'aide à %{_pos}%." to {_p}
+    else if {_s} is "convoi":
+        za_tel_sms({_u}, "Cap. Bouchard (Milice)", "Convoi de médicaments vers les camps. Il me faut une escorte. Rendez-vous à %{_pos}%.")
+        send "&9[Milice] &7Le caporal Bouchard cherche une escorte à %{_pos}%." to {_p}
+    else if {_s} is "emilie":
+        send "&8[Radio] &7« ...ma fille... elle a été mordue... on est à %{_pos}%... quelqu'un... » &8(la voix d'une femme)" to {_p}
+    else if {_s} is "cache":
+        send "&8[Radio] &7Deux voix se disputent sur une fréquence ouverte : « C'est toi qui l'as prise ! » — « Menteur ! » Ça vient de %{_pos}%." to {_p}
+    else if {_s} is "dette":
+        send "&6Un homme bedonnant, gros sac sur le dos, te fait signe de loin. Il a l'air de vouloir faire affaire." to {_p}
+    send "&6&lDESTIN &7— %za_dest_titre({_s})% &8· &a/destins accepter &8ou &c/destins refuser &8(10 min)" to {_p}
+    za_zm("son %{_p}% minecraft:block.note_block.chime 0.7 0.8")
+    return true
+
+function za_dest_accepter(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_q} to {za::dest::offre::%{_u}%}
+    if {_q} is not set:
+        send "&7Aucune proposition en ce moment." to {_p}
+        stop
+    delete {za::dest::offre::%{_u}%}
+    set {za::dest::actif::%{_u}%} to {_q}
+    set {za::dest::%{_q}%::etape} to "aller"
+    set {za::dest::%{_q}%::debut} to za_dest_jour()
+    if {za::dest::%{_q}%::s} is "dette":
+        set {za::dest::%{_q}%::loc} to location of {_p}
+    set {_l} to {za::dest::%{_q}%::loc}
+    set {_li} to {za::dest::%{_q}%::lieu} ? "ici"
+    send "&6%za_dest_titre({za::dest::%{_q}%::s})% &7: rends-toi à &f%{_li}% &7(X %floor(x-coordinate of {_l})%, Z %floor(z-coordinate of {_l})%). &8Tu as 2 jours." to {_p}
+
+# toutes les 10 minutes, un destin peut se présenter
+every 10 minutes:
+    loop za_monde_joueurs():
+        set {_p} to loop-value-1
+        set {_u} to "%{_p}'s uuid%"
+        if za_pro({_p}) is false:
+            if {za::dest::actif::%{_u}%} is not set:
+                if {za::dest::offre::%{_u}%} is not set:
+                    if za_dest_jour() >= ({za::dest::dernier::%{_u}%} ? -5) + 1:
+                        if chance of 30%:
+                            loop za_dest_scen():
+                                if {za::dest::fait::%{_u}%::%loop-value-2%} is not set:
+                                    add loop-value-2 to {_dispo::*}
+                            if size of {_dispo::*} > 0:
+                                set {_ok} to za_dest_offrir({_p}, random element out of {_dispo::*}, false)
+                            delete {_dispo::*}
+
+# offres expirées
+every 1 minute:
+    loop {za::dest::offre::*}:
+        set {_u} to loop-index
+        if {za::dest::offre_fin::%{_u}%} is set:
+            if now > {za::dest::offre_fin::%{_u}%}:
+                set {_q} to loop-value
+                delete {za::dest::offre::%{_u}%}
+                set {za::dest::%{_q}%::etape} to "fini"
+
+# ---------------------------------------------------------------- les scènes (à l'arrivée)
+
+function za_dest_scene(p: player, q: number):
+    set {_s} to {za::dest::%{_q}%::s}
+    set {_l} to za_eq_sol(location of {_p})
+    set {_a} to random number between 0 and 360
+    set {_c} to za_eq_sol(location(((x-coordinate of {_l}) + (5 * cos({_a}))), ((y-coordinate of {_l}) + 1), ((z-coordinate of {_l}) + (5 * sin({_a}))), (world of {_l})))
+    set {za::dest::%{_q}%::scene} to {_c}
+    set {za::dest::%{_q}%::etape} to "choix"
+    if {_s} is "frere":
+        za_dest_pnj({_q}, {_c}, "Marc Tremblay", false)
+        loop 5 times:
+            za_spawn_at({_c}, "ZA_Citoyen_Infecte", 8, 14)
+        send "&7Un homme est barricadé derrière un comptoir renversé, une barre de fer à la main, les yeux rouges de fatigue." to {_p}
+        za_dest_dit({_p}, "Marc Tremblay", "T'es réel ? Dis-moi que t'es réel. Viens me parler, vite !")
+    else if {_s} is "convoi":
+        za_dest_pnj({_q}, {_c}, "Caporal Bouchard", false)
+        set {_r} to za_eq_sol(location(((x-coordinate of {_c}) + 9), ((y-coordinate of {_c}) + 1), ((z-coordinate of {_c}) + 3), (world of {_c})))
+        za_dest_pnj({_q}, {_r}, "Rémi (Pilleurs)", false)
+        send "&7Un camion bâché, moteur coupé. Le caporal Bouchard fume, nerveux. Plus loin, un type en cuir te fait un petit signe : Rémi, des Pilleurs." to {_p}
+        za_dest_dit({_p}, "Rémi (Pilleurs)", "Psst. Avant de parler au soldat... Dis-moi juste par où il passe. 40 jetons. Personne saura.")
+    else if {_s} is "emilie":
+        za_dest_pnj({_q}, {_c}, "Nathalie Roy", false)
+        set {_r} to za_eq_sol(location(((x-coordinate of {_c}) + 1), ((y-coordinate of {_c}) + 1), ((z-coordinate of {_c}) + 1), (world of {_c})))
+        za_dest_pnj({_q}, {_r}, "Émilie Roy", true)
+        send "&7Une femme berce une petite fille. Le bras de l'enfant est enveloppé dans un chandail taché. La petite tousse. Une toux mouillée." to {_p}
+        za_dest_dit({_p}, "Nathalie Roy", "Vous avez quelque chose ? N'importe quoi ? Elle a sept ans. Elle a SEPT ANS.")
+    else if {_s} is "cache":
+        set {_men} to random element out of "jacques" and "sylvie"
+        set {za::dest::%{_q}%::menteur} to {_men}
+        za_dest_pnj({_q}, {_c}, "Jacques Gagné", false)
+        set {_r} to za_eq_sol(location((x-coordinate of {_c}) + 3, (y-coordinate of {_c}) + 1, (z-coordinate of {_c}), world of {_c}))
+        za_dest_pnj({_q}, {_r}, "Sylvie Morin", false)
+        # la cache existe vraiment
+        set {_k} to za_eq_sol(location(((x-coordinate of {_c}) - 3), ((y-coordinate of {_c}) + 1), ((z-coordinate of {_c}) - 2), (world of {_c})))
+        set {za::dest::%{_q}%::coffre} to {_k}
+        execute console command "execute in %za_dim(world of {_k})% run setblock %x-coordinate of {_k}% %y-coordinate of {_k}% %z-coordinate of {_k}% minecraft:barrel{CustomName:'""Réserve commune""',Items:[{Slot:0b,id:""minecraft:bread"",Count:12b},{Slot:1b,id:""minecraft:baked_potato"",Count:10b},{Slot:2b,id:""minecraft:iron_ingot"",Count:4b},{Slot:3b,id:""minecraft:arrow"",Count:16b}]}"
+        send "&7Deux survivants se font face à côté d'un tonneau vide. Ils se tournent vers toi en même temps." to {_p}
+        za_dest_dit({_p}, "Jacques Gagné", "Elle a vidé la réserve pendant la nuit. Demande-lui où sont les conserves !")
+        za_dest_dit({_p}, "Sylvie Morin", "C'est LUI. Il ment comme il respire. Le tonneau était plein hier soir.")
+    else if {_s} is "dette":
+        za_dest_pnj({_q}, {_c}, "Gérard Lapointe", false)
+        za_dest_dit({_p}, "Gérard Lapointe", "Salut l'ami. T'as l'air d'en arracher. J'ai de quoi t'aider. Viens me parler.")
+    send "&8(clic droit sur eux pour leur parler)" to {_p}
+
+# menu des choix selon l'étape
+function za_dest_menu(p: player, q: number):
+    set {_s} to {za::dest::%{_q}%::s}
+    set {_e} to {za::dest::%{_q}%::etape}
+    set {_u} to "%{_p}'s uuid%"
+    set {za::dest::ctx::%{_u}%} to {_q}
+    if {_e} starts with "rencontre:":
+        za_dest_menu_rencontre({_p}, {_q}, subtext of {_e} from characters 11 to length of {_e})
+        stop
+    if {_e} is "apres_frere":
+        set {_o::*} to "Viens à ma base|base", "Va au camp le plus proche|camp"
+        za_menu({_p}, "zadestclic", "Marc Tremblay", "Marc reprend son souffle. « Je... merci. Je sais couper du bois, réparer un toit. Je ferai ma part. Où je vais ? »", {_o::*})
+        stop
+    if {_e} is "apres_fouille":
+        set {_o::*} to "Chasser le menteur|chasser", "Pardonner, partager la cache|pardonner"
+        za_menu({_p}, "zadestclic", "La vérité", "Tu sais qui a menti. Les deux le savent aussi. Le silence est lourd.", {_o::*})
+        stop
+    if {_e} is not "choix":
+        stop
+    if {_s} is "frere":
+        set {_o::*} to "Je te sors de là|sauver", "Ton sac d'abord, ensuite je t'aide|racket" and "Je ne peux rien pour toi|abandonner"
+        za_menu({_p}, "zadestclic", "Marc Tremblay", "« Ils sont cinq, six, peut-être plus. J'ai pus de force dans les bras. Mon frère Luc m'attend au nord. Aide-moi. »", {_o::*})
+    else if {_s} is "convoi":
+        set {_o::*} to "Escorter le convoi|escorter", "Vendre la route à Rémi (40 jetons)|trahir" and "Prévenir Bouchard du piège|prevenir"
+        za_menu({_p}, "zadestclic", "Le convoi", "Bouchard : « Médicaments pour trois camps. On part dans une minute. » Rémi te regarde, un sourire en coin.", {_o::*})
+    else if {_s} is "emilie":
+        set {_med} to za_dest_medicament({_p})
+        set {_o1} to "Lui donner ton %{_med}%|donner"
+        if {_med} is "":
+            set {_o1} to "!Tu n'as ni Antidote, ni Sérum, ni Antibiotique|donner"
+        set {_o::*} to {_o1}, "Abréger ses souffrances|abreger", "Lui dire qu'elle ira bien|mentir" and "Partir|partir"
+        za_menu({_p}, "zadestclic", "Émilie", "La petite te regarde. Ses yeux sont déjà un peu voilés. Sa mère serre ta manche.", {_o::*})
+    else if {_s} is "cache":
+        set {_o::*} to "Croire Jacques|jacques", "Croire Sylvie|sylvie", "Fouiller toi-même (20 s)|fouiller" and "Garder la cache pour toi|voler"
+        za_menu({_p}, "zadestclic", "La cache", "Un tonneau, deux versions. L'un des deux ment. Peut-être que les traces, elles, ne mentent pas.", {_o::*})
+    else if {_s} is "dette":
+        set {_o::*} to "Accepter (60 jetons dans 5 jours)|preter" and "Non merci|refuser"
+        za_menu({_p}, "zadestclic", "Gérard Lapointe", "« Une épée, des vivres, des bandages, un antibiotique. Tu me rembourses 60 jetons dans cinq jours. Entre gens honnêtes, ça se fait. »", {_o::*})
+
+function za_dest_medicament(p: player) :: text:
+    if za_count_named({_p}, "Antidote") >= 1:
+        return "Antidote"
+    if za_count_named({_p}, "Serum") >= 1:
+        return "Serum"
+    if za_count_named({_p}, "Antibiotique") >= 1:
+        return "Antibiotique"
+    return ""
+
+# ---------------------------------------------------------------- les choix
+
+function za_dest_choix(p: player, q: number, c: text):
+    set {_s} to {za::dest::%{_q}%::s}
+    set {_u} to "%{_p}'s uuid%"
+    set {_l} to {za::dest::%{_q}%::scene} ? location of {_p}
+    set {za::dest::%{_q}%::choix} to {_c}
+    # ----- LE FRÈRE
+    if {_s} is "frere":
+        if {_c} is "sauver" or "racket":
+            if {_c} is "racket":
+                set {za::dest::%{_q}%::racket} to true
+                give 4 of bread to {_p}
+                give 3 of iron ingot to {_p}
+                give za_item("clock", "Montre de Marc Tremblay", "&7", 1) to {_p}
+                za_dest_dit({_p}, "Marc Tremblay", "Tiens... prends tout. La montre aussi. C'est celle de mon père. Maintenant aide-moi.")
+                za_dest_profil({_u}, "trahison", 1)
+            else:
+                za_dest_dit({_p}, "Marc Tremblay", "Ils arrivent ! Tiens-les loin de moi !")
+                za_dest_profil({_u}, "compassion", 1)
+            za_dest_defense({_q}, 75)
+        else if {_c} is "abandonner":
+            za_dest_dit({_p}, "Marc Tremblay", "... OK. OK. Va-t'en. Va-t'en !")
+            za_dest_profil({_u}, "pragmatisme", 1)
+            za_souvenir_ajouter({_u}, "dest:frere", "chute", "J'ai laissé Marc Tremblay derrière son comptoir.")
+            za_dest_fin({_q}, "abandonne")
+            set {za::dest::hante::%za_lkey({_l})%} to "Marc Tremblay|adulte"
+            set {za::dest::hante_loc::%za_lkey({_l})%} to {_l}
+            za_dest_suite({_q}, 3, "frere_luc_colere")
+        else if {_c} is "base":
+            if {za::base::%{_u}%} is set:
+                if ({za::surv::n::%{_u}%} ? 0) < 8:
+                    if {za::dest::%{_q}%::racket} is not true:
+                        set {_id} to za_dest_survivant({_q}, "bucheron", "m", "Marc Tremblay")
+                        za_surv_arriver_base({_id}, {_u}, {_p})
+                        za_surv_conf_ajouter({_u}, {_id}, 40)
+                        za_dest_fin({_q}, "sauve_base")
+                        za_dest_suite({_q}, 2, "frere_luc_merci")
+                        stop
+                    za_dest_dit({_p}, "Marc Tremblay", "Avec toi ? Après ce que tu m'as pris ? Non. Je vais au camp.")
+            za_dest_choix({_p}, {_q}, "camp")
+        else if {_c} is "camp":
+            set {_cp} to za_cmp_plus_proche({_l})
+            if {_cp} is not 0:
+                za_cmp_pop_ajouter({_cp}, 1)
+                if {za::dest::%{_q}%::racket} is true:
+                    za_cmp_conf_ajouter({_u}, {_cp}, -15)
+                else:
+                    za_cmp_conf_ajouter({_u}, {_cp}, 15)
+                za_dest_dit({_p}, "Marc Tremblay", "Le %{za::camp::%{_cp}%::nom}%. J'y vais. Si tu croises Luc... dis-lui où je suis.")
+            if {za::dest::%{_q}%::racket} is true:
+                za_dest_fin({_q}, "sauve_racket")
+                za_dest_suite({_q}, 2, "frere_rumeur")
+            else:
+                za_dest_fin({_q}, "sauve_camp")
+                za_dest_suite({_q}, 2, "frere_luc_merci")
+    # ----- LE CONVOI
+    else if {_s} is "convoi":
+        if {_c} is "escorter":
+            za_dest_dit({_p}, "Caporal Bouchard", "Parfait. Ouvre l'œil, ça grouille toujours au carrefour.")
+            za_dest_profil({_u}, "compassion", 1)
+            za_dest_defense({_q}, 60)
+        else if {_c} is "trahir":
+            za_jetons_ajouter({_p}, 40)
+            za_faction_ajouter({_p}, "pilleurs", 15)
+            za_dest_dit({_p}, "Rémi (Pilleurs)", "Par la vieille route du moulin, hein ? Merci, mon ami. On se reparle.")
+            send "&8Bouchard repart, confiant. Il ne sait pas encore. (+40 jetons)" to {_p}
+            za_dest_profil({_u}, "trahison", 1)
+            za_souvenir_ajouter({_u}, "dest:convoi", "chute", "J'ai vendu la route du convoi de Bouchard pour 40 jetons.")
+            za_radio("&9Milice", "Le convoi du caporal Bouchard ne répond plus. Embuscade sur la route du moulin. Des médicaments pour trois camps... perdus.")
+            za_dest_fin({_q}, "trahi")
+            za_dest_suite({_q}, 3, "convoi_chantage")
+        else if {_c} is "prevenir":
+            za_dest_dit({_p}, "Caporal Bouchard", "Rémi ? Ce rat-là ? ... Merci. On va les recevoir.")
+            za_dest_pnj_retirer({_q})
+            za_dest_pnj({_q}, {_l}, "Caporal Bouchard", false)
+            loop 3 times:
+                za_spawn_at({_l}, "ZA_Pillard", 10, 16)
+            za_dest_profil({_u}, "compassion", 1)
+            set {za::dest::%{_q}%::prevenu} to true
+            za_dest_defense({_q}, 50)
+    # ----- ÉMILIE
+    else if {_s} is "emilie":
+        if {_c} is "donner":
+            set {_med} to za_dest_medicament({_p})
+            if {_med} is "":
+                send "&cTu n'as rien qui pourrait l'aider." to {_p}
+                stop
+            set {_ok} to za_take_named({_p}, {_med}, 1)
+            set {za::dest::%{_q}%::med} to {_med}
+            za_dest_dit({_p}, "Nathalie Roy", "Vous... vous nous le donnez ? Mais vous... Merci. MERCI.")
+            send "&7Tu regardes l'aiguille entrer. La petite ne pleure même pas." to {_p}
+            za_dest_profil({_u}, "sacrifice", 1)
+            za_dest_fin({_q}, "donne")
+            za_dest_suite({_q}, 2, "emilie_issue")
+        else if {_c} is "abreger":
+            send "&8Tu demandes à Nathalie de se retourner. Elle ne se retourne pas. Elle regarde. Après, elle ne dit plus rien." to {_p}
+            za_stress_ajouter({_p}, 30)
+            set {za::sanite::%{_u}%} to max(0, ({za::sanite::%{_u}%} ? 100) - 10)
+            za_dest_profil({_u}, "pragmatisme", 1)
+            za_souvenir_ajouter({_u}, "dest:emilie", "chute", "Émilie Roy, sept ans. J'ai fait ce qu'il fallait. Je crois.")
+            za_dest_fin({_q}, "abrege")
+            za_dest_suite({_q}, 5, "emilie_mere")
+        else if {_c} is "mentir":
+            za_dest_dit({_p}, "Nathalie Roy", "Vous croyez ? Vraiment ? ... Oui. Oui, elle va s'en sortir. Elle est forte.")
+            za_dest_profil({_u}, "mensonge", 1)
+            za_dest_fin({_q}, "menti")
+            set {za::dest::hante::%za_lkey({_l})%} to "Émilie Roy|bebe;Nathalie Roy|adulte"
+            set {za::dest::hante_loc::%za_lkey({_l})%} to {_l}
+            za_dest_suite({_q}, 2, "emilie_silence")
+        else if {_c} is "partir":
+            send "&8Tu tournes les talons. La toux de la petite te suit longtemps." to {_p}
+            za_dest_profil({_u}, "pragmatisme", 1)
+            za_dest_fin({_q}, "parti")
+            if chance of 50%:
+                set {za::dest::hante::%za_lkey({_l})%} to "Émilie Roy|bebe;Nathalie Roy|adulte"
+                set {za::dest::hante_loc::%za_lkey({_l})%} to {_l}
+            za_souvenir_ajouter({_u}, "dest:emilie", "chute", "Je suis parti. Je ne saurai jamais ce qui est arrivé à Émilie.")
+    # ----- LA CACHE
+    else if {_s} is "cache":
+        set {_men} to {za::dest::%{_q}%::menteur}
+        if {_c} is "jacques" or "sylvie":
+            if {_c} is {_men}:
+                za_dest_cache_issue({_p}, {_q}, "menteur_cru")
+            else:
+                za_dest_cache_issue({_p}, {_q}, "honnete_cru")
+        else if {_c} is "chasser":
+            za_dest_cache_issue({_p}, {_q}, "honnete_cru")
+        else if {_c} is "pardonner":
+            za_dest_cache_issue({_p}, {_q}, "pardon")
+        else if {_c} is "fouiller":
+            set {za::dest::%{_q}%::etape} to "fouille"
+            set {za::dest::%{_q}%::fin} to now
+            add 20 seconds to {za::dest::%{_q}%::fin}
+            send "&7Tu examines le sol, le tonneau, les sacs... &8(reste près d'eux 20 secondes)" to {_p}
+        else if {_c} is "voler":
+            za_dest_cache_issue({_p}, {_q}, "vol")
+    # ----- LA DETTE
+    else if {_s} is "dette":
+        if {_c} is "preter":
+            give iron sword to {_p}
+            give 16 of bread to {_p}
+            give za_item("paper", "Bandage", "&f", 3) to {_p}
+            give za_item("honey bottle", "Antibiotique", "&b", 1) to {_p}
+            set {za::dest::dette::%{_u}%} to 60
+            set {za::dest::dette_q::%{_u}%} to {_q}
+            za_dest_dit({_p}, "Gérard Lapointe", "Cinq jours. 60 jetons. /destins payer. J'aime les gens qui tiennent parole.")
+            za_dest_fin({_q}, "pret")
+            za_dest_suite({_q}, 5, "dette_echeance")
+        else:
+            za_dest_dit({_p}, "Gérard Lapointe", "Comme tu veux. Le monde est plein de gens qui disent non. Ils meurent pauvres.")
+            za_dest_fin({_q}, "refuse")
+
+# crée un survivant de quête (za_p43) à l'endroit de la scène
+function za_dest_survivant(q: number, m: text, g: text, nom: text) :: number:
+    set {_l} to {za::dest::%{_q}%::scene}
+    set {_id} to za_surv_creer_rec({_m}, {_g}, {_l}, "cache")
+    set {za::surv::%{_id}%::nom} to {_nom}
+    set {za::surv::%{_id}%::titre} to {_nom}
+    set {za::surv::%{_id}%::vnom} to {_nom}
+    set {za::surv::%{_id}%::hist} to "Je m'appelle %{_nom}%. Sans toi, je serais encore derrière ce comptoir. Ou pire."
+    return {_id}
+
+function za_dest_cache_issue(p: player, q: number, issue: text):
+    set {_u} to "%{_p}'s uuid%"
+    set {_men} to {za::dest::%{_q}%::menteur}
+    set {_mn} to "Jacques Gagné"
+    set {_hn} to "Sylvie Morin"
+    if {_men} is "sylvie":
+        set {_mn} to "Sylvie Morin"
+        set {_hn} to "Jacques Gagné"
+    set {za::dest::%{_q}%::menteur_nom} to {_mn}
+    set {za::dest::%{_q}%::honnete_nom} to {_hn}
+    if {_issue} is "menteur_cru":
+        za_dest_dit({_p}, {_hn}, "Tu le crois, LUI ? ... Très bien. Je m'en vais. Tu verras.")
+        za_dest_dit({_p}, {_mn}, "Merci. Vraiment. Je savais que t'étais quelqu'un de juste.")
+        za_dest_profil({_u}, "pragmatisme", 1)
+        za_dest_fin({_q}, "menteur_cru")
+        za_dest_suite({_q}, 3, "cache_vol")
+    else if {_issue} is "honnete_cru":
+        za_dest_dit({_p}, {_mn}, "Tu vas le regretter. Je connais du monde, moi.")
+        za_dest_dit({_p}, {_hn}, "Merci. J'ai pas grand-chose, mais si ta base a besoin de bras, je viens.")
+        za_dest_profil({_u}, "compassion", 1)
+        set {_g} to "f"
+        if {_hn} is "Jacques Gagné":
+            set {_g} to "m"
+        if {za::base::%{_u}%} is set:
+            if ({za::surv::n::%{_u}%} ? 0) < 8:
+                set {_id} to za_dest_survivant({_q}, "agriculteur", {_g}, {_hn})
+                za_surv_arriver_base({_id}, {_u}, {_p})
+        za_dest_fin({_q}, "honnete_cru")
+        za_dest_suite({_q}, 5, "cache_exile")
+    else if {_issue} is "pardon":
+        send "&7Tu partages la cache en deux. Le menteur baisse les yeux. Personne ne part ce soir." to {_p}
+        za_dest_profil({_u}, "compassion", 2)
+        set {_cp} to za_cmp_plus_proche({za::dest::%{_q}%::scene})
+        if {_cp} is not 0:
+            za_cmp_champ({_cp}, "moral", 10)
+            za_cmp_conf_ajouter({_u}, {_cp}, 10)
+        za_souvenir_ajouter({_u}, "dest:cache", "aide", "J'ai empêché deux survivants de s'entretuer pour un tonneau de conserves.")
+        za_dest_fin({_q}, "pardon")
+    else if {_issue} is "vol":
+        set {_k} to {za::dest::%{_q}%::coffre}
+        if {_k} is set:
+            execute console command "execute in %za_dim(world of {_k})% run setblock %x-coordinate of {_k}% %y-coordinate of {_k}% %z-coordinate of {_k}% minecraft:air"
+        give 12 of bread to {_p}
+        give 10 of baked potato to {_p}
+        give 4 of iron ingot to {_p}
+        give 16 of arrow to {_p}
+        send "&8Tu prends tout. Ils te regardent faire, trop faibles pour t'en empêcher." to {_p}
+        za_dest_profil({_u}, "trahison", 1)
+        za_dest_fin({_q}, "vol")
+        za_dest_suite({_q}, 2, "cache_rumeur")
+
+# ---------------------------------------------------------------- défense (tenir N secondes)
+
+function za_dest_defense(q: number, s: number):
+    set {za::dest::%{_q}%::etape} to "defendre"
+    set {za::dest::%{_q}%::pv} to 100
+    set {za::dest::%{_q}%::fin} to now
+    set {_ts} to "%{_s}% seconds" parsed as timespan
+    add {_ts} to {za::dest::%{_q}%::fin}
+    set {_p} to za_dest_joueur({_q})
+    if {_p} is set:
+        send title "&cTIENS BON" with subtitle "&7%{_s}% secondes. Garde les morts loin de lui." to {_p} for 3 seconds
+
+function za_dest_defense_tick(q: number):
+    set {_p} to za_dest_joueur({_q})
+    set {_l} to {za::dest::%{_q}%::scene}
+    set {_s} to {za::dest::%{_q}%::s}
+    if {_p} is not set:
+        stop
+    if world of {_p} is not world of {_l}:
+        za_dest_defense_perdue({_q})
+        stop
+    if distance between {_p} and {_l} > 45:
+        send "&cTu t'es trop éloigné." to {_p}
+        za_dest_defense_perdue({_q})
+        stop
+    # vagues
+    if chance of 60%:
+        set {_t} to "ZA_Citoyen_Infecte"
+        if {_s} is "convoi":
+            set {_t} to random element out of "ZA_Shambler", "ZA_Runner" and "ZA_Pillard"
+            if {za::dest::%{_q}%::prevenu} is true:
+                set {_t} to "ZA_Pillard"
+        loop 2 times:
+            za_spawn_at({_l}, {_t}, 10, 16)
+    # pression sur le PNJ
+    set {_n} to 0
+    loop all entities in radius 2.8 around {_l}:
+        if za_surv_hostile(loop-entity) is true:
+            add 1 to {_n}
+    if {_n} > 0:
+        remove ({_n} * 9) from {za::dest::%{_q}%::pv}
+        execute console command "execute in %za_dim(world of {_l})% run particle minecraft:damage_indicator %x-coordinate of {_l}% %y-coordinate of {_l} + 1.2% %z-coordinate of {_l}% 0.2 0.2 0.2 0 4 force"
+        send action bar "&cIl encaisse ! &7(%max(0, {za::dest::%{_q}%::pv})%/100)" to {_p}
+    if {za::dest::%{_q}%::pv} <= 0:
+        za_dest_defense_perdue({_q})
+        stop
+    if now > {za::dest::%{_q}%::fin}:
+        za_dest_defense_gagnee({_q})
+
+function za_dest_defense_gagnee(q: number):
+    set {_p} to za_dest_joueur({_q})
+    set {_u} to {za::dest::%{_q}%::u}
+    set {_s} to {za::dest::%{_q}%::s}
+    send title "&aIL EST VIVANT" with subtitle "" to {_p} for 2 seconds
+    if {_s} is "frere":
+        set {za::dest::%{_q}%::etape} to "apres_frere"
+        za_dest_menu({_p}, {_q})
+    else if {_s} is "convoi":
+        za_faction_ajouter({_p}, "milice", 15)
+        give za_item("honey bottle", "Antibiotique", "&b", 2) to {_p}
+        give za_item("paper", "Bandage", "&f", 3) to {_p}
+        if {za::dest::%{_q}%::prevenu} is true:
+            za_faction_ajouter({_p}, "milice", 10)
+            za_faction_ajouter({_p}, "pilleurs", -20)
+            za_dest_suite({_q}, 4, "convoi_represailles")
+        za_dest_dit({_p}, "Caporal Bouchard", "On est passés. Trois camps vont tenir l'hiver grâce à toi. La Milice s'en souviendra.")
+        set {_cp} to za_cmp_plus_proche({za::dest::%{_q}%::scene})
+        if {_cp} is not 0:
+            za_cmp_champ({_cp}, "moral", 10)
+        za_souvenir_ajouter({_u}, "dest:convoi", "aide", "J'ai escorté le convoi de Bouchard jusqu'au bout.")
+        za_dest_fin({_q}, "escorte")
+
+function za_dest_defense_perdue(q: number):
+    set {_p} to za_dest_joueur({_q})
+    set {_u} to {za::dest::%{_q}%::u}
+    set {_s} to {za::dest::%{_q}%::s}
+    set {_l} to {za::dest::%{_q}%::scene}
+    za_dest_pnj_retirer({_q})
+    if {_s} is "frere":
+        za_dest_zombie({_l}, "Marc Tremblay", false)
+        if {_p} is set:
+            send "&4Marc ne s'est pas relevé. Puis, si. Mais ce n'est plus Marc." to {_p}
+        za_souvenir_ajouter({_u}, "dest:frere", "chute", "J'ai essayé de sauver Marc Tremblay. Je n'ai pas réussi.")
+        za_dest_fin({_q}, "echec")
+        za_dest_suite({_q}, 3, "frere_luc_deuil")
+    else if {_s} is "convoi":
+        za_faction_ajouter({_p}, "milice", -5)
+        if {_p} is set:
+            send "&cLe caporal Bouchard est tombé. Le camion est resté là, portes ouvertes." to {_p}
+        za_radio("&9Milice", "On a perdu Bouchard et le convoi. Si quelqu'un passe par là... récupérez ce qui reste.")
+        za_dest_fin({_q}, "echec")
+
+# ---------------------------------------------------------------- conséquences (jours plus tard)
+
+every 1 minute:
+    loop {za::dest::suites::*}:
+        set {_c::*} to split loop-value at "|"
+        if ({_c::1} parsed as number) <= za_dest_jour():
+            set {_q} to {_c::2} parsed as number
+            set {_p} to za_dest_joueur({_q})
+            if {_p} is set:
+                if za_pro({_p}) is false:
+                    delete {za::dest::suites::%loop-index%}
+                    za_dest_conseq({_p}, {_q}, {_c::3})
+
+function za_dest_rencontre(p: player, q: number, cle: text, nom: text):
+    set {_l} to za_dest_pres({_p}, 6)
+    set {za::dest::%{_q}%::scene} to {_l}
+    set {za::dest::%{_q}%::etape} to "rencontre:%{_cle}%"
+    set {za::dest::%{_q}%::fin} to now
+    add 3 minutes to {za::dest::%{_q}%::fin}
+    za_dest_pnj({_q}, {_l}, {_nom}, false)
+    add {_q} to {za::dest::rencontres::*}
+    send "&7Quelqu'un s'approche de toi : &f%{_nom}%&7. &8(clic droit)" to {_p}
+    za_zm("son %{_p}% minecraft:block.note_block.bass 0.8 0.6")
+
+function za_dest_conseq(p: player, q: number, cle: text):
+    set {_u} to "%{_p}'s uuid%"
+    if {_cle} is "frere_luc_merci":
+        za_tel_sms({_u}, "Luc Tremblay", "C'est Luc. Le frère de Marc. Il m'a tout raconté. Je passe te voir.")
+        za_dest_rencontre({_p}, {_q}, "luc_merci", "Luc Tremblay")
+    else if {_cle} is "frere_luc_deuil":
+        za_dest_rencontre({_p}, {_q}, "luc_deuil", "Luc Tremblay")
+    else if {_cle} is "frere_luc_colere":
+        za_dest_rencontre({_p}, {_q}, "luc_colere", "Luc Tremblay")
+    else if {_cle} is "frere_luc_vengeance":
+        za_tel_sms({_u}, "Luc Tremblay", "Pour Marc.")
+        loop 3 times:
+            za_spawn_near({_p}, "ZA_Pillard", 14, 22)
+        send "&4Des pillards surgissent. L'un d'eux porte la veste de Marc Tremblay." to {_p}
+    else if {_cle} is "frere_rumeur":
+        loop {za::camp::liste::*}:
+            if {za::camp::%loop-value%::etat} is "vivant":
+                za_cmp_conf_ajouter({_u}, loop-value, -10)
+        send "&8Une rumeur circule dans les camps : « Celui-là, il aide. Mais il fait payer d'abord. »" to {_p}
+    else if {_cle} is "convoi_chantage":
+        set {za::dest::chantage::%{_u}%} to {_q}
+        za_tel_sms({_u}, "Rémi", "On sait ce que t'as fait, toi et moi. 20 jetons, ou la Milice l'apprend. T'as un jour. /destins payer")
+        za_dest_suite({_q}, 1, "convoi_revele")
+    else if {_cle} is "convoi_revele":
+        if {za::dest::chantage::%{_u}%} is set:
+            delete {za::dest::chantage::%{_u}%}
+            za_faction_ajouter({_p}, "milice", -30)
+            za_radio("&9Milice", "Avis à tous : %{_p}% a vendu le convoi du caporal Bouchard aux Pilleurs. La Milice ne l'oubliera pas.")
+            za_souvenir_ajouter({_u}, "dest:convoi", "chute", "Tout le monde sait, maintenant, pour le convoi.")
+    else if {_cle} is "convoi_represailles":
+        za_tel_sms({_u}, "Rémi", "T'aurais dû te taire.")
+        loop 3 times:
+            za_spawn_near({_p}, "ZA_Pillard", 14, 22)
+    else if {_cle} is "emilie_issue":
+        set {_ch} to 60
+        if {za::dest::%{_q}%::med} is "Antidote" or "Serum":
+            set {_ch} to 75
+        if chance of {_ch}%:
+            za_tel_sms({_u}, "Nathalie Roy", "Elle a mangé ce matin. Elle a demandé ton nom. Je lui ai dit que tu étais un ange. Elle a ri.")
+            set {_cp} to za_cmp_plus_proche(location of {_p})
+            if {_cp} is not 0:
+                za_cmp_pop_ajouter({_cp}, 2)
+            za_dest_suite({_q}, 5, "emilie_dessin")
+            za_souvenir_ajouter({_u}, "dest:emilie", "aide", "J'ai donné mon dernier remède à Émilie Roy. Elle vit.")
+        else:
+            za_tel_sms({_u}, "Nathalie Roy", "Elle n'a pas passé la nuit. Vous avez essayé. Je ne l'oublierai pas.")
+            za_souvenir_ajouter({_u}, "dest:emilie", "chute", "J'ai donné mon remède à Émilie Roy. Ça n'a pas suffi.")
+    else if {_cle} is "emilie_dessin":
+        give za_item("paper", "Dessin d'Émilie", "&e", 1) to {_p}
+        send "&eUn survivant te tend une feuille pliée : un bonhomme avec une épée. Au-dessus, en grosses lettres : MERCI." to {_p}
+        za_stress_ajouter({_p}, -30)
+    else if {_cle} is "emilie_mere":
+        za_tel_sms({_u}, "Nathalie Roy", "Je ne vous pardonne pas. Mais je comprends. Je crois.")
+    else if {_cle} is "emilie_silence":
+        za_radio("&bLéa", "Le refuge où se cachait une mère et sa fille ne répond plus. Si vous passez par là... ne vous approchez pas.")
+    else if {_cle} is "cache_vol":
+        set {_hn} to {za::dest::%{_q}%::honnete_nom}
+        set {_mn} to {za::dest::%{_q}%::menteur_nom}
+        set {_v} to min(25, za_jetons({_p}))
+        if {_v} > 0:
+            za_jetons_ajouter({_p}, 0 - {_v})
+        za_tel_sms({_u}, {_hn}, "Je te l'avais dit. %{_mn}% est passé chez toi. Demande-toi où sont tes jetons.")
+        send "&cTa caisse a été forcée. Il manque %{_v}% jetons. Sur la table : la bague de %{_mn}%." to {_p}
+    else if {_cle} is "cache_exile":
+        set {_mn} to {za::dest::%{_q}%::menteur_nom}
+        loop 2 times:
+            za_spawn_near({_p}, "ZA_Pillard", 16, 24)
+        send "&8Parmi les pillards, tu reconnais une voix : &f%{_mn}%&8. Il a trouvé des gens qui ne posent pas de questions." to {_p}
+    else if {_cle} is "cache_rumeur":
+        loop {za::camp::liste::*}:
+            if {za::camp::%loop-value%::etat} is "vivant":
+                za_cmp_conf_ajouter({_u}, loop-value, -10)
+        send "&8Dans les camps, on raconte qu'un étranger a vidé la réserve de deux survivants affamés. On décrit ta veste." to {_p}
+    else if {_cle} is "dette_echeance":
+        if ({za::dest::dette::%{_u}%} ? 0) > 0:
+            za_tel_sms({_u}, "Gérard Lapointe", "Cinq jours, l'ami. Je suis patient. Mes associés, moins. Demain.")
+            za_dest_suite({_q}, 1, "dette_recouvrement")
+        else:
+            za_dest_suite({_q}, 1, "dette_ami")
+    else if {_cle} is "dette_recouvrement":
+        if ({za::dest::dette::%{_u}%} ? 0) > 0:
+            loop 3 times:
+                za_spawn_near({_p}, "ZA_Pillard", 14, 22)
+            set {_v} to min(30, za_jetons({_p}))
+            if {_v} > 0:
+                za_jetons_ajouter({_p}, 0 - {_v})
+            send "&4Les recouvreurs de Gérard sont là. &7(-%{_v}% jetons)" to {_p}
+            za_dest_profil({_u}, "trahison", 1)
+            delete {za::dest::dette::%{_u}%}
+            za_radio("&6Marchands", "Gérard Lapointe fait savoir que %{_p}% ne paie pas ses dettes. Les marchands sont prévenus.")
+            za_faction_ajouter({_p}, "marchands", -15)
+            za_dest_fin({_q}, "dette_impayee")
+    else if {_cle} is "dette_ami":
+        give za_item("redstone", "Composant electronique", "&f", 2) to {_p}
+        za_tel_sms({_u}, "Gérard Lapointe", "Parole tenue. C'est rare. Tiens, un petit extra. Si t'as besoin, je suis là.")
+        za_faction_ajouter({_p}, "marchands", 10)
+        za_dest_fin({_q}, "dette_payee")
+
+# rencontres de suite : menus
+function za_dest_menu_rencontre(p: player, q: number, k: text):
+    if {_k} is "luc_merci":
+        set {_o::*} to "« Ton frère est un bon gars. »|luc_merci_ok"
+        za_menu({_p}, "zadestclic", "Luc Tremblay", "« Marc dit que t'es venu quand personne venait. Tiens. C'est pas grand-chose. Et si un jour t'as besoin, je connais une cache, au nord. »", {_o::*})
+    else if {_k} is "luc_deuil":
+        set {_o::*} to "« Je suis désolé. »|luc_deuil_ok"
+        za_menu({_p}, "zadestclic", "Luc Tremblay", "« Je l'ai trouvé. Enfin, ce qui marchait encore. On m'a dit que t'avais essayé. C'est plus que les autres. »", {_o::*})
+    else if {_k} is "luc_colere":
+        set {_o::*} to "Dire la vérité|luc_verite", "Mentir : il était déjà mort|luc_mentir" and "Lui donner 30 jetons|luc_payer"
+        za_menu({_p}, "zadestclic", "Luc Tremblay", "« C'est toi. Marc a laissé un message sur sa radio. Il parlait de quelqu'un qui était venu... et qui était reparti. »", {_o::*})
+
+function za_dest_rencontre_choix(p: player, q: number, c: text):
+    set {_u} to "%{_p}'s uuid%"
+    if {_c} is "luc_merci_ok":
+        za_jetons_ajouter({_p}, 25)
+        give za_item("paper", "Bandage", "&f", 2) to {_p}
+        give 16 of arrow to {_p}
+        set {_k} to za_eq_site_proche(location of {_p}, "chalet,camp_chasse,refuge", 100, 2000, "")
+        if {_k} is not "":
+            set {za::carte::%{_u}%::site:%{_k}%} to za_dest_jour()
+            za_dest_dit({_p}, "Luc Tremblay", "La cache : %{za::site::d::%{_k}%::nom}%, X %{za::site::d::%{_k}%::x}%, Z %{za::site::d::%{_k}%::z}%. Personne d'autre le sait.")
+        za_souvenir_ajouter({_u}, "dest:frere", "aide", "J'ai sauvé Marc Tremblay. Son frère Luc me doit une fière chandelle.")
+        za_dest_fin({_q}, "luc_allie")
+    else if {_c} is "luc_deuil_ok":
+        give za_item("clock", "Montre de Marc Tremblay", "&7", 1) to {_p}
+        za_dest_dit({_p}, "Luc Tremblay", "Garde sa montre. Il aurait voulu qu'elle serve à quelqu'un qui essaie.")
+        za_dest_fin({_q}, "luc_deuil")
+    else if {_c} is "luc_verite":
+        za_dest_dit({_p}, "Luc Tremblay", "... Au moins tu me regardes dans les yeux. Je sais pas si c'est mieux.")
+        za_souvenir_ajouter({_u}, "dest:frere", "chute", "J'ai dit la vérité à Luc Tremblay. Il est parti sans rien dire.")
+        za_dest_fin({_q}, "luc_verite")
+    else if {_c} is "luc_mentir":
+        if chance of 40%:
+            za_dest_dit({_p}, "Luc Tremblay", "Menteur. J'ai entendu sa voix sur la radio APRÈS ton passage. Tu vas payer.")
+            za_dest_profil({_u}, "mensonge", 1)
+            za_dest_fin({_q}, "luc_ennemi")
+            za_dest_suite({_q}, 2, "frere_luc_vengeance")
+        else:
+            za_dest_dit({_p}, "Luc Tremblay", "... OK. Merci d'avoir regardé, au moins.")
+            za_dest_profil({_u}, "mensonge", 1)
+            za_dest_fin({_q}, "luc_trompe")
+    else if {_c} is "luc_payer":
+        if za_jetons({_p}) < 30:
+            send "&cTu n'as pas 30 jetons." to {_p}
+            stop
+        za_jetons_ajouter({_p}, -30)
+        za_dest_dit({_p}, "Luc Tremblay", "Ton argent vaut rien. ... Je le prends quand même. C'est pour ça que t'es encore en vie, hein ? Les gens comme toi.")
+        za_dest_fin({_q}, "luc_paye")
+
+# ---------------------------------------------------------------- tick (toutes les 5 s)
+
+every 5 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        set {_u} to "%{_p}'s uuid%"
+        set {_q} to {za::dest::actif::%{_u}%}
+        if {_q} is set:
+            if za_pro({_p}) is false:
+                za_dest_tick({_p}, {_q})
+
+function za_dest_tick(p: player, q: number):
+    set {_e} to {za::dest::%{_q}%::etape}
+    set {_l} to {za::dest::%{_q}%::loc}
+    if {_e} is "aller":
+        # trop tard ?
+        if za_dest_jour() - ({za::dest::%{_q}%::debut} ? za_dest_jour()) >= 2:
+            za_dest_trop_tard({_p}, {_q})
+            stop
+        if {_l} is set:
+            if world of {_l} is world of {_p}:
+                set {_dx} to (x-coordinate of {_p}) - (x-coordinate of {_l})
+                set {_dz} to (z-coordinate of {_p}) - (z-coordinate of {_l})
+                if sqrt(({_dx} * {_dx}) + ({_dz} * {_dz})) < {@rayon_arrivee}:
+                    za_dest_scene({_p}, {_q})
+    else if {_e} is "defendre":
+        za_dest_defense_tick({_q})
+    else if {_e} is "fouille":
+        set {_c} to {za::dest::%{_q}%::scene}
+        if distance between {_p} and {_c} > 8:
+            send "&7Tu t'es éloigné : la fouille est à recommencer." to {_p}
+            set {za::dest::%{_q}%::etape} to "choix"
+        else if now > {za::dest::%{_q}%::fin}:
+            set {_mn} to "Jacques"
+            if {za::dest::%{_q}%::menteur} is "sylvie":
+                set {_mn} to "Sylvie"
+            send "&7Sous le foin, une boîte de conserve vide, encore collante. À côté, l'empreinte d'une botte. La botte de &f%{_mn}%&7." to {_p}
+            set {za::dest::%{_q}%::etape} to "apres_fouille"
+            za_dest_menu({_p}, {_q})
+
+# les suites de rencontre doivent pouvoir arriver même quand la quête est finie
+every 5 seconds:
+    loop {za::dest::rencontres::*}:
+        set {_q} to loop-value
+        if {za::dest::%{_q}%::etape} starts with "rencontre:":
+            if now > ({za::dest::%{_q}%::fin} ? now):
+                set {_p} to za_dest_joueur({_q})
+                if {_p} is set:
+                    send "&8Il est reparti sans attendre de réponse." to {_p}
+                za_dest_fin({_q}, "ignore")
+        else:
+            remove {_q} from {za::dest::rencontres::*}
+
+function za_dest_trop_tard(p: player, q: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {_s} to {za::dest::%{_q}%::s}
+    send "&8Trop tard pour %za_dest_titre({_s})%. Là-bas, plus personne n'attend." to {_p}
+    if {_s} is "frere":
+        set {_l} to {za::dest::%{_q}%::loc}
+        set {za::dest::hante::%za_lkey({_l})%} to "Marc Tremblay|adulte"
+        set {za::dest::hante_loc::%za_lkey({_l})%} to {_l}
+        za_dest_fin({_q}, "trop_tard")
+        za_dest_suite({_q}, 3, "frere_luc_colere")
+    else if {_s} is "convoi":
+        za_faction_ajouter({_p}, "milice", -5)
+        za_dest_fin({_q}, "trop_tard")
+    else if {_s} is "emilie":
+        set {_l} to {za::dest::%{_q}%::loc}
+        set {za::dest::hante::%za_lkey({_l})%} to "Émilie Roy|bebe;Nathalie Roy|adulte"
+        set {za::dest::hante_loc::%za_lkey({_l})%} to {_l}
+        za_dest_fin({_q}, "trop_tard")
+    else:
+        za_dest_fin({_q}, "trop_tard")
+
+# les lieux hantés : ceux qu'on a laissés derrière se sont relevés
+every 10 seconds:
+    loop {za::dest::hante_loc::*}:
+        set {_k} to loop-index
+        set {_l} to loop-value
+        if za_eq_joueur_pres({_l}, 28) is true:
+            set {_v::*} to split {za::dest::hante::%{_k}%} at ";"
+            loop {_v::*}:
+                set {_c::*} to split loop-value-2 at "|"
+                set {_b} to false
+                if {_c::2} is "bebe":
+                    set {_b} to true
+                za_dest_zombie({_l}, {_c::1}, {_b})
+            delete {za::dest::hante::%{_k}%}
+            delete {za::dest::hante_loc::%{_k}%}
+
+# ---------------------------------------------------------------- clics
+
+on right click on villager:
+    if za_pro(player) is true:
+        stop
+    if za_surv_a_tag(clicked entity, "za_dest") is false:
+        stop
+    cancel the event
+    set {_q} to 0
+    loop scoreboard tags of clicked entity:
+        if loop-value starts with "za_dest_":
+            set {_q} to (subtext of loop-value from characters 9 to length of loop-value) parsed as number
+    if {za::dest::%{_q}%::u} is not "%player's uuid%":
+        send "&8&o(Il ne te parle pas. Il attend quelqu'un d'autre.)" to player
+        stop
+    if {za::dest::%{_q}%::etape} is "fini":
+        delete clicked entity
+        stop
+    za_dest_menu(player, {_q})
+
+command /zadestclic <player> <text>:
+    executable by: console
+    trigger:
+        wait 2 ticks
+        set {_p} to arg-1
+        set {_q} to {za::dest::ctx::%{_p}'s uuid%}
+        if {_q} is not set:
+            stop
+        set {_e} to {za::dest::%{_q}%::etape}
+        if {_e} starts with "rencontre:":
+            za_dest_pnj_retirer({_q})
+            za_dest_rencontre_choix({_p}, {_q}, arg-2)
+        else if {_e} is "choix" or "apres_frere" or "apres_fouille":
+            za_dest_choix({_p}, {_q}, arg-2)
+
+# ---------------------------------------------------------------- /destins
+
+function za_dest_afficher(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    send "&6&l━━ DESTINS ━━" to {_p}
+    set {_q} to {za::dest::actif::%{_u}%}
+    if {_q} is set:
+        set {_l} to {za::dest::%{_q}%::loc}
+        send "&eEn cours : &f%za_dest_titre({za::dest::%{_q}%::s})% &7(%{za::dest::%{_q}%::etape}%)" to {_p}
+        if {_l} is set:
+            set {_li} to {za::dest::%{_q}%::lieu} ? "-"
+            send "&7Lieu : &f%{_li}% &7X %floor(x-coordinate of {_l})%, Z %floor(z-coordinate of {_l})%" to {_p}
+    if {za::dest::offre::%{_u}%} is set:
+        send "&aUne proposition t'attend : /destins accepter" to {_p}
+    if ({za::dest::dette::%{_u}%} ? 0) > 0:
+        send "&cTu dois %{za::dest::dette::%{_u}%}% jetons à Gérard Lapointe. /destins payer" to {_p}
+    if {za::dest::chantage::%{_u}%} is set:
+        send "&cRémi attend ses 20 jetons. /destins payer" to {_p}
+    loop za_dest_scen():
+        set {_f} to {za::dest::fait::%{_u}%::%loop-value%}
+        if {_f} is set:
+            send "&8 • %za_dest_titre(loop-value)% : &7%{_f}%" to {_p}
+    set {_c} to {za::dest::profil::%{_u}%::compassion} ? 0
+    set {_pr} to {za::dest::profil::%{_u}%::pragmatisme} ? 0
+    set {_t} to {za::dest::profil::%{_u}%::trahison} ? 0
+    set {_s} to {za::dest::profil::%{_u}%::sacrifice} ? 0
+    set {_m} to {za::dest::profil::%{_u}%::mensonge} ? 0
+    send "&7Profil : &acompassion %{_c}% &8· &epragmatisme %{_pr}% &8· &ctrahison %{_t}% &8· &bsacrifice %{_s}% &8· &7mensonges %{_m}%" to {_p}
+    send "&8On dit de toi : &f%za_dest_reputation({_u})%" to {_p}
+
+function za_dest_reputation(u: text) :: text:
+    set {_c} to ({za::dest::profil::%{_u}%::compassion} ? 0) + ({za::dest::profil::%{_u}%::sacrifice} ? 0)
+    set {_t} to ({za::dest::profil::%{_u}%::trahison} ? 0) + ({za::dest::profil::%{_u}%::mensonge} ? 0)
+    set {_pr} to {za::dest::profil::%{_u}%::pragmatisme} ? 0
+    if {_c} + {_t} + {_pr} is 0:
+        return "rien encore. Personne ne te connaît."
+    if {_t} > {_c}:
+        if {_t} >= 3:
+            return "« Méfie-toi. Il vendrait sa mère pour une conserve. »"
+        return "« On sait jamais trop avec lui. »"
+    if {_pr} > {_c}:
+        return "« Il fait ce qu'il faut. Même quand c'est laid. »"
+    if {_c} >= 3:
+        return "« Celui-là, il revient chercher les autres. »"
+    return "« Un bon gars, je pense. »"
+
+command /destins [<text>]:
+    aliases: /destin
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        if arg-1 is "accepter":
+            za_dest_accepter(player)
+        else if arg-1 is "refuser":
+            if {za::dest::offre::%{_u}%} is set:
+                set {za::dest::%{za::dest::offre::%{_u}%}%::etape} to "fini"
+                delete {za::dest::offre::%{_u}%}
+                send "&7Tu laisses passer. D'autres histoires viendront." to player
+        else if arg-1 is "payer":
+            if {za::dest::chantage::%{_u}%} is set:
+                if za_jetons(player) < 20:
+                    send "&cIl te faut 20 jetons." to player
+                    stop
+                za_jetons_ajouter(player, -20)
+                delete {za::dest::chantage::%{_u}%}
+                za_tel_sms({_u}, "Rémi", "Sage décision. Notre petit secret reste entre nous. Pour l'instant.")
+            else if ({za::dest::dette::%{_u}%} ? 0) > 0:
+                if za_jetons(player) < {za::dest::dette::%{_u}%}:
+                    send "&cIl te faut %{za::dest::dette::%{_u}%}% jetons." to player
+                    stop
+                za_jetons_ajouter(player, 0 - {za::dest::dette::%{_u}%})
+                delete {za::dest::dette::%{_u}%}
+                za_tel_sms({_u}, "Gérard Lapointe", "Payé rubis sur l'ongle. On va bien s'entendre, toi et moi.")
+            else:
+                send "&7Tu ne dois rien à personne. Pour l'instant." to player
+        else if arg-1 is "abandonner":
+            if {za::dest::actif::%{_u}%} is set:
+                set {_q} to {za::dest::actif::%{_u}%}
+                if {za::dest::%{_q}%::etape} is "aller":
+                    za_dest_trop_tard(player, {_q})
+                else:
+                    send "&7Trop tard pour reculer : c'est en cours." to player
+        else:
+            za_dest_afficher(player)
+
+command /zadestin [<text>] [<text>] [<player>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "lancer":
+            if arg-3 is not set:
+                send "&7/zadestin lancer <frere|convoi|emilie|cache|dette> <joueur>" to sender
+                stop
+            if za_dest_scen() does not contain arg-2:
+                send "&cHistoire inconnue." to sender
+                stop
+            set {_ok} to za_dest_offrir(arg-3, arg-2, true)
+            send "&7Destin « %arg-2% » proposé à %arg-3%." to sender
+        else if arg-1 is "suite":
+            set {_p} to arg-3 ? player
+            set {_u} to "%{_p}'s uuid%"
+            loop {za::dest::suites::*}:
+                set {_c::*} to split loop-value at "|"
+                if {za::dest::%{_c::2}%::u} is {_u}:
+                    set {za::dest::suites::%loop-index%} to "%za_dest_jour()%|%{_c::2}%|%{_c::3}%"
+            send "&7Les suites de %{_p}% arrivent dans la minute." to sender
+        else:
+            send "&6Destins actifs :" to sender
+            loop {za::dest::actif::*}:
+                send "&7%loop-index% : #%loop-value% %{za::dest::%loop-value%::s}% %{za::dest::%loop-value%::etape}%" to sender
+            send "&6Suites programmées : &f%size of {za::dest::suites::*}%" to sender

@@ -66,6 +66,13 @@ function za_decay(wd: text, x1: number, y1: number, z1: number, x2: number, y2: 
         else:
             execute console command "execute in %{_wd}% run setblock %{_dx}% %{_dy}% %{_dz}% minecraft:coarse_dirt"
 
+# ---------- budget commun de population (audit N12) : on refuse de créer AVANT d'avoir à supprimer ----------
+# 60 zombies à moins de 48 blocs : plus d'apparition (le nettoyage de p10 ne commence qu'à 70 dans 64 blocs)
+function za_population_pleine(l: location) :: boolean:
+    if size of (all zombies in radius 48 around {_l}) >= 60:
+        return true
+    return false
+
 # ---------- fait apparaitre un mob MythicMobs autour d'un joueur ----------
 function za_spawn_near(p: player, t: text, dmin: number, dmax: number):
     if za_pro({_p}) is true:
@@ -75,6 +82,8 @@ function za_spawn_near(p: player, t: text, dmin: number, dmax: number):
             stop
     if za_zone_morte(location of {_p}) is true:
         stop
+    if za_population_pleine(location of {_p}) is true:
+        stop
     set {_l} to location of {_p}
     set {_d} to random number between {_dmin} and {_dmax}
     set {_a} to random number between 0 and 360
@@ -82,6 +91,10 @@ function za_spawn_near(p: player, t: text, dmin: number, dmax: number):
     add ({_d} * sin({_a})) to z-coordinate of {_l}
     set {_b} to highest block at {_l}
     set {_y} to (y-coordinate of (location of {_b})) + 1
+    # évolution du virus (za_p82) : une part des morts ordinaires devient un variant muté
+    set {_v} to za_evo_variant({_t})
+    if {_v} is not "":
+        set {_t} to {_v}
     execute console command "mm mobs spawn %{_t}% 1 %world of {_l}%,%floor(x-coordinate of {_l})%,%{_y}%,%floor(z-coordinate of {_l})%"
 
 # ---------- fait apparaitre un mob autour d'un point ----------
@@ -89,6 +102,8 @@ function za_spawn_at(l: location, t: text, dmin: number, dmax: number):
     if "%world of {_l}%" is "za_prologue":
         stop
     if za_zone_morte({_l}) is true:
+        stop
+    if za_population_pleine({_l}) is true:
         stop
     set {_l2} to {_l}
     set {_d} to random number between {_dmin} and {_dmax}
@@ -115,6 +130,12 @@ function za_audit(txt: text, montant: number):
         loop all players:
             if loop-player has permission "za.admin":
                 send "&c[Audit] %{_txt}%" to loop-player
+
+# créditer un joueur même hors ligne (par UUID) : dépôts rendus, accords versés (audit N10)
+function za_jetons_crediter(u: text, n: number):
+    if {_n} >= 200:
+        za_audit("GAIN %{_u}% : %{_n}% jetons", {_n})
+    add {_n} to {za::jetons::%{_u}%}
 
 function za_jetons_ajouter(p: player, n: number):
     if {_n} >= 200:
@@ -191,7 +212,63 @@ function za_take_named(p: player, nom: text, n: number) :: boolean:
 function za_item(mat: text, nom: text, col: text, qte: number) :: itemtype:
     set {_it} to ({_mat} parsed as itemtype)
     set name of {_it} to "%{_col}%%{_nom}%"
+    # nom réservé : personne ne pourra le recopier à l'enclume (audit C1)
+    set {_k} to lowercase (uncolored {_nom})
+    if {za::noms::%{_k}%} is not set:
+        set {za::noms::%{_k}%} to true
     return {_qte} of {_it}
+
+# retire jusqu'à n objets (matière + nom) case par case ; renvoie le nombre retiré.
+# « remove ... named ... » rate les objets qui ont un lore (objets du prologue, objets MythicMobs).
+function za_retirer_nomme(p: player, mat: text, nom: text, n: number) :: number:
+    set {_type} to {_mat} parsed as itemtype
+    set {_cible} to uncolored {_nom}
+    set {_reste} to {_n}
+    loop 41 times:
+        if {_reste} <= 0:
+            exit loop
+        set {_s} to loop-number - 1
+        set {_it} to slot {_s} of {_p}'s inventory
+        if {_it} is {_type}:
+            if uncolored name of {_it} is {_cible}:
+                set {_a} to item amount of {_it}
+                if {_a} <= {_reste}:
+                    set slot {_s} of {_p}'s inventory to air
+                    remove {_a} from {_reste}
+                else:
+                    set slot {_s} of {_p}'s inventory to (({_a} - {_reste}) of {_it})
+                    set {_reste} to 0
+    return {_n} - {_reste}
+
+# ---------- noms réservés (audit C1) : un objet ordinaire renommé à l'enclume ne doit jamais passer pour un objet du jeu
+# (monnaie, composants, clés, documents). Les objets de za_item s'inscrivent d'eux-mêmes ; s'ajoutent les objets de
+# MythicMobs (Items/*.yml) et les familles de noms variables.
+function za_nom_protege(n: text) :: boolean:
+    set {_l} to lowercase (uncolored {_n})
+    if {za::noms::%{_l}%} is set:
+        return true
+    loop "jeton", "plaque d'identité", "clé ", "fragment de plan", "documents de", "effets personnels", "note ", "dossier", "carte d'acces", "carte d'accès", "rapport ", "échantillon", "essence", "sang infecte", "composant", "serum", "antidote", "antibiotique", "bandage", "coeur de l'overlord", "banniere de l'overlord", "glande acide", "poche de gaz", "griffe de leaper", "cuir de brute", "faux papiers", "certificat", "disque de données", "relique", "médaillon", "couperet", "casque fondu", "plaque du gardien":
+        if {_l} starts with loop-value:
+            return true
+    return false
+
+# l'enclume : le résultat d'un renommage vers un nom réservé ne peut pas être pris
+on inventory click:
+    if type of event-inventory is not anvil inventory:
+        stop
+    if index of event-slot is not 2:
+        stop
+    if event-inventory is not player's current inventory:
+        stop
+    set {_res} to uncolored name of event-item ? ""
+    if {_res} is "":
+        stop
+    set {_src} to uncolored name of slot 0 of event-inventory ? ""
+    if {_src} is {_res}:
+        stop
+    if za_nom_protege({_res}) is true:
+        cancel event
+        send "&cCe nom est réservé. &7Tu ne peux pas fabriquer un « %{_res}% » à l'enclume." to player
 
 # ---------- outils admin ----------
 command /za <text> [<text>]:

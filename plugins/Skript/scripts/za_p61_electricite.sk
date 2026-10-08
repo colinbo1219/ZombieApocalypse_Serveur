@@ -1,0 +1,634 @@
+# =====================================================================
+#  ZombieApocalypse - ÉLECTRICITÉ RÉELLE : sous-stations Create / Create Crafts & Additions / Immersive Engineering
+#  L'énergie est VRAIE : elle vient des machines des joueurs. Skript ne fait que la mesurer et gérer le monde autour.
+#
+#  CENTRALE (za_p39, lutrin) ──► SOUS-STATIONS ──► QUARTIERS (za_p50) ──► BÂTIMENTS (za_p35 / za_p51) et BASES (za_p8)
+#
+#  * Sous-station « joueur » : /electricite installer [quartier] en regardant un bloc = le TABLEAU. Il mesure le courant :
+#      - un fil de redstone collé au tableau : puissance du fil 0-15 -> 0 à 5 unités (ex. accumulateur CCA -> comparateur -> fil,
+#        moteur diesel (Create Diesel Generators) ou générateur / énergiseur (Create New Age) à côté du tableau,
+#        compteur de vitesse / stressomètre Create -> comparateur -> fil, condensateur IE -> comparateur -> fil)
+#      - sinon, tableau alimenté directement par un comparateur : 3 unités
+#      - il faut au moins une machine électrique/cinétique (Create, CCA, IE) à 4 blocs du tableau (pas de torche magique)
+#  * Sous-station « ville » (ruines de Saint-Aurèle, posées par l'admin) : relaie la CENTRALE : 4 unités tant que za_courant().
+#  * Le courant de toutes les sous-stations forme une RÉSERVE partagée, distribuée par PRIORITÉ aux quartiers qui ne sont
+#    pas déjà alimentés par la centrale (vote za_p50). Défaut : hôpital > police (sécurité) > résidentiel (survivants) > commerce.
+#    Consommation : hôpital 4, police 3, résidentiel 3, commerce 2 unités.
+#  * États d'un quartier : ALIMENTÉ · PARTIEL · PANNE (sa sous-station est endommagée) · BLACKOUT.
+#    Un quartier ALIMENTÉ publie {za::reseau::<quartier>} = vrai (lu par za_p50 puis par tous les modules existants).
+#  * Pannes : surcharge (chaque jour de serveur, 8 %% par sous-station qui produit, 15 %% si > 4 unités), orage, siège.
+#    Réparer : /electricite reparer près du tableau, 2 Composants électroniques + 4 lingots de cuivre, 20 s sans bouger,
+#    les morts arrivent (bruit). L'ingénieur ne paie qu'un composant.
+#  * Bases : une base est alimentée si une sous-station qui produit est à 48 blocs du centre, ou un générateur (za_p14) actif.
+#  * Électricité = AVANTAGE + RISQUE : la nuit, les zones alimentées rendent les morts visibles (brillance) et rassurent
+#    (sanité), mais attirent les morts (activité za_p39). Un quartier en BLACKOUT, la nuit, est plongé dans le noir.
+#  Joueur : /electricite [installer [quartier] | retirer | reparer | priorite <q1> <q2> <q3> <q4> | aide]
+#  Admin/console : /zaelec etat | panne <id> | reparer <id> | supprimer <id> | ville <x> <y> <z> <monde> <quartier> <nom_avec_soulignés> | tick
+#  Publié : {za::elec2::alim::<quartier>} (bool), {za::elec2::etat::<quartier>} (texte), {za::elec2::base::<uuid>} (bool),
+#           {za::elec2::reserve} (unités), fonctions za_elec_etat(q), za_elec_base(uuid), za_elec_pres(lieu, r) :: boolean
+# =====================================================================
+
+options:
+    ss_max: 16
+    ss_par_joueur: 2
+    rayon_base: 48
+    rayon_machine: 4
+    prod_ville: 4
+
+# ---------------------------------------------------------------- outils
+
+function za_elec_conso(q: text) :: number:
+    if {_q} is "hopital":
+        return 4
+    if {_q} is "commerce":
+        return 2
+    return 3
+
+function za_elec_priorites() :: texts:
+    if size of {za::elec2::prio::*} is 4:
+        return {za::elec2::prio::*}
+    return "hopital", "police", "residentiel" and "commerce"
+
+function za_elec_etat(q: text) :: text:
+    return {za::elec2::etat::%{_q}%} ? "BLACKOUT"
+
+function za_elec_etat_txt(e: text) :: text:
+    if {_e} is "ALIMENTE":
+        return "&a&lALIMENTÉ"
+    if {_e} is "PARTIEL":
+        return "&e&lPARTIEL"
+    if {_e} is "PANNE":
+        return "&c&lPANNE"
+    return "&8&lBLACKOUT"
+
+function za_elec_base(u: text) :: boolean:
+    if {za::elec2::base::%{_u}%} is true:
+        return true
+    return false
+
+# une sous-station qui produit à moins de r blocs ?
+function za_elec_pres(l: location, r: number) :: boolean:
+    # le barrage remis en marche alimente toute la vallée (za_p119)
+    if za_digue_alimente({_l}) is true:
+        return true
+    loop {za::elec2::ss::liste::*}:
+        set {_i} to loop-value
+        if ({za::elec2::ss::%{_i}%::prod} ? 0) > 0:
+            set {_sl} to {za::elec2::ss::%{_i}%::loc}
+            if world of {_sl} is world of {_l}:
+                if distance between {_sl} and {_l} < {_r}:
+                    return true
+    return false
+
+# sous-station la plus proche (id, 0 si aucune à moins de r blocs)
+function za_elec_proche(l: location, r: number) :: number:
+    set {_best} to 0
+    set {_bd} to {_r}
+    loop {za::elec2::ss::liste::*}:
+        set {_sl} to {za::elec2::ss::%loop-value%::loc}
+        if world of {_sl} is world of {_l}:
+            set {_d} to distance between {_sl} and {_l}
+            if {_d} < {_bd}:
+                set {_bd} to {_d}
+                set {_best} to loop-value
+    return {_best}
+
+# quartier d'un lieu : bâtiment spécial le plus proche (za_p35), sinon résidentiel
+function za_elec_quartier_de(l: location) :: text:
+    set {_k} to za_bat_proche({_l}, 96)
+    if {_k} is not "":
+        set {_t::*} to split {_k} at ";"
+        set {_q} to za_reseau_quartier_de({_t::1})
+        if {_q} is not "":
+            return {_q}
+    return "residentiel"
+
+# ---------------------------------------------------------------- mesure d'une sous-station
+
+# puissance du fil de redstone collé au bloc (0 si aucun)
+function za_elec_fil(b: block) :: number:
+    set {_best} to 0
+    set {_l} to location of {_b}
+    loop 6 times:
+        set {_l2} to {_l}
+        if loop-number is 1:
+            add 1 to x-coordinate of {_l2}
+        else if loop-number is 2:
+            remove 1 from x-coordinate of {_l2}
+        else if loop-number is 3:
+            add 1 to z-coordinate of {_l2}
+        else if loop-number is 4:
+            remove 1 from z-coordinate of {_l2}
+        else if loop-number is 5:
+            add 1 to y-coordinate of {_l2}
+        else:
+            remove 1 from y-coordinate of {_l2}
+        set {_bd} to "%block data of block at {_l2}%"
+        if {_bd} contains "redstone_wire":
+            set {_i} to 15
+            while {_i} > {_best}:
+                if {_bd} contains "power=%{_i}%,":
+                    set {_best} to {_i}
+                else if {_bd} contains "power=%{_i}%]":
+                    set {_best} to {_i}
+                remove 1 from {_i}
+    return {_best}
+
+# une vraie machine (Create / CCA / IE) près du tableau ?
+function za_elec_machine(l: location) :: boolean:
+    loop blocks in radius {@rayon_machine} around {_l}:
+        set {_t} to "%type of loop-block%" in lowercase
+        if {_t} contains "create" or "immersive":
+            if {_t} contains "accumul" or "capacit" or "meter" or "alternat" or "dynamo" or "generat" or "motor" or "battery" or "mill" or "wheel" or "engine" or "bearing" or "relay" or "connector" or "coil" or "transformer" or "shaft" or "gearbox" or "diesel" or "energis" or "stirling" or "reactor" or "brush" or "magnet" or "solar":
+                return true
+    return false
+
+# production mesurée (unités) ; -1 = chunk déchargé (on garde la dernière mesure)
+function za_elec_mesurer(i: number) :: number:
+    set {_l} to {za::elec2::ss::%{_i}%::loc}
+    if {_l} is not set:
+        return 0
+    if chunk at {_l} is not loaded:
+        return -1
+    if {za::elec2::ss::%{_i}%::etat} is "endommagee":
+        return 0
+    set {_p} to 0
+    if {za::elec2::ss::%{_i}%::type} is "ville":
+        if za_courant() is true:
+            set {_p} to {@prod_ville}
+    set {_b} to block at {_l}
+    set {_f} to za_elec_fil({_b})
+    set {_m} to 0
+    if {_f} > 0:
+        set {_m} to ceil({_f} / 3)
+    else if {_b} is redstone powered:
+        set {_m} to 3
+    if {_m} > 0:
+        if za_elec_machine({_l}) is false:
+            set {_m} to 0
+            set {za::elec2::ss::%{_i}%::triche} to true
+        else:
+            delete {za::elec2::ss::%{_i}%::triche}
+    set {za::elec2::ss::%{_i}%::fil} to {_f}
+    return {_p} + {_m}
+
+# ---------------------------------------------------------------- distribution
+
+function za_elec_tick():
+    set {_res} to 0
+    loop {za::elec2::ss::liste::*}:
+        set {_i} to loop-value
+        set {_m} to za_elec_mesurer({_i})
+        if {_m} >= 0:
+            set {za::elec2::ss::%{_i}%::prod} to {_m}
+        add ({za::elec2::ss::%{_i}%::prod} ? 0) to {_res}
+    # dérivations clandestines (za_p90) : chacune vole 2 unités à la réserve
+    set {_res} to max(0, {_res} - (2 * size of {za::reseau2::derivation::*}))
+    set {za::elec2::reserve} to {_res}
+    set {_reste} to {_res}
+    loop za_elec_priorites():
+        set {_q} to loop-value-1
+        set {_avant} to za_elec_etat({_q})
+        set {_c} to za_elec_conso({_q})
+        set {_e} to "BLACKOUT"
+        set {_alim} to false
+        # quartier coupé volontairement (za_p90) : ne consomme rien
+        if {za::reseau2::coupe::%{_q}%} is set:
+            set {_c} to 999999
+        if {za::reseau::actifs::*} contains {_q}:
+            # déjà alimenté par la centrale (choix / vote de za_p50)
+            if za_courant() is true:
+                set {_e} to "ALIMENTE"
+        if {_e} is not "ALIMENTE":
+            if {_reste} >= {_c}:
+                set {_e} to "ALIMENTE"
+                set {_alim} to true
+                remove {_c} from {_reste}
+            else if {_reste} > 0:
+                set {_e} to "PARTIEL"
+                set {_reste} to 0
+            else:
+                loop {za::elec2::ss::liste::*}:
+                    if {za::elec2::ss::%loop-value-2%::quartier} is {_q}:
+                        if {za::elec2::ss::%loop-value-2%::etat} is "endommagee":
+                            set {_e} to "PANNE"
+        set {za::elec2::alim::%{_q}%} to {_alim}
+        set {za::elec2::etat::%{_q}%} to {_e}
+        if {_e} is not {_avant}:
+            za_elec_annonce({_q}, {_avant}, {_e})
+    set {za::elec2::surplus} to {_reste}
+    # bases
+    loop {za::base::liste::*}:
+        set {_u} to loop-value-1
+        set {_bl} to {za::base::%{_u}%}
+        set {_on} to false
+        if {_bl} is set:
+            if za_elec_pres({_bl}, {@rayon_base}) is true:
+                set {_on} to true
+            # dérivation clandestine vers cette base (za_p90)
+            if {za::reseau2::derivation::%{_u}%} is set:
+                set {_on} to true
+            else:
+                loop {za::gen::liste::*}:
+                    set {_gl} to {za::gen::%loop-value-2%::loc}
+                    if {_gl} is set:
+                        if ({za::gen::%loop-value-2%::fin} ? now) > now:
+                            if world of {_gl} is world of {_bl}:
+                                if distance between {_gl} and {_bl} < 40:
+                                    set {_on} to true
+        if {_on} is not za_elec_base({_u}):
+            set {za::elec2::base::%{_u}%} to {_on}
+            set {_p} to za_surv_joueur({_u})
+            if {_p} is set:
+                if {_on} is true:
+                    send "&6[Électricité] &aTa base est sous tension. &7Lumière, confort... et du bruit qui porte loin." to {_p}
+                else:
+                    send "&6[Électricité] &8Ta base n'a plus de courant." to {_p}
+
+function za_elec_annonce(q: text, avant: text, e: text):
+    set {_n} to za_reseau_nom({_q})
+    set {_cq} to za_elec_centre_q({_q})
+    if {_cq} is set:
+        if {_e} is "ALIMENTE":
+            za_mot("courant %floor(x-coordinate of {_cq})% %floor(z-coordinate of {_cq})% on")
+        else if {_e} is "BLACKOUT" or "PANNE":
+            za_mot("courant %floor(x-coordinate of {_cq})% %floor(z-coordinate of {_cq})% off")
+    if {_e} is "ALIMENTE":
+        if {_avant} is "BLACKOUT" or "PANNE" or "PARTIEL":
+            za_radio("&6CKZA", "%{_n}% : le courant revient. Les lampadaires se rallument un par un.")
+            za_monde_evt("Le courant revient dans le %{_n}%.", za_elec_centre_q({_q}), 1, "reseau")
+    else if {_e} is "PARTIEL":
+        za_radio("&6CKZA", "%{_n}% : courant instable. Pas assez d'énergie dans le réseau. Coupures probables.")
+    else if {_e} is "PANNE":
+        za_radio("&6CKZA", "%{_n}% : panne. Une sous-station ne répond plus. Il faudra quelqu'un pour la réparer.")
+    else if {_avant} is "ALIMENTE" or "PARTIEL":
+        za_radio("&6CKZA", "%{_n}% : blackout. Tout le secteur vient de s'éteindre.")
+        za_monde_evt("Blackout dans le %{_n}%.", za_elec_centre_q({_q}), 1, "reseau")
+
+# un lieu représentatif du quartier (première sous-station du quartier, sinon premier bâtiment)
+function za_elec_centre_q(q: text) :: location:
+    loop {za::elec2::ss::liste::*}:
+        if {za::elec2::ss::%loop-value%::quartier} is {_q}:
+            return {za::elec2::ss::%loop-value%::loc}
+    loop za_bat_types():
+        if za_reseau_quartier_de(loop-value-1) is {_q}:
+            loop za_bat_liste(loop-value-1):
+                return za_bat_centre(loop-value-2)
+    return spawn of world("world")
+
+every 15 seconds:
+    za_elec_tick()
+
+# ---------------------------------------------------------------- AVANTAGE + RISQUE (toutes les 20 s)
+
+every 20 seconds:
+    # bruit : les sous-stations qui produisent et les bases sous tension attirent les morts
+    loop {za::elec2::ss::liste::*}:
+        set {_i} to loop-value
+        if ({za::elec2::ss::%{_i}%::prod} ? 0) > 0:
+            za_activite_ajouter({za::elec2::ss::%{_i}%::loc}, 1 + floor(({za::elec2::ss::%{_i}%::prod} ? 0) / 2))
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if za_nuit({_p}) is true:
+            set {_u} to "%{_p}'s uuid%"
+            set {_lum} to false
+            set {_noir} to false
+            if {za::base::%{_u}%} is set:
+                if za_elec_base({_u}) is true:
+                    if world of {_p} is world of {za::base::%{_u}%}:
+                        if distance between {_p} and {za::base::%{_u}%} < 40:
+                            set {_lum} to true
+            if {_lum} is false:
+                set {_k} to za_bat_proche(location of {_p}, 32)
+                if {_k} is not "":
+                    set {_t::*} to split {_k} at ";"
+                    set {_q} to za_reseau_quartier_de({_t::1})
+                    if {_q} is not "":
+                        if za_reseau_actif({_q}) is true:
+                            set {_lum} to true
+                        else:
+                            set {_noir} to true
+                if {_lum} is false:
+                    if za_elec_pres(location of {_p}, 24) is true:
+                        set {_lum} to true
+            if {_lum} is true:
+                # éclairage : les morts proches sont visibles, la peur recule
+                execute console command "execute in %za_dim(world of {_p})% positioned %x-coordinate of {_p}% %y-coordinate of {_p}% %z-coordinate of {_p}% run effect give @e[type=minecraft:zombie,distance=..28] minecraft:glowing 22 0 true"
+                if {za::sanite::%{_u}%} is set:
+                    if {za::sanite::%{_u}%} < 100:
+                        add 1 to {za::sanite::%{_u}%}
+            else if {_noir} is true:
+                if {za::elec2::noir_vu::%{_u}%} is not set:
+                    set {za::elec2::noir_vu::%{_u}%} to true
+                    send "&8&o(Pas une lumière. Le quartier est mort. Tu n'entends que ta respiration... et autre chose.)" to {_p}
+                send action bar "&8Quartier sans courant : les morts se cachent dans le noir." to {_p}
+
+# ---------------------------------------------------------------- pannes (un jour de serveur)
+
+function za_elec_endommager(i: number, cause: text):
+    if {za::elec2::ss::%{_i}%::etat} is "endommagee":
+        stop
+    set {za::elec2::ss::%{_i}%::etat} to "endommagee"
+    set {za::elec2::ss::%{_i}%::prod} to 0
+    set {_n} to {za::elec2::ss::%{_i}%::nom}
+    set {_l} to {za::elec2::ss::%{_i}%::loc}
+    za_radio("&6CKZA", "%{_cause}% La %{_n}% est hors service. Objectif : réparer la %{_n}% (/electricite).")
+    za_journal("%{_n}% endommagée (%{_cause}%).")
+    # la charge se reporte sur les autres : panne en cascade possible (za_p90)
+    za_reseau_cascade({_i})
+    if {_l} is set:
+        za_monde_evt("La %{_n}% tombe en panne.", {_l}, 1, "reseau")
+        execute console command "execute in %za_dim(world of {_l})% run particle minecraft:large_smoke %x-coordinate of {_l}% %(y-coordinate of {_l}) + 1% %z-coordinate of {_l}% 0.4 0.6 0.4 0.02 40 force"
+
+every 60 seconds:
+    if {za::elec2::jour} is not {za::serveur::jours}:
+        set {za::elec2::jour} to {za::serveur::jours}
+        loop {za::elec2::ss::liste::*}:
+            set {_i} to loop-value
+            set {_pr} to {za::elec2::ss::%{_i}%::prod} ? 0
+            if {_pr} > 0:
+                set {_ch} to 8
+                if {_pr} > 4:
+                    set {_ch} to 15
+                # un survivant à l'entretien électrique (za_p92) retarde les pannes
+                set {_ch} to max(1, {_ch} - za_eq_entretien({za::elec2::ss::%{_i}%::proprio} ? ""))
+                if chance of {_ch}%:
+                    za_elec_endommager({_i}, "Surcharge sur le réseau!")
+    # orage : la foudre peut griller une sous-station isolée
+    if {za::cata::type} is "tempete":
+        if chance of 5%:
+            if size of {za::elec2::ss::liste::*} > 0:
+                za_elec_endommager(random element out of {za::elec2::ss::liste::*}, "La foudre a frappé une ligne!")
+
+# ---------------------------------------------------------------- installer / réparer
+
+function za_elec_nb_joueur(u: text) :: number:
+    set {_n} to 0
+    loop {za::elec2::ss::liste::*}:
+        if {za::elec2::ss::%loop-value%::proprio} is {_u}:
+            add 1 to {_n}
+    return {_n}
+
+function za_elec_creer(l: location, q: text, type: text, nom: text, u: text) :: number:
+    add 1 to {za::elec2::ss::next}
+    set {_i} to {za::elec2::ss::next}
+    set {za::elec2::ss::%{_i}%::loc} to {_l}
+    set {za::elec2::ss::%{_i}%::quartier} to {_q}
+    set {za::elec2::ss::%{_i}%::type} to {_type}
+    set {za::elec2::ss::%{_i}%::nom} to {_nom}
+    set {za::elec2::ss::%{_i}%::etat} to "ok"
+    set {za::elec2::ss::%{_i}%::prod} to 0
+    set {za::elec2::ss::%{_i}%::proprio} to {_u}
+    add {_i} to {za::elec2::ss::liste::*}
+    return {_i}
+
+function za_elec_retirer(i: number):
+    remove {_i} from {za::elec2::ss::liste::*}
+    delete {za::elec2::ss::%{_i}%::*}
+
+function za_elec_nom_auto(l: location, q: text) :: text:
+    set {_c} to spawn of world("world")
+    set {_dx} to x-coordinate of {_l} - x-coordinate of {_c}
+    set {_dz} to z-coordinate of {_l} - z-coordinate of {_c}
+    if abs({_dz}) > abs({_dx}):
+        if {_dz} < 0:
+            set {_o} to "nord"
+        else:
+            set {_o} to "sud"
+    else:
+        if {_dx} < 0:
+            set {_o} to "ouest"
+        else:
+            set {_o} to "est"
+    return "sous-station %{_o}% (%za_reseau_court({_q})%) n°%({za::elec2::ss::next} ? 0) + 1%"
+
+function za_elec_installer(p: player, qa: text):
+    set {_u} to "%{_p}'s uuid%"
+    set {_b} to target block of {_p}
+    if {_b} is not set:
+        send "&cRegarde le bloc qui servira de tableau (à moins de 5 blocs)." to {_p}
+        stop
+    if distance between {_p} and {_b} > 5:
+        send "&cApproche-toi du tableau." to {_p}
+        stop
+    if size of {za::elec2::ss::liste::*} >= {@ss_max}:
+        send "&cLe réseau ne peut pas gérer plus de {@ss_max} sous-stations." to {_p}
+        stop
+    if za_elec_nb_joueur({_u}) >= {@ss_par_joueur}:
+        send "&cTu gères déjà {@ss_par_joueur} sous-stations. Retire-en une (/electricite retirer)." to {_p}
+        stop
+    if za_elec_proche(location of {_b}, 24) > 0:
+        send "&cUne sous-station existe déjà à moins de 24 blocs." to {_p}
+        stop
+    set {_q} to ""
+    if {_qa} is not "":
+        set {_q} to za_reseau_norm({_qa})
+    if {_q} is "":
+        set {_q} to za_elec_quartier_de(location of {_b})
+    set {_nom} to za_elec_nom_auto(location of {_b}, {_q})
+    set {_i} to za_elec_creer(location of {_b}, {_q}, "joueur", {_nom}, {_u})
+    send "&6[Électricité] &aSous-station installée : &f%{_nom}% &7(n°%{_i}%, %za_reseau_nom({_q})%)." to {_p}
+    send "&7Relie une vraie source au tableau : &faccumulateur CCA&7, &fcompteur de vitesse&7 ou &fstressomètre Create&7, &fcondensateur IE&7 → &fcomparateur&7 → &ffil de redstone&7 collé au tableau. Puissance du fil 0-15 = 0 à 5 unités." to {_p}
+    za_journal("%{_p}% installe la %{_nom}%.")
+    za_monde_evt("%{_p}% installe la %{_nom}%.", location of {_b}, 1, "reseau")
+
+function za_elec_reparer(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_i} to za_elec_proche(location of {_p}, 6)
+    if {_i} is 0:
+        send "&cAucune sous-station à moins de 6 blocs." to {_p}
+        stop
+    if {za::elec2::ss::%{_i}%::etat} is not "endommagee":
+        send "&aCette sous-station n'est pas endommagée." to {_p}
+        stop
+    if {za::elec2::rep::%{_i}%} is set:
+        send "&eQuelqu'un répare déjà cette sous-station." to {_p}
+        stop
+    set {_comp} to 2
+    if za_role({_p}) is "ingenieur":
+        set {_comp} to 1
+    if za_count_named({_p}, "Composant electronique") < {_comp}:
+        send "&cIl faut %{_comp}% Composant(s) électronique(s) et 4 lingots de cuivre." to {_p}
+        stop
+    if {_p} does not have 4 copper ingot:
+        send "&cIl faut %{_comp}% Composant(s) électronique(s) et 4 lingots de cuivre." to {_p}
+        stop
+    set {za::elec2::rep::%{_i}%} to {_u}
+    set {_l} to location of {_p}
+    send "&6[Électricité] &eRéparation en cours... &7Ne bouge pas pendant 20 secondes. Le bruit va les attirer." to {_p}
+    za_zm("son %{_p}% za_modeles:sfx.bourdon_electrique 0.8 1")
+    za_bruit_ajouter({_p}, 30)
+    loop 3 times:
+        za_spawn_at(location of {_p}, "ZA_Shambler", 18, 28)
+    if chance of 50%:
+        za_spawn_at(location of {_p}, "ZA_Runner", 22, 30)
+    set {_ok} to true
+    loop 20 times:
+        wait 1 second
+        if {_p} is not online:
+            set {_ok} to false
+            exit loop
+        if world of {_p} is not world of {_l}:
+            set {_ok} to false
+            exit loop
+        if distance between {_p} and {_l} > 3:
+            set {_ok} to false
+            exit loop
+        send action bar "&6Réparation : &e%loop-number * 5%%%" to {_p}
+    delete {za::elec2::rep::%{_i}%}
+    if {_ok} is false:
+        if {_p} is online:
+            send "&cRéparation interrompue." to {_p}
+        stop
+    if za_count_named({_p}, "Composant electronique") < {_comp}:
+        send "&cTu as perdu tes composants en route." to {_p}
+        stop
+    if {_p} does not have 4 copper ingot:
+        send "&cTu as perdu ton cuivre en route." to {_p}
+        stop
+    za_take_named({_p}, "Composant electronique", {_comp})
+    remove 4 copper ingot from {_p}'s inventory
+    set {za::elec2::ss::%{_i}%::etat} to "ok"
+    set {_n} to {za::elec2::ss::%{_i}%::nom}
+    za_zm("son %{_p}% minecraft:block.beacon.activate 1 1.2")
+    send "&6[Électricité] &aLa %{_n}% est réparée." to {_p}
+    za_radio("&6CKZA", "La %{_n}% est réparée! Merci à %{_p}%. Le réseau reprend du souffle.")
+    za_monde_evt("%{_p}% répare la %{_n}%.", {_l}, 2, "reseau")
+    za_stat_ajouter({_u}, "reparations_reseau", 1)
+    za_elec_tick()
+
+# ---------------------------------------------------------------- commandes
+
+function za_elec_afficher(p: player):
+    send "&8&m----------&6 Réseau électrique &8&m----------" to {_p}
+    set {_c} to "&c✗ arrêtée"
+    if za_courant() is true:
+        set {_c} to "&a✔ en marche"
+    set {_rv} to {za::elec2::reserve} ? 0
+    set {_sp} to {za::elec2::surplus} ? 0
+    send "&7Centrale : %{_c}% &8| &7Réserve des sous-stations : &e%{_rv}% &7unités (surplus &e%{_sp}%&7)" to {_p}
+    set {_r} to 1
+    loop za_elec_priorites():
+        send "&8%{_r}%. &f%za_reseau_nom(loop-value)% &8(conso %za_elec_conso(loop-value)%) &7: %za_elec_etat_txt(za_elec_etat(loop-value))%" to {_p}
+        add 1 to {_r}
+    set {_n} to 0
+    loop {za::elec2::ss::liste::*}:
+        set {_i} to loop-value
+        set {_sl} to {za::elec2::ss::%{_i}%::loc}
+        if world of {_sl} is world of {_p}:
+            if distance between {_sl} and {_p} < 200:
+                add 1 to {_n}
+                set {_pr} to {za::elec2::ss::%{_i}%::prod} ? 0
+                set {_e} to "&a%{_pr}% u."
+                if {za::elec2::ss::%{_i}%::etat} is "endommagee":
+                    set {_e} to "&c✗ endommagée (/electricite reparer)"
+                else if {za::elec2::ss::%{_i}%::triche} is true:
+                    set {_e} to "&e0 u. (aucune machine Create/IE/CCA à 4 blocs)"
+                send "&8 • &f%{za::elec2::ss::%{_i}%::nom}% &8(n°%{_i}%, %floor(distance between {_sl} and {_p})% blocs) &7: %{_e}%" to {_p}
+    if {_n} is 0:
+        send "&8 • Aucune sous-station à moins de 200 blocs." to {_p}
+    if {za::base::%{_p}'s uuid%} is set:
+        if za_elec_base("%{_p}'s uuid%") is true:
+            send "&7Ta base : &a&lSOUS TENSION" to {_p}
+        else:
+            send "&7Ta base : &8sans courant (sous-station à 48 blocs ou générateur actif)" to {_p}
+    send "&8/electricite aide &7pour construire une sous-station." to {_p}
+
+command /electricite [<text>] [<text>] [<text>] [<text>] [<text>]:
+    aliases: /elec, /courant
+    trigger:
+        if sender is console:
+            send "Utilise /zaelec depuis la console." to sender
+            stop
+        if za_pro(player) is true:
+            send "&7Il n'y a plus de réseau à Saint-Aurèle... pas encore." to player
+            stop
+        if arg-1 is not set:
+            za_elec_afficher(player)
+        else if arg-1 is "installer":
+            za_elec_installer(player, arg-2 ? "")
+        else if arg-1 is "retirer":
+            set {_i} to za_elec_proche(location of player, 6)
+            if {_i} is 0:
+                send "&cAucune sous-station à moins de 6 blocs." to player
+            else if {za::elec2::ss::%{_i}%::proprio} is not "%player's uuid%":
+                send "&cCe n'est pas ta sous-station." to player
+            else:
+                send "&6[Électricité] &7%{za::elec2::ss::%{_i}%::nom}% retirée du réseau." to player
+                za_elec_retirer({_i})
+        else if arg-1 is "reparer":
+            za_elec_reparer(player)
+        else if arg-1 is "priorite":
+            if arg-5 is not set:
+                send "&7Usage : &e/electricite priorite hopital police residentiel commerce &8(du plus au moins prioritaire)" to player
+                stop
+            if za_elec_nb_joueur("%player's uuid%") is 0:
+                if player does not have permission "za.admin":
+                    send "&cSeuls ceux qui font tourner une sous-station décident des priorités." to player
+                    stop
+            delete {_new::*}
+            add za_reseau_norm(arg-2) to {_new::*}
+            add za_reseau_norm(arg-3) to {_new::*}
+            add za_reseau_norm(arg-4) to {_new::*}
+            add za_reseau_norm(arg-5) to {_new::*}
+            set {_ok} to true
+            loop za_reseau_quartiers():
+                if {_new::*} does not contain loop-value:
+                    set {_ok} to false
+            if {_ok} is false:
+                send "&cIl faut nommer les quatre quartiers une fois chacun : hopital, police, residentiel, commerce." to player
+                stop
+            delete {za::elec2::prio::*}
+            loop {_new::*}:
+                add loop-value to {za::elec2::prio::*}
+            set {_txt} to join {_new::*} with " > "
+            za_radio("&6CKZA", "%player% change les priorités du réseau : %{_txt}%.")
+            za_elec_tick()
+        else:
+            send "&6Électricité &8— &7le courant vient des machines, pas de la magie." to player
+            send "&e/electricite &7état du réseau · &e/electricite installer [quartier] &7en regardant le tableau" to player
+            send "&e/electricite reparer &7(2 Composants électroniques + 4 lingots de cuivre) · &e/electricite retirer" to player
+            send "&e/electricite priorite <q1> <q2> <q3> <q4> &7ordre de coupure en cas de manque" to player
+            send "&7Montage : &fmachine Create / CCA / IE &7→ &fcomparateur &7→ &ffil de redstone &7collé au &ftableau&7." to player
+            send "&7La nuit, la lumière révèle les morts... et le bruit du réseau les attire." to player
+
+command /zaelec [<text>] [<text>] [<text>] [<text>] [<text>] [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "panne":
+            za_elec_endommager(arg-2 parsed as number, "Panne provoquée.")
+            send "Sous-station %arg-2% endommagée." to sender
+        else if arg-1 is "reparer":
+            set {za::elec2::ss::%arg-2%::etat} to "ok"
+            za_elec_tick()
+            send "Sous-station %arg-2% réparée." to sender
+        else if arg-1 is "supprimer":
+            za_elec_retirer(arg-2 parsed as number)
+            send "Sous-station %arg-2% supprimée." to sender
+        else if arg-1 is "ville":
+            set {_w} to world(arg-5)
+            if {_w} is not set:
+                send "Monde inconnu." to sender
+                stop
+            set {_l} to location(arg-2 parsed as number, arg-3 parsed as number, arg-4 parsed as number, {_w})
+            set {_q} to za_reseau_norm(arg-6 ? "")
+            if {_q} is "":
+                set {_q} to "residentiel"
+            set {_nom} to arg-7 ? "sous-station_de_Saint-Aurèle"
+            replace all "_" with " " in {_nom}
+            set {_i} to za_elec_creer({_l}, {_q}, "ville", {_nom}, "")
+            set {za::elec2::ss::%{_i}%::etat} to "endommagee"
+            send "Sous-station de ville n°%{_i}% créée (endommagée, à réparer)." to sender
+        else if arg-1 is "tick":
+            za_elec_tick()
+            send "Réseau recalculé : réserve %{za::elec2::reserve}%." to sender
+        else:
+            set {_rv} to {za::elec2::reserve} ? 0
+            set {_sp} to {za::elec2::surplus} ? 0
+            send "Réserve %{_rv}% | surplus %{_sp}% | sous-stations %size of {za::elec2::ss::liste::*}%" to sender
+            loop {za::elec2::ss::liste::*}:
+                set {_i} to loop-value
+                send " n°%{_i}% %{za::elec2::ss::%{_i}%::nom}% [%{za::elec2::ss::%{_i}%::type}%] %{za::elec2::ss::%{_i}%::quartier}% état=%{za::elec2::ss::%{_i}%::etat}% prod=%{za::elec2::ss::%{_i}%::prod}% fil=%{za::elec2::ss::%{_i}%::fil}% %{za::elec2::ss::%{_i}%::loc}%" to sender
+            loop za_reseau_quartiers():
+                send " %loop-value% : %za_elec_etat(loop-value)%" to sender
+            send "zaelec etat | panne <id> | reparer <id> | supprimer <id> | ville <x> <y> <z> <monde> <quartier> <nom> | tick" to sender

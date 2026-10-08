@@ -1,0 +1,286 @@
+# =====================================================================
+#  ZombieApocalypse - LE MUSÉE DE SAINT-AURÈLE : la mémoire physique du serveur
+#  Un bâtiment (21 x 15), posé une fois par l'admin (/zamusee installer : là où il se tient, vers l'est et le sud).
+#  À l'intérieur, mis à jour tout seul (toutes les 10 minutes quand quelqu'un est dans le coin) :
+#    * LES SAISONS : un pupitre par saison terminée, avec le livre de sa chronique (za_p59), et un panneau
+#      (époque, héros, jours, morts abattus)
+#    * LE MONUMENT : la statue du dernier héros de saison (tête du joueur, armure), sur un socle
+#    * LE MUR DES NOMS : les disparus (stèles za_p58 et cimetière za_p88), gravés sur des panneaux
+#    * LES CHIFFRES : jours du serveur, morts abattus par tous, survivants sauvés, nids, incendies, missions...
+#    * LES RELIQUES : les objets des boss régionaux tombés (za_p83), dans des cadres
+#    * LES VITRINES : les dons des joueurs (/musee donner, l'objet en main : insignes d'époque, plaques, dessins,
+#      cartes, armes...), avec le nom du donateur et le jour. On regarde, on ne prend pas.
+#    * DES « PHOTOS » : quelques tableaux aux murs
+#  Le musée est protégé : on n'y casse rien, on ne vide pas les vitrines.
+#  Joueur : /musee [donner]   Admin : /zamusee installer | maj | oublier
+# =====================================================================
+
+function za_mu_o() :: location:
+    return {za::musee::o}
+
+function za_mu_loc(dx: number, dy: number, dz: number) :: location:
+    set {_o} to {za::musee::o}
+    return location(((x-coordinate of {_o}) + {_dx}), ((y-coordinate of {_o}) + {_dy}), ((z-coordinate of {_o}) + {_dz}), (world of {_o}))
+
+function za_mu_cmd(dx: number, dy: number, dz: number, b: text):
+    set {_l} to za_mu_loc({_dx}, {_dy}, {_dz})
+    execute console command "execute in %za_dim(world of {_l})% run setblock %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% %{_b}%"
+
+function za_mu_fill(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, b: text):
+    set {_a} to za_mu_loc({_x1}, {_y1}, {_z1})
+    set {_c} to za_mu_loc({_x2}, {_y2}, {_z2})
+    execute console command "execute in %za_dim(world of {_a})% run fill %floor(x-coordinate of {_a})% %floor(y-coordinate of {_a})% %floor(z-coordinate of {_a})% %floor(x-coordinate of {_c})% %floor(y-coordinate of {_c})% %floor(z-coordinate of {_c})% %{_b}%"
+
+function za_mu_dans(l: location) :: boolean:
+    set {_o} to {za::musee::o}
+    if {_o} is not set:
+        return false
+    if world of {_l} is not world of {_o}:
+        return false
+    set {_x} to (x-coordinate of {_l}) - (x-coordinate of {_o})
+    set {_y} to (y-coordinate of {_l}) - (y-coordinate of {_o})
+    set {_z} to (z-coordinate of {_l}) - (z-coordinate of {_o})
+    if {_x} >= -1:
+        if {_x} <= 21:
+            if {_z} >= -1:
+                if {_z} <= 15:
+                    if {_y} >= -1:
+                        if {_y} <= 7:
+                            return true
+    return false
+
+# texte sûr pour un panneau (JSON dans du SNBT)
+function za_mu_txt(t: text) :: text:
+    set {_r} to uncolored {_t}
+    replace all "'" with "’" in {_r}
+    replace all """" with "’" in {_r}
+    if length of {_r} > 15:
+        set {_r} to first 15 characters of {_r}
+    return {_r}
+
+# panneau mural : face = north | south | east | west
+function za_mu_panneau(dx: number, dy: number, dz: number, face: text, a: text, b: text, c: text, d: text):
+    za_mu_cmd({_dx}, {_dy}, {_dz}, "minecraft:dark_oak_wall_sign[facing=%{_face}%]{front_text:{color:""white"",has_glowing_text:1b,messages:['""%za_mu_txt({_a})%""','""%za_mu_txt({_b})%""','""%za_mu_txt({_c})%""','""%za_mu_txt({_d})%""']}}")
+
+# ---------------------------------------------------------------- construction
+
+function za_mu_construire():
+    # coque : sol, murs, toit (creux)
+    za_mu_fill(0, 0, 0, 20, 6, 14, "minecraft:stone_bricks hollow")
+    za_mu_fill(1, 0, 1, 19, 0, 13, "minecraft:polished_andesite")
+    za_mu_fill(0, 6, 0, 20, 6, 14, "minecraft:dark_oak_planks")
+    # colonnes et frise
+    loop 0 and 20:
+        loop 0 and 14:
+            za_mu_fill(loop-value-1, 0, loop-value-2, loop-value-1, 6, loop-value-2, "minecraft:chiseled_stone_bricks")
+    # entrée
+    za_mu_fill(9, 1, 0, 11, 3, 0, "minecraft:air")
+    za_mu_cmd(10, 4, -1, "minecraft:dark_oak_wall_sign[facing=north]{front_text:{color:""white"",has_glowing_text:1b,messages:['""MUSÉE""','""de""','""SAINT-AURÈLE""','""On se souvient""']}}")
+    # fenêtres hautes
+    loop 3, 7, 13 and 17:
+        za_mu_fill(loop-value, 4, 0, loop-value, 5, 0, "minecraft:glass_pane")
+        za_mu_fill(loop-value, 4, 14, loop-value, 5, 14, "minecraft:glass_pane")
+    # lumières
+    loop 4, 10 and 16:
+        loop 4 and 10:
+            za_mu_cmd(loop-value-1, 5, loop-value-2, "minecraft:lantern[hanging=true]")
+    # socle du monument
+    za_mu_fill(9, 1, 6, 11, 1, 8, "minecraft:polished_blackstone")
+    # vitrines (coffres) le long du mur d'entrée
+    loop 2, 4, 6, 14, 16 and 18:
+        za_mu_cmd(loop-value, 1, 1, "minecraft:chest[facing=south]")
+    za_mu_fill(1, 0, 1, 19, 0, 1, "minecraft:polished_deepslate")
+    # tableaux (« photos »)
+    execute console command "execute in %za_dim(world of za_mu_o())% run summon painting %floor(x-coordinate of za_mu_loc(19, 3, 7))% %floor(y-coordinate of za_mu_loc(19, 3, 7))% %floor(z-coordinate of za_mu_loc(19, 3, 7))% {facing:1b,variant:""minecraft:wasteland""}"
+    execute console command "execute in %za_dim(world of za_mu_o())% run summon painting %floor(x-coordinate of za_mu_loc(19, 3, 11))% %floor(y-coordinate of za_mu_loc(19, 3, 11))% %floor(z-coordinate of za_mu_loc(19, 3, 11))% {facing:1b,variant:""minecraft:graham""}"
+    set {za::musee::construit} to true
+
+# ---------------------------------------------------------------- mise à jour des expositions
+
+function za_mu_maj():
+    set {_o} to {za::musee::o}
+    if {_o} is not set:
+        stop
+    if chunk at {_o} is not loaded:
+        stop
+    if chunk at za_mu_loc(20, 0, 14) is not loaded:
+        stop
+    # LES SAISONS : pupitres le long du mur du fond (z = 13), panneau au-dessus
+    set {_i} to 0
+    set {_n} to 1
+    while {_n} <= ({za::saison::num} ? 1):
+        if {za::histoire::saison::%{_n}%::issue} is set:
+            if {_i} < 8:
+                set {_x} to 2 + (2 * {_i})
+                if {_x} >= 9:
+                    add 4 to {_x}
+                set {_nbt} to za_chron_livre_nbt({_n})
+                za_mu_cmd({_x}, 1, 12, "minecraft:lectern[facing=south,has_book=true]{Book:{id:""minecraft:written_book"",Count:1b,tag:%{_nbt}%}}")
+                set {_h} to {za::histoire::saison::%{_n}%::heros} ? "-"
+                za_mu_panneau({_x}, 3, 13, "north", "Saison %{_n}%", za_ep_nom({_n}), "Héros %{_h}%", "%{za::histoire::saison::%{_n}%::jours} ? 0% j %{za::histoire::saison::%{_n}%::kills} ? 0% morts")
+                add 1 to {_i}
+        add 1 to {_n}
+    if {_i} is 0:
+        za_mu_panneau(5, 3, 13, "north", "Les saisons", "seront exposées", "ici, à mesure", "qu'elles finiront")
+    # LE MONUMENT : le dernier héros
+    set {_hn} to ""
+    set {_n} to {za::saison::num} ? 1
+    while {_n} >= 1:
+        if {_hn} is "":
+            set {_hh} to {za::histoire::saison::%{_n}%::heros} ? ""
+            if {_hh} is not "":
+                set {_hn} to {_hh}
+                set {_hs} to {_n}
+        remove 1 from {_n}
+    set {_ml} to za_mu_loc(10, 2, 7)
+    execute console command "execute in %za_dim(world of {_ml})% run kill @e[type=armor_stand,tag=za_musee_statue]"
+    if {_hn} is not "":
+        execute console command "execute in %za_dim(world of {_ml})% run summon armor_stand %x-coordinate of {_ml} + 0.5% %y-coordinate of {_ml}% %z-coordinate of {_ml} + 0.5% {Tags:[""za_musee_statue""],Invulnerable:1b,NoGravity:1b,ShowArms:1b,NoBasePlate:1b,CustomNameVisible:1b,CustomName:'""%za_mu_txt({_hn})% — héros de la saison %{_hs}%""',ArmorItems:[{id:""minecraft:iron_boots"",Count:1b},{id:""minecraft:iron_leggings"",Count:1b},{id:""minecraft:iron_chestplate"",Count:1b},{id:""minecraft:player_head"",Count:1b,tag:{SkullOwner:""%za_mu_txt({_hn})%""}}],HandItems:[{id:""minecraft:iron_sword"",Count:1b},{}]}"
+    # LE MUR DES NOMS : mur ouest (x = 1), panneaux tournés vers l'est
+    set {_noms::*} to za_memoire_noms()
+    set {_t} to 1
+    while {_t} <= ({za::cim::n} ? 0):
+        add {za::cim::tombe::%{_t}%::nom} to {_noms::*}
+        add 1 to {_t}
+    set {_j} to 0
+    set {_z} to 2
+    while {_z} <= 12:
+        set {_y} to 1
+        while {_y} <= 4:
+            set {_a} to {_noms::%{_j} + 1%} ? ""
+            set {_b} to {_noms::%{_j} + 2%} ? ""
+            set {_c} to {_noms::%{_j} + 3%} ? ""
+            set {_d} to {_noms::%{_j} + 4%} ? ""
+            if {_a} is not "":
+                za_mu_panneau(1, {_y}, {_z}, "east", {_a}, {_b}, {_c}, {_d})
+            add 4 to {_j}
+            add 1 to {_y}
+        add 2 to {_z}
+    if size of {_noms::*} is 0:
+        za_mu_panneau(1, 2, 7, "east", "Mur des noms", "Personne n'y", "est encore", "gravé.")
+    # LES CHIFFRES : mur est (x = 19), tournés vers l'ouest
+    set {_tk} to 0
+    loop {za::kills::*}:
+        add loop-value to {_tk}
+    set {_sv} to 0
+    loop {za::stat::survivants_sauves::*}:
+        add loop-value to {_sv}
+    set {_ms} to 0
+    loop {za::stat::missions_survivants::*}:
+        add loop-value to {_ms}
+    za_mu_panneau(19, 2, 3, "west", "Jours", "%{za::serveur::jours} ? 0%", "Saisons", "%{za::saison::num} ? 1%")
+    za_mu_panneau(19, 3, 3, "west", "Morts abattus", "%{_tk}%", "Survivants", "sauvés %{_sv}%")
+    za_mu_panneau(19, 2, 5, "west", "Missions", "d'équipe %{_ms}%", "Incendies", "%{za::feu::n} ? 0%")
+    za_mu_panneau(19, 3, 5, "west", "Tombes", "%{za::cim::n} ? 0%", "Disparus", "%size of za_memoire_noms()%")
+    # LES RELIQUES : cadres au-dessus des vitrines, pour chaque boss tombé un jour
+    execute console command "execute in %za_dim(world of {_o})% run kill @e[type=item_frame,tag=za_musee_relique]"
+    set {_x} to 3
+    loop "boucher|iron_axe|Couperet du Boucher", "matriarche|heart_of_the_sea|Médaillon de la Matriarche", "gardien|iron_ingot|Plaque du Gardien" and "brule|netherite_helmet|Casque fondu du Brûlé":
+        set {_c::*} to split loop-value at "|"
+        if {za::rboss::%{_c::1}%::tue} is set:
+            set {_fl} to za_mu_loc({_x}, 3, 1)
+            execute console command "execute in %za_dim(world of {_fl})% run summon item_frame %floor(x-coordinate of {_fl})% %floor(y-coordinate of {_fl})% %floor(z-coordinate of {_fl})% {Facing:3b,Fixed:1b,Invulnerable:1b,Tags:[""za_musee_relique""],Item:{id:""minecraft:%{_c::2}%"",Count:1b,tag:{display:{Name:'{""text"":""%{_c::3}%""}'}}}}"
+        add 4 to {_x}
+    set {za::musee::maj} to now
+
+# ---------------------------------------------------------------- dons
+
+function za_mu_donner(p: player):
+    if {za::musee::o} is not set:
+        send "&7Le musée n'existe pas encore." to {_p}
+        stop
+    if za_mu_dans(location of {_p}) is false:
+        send "&7Va au musée de Saint-Aurèle pour faire un don. &8(/musee)" to {_p}
+        stop
+    set {_it} to {_p}'s tool
+    if {_it} is air:
+        send "&7Tiens l'objet à donner en main." to {_p}
+        stop
+    set {_dons} to {za::musee::n} ? 0
+    if {_dons} >= 162:
+        send "&7Les vitrines sont pleines." to {_p}
+        stop
+    set {_v} to floor({_dons} / 27) + 1
+    set {_xs::*} to 2, 4, 6, 14, 16 and 18
+    set {_b} to block at za_mu_loc({_xs::%{_v}%}, 1, 1)
+    if "%type of {_b}%" does not contain "chest":
+        send "&cLa vitrine n'est plus là. (L'admin peut la reposer : /zamusee installer)" to {_p}
+        stop
+    set {_un} to 1 of {_it}
+    set {_nom} to "%{_p}%"
+    set lore of {_un} to "&8Don de %{_nom}%, jour %{za::serveur::jours} ? 0%"
+    add {_un} to inventory of {_b}
+    remove 1 of {_it} from {_p}'s inventory
+    set {za::musee::n} to {_dons} + 1
+    add "%{_nom}% : %type of {_un}% (jour %{za::serveur::jours} ? 0%)" to {za::musee::dons::*}
+    send "&6Le musée te remercie. &7Ton don est exposé, à ton nom. Il restera là." to {_p}
+    za_souvenir_ajouter("%{_p}'s uuid%", "musee:%{za::musee::n}%", "aide", "J'ai donné quelque chose au musée de Saint-Aurèle.")
+
+# ---------------------------------------------------------------- protection
+
+on break:
+    if za_mu_dans(location of event-block) is true:
+        if player does not have permission "za.admin":
+            cancel the event
+            send "&7Pas au musée." to player
+
+on place:
+    if za_mu_dans(location of event-block) is true:
+        if player does not have permission "za.admin":
+            cancel the event
+
+on inventory click:
+    if {za::musee::o} is not set:
+        stop
+    if za_mu_dans(location of player) is false:
+        stop
+    if player has permission "za.admin":
+        stop
+    set {_t} to "%type of event-inventory%"
+    if {_t} contains "chest" or "lectern":
+        cancel the event
+
+every 10 minutes:
+    if {za::musee::o} is not set:
+        stop
+    if za_eq_joueur_pres({za::musee::o}, 80) is true:
+        za_mu_maj()
+
+# ---------------------------------------------------------------- commandes
+
+command /musee [<text>]:
+    aliases: /musée
+    trigger:
+        if za_pro(player) is true:
+            stop
+        if arg-1 is "donner":
+            za_mu_donner(player)
+            stop
+        if {za::musee::o} is not set:
+            send "&7Il n'y a pas encore de musée. &8(Un jour, quelqu'un s'en chargera.)" to player
+            stop
+        set {_o} to {za::musee::o}
+        send "&6&lMUSÉE DE SAINT-AURÈLE &7— X %floor(x-coordinate of {_o})%, Z %floor(z-coordinate of {_o})%" to player
+        send "&7Saisons exposées, monument, mur des noms, chiffres, reliques, vitrines (%{za::musee::n} ? 0% dons)." to player
+        send "&8/musee donner (sur place, l'objet en main)" to player
+
+command /zamusee [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "installer":
+            set {_l} to location of player
+            set {za::musee::o} to location(floor(x-coordinate of {_l}), floor(y-coordinate of {_l}), floor(z-coordinate of {_l}), world of {_l})
+            za_mu_construire()
+            wait 2 seconds
+            za_mu_maj()
+            send "&6Musée posé (21 x 15, vers l'est et le sud). &7Les expositions se mettent à jour toutes les 10 min." to player
+            za_journal("Le musée de Saint-Aurèle ouvre ses portes.")
+            za_monde_legende("Quelqu'un a ouvert un musée dans les ruines. Pour que personne n'oublie.")
+        else if arg-1 is "maj":
+            za_mu_maj()
+            send "&7Expositions mises à jour." to sender
+        else if arg-1 is "oublier":
+            delete {za::musee::o}
+            send "&7Le musée est oublié (les blocs restent)." to sender
+        else:
+            send "&7/zamusee installer | maj | oublier" to sender

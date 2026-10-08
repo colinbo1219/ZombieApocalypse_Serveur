@@ -133,6 +133,8 @@ function za_lieu_evt(k: text, texte: text, poids: number, cat: text):
 function za_monde_evt(texte: text, l: location, poids: number, cat: text):
     if "%world of {_l}%" is "za_prologue":
         stop
+    # la Chronique du moteur l'apprend aussi (bible F2)
+    za_mot_evt("monde_%{_cat}%", {_l}, max(1, min(5, {_poids})), "-", uncolored {_texte})
     set {_k} to za_lieu_zone({_l})
     za_lieu_evt({_k}, {_texte}, {_poids}, {_cat})
 
@@ -299,12 +301,13 @@ function za_lieux_sync():
     set {_ts::*} to za_bat_types()
     loop {_ts::*}:
         set {_t} to loop-value-1
-        loop {za::bat::%{_t}%::liste::*}:
-            set {_k} to "bat:%{_t}%;%loop-index-2%"
+        loop indices of {za::bat::%{_t}%::liste::*}:
+            set {_i} to loop-value-2
+            set {_k} to "bat:%{_t}%;%{_i}%"
             if za_lieu_existe({_k}) is false:
-                set {_c} to za_bat_centre_s(loop-value-2)
+                set {_c} to za_bat_centre_s({za::bat::%{_t}%::liste::%{_i}%})
                 if {_c} is set:
-                    za_lieu_creer({_k}, {_t}, za_lieu_nom_libre({_t}, loop-index-2 parsed as number), {_c}, true)
+                    za_lieu_creer({_k}, {_t}, za_lieu_nom_libre({_t}, {_i} parsed as number), {_c}, true)
     loop {za::camp::liste::*}:
         set {_k} to "camp:%loop-value%"
         if za_lieu_existe({_k}) is false:
@@ -362,7 +365,7 @@ function za_souvenir_ligne(p: player, npc: text) :: text:
         set {_e::*} to split {za::souv::%{_u}%::%{_i::%{_n}%}%} at "|"
         set {_jour} to {_e::1} parsed as number
         if {za::serveur::jours} - {_jour} > 30:
-            return ""
+            return za_pnj_memoire({_p}, {_npc})
         set {_k} to {_e::2}
         set {_cat} to {_e::3}
         if {_cat} is "chute", "abandon", "defense" or "legende":
@@ -395,7 +398,8 @@ function za_souvenir_ligne(p: player, npc: text) :: text:
                     return "J'ai appris pour %{_nom}%. J'y avais soigné des gens, tu sais. Des bons."
                 return "J'ai encore leur fréquence, pour %{_nom}%. Plus personne ne répond."
         remove 1 from {_n}
-    return ""
+    # le reste de ce que le personnage a retenu (za_p71_chronique)
+    return za_pnj_memoire({_p}, {_npc})
 
 # ---------------------------------------------------------------- résumé pour la chronique de saison (za_p59)
 

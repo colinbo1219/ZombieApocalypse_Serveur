@@ -134,7 +134,7 @@ function za_surv_famille() :: text:
     return random element out of {_l::*}
 
 function za_surv_metiers() :: texts:
-    return "mecanicien", "infirmier", "cuisinier", "electricien", "soldat", "enseignant", "chasseur", "pharmacien", "ado", "camionneur", "agriculteur" and "menuisier"
+    return "mecanicien", "infirmier", "cuisinier", "electricien", "soldat", "enseignant", "chasseur", "pharmacien", "ado", "camionneur", "agriculteur", "menuisier", "bucheron", "mineur" and "policier"
 
 # métier affiché (accordé)
 function za_surv_metier_txt(m: text, g: text) :: text:
@@ -189,6 +189,18 @@ function za_surv_metier_txt(m: text, g: text) :: text:
         if {_f} is true:
             return "menuisière"
         return "menuisier"
+    if {_m} is "bucheron":
+        if {_f} is true:
+            return "bûcheronne"
+        return "bûcheron"
+    if {_m} is "mineur":
+        if {_f} is true:
+            return "ancienne mineuse"
+        return "ancien mineur"
+    if {_m} is "policier":
+        if {_f} is true:
+            return "ancienne policière"
+        return "ancien policier"
     if {_m} is "enfant":
         return "enfant"
     return {_m}
@@ -201,14 +213,18 @@ function za_surv_metier_role(m: text) :: text:
         return "produire"
     if {_m} is "infirmier" or "pharmacien":
         return "soigner"
-    if {_m} is "soldat" or "chasseur":
+    if {_m} is "soldat" or "chasseur" or "policier":
         return "garder"
+    if {_m} is "bucheron":
+        return "scierie"
+    if {_m} is "mineur":
+        return "mine"
     return "commercer"
 
 function za_surv_metier_faction(m: text) :: text:
     if {_m} is "infirmier" or "pharmacien":
         return "scientifiques"
-    if {_m} is "soldat" or "chasseur":
+    if {_m} is "soldat" or "chasseur" or "policier":
         return "milice"
     if {_m} is "camionneur" or "ado":
         return "marchands"
@@ -225,7 +241,7 @@ function za_surv_role_nom(r: text) :: text:
         return "Garde"
     if {_r} is "commercer":
         return "Marchand"
-    return {_r}
+    return za_eq_poste_nom({_r})
 
 function za_surv_role_desc(r: text) :: text:
     if {_r} is "reparer":
@@ -238,7 +254,7 @@ function za_surv_role_desc(r: text) :: text:
         return "Tire sur les morts qui s'approchent (24 blocs) et réduit le danger des sièges."
     if {_r} is "commercer":
         return "Vend des provisions et rachète ton butin (clic droit sur lui, à la base)."
-    return ""
+    return za_eq_poste_desc({_r})
 
 # titre du PNJ (nom du villageois) : certains préfixes déclenchent la bonne apparence côté client
 function za_surv_titre(m: text, g: text, nom: text) :: text:
@@ -277,6 +293,12 @@ function za_surv_histoire(m: text) :: text:
         set {_h::*} to "Ferme laitière à Saint-Aurèle. Mes vaches... j'ai pas voulu voir. J'ai gardé les semences." and "Je sais faire pousser des patates dans n'importe quoi. C'est utile, astheure."
     else if {_m} is "menuisier":
         set {_h::*} to "Menuisier depuis trente ans. Je bâtis des affaires solides. Ces temps-ci, « solide », ça veut dire « vivant »." and "J'ai monté des cabanons pour la moitié du rang. Pas un seul qui aurait tenu une nuit. Je vais faire mieux."
+    else if {_m} is "bucheron":
+        set {_h::*} to "Bûcheron pour une compagnie forestière du Nord. Je connais le bois mieux que le monde. Le bois, au moins, ça mord pas." and "Trente ans de scie à chaîne. Le bruit les attire, astheure. J'ai appris à travailler à la hache."
+    else if {_m} is "mineur":
+        set {_h::*} to "J'ai passé vingt ans sous terre à la mine de Val-des-Pins. Le noir me fait pas peur. Ce qui marche dedans, oui." and "Mineur de fond. Quand la sirène a sonné le Jour 3, on est remontés. On aurait dû rester en bas."
+    else if {_m} is "policier":
+        set {_h::*} to "Patrouilleur à Saint-Aurèle. On a reçu l'ordre de tenir le périmètre. Personne nous a dit de quoi on protégeait le monde." and "J'ai porté l'uniforme quinze ans. J'ai tiré sur mon partenaire le Jour 4. Il était déjà parti, je me le répète chaque soir."
     else if {_m} is "enfant":
         set {_h::*} to "Mes parents m'ont dit d'attendre ici. Ils sont pas revenus. J'ai compté les jours sur le mur." and "J'ai huit ans... presque neuf. Faut pas me laisser tout seul, OK ?"
     else:
@@ -363,6 +385,8 @@ function za_surv_npc_placer(id: number):
 
 # retire un survivant de la partie (record + PNJ). motif : parti|mort|zombifie
 function za_surv_clore(id: number, motif: text):
+    # le deuil des proches (za_p127), avant que la fiche soit effacée
+    za_soc_deuil({_id}, {_motif})
     set {_e} to za_surv_npc({_id})
     if {_e} is set:
         delete {_e}
@@ -448,8 +472,9 @@ function za_surv_recompte(u: text):
             if {za::surv::%{_id}%::base} is {_u}:
                 add 1 to {_n}
                 if {za::surv::%{_id}%::blesse} is not true:
-                    if {za::surv::%{_id}%::role} is "garder":
-                        add 1 to {_g}
+                    if {za::eq::m::%{_id}%::type} is not set:
+                        if {za::surv::%{_id}%::role} is "garder" or "patrouille":
+                            add 1 to {_g}
                     if {za::surv::%{_id}%::role} is "soigner":
                         add 1 to {_s}
     set {za::surv::n::%{_u}%} to {_n}
@@ -465,7 +490,8 @@ function za_surv_role_nb(u: text, r: text) :: number:
             if {za::surv::%{_id}%::base} is {_u}:
                 if {za::surv::%{_id}%::role} is {_r}:
                     if {za::surv::%{_id}%::blesse} is not true:
-                        add 1 to {_n}
+                        if {za::eq::m::%{_id}%::type} is not set:
+                            add 1 to {_n}
     return {_n}
 
 function za_surv_special_present(u: text, s: text) :: boolean:
@@ -536,7 +562,7 @@ function za_surv_arriver_base(id: number, u: text, p: player):
     za_surv_recompte({_u})
     za_surv_npc_placer({_id})
     if {_p} is set:
-        za_zm("son %{_p}% za_modeles:sfx.porte_grince 0.6 1")
+        za_zm("son %{_p}% minecraft:block.wooden_door.open 0.6 0.6")
         send "&a%{_nom}% &7(%za_surv_metier_txt({za::surv::%{_id}%::metier}, {za::surv::%{_id}%::genre})%) rejoint ta base. Rôle : &e%za_surv_role_nom({za::surv::%{_id}%::role})%&7 (/survivants)." to {_p}
         if {za::surv::reserve::%{_u}%} is not set:
             send "&8&oIl faut lui montrer où sont les vivres : regarde un coffre de la base et tape &f/survivants reserve&8&o. Sans Réserve, il ne mange pas et ne travaille pas." to {_p}
@@ -623,23 +649,17 @@ function za_surv_menu(p: player, id: number):
         za_menu({_p}, "zasurvclic", {_nom}, "%{_nom}%, %{_m}%. Il vous observe, prêt à fuir. Confiance : %floor({_c})% %%. À 50 %%, il acceptera peut-être de te suivre.", {_o::*})
     else if {_et} is "base":
         set {_r} to {za::surv::%{_id}%::role}
-        set {_o::*} to "Lui parler|parler", "Donner de la nourriture|nourriture", "Soigner (Bandage)|bandage" and "Changer son rôle|role"
-        if {_r} is "commercer":
-            add "Commercer|commerce" to {_o::*}
-        add "Le renvoyer|renvoyer" to {_o::*}
-        add "Partir|quit" to {_o::*}
+        set {_o::*} to "Lui parler|parler", "Qu'est-ce que tu sais ?|savoir", "Donner une tâche|tache", "Sa fiche|fiche", "Changer son poste|role", "Donner de la nourriture|nourriture", "Soigner (Bandage)|bandage", "Sa santé, mes doutes...|doutes" and "Partir|quit"
         set {_ex} to ""
         if {za::surv::%{_id}%::blesse} is true:
             set {_ex} to " Il est blessé."
         za_menu({_p}, "zasurvclic", {_nom}, "%{_nom}%, %{_m}%. Rôle : %za_surv_role_nom({_r})%. Moral %floor({za::surv::%{_id}%::moral})% %%, faim %floor({za::surv::%{_id}%::faim})% %%.%{_ex}%", {_o::*})
     else if {_et} is "camp":
-        set {_o::*} to "Lui parler|parler" and "Partir|quit"
+        set {_o::*} to "Lui parler|parler", "Qu'est-ce que tu sais ?|savoir" and "Partir|quit"
         za_menu({_p}, "zasurvclic", {_nom}, "%{_nom}%, %{_m}%, vit au camp.", {_o::*})
 
 function za_surv_role_menu(p: player, id: number):
-    set {_o::*} to "Réparateur|r_reparer", "Producteur|r_produire", "Soigneur|r_soigner", "Garde|r_garder", "Marchand|r_commercer" and "Retour|retour"
-    set {_r} to {za::surv::%{_id}%::role}
-    za_menu({_p}, "zasurvclic", "Changer de rôle", "Rôle actuel : %za_surv_role_nom({_r})%. %za_surv_role_desc({_r})%", {_o::*})
+    za_eq_postes_menu({_p}, {_id}, 1)
 
 function za_surv_commerce_menu(p: player, id: number):
     set {_o::*} to "Bandage - 3 jetons|buy_bandage", "Eau purifiée - 2 jetons|buy_eau", "Conserve - 2 jetons|buy_conserve", "Flèches x12 - 3 jetons|buy_fleches", "Torches x8 - 2 jetons|buy_torches", "Vendre l'objet en main|sell" and "Retour|retour"
@@ -706,6 +726,27 @@ function za_surv_noeud(p: player, n: text):
         stop
     set {_nom} to {za::surv::%{_id}%::nom}
     set {_et} to {za::surv::%{_id}%::etat}
+    # ce qu'il sait, ce qu'il cache (ZAMoteur, IA-9)
+    # infection cachée (za_p111) et soupçons (IA-9) : sous-menu
+    if {_n} is "doutes":
+        set {_o::*} to "Faire un test|tester", "Lui donner un Sérum|serum", "J'ai des soupçons sur toi|accuser" and "Partir|quit"
+        za_menu({_p}, "zasurvclic", {_nom}, "%{_nom}% te regarde. Il sent que quelque chose ne va pas.", {_o::*})
+        stop
+    if {_n} is "tester":
+        za_sec_tester({_p}, {_id})
+        stop
+    if {_n} is "serum":
+        za_sec_serum({_p}, {_id})
+        stop
+    if {_n} is "savoir" or "accuser":
+        if za_mot_actif() is false:
+            za_surv_dit({_p}, {_nom}, "Rien de neuf. Les morts, comme d'habitude.")
+            stop
+        if {_n} is "savoir":
+            za_mot("demander %{_u}% %{_id}%")
+        else:
+            za_mot("accuser %{_u}% %{_id}%")
+        stop
     set {_e} to za_surv_npc({_id})
     if {_e} is set:
         if world of {_e} is world of {_p}:
@@ -813,6 +854,10 @@ function za_surv_noeud(p: player, n: text):
             za_cmp_accueillir({_c}, {_id}, {_p})
     else if {_n} is "role":
         za_surv_role_menu({_p}, {_id})
+    else if {_n} is "tache":
+        za_eq_menu_tache({_p}, {_id})
+    else if {_n} is "fiche":
+        za_eq_fiche({_p}, {_id})
     else if {_n} is "retour":
         za_surv_menu({_p}, {_id})
     else if {_n} starts with "r_":
@@ -1078,6 +1123,8 @@ every 30 seconds:
         if {za::surv::%{_id}%::etat} is "base":
             set {_bu} to {za::surv::%{_id}%::base}
             set {_bl} to {za::base::%{_bu}%}
+            if {za::eq::m::%{_id}%::type} is set:
+                delete {_bl}
             if {_bl} is set:
                 set {_pres} to false
                 loop all players:
@@ -1308,10 +1355,11 @@ function za_surv_jour_base(id: number):
             stop
     else:
         set {za::surv::%{_id}%::bas} to 0
-    # --- travail
+    # --- travail (pas pendant une mission sur le terrain, za_p92)
     if {za::surv::%{_id}%::blesse} is not true:
         if {za::surv::%{_id}%::faim} <= 70:
-            za_surv_travail({_id}, {_u})
+            if {za::eq::m::%{_id}%::type} is not set:
+                za_surv_travail({_id}, {_u})
 
 function za_surv_travail(id: number, u: text):
     set {_role} to {za::surv::%{_id}%::role}
@@ -1373,6 +1421,8 @@ function za_surv_travail(id: number, u: text):
     else if {_role} is "commercer":
         if chance of 35%:
             set {_ok} to za_surv_stocker({_u}, za_item("gold nugget", "Jeton de Survie", "&6", 1))
+    else:
+        za_eq_poste({_id}, {_u}, {_role})
 
 # rabais sur /reparer si un réparateur travaille à ta base
 on command "reparer":

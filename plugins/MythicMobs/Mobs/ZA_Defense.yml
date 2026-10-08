@@ -1,0 +1,58 @@
+# ZombieApocalypse - défense des bases : soldats de la milice recrutés par les joueurs (za_p75_defense.sk)
+# Faction ZA_Milice : ils visent les monstres qui ne sont PAS de leur faction (zombies MythicMobs, vanilla, zombie_extreme),
+# jamais les joueurs ni les autres gardes. Arbalète (tir à distance) ou hache (mêlée). Le poste de garde est tenu par Skript.
+ZA_Garde_Arbalete:
+  Type: PILLAGER
+  Display: '&aSoldat de la milice'
+  Health: 40
+  Damage: 5
+  Armor: 4
+  Faction: ZA_Milice
+  Options:
+    MovementSpeed: 0.3
+    FollowRange: 32
+    Despawn: false
+    PreventOtherDrops: true
+    PreventItemPickup: true
+    AlwaysShowName: true
+    KnockbackResistance: 0.2
+  AITargetSelectors:
+  - 0 clear
+  - 1 attacker
+  - 2 otherfactionmonsters
+  Equipment:
+  - CROSSBOW:0
+  - IRON_HELMET:4
+  Skills:
+  - addscoreboardtag{tag=za_allie} @self ~onSpawn
+  - command{c="zagarde ne <caster.uuid> <caster.l.w> <caster.l.x> <caster.l.y> <caster.l.z>";sync=true} @self ~onSpawn
+  - potion{type=REGENERATION;duration=100;level=0} @self ~onTimer:200
+  - effect:sound{s=entity.pillager.celebrate;v=0.6;p=0.8} @self ~onKill
+  - command{c="zagarde mort <caster.uuid>";sync=true} @self ~onDeath
+ZA_Garde_Hache:
+  Type: VINDICATOR
+  Display: '&aSoldat de la milice'
+  Health: 50
+  Damage: 7
+  Armor: 6
+  Faction: ZA_Milice
+  Options:
+    MovementSpeed: 0.3
+    FollowRange: 24
+    Despawn: false
+    PreventOtherDrops: true
+    PreventItemPickup: true
+    AlwaysShowName: true
+    KnockbackResistance: 0.4
+  AITargetSelectors:
+  - 0 clear
+  - 1 attacker
+  - 2 otherfactionmonsters
+  Equipment:
+  - IRON_AXE:0
+  - IRON_HELMET:4
+  Skills:
+  - addscoreboardtag{tag=za_allie} @self ~onSpawn
+  - command{c="zagarde ne <caster.uuid> <caster.l.w> <caster.l.x> <caster.l.y> <caster.l.z>";sync=true} @self ~onSpawn
+  - potion{type=REGENERATION;duration=100;level=0} @self ~onTimer:200
+  - command{c="zagarde mort <caster.uuid>";sync=true} @self ~onDeath

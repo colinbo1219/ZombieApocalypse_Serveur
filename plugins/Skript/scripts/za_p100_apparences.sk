@@ -1,0 +1,123 @@
+# =====================================================================
+#  ZombieApocalypse - ZOMBIES 2.0 (côté serveur) et SONS DANS L'ESPACE
+#  APPARENCES (mod za_modeles 1.8.0, ETF) : le serveur range chaque mort dans une équipe, que la peau suit :
+#    za_contamine — né dans une zone morte (za_p25/za_p97) ou un territoire d'Alpha (za_p87) : pustules qui luisent
+#    za_brule     — passé dans un incendie (za_p98) : plaques carbonisées, braises
+#    za_givre     — l'hiver (za_p78), dehors : peau bleuie, cristaux de givre, tuque pour les humains
+#    (sans équipe : blessé sous 40 %% de vie, boue dans les marais, chemise à carreaux à la campagne, ou les états 1.7.0)
+#  SONS (à installer côté joueurs : Sound Physics Remastered, qui ajoute écho, réverbération et sons étouffés par les
+#  murs à TOUS les sons du jeu) : le serveur joue des sons POSITIONNÉS dans le décor, pas sur le joueur, pour que le
+#  mod les fasse résonner : gouttes et râles dans les souterrains et les tunnels, craquements et pas à l'étage dans
+#  les bâtiments, alarmes et machines dans les laboratoires, et la horde qui gronde depuis l'endroit où elle est.
+#  /sons off|on : couper ces ambiances pour soi.
+# =====================================================================
+
+on load:
+    execute console command "team add za_contamine"
+    execute console command "team add za_brule"
+    execute console command "team add za_givre"
+
+function za_app_equipe(e: entity, t: text):
+    execute console command "team join %{_t}% %uuid of {_e}%"
+
+on spawn of zombie:
+    set {_e} to event-entity
+    if "%world of {_e}%" is not "world":
+        stop
+    wait 1 tick
+    if {_e} is not alive:
+        stop
+    set {_l} to location of {_e}
+    if za_zone_morte({_l}) is true:
+        za_app_equipe({_e}, "za_contamine")
+    else if za_tmort_ici({_l}) is not 0:
+        za_app_equipe({_e}, "za_contamine")
+    else if za_hiver() is true:
+        if (y-coordinate of {_l}) >= 50:
+            za_app_equipe({_e}, "za_givre")
+
+# passés dans un incendie : ils en gardent la marque
+every 5 seconds:
+    loop {za::feu::liste::*}:
+        set {_l} to {za::feu::%loop-value%::loc}
+        if {_l} is set:
+            if chunk at {_l} is loaded:
+                loop all zombies in radius ({za::feu::%loop-value-1%::r} + 3) around {_l}:
+                    if "%scoreboard tags of loop-value-2%" does not contain "za_brule_ok":
+                        add "za_brule_ok" to scoreboard tags of loop-value-2
+                        za_app_equipe(loop-value-2, "za_brule")
+
+# ---------------------------------------------------------------- sons positionnés
+
+function za_son_pos(p: player, l: location, s: text, v: number, h: number):
+    execute console command "execute in %za_dim(world of {_l})% run playsound %{_s}% ambient %{_p}% %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% %{_v}% %{_h}%"
+
+# un point dans le décor, à quelques blocs du joueur (derrière un mur, au bout d'un couloir...)
+function za_son_point(p: player, dmin: number, dmax: number, dy: number) :: location:
+    set {_l} to location of {_p}
+    set {_a} to random number between 0 and 360
+    set {_d} to random number between {_dmin} and {_dmax}
+    return location(((x-coordinate of {_l}) + ({_d} * cos({_a}))), ((y-coordinate of {_l}) + {_dy}), ((z-coordinate of {_l}) + ({_d} * sin({_a}))), (world of {_l}))
+
+every 12 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if za_pro({_p}) is false:
+            if {za::sons::off::%{_p}'s uuid%} is not set:
+                za_son_ambiance({_p})
+
+function za_son_ambiance(p: player):
+    set {_k} to za_site_ici(location of {_p})
+    set {_ty} to ""
+    if {_k} is not "":
+        set {_ty} to {za::site::d::%{_k}%::type}
+    # souterrains et tunnels : gouttes, râles lointains, métal
+    if {_ty} starts with "sous_":
+        za_son_pos({_p}, za_son_point({_p}, 6, 14, 1), "minecraft:block.pointed_dripstone.drip_water", 0.8, 1)
+        if chance of 50%:
+            set {_s} to random element out of "minecraft:entity.zombie.ambient", "minecraft:entity.zombie.step" and "minecraft:block.chain.step"
+            za_son_pos({_p}, za_son_point({_p}, 14, 26, 0), {_s}, 1, 0.6)
+        if {_ty} is "sous_norda":
+            if chance of 40%:
+                za_son_pos({_p}, za_son_point({_p}, 10, 20, 0), "minecraft:block.beacon.ambient", 0.9, 0.5)
+        stop
+    # sous terre, ailleurs (grottes, caves) : même ambiance, plus rare
+    if (y-coordinate of {_p}) < 45:
+        if chance of 40%:
+            za_son_pos({_p}, za_son_point({_p}, 8, 18, 0), "minecraft:block.pointed_dripstone.drip_water", 0.6, 0.9)
+        stop
+    # bâtiments : craquements, pas à l'étage, porte qui bat
+    if {_ty} is "clinique" or "ecole" or "eglise" or "caserne" or "motel" or "depanneur" or "garage" or "station" or "refuge" or "checkpoint":
+        set {_s} to random element out of "minecraft:block.wood.step", "minecraft:block.wooden_door.close", "minecraft:entity.zombie.step" and "minecraft:block.ladder.step"
+        za_son_pos({_p}, za_son_point({_p}, 4, 10, 4), {_s}, 0.8, 0.8)
+    else if {_ty} is "norda" or "industriel":
+        set {_s} to random element out of "minecraft:block.iron_door.close", "minecraft:block.beacon.deactivate" and "minecraft:block.chain.break"
+        za_son_pos({_p}, za_son_point({_p}, 8, 18, 0), {_s}, 0.9, 0.6)
+    # dans les ruines de Saint-Aurèle : les rues résonnent
+    if za_ruines_dans(location of {_p}, 0) is true:
+        if chance of 35%:
+            set {_s} to random element out of "minecraft:block.glass.break", "minecraft:entity.zombie.ambient", "minecraft:block.metal.hit" and "minecraft:entity.zombie.attack_iron_door"
+            za_son_pos({_p}, za_son_point({_p}, 18, 34, 2), {_s}, 1.2, 0.8)
+    # la horde gronde depuis l'endroit où elle est
+    set {_n} to 0
+    set {_x} to 0
+    set {_y} to 0
+    set {_z} to 0
+    loop all zombies in radius 48 around {_p}:
+        add 1 to {_n}
+        add x-coordinate of loop-value to {_x}
+        add y-coordinate of loop-value to {_y}
+        add z-coordinate of loop-value to {_z}
+    if {_n} >= 8:
+        set {_c} to location(({_x} / {_n}), ({_y} / {_n}), ({_z} / {_n}), (world of {_p}))
+        za_son_pos({_p}, {_c}, "minecraft:entity.zombie.ambient", 2, 0.55)
+        za_son_pos({_p}, {_c}, "minecraft:entity.ravager.ambient", 0.8, 0.5)
+
+command /sons [<text>]:
+    trigger:
+        if arg-1 is "off":
+            set {za::sons::off::%player's uuid%} to true
+            send "&7Ambiances sonores du décor coupées. &8(/sons on)" to player
+        else:
+            delete {za::sons::off::%player's uuid%}
+            send "&7Ambiances sonores du décor actives. &8Pour l'écho et les sons étouffés : mod Sound Physics Remastered." to player

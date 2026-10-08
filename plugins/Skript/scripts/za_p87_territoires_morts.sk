@@ -1,0 +1,220 @@
+# =====================================================================
+#  ZombieApocalypse - TERRITOIRES DES MORTS et NATURE QUI REPREND LA VILLE
+#  TERRITOIRES :
+#    * Zone d'activité : 72 blocs autour d'un nid (za_p39). « ⚠ Zone d'activité ».
+#    * Tanière : un nid qui abrite 15 dormeurs ou plus (za_p74). Extrêmement dangereux : obscurité par à-coups,
+#      renforts réguliers tant qu'un joueur y reste.
+#    * Territoire d'un Alpha : 3 par saison, dans la nature (90 blocs). Un Alpha et sa meute le gardent ; les morts y
+#      sont plus rapides. Tuer l'Alpha libère le territoire jusqu'à la saison suivante.
+#  NATURE : dans les ruines de Saint-Aurèle et les villages, la végétation reprend, selon les jours écoulés depuis
+#  l'installation du monde : jour 30 herbe et mousse, jour 60 buissons, jour 90 jeunes arbres, jour 120 lierre et
+#  végétation massive. Quelques blocs à la fois, près des joueurs (jamais dans une base).
+#  Joueur : /zones   Admin : /zamorts etat | nouveaux | nature <jours>
+# =====================================================================
+
+options:
+    rayon_nid: 72
+    rayon_alpha: 90
+    tanière: 15
+
+# ---------------------------------------------------------------- territoires d'Alpha
+
+function za_tmort_creer():
+    delete {za::tmort::*}
+    set {za::tmort::saison} to {za::saison::num} ? 1
+    set {_i} to 0
+    loop za_sites_donnees():
+        set {_c::*} to split loop-value at "|"
+        if {_c::2} is "camp_chasse":
+            add "%{_c::4}%;%{_c::5}%;%{_c::6}%" to {_cand::*}
+    loop 3 times:
+        if size of {_cand::*} > 0:
+            set {_v} to random element out of {_cand::*}
+            remove {_v} from {_cand::*}
+            set {_c::*} to split {_v} at ";"
+            add 1 to {_i}
+            set {za::tmort::%{_i}%::loc} to location({_c::1} parsed as number, {_c::2} parsed as number, {_c::3} parsed as number, world("world"))
+            add {_i} to {za::tmort::liste::*}
+
+function za_tmort_ici(l: location) :: number:
+    loop {za::tmort::liste::*}:
+        if {za::tmort::%loop-value%::libre} is not set:
+            set {_c} to {za::tmort::%loop-value%::loc}
+            if world of {_c} is world of {_l}:
+                if distance between {_c} and {_l} < {@rayon_alpha}:
+                    return loop-value
+    return 0
+
+function za_tmort_alpha_present(c: location) :: boolean:
+    loop all zombies in radius {@rayon_alpha} around {_c}:
+        if uncolored name of loop-zombie is "Alpha":
+            return true
+    return false
+
+on load:
+    if {za::tmort::saison} is not ({za::saison::num} ? 1):
+        if {za::site::installe} is set:
+            za_tmort_creer()
+
+every 5 seconds:
+    # nouvelle saison : nouveaux territoires
+    if {za::site::installe} is set:
+        if {za::tmort::saison} is not ({za::saison::num} ? 1):
+            za_tmort_creer()
+    loop za_monde_joueurs():
+        set {_p} to loop-value-1
+        if za_pro({_p}) is false:
+            set {_u} to "%{_p}'s uuid%"
+            set {_l} to location of {_p}
+            set {_zone} to ""
+            # nids : zone d'activité ou tanière
+            set {_id} to za_nid_proche({_l}, {@rayon_nid})
+            if {_id} is not 0:
+                set {_zone} to "nid"
+                if ({za::nid::%{_id}%::dormeurs} ? 0) >= {@tanière}:
+                    set {_zone} to "taniere"
+                    if chance of 20%:
+                        apply potion of darkness of tier 1 to {_p} for 3 seconds
+                    if chance of 15%:
+                        za_spawn_at({za::nid::%{_id}%::loc}, "ZA_Runner", 4, 16)
+            # territoire d'un Alpha
+            set {_t} to za_tmort_ici({_l})
+            if {_t} is not 0:
+                set {_zone} to "alpha"
+                set {_c} to {za::tmort::%{_t}%::loc}
+                if chance of 30%:
+                    if za_tmort_alpha_present({_c}) is false:
+                        za_spawn_at({_c}, "ZA_Alpha", 0, 8)
+                        loop 4 times:
+                            set {_ty} to random element out of "ZA_Runner", "ZA_Shambler" and "ZA_Leaper"
+                            za_spawn_at({_c}, {_ty}, 3, 14)
+                loop all zombies in radius 32 around {_p}:
+                    apply potion of speed of tier 1 to loop-value-2 for 8 seconds
+            # annonce à l'entrée d'une zone
+            if {_zone} is not ({za::tmort::dans::%{_u}%} ? ""):
+                set {za::tmort::dans::%{_u}%} to {_zone}
+                if {_zone} is "nid":
+                    send title "" with subtitle "&6⚠ Zone d'activité &7— un nid est tout près" to {_p} for 3 seconds
+                else if {_zone} is "taniere":
+                    send title "&4⚠ TANIÈRE" with subtitle "&7Des dizaines de morts dorment ici. Fais demi-tour." to {_p} for 4 seconds
+                    za_zm("son %{_p}% za_modeles:sfx.horde_grondement 0.8 0.6")
+                else if {_zone} is "alpha":
+                    send title "&c⚠ TERRITOIRE D'UN ALPHA" with subtitle "&7La meute sait que tu es là." to {_p} for 4 seconds
+                    za_zm("son %{_p}% za_modeles:zombie.alpha.grondement 1 0.8")
+
+# l'Alpha tombe : son territoire est libre jusqu'à la saison suivante
+on death of zombie:
+    if uncolored name of victim is "Alpha":
+        set {_t} to za_tmort_ici(location of victim)
+        if {_t} is not 0:
+            set {za::tmort::%{_t}%::libre} to true
+            loop all players in radius 60 around victim:
+                if za_pro(loop-player) is false:
+                    send title "&aTerritoire libéré" with subtitle "&7La meute se disperse." to loop-player for 3 seconds
+            za_journal("Un territoire d'Alpha a été libéré.")
+
+# ---------------------------------------------------------------- la nature reprend la ville
+
+function za_nature_stade() :: number:
+    set {_j} to ({za::serveur::jours} ? 0) - ({za::site::installe} ? 0) + ({za::nature::bonus} ? 0)
+    if {_j} >= 120:
+        return 4
+    if {_j} >= 90:
+        return 3
+    if {_j} >= 60:
+        return 2
+    if {_j} >= 30:
+        return 1
+    return 0
+
+function za_nature_ici(l: location) :: boolean:
+    if za_ruines_dans({_l}, 0) is true:
+        return true
+    set {_k} to za_site_ici({_l})
+    if {_k} is not "":
+        if {za::site::d::%{_k}%::type} is "village":
+            return true
+        if {_k} contains "_ecole" or "_clinique" or "_eglise" or "_depanneur" or "_garage" or "_caserne":
+            return true
+    return false
+
+function za_nature_pousser(p: player, stade: number):
+    set {_l} to location of {_p}
+    loop 12 times:
+        set {_x} to x-coordinate of {_l} + (random integer between -24 and 24)
+        set {_z} to z-coordinate of {_l} + (random integer between -24 and 24)
+        set {_b} to highest block at location({_x}, 100, {_z}, world of {_l})
+        set {_t} to "%type of {_b}%"
+        set {_dur} to false
+        if {_t} contains "concrete" or "andesite" or "stone" or "paving" or "quartz" or "diorite":
+            set {_dur} to true
+        if {_dur} is true:
+            if chance of 35%:
+                set block at {_b} to moss block
+                if {_stade} >= 2:
+                    if chance of 40%:
+                        set block above {_b} to flowering azalea
+                    else:
+                        set block above {_b} to moss carpet
+        else if {_b} is grass block or moss block:
+            if block above {_b} is air:
+                if {_stade} >= 3:
+                    if chance of 8%:
+                        set block above {_b} to oak sapling
+                    else if chance of 30%:
+                        set block above {_b} to tall grass
+                else if chance of 40%:
+                    set block above {_b} to grass
+        # lierre sur les murs (stade 4)
+        if {_stade} >= 4:
+            if chance of 30%:
+                set {_m} to block 1 north of block above {_b}
+                if {_m} is not air:
+                    if block above {_b} is air:
+                        set {_v} to location of block above {_b}
+                        execute console command "execute in minecraft:overworld run setblock %x-coordinate of {_v}% %y-coordinate of {_v}% %z-coordinate of {_v}% minecraft:vine[north=true] keep"
+
+every 1 minute:
+    set {_s} to za_nature_stade()
+    if {_s} is 0:
+        stop
+    loop za_monde_joueurs():
+        if za_pro(loop-value) is false:
+            if za_nature_ici(location of loop-value) is true:
+                # jamais dans une base de joueur
+                set {_ok} to true
+                loop {za::base::liste::*}:
+                    set {_bl} to {za::base::%loop-value-2%}
+                    if {_bl} is set:
+                        if world of {_bl} is world of loop-value-1:
+                            if distance between {_bl} and loop-value-1 < 48:
+                                set {_ok} to false
+                if {_ok} is true:
+                    za_nature_pousser(loop-value-1, {_s})
+
+command /zones:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        send "&6&l━━ TERRITOIRES DES MORTS ━━" to player
+        send "&7Nids connus : &f%size of {za::nid::liste::*}% &8(zone d'activité à 72 blocs ; tanière au-delà de 15 dormeurs)" to player
+        set {_n} to 0
+        loop {za::tmort::liste::*}:
+            if {za::tmort::%loop-value%::libre} is not set:
+                add 1 to {_n}
+        send "&7Territoires d'Alpha encore tenus : &c%{_n}%&7/%size of {za::tmort::liste::*}% &8(dans les forêts, près des camps de chasse)" to player
+        send "&7La nature reprend la ville : stade &a%za_nature_stade()%&7/4" to player
+
+command /zamorts [<text>] [<number>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "nouveaux":
+            za_tmort_creer()
+        else if arg-1 is "nature":
+            set {za::nature::bonus} to arg-2 ? 0
+        loop {za::tmort::liste::*}:
+            set {_e} to "tenu"
+            if {za::tmort::%loop-value%::libre} is set:
+                set {_e} to "libéré"
+            send "&7Territoire %loop-value% : %{za::tmort::%loop-value%::loc}% %{_e}%" to sender
+        send "&7Stade de la nature : %za_nature_stade()% (bonus %{za::nature::bonus} ? 0% jours)" to sender

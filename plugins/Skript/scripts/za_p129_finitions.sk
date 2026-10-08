@@ -1,0 +1,232 @@
+# za_p129_finitions.sk — les derniers points de la bible faisables côté serveur (7, 26, 32, S-2)
+#  * Panneau d'entrée (7) : en entrant dans un quartier ou un village, sa fiche s'affiche... telle que TU la connais
+#    (brouillard d'information de /ville, p122) : « Dernières nouvelles : il y a 3 jours », ou des « ? ».
+#  * Viande saignante (26, 117) : accroupi + clic droit avec de la viande crue : tu la fais saigner et tu la lances.
+#    L'odeur attire les morts du coin pendant 40 secondes (activité, bruit pour le moteur). Un piège, ou une diversion.
+#  * Grue qui tombe (32) : les grues des villes générées (lieux « grue ») tombent sur une explosion proche, ou dans un
+#    orage violent. La flèche s'abat dans la rue, écrase ce qui est dessous ; jamais près d'une base enregistrée.
+#    Admin : /zagrue liste | tomber <id> | reparer <id> (remet la grue debout : le « retour en arrière »).
+#  * Mains qui tremblent (S-2) : blessé au bras, épuisé, affamé, gelé, stressé... (malus de p105) → tags za_tremble /
+#    za_tremble2 lus par ZAMoteur : la balle part de travers, et à bout de forces l'arme s'enraye parfois.
+#  Variables : {za::fin2::*}, {za::grue::*}
+
+# ---------------------------------------------------------------- panneau d'entrée (7) : appelé par za_p73 à l'entrée d'un lieu
+
+function za_panneau_entree(p: player, k: text):
+    set {_t} to {za::site::d::%{_k}%::type} ? ""
+    if {_t} is not "village" or "quartier":
+        stop
+    set {_u} to "%{_p}'s uuid%"
+    set {_z} to "v_%{_k}%"
+    set {_now} to unix timestamp of now
+    if {_now} - ({za::fin2::pano::%{_u}%::%{_z}%} ? 0) < 600:
+        stop
+    set {za::fin2::pano::%{_u}%::%{_z}%} to {_now}
+    send "&8┌─ &f&l%{za::site::d::%{_k}%::nom}%" to {_p}
+    if {za::ville::%{_u}%::%{_z}%::jour} is not set:
+        send "&8│ &7État : &8? &7· Courant : &8? &7· Tenu par : &8?" to {_p}
+        send "&8└ &7Tu n'y es jamais venu. &8Ce qu'on en dit : /infos" to {_p}
+        stop
+    set {_cour} to "&8non"
+    if {za::ville::%{_u}%::%{_z}%::courant} is true:
+        set {_cour} to "&aoui"
+    set {_f} to {za::ville::%{_u}%::%{_z}%::fac} ? ""
+    set {_ft} to "&8personne"
+    if {_f} is not "":
+        set {_ft} to za_terr_fnom({_f})
+    send "&8│ &7État : %za_qz_etat_nom({za::ville::%{_u}%::%{_z}%::etat})% &7· Courant : %{_cour}% &7· Tenu par : %{_ft}%" to {_p}
+    if {za::ville::%{_u}%::%{_z}%::nid} is 1:
+        send "&8│ &cUn nid tout près." to {_p}
+    send "&8└ &7Dernières nouvelles : %za_ville_age({za::ville::%{_u}%::%{_z}%::jour})%. &8(Ça a pu changer.)" to {_p}
+
+# ---------------------------------------------------------------- viande saignante (26)
+
+on right click:
+    if za_pro(player) is true:
+        stop
+    if player is not sneaking:
+        stop
+    if player's tool is not raw beef or raw porkchop or raw mutton or raw chicken or raw rabbit:
+        stop
+    cancel event
+    set {_it} to 1 of player's tool
+    remove 1 of player's tool from player's inventory
+    set {_l} to location of target block of player
+    if {_l} is not set:
+        set {_l} to location of player
+    if distance between {_l} and player > 12:
+        set {_l} to location of player
+    add 1 to y-coordinate of {_l}
+    drop {_it} at {_l}
+    send "&4Tu entailles la viande. Ça goutte. &7Tu la lances. Ils vont sentir ça de loin." to player
+    if za_mot_actif() is true:
+        za_mot("bruit %floor(x-coordinate of {_l})% %floor(z-coordinate of {_l})% 40")
+    loop 8 times:
+        za_activite_ajouter({_l}, 3)
+        execute console command "execute in minecraft:overworld run particle minecraft:dust 0.5 0 0 1 %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% 0.3 0.1 0.3 0 12 force"
+        wait 5 seconds
+
+# ---------------------------------------------------------------- grue qui tombe (32)
+
+on load:
+    wait 10 seconds
+    za_grue_lister()
+
+function za_grue_lister():
+    delete {za::grue::liste::*}
+    loop za_sites_donnees():
+        set {_c::*} to split loop-value at "|"
+        if {_c::2} is "grue":
+            add {_c::1} to {za::grue::liste::*}
+
+function za_grue_loc(k: text) :: location:
+    if {za::site::d::%{_k}%::x} is set:
+        return location({za::site::d::%{_k}%::x}, {za::site::d::%{_k}%::y}, {za::site::d::%{_k}%::z}, world("world"))
+
+function za_grue_fill(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, b: text):
+    execute console command "execute in minecraft:overworld run fill %floor({_x1})% %floor({_y1})% %floor({_z1})% %floor({_x2})% %floor({_y2})% %floor({_z2})% %{_b}%"
+
+function za_grue_tomber(k: text, cause: text):
+    if {za::grue::tombee::%{_k}%} is set:
+        stop
+    set {_l} to za_grue_loc({_k})
+    if {_l} is not set:
+        stop
+    if za_catas2_base_proche({_l}) is true:
+        stop
+    set {za::grue::tombee::%{_k}%} to {za::serveur::jours} ? 0
+    set {_x} to x-coordinate of {_l}
+    set {_y} to y-coordinate of {_l}
+    set {_z} to z-coordinate of {_l}
+    # grue du générateur : mât de 46, flèche de x-10 à x+28 (ville_bat.grue)
+    execute console command "execute in minecraft:overworld run playsound minecraft:block.anvil.land block @a %floor({_x})% %floor({_y}) + 40% %floor({_z})% 4 0.5"
+    loop za_monde_joueurs():
+        if world of loop-value is world of {_l}:
+            if distance between loop-value and {_l} < 160:
+                send "&6Un long grincement de métal, au-dessus de toi. &7La grue penche." to loop-value
+    wait 3 seconds
+    # tout le haut disparaît : flèche, contrepoids, cabine, câble, crochet ; il reste un moignon de mât
+    za_grue_fill(({_x} - 10), ({_y} + 45), ({_z} - 2), ({_x} + 28), ({_y} + 50), ({_z} + 2), "minecraft:air")
+    za_grue_fill(({_x} + 22), ({_y} + 28), ({_z} - 1), ({_x} + 26), ({_y} + 44), ({_z} + 1), "minecraft:air")
+    za_grue_fill(({_x} - 1), ({_y} + 14), ({_z} - 1), ({_x} + 1), ({_y} + 44), ({_z} + 1), "minecraft:air")
+    # elle s'abat dans l'axe de la flèche (on ne remplace que l'air : rien n'est traversé)
+    za_grue_fill(({_x} + 2), {_y}, {_z}, ({_x} + 44), {_y}, {_z}, "minecraft:yellow_concrete keep")
+    za_grue_fill(({_x} + 6), ({_y} + 1), {_z}, ({_x} + 30), ({_y} + 1), {_z}, "minecraft:yellow_concrete keep")
+    za_grue_fill(({_x} + 10), {_y}, ({_z} - 1), ({_x} + 34), {_y}, ({_z} - 1), "minecraft:iron_bars keep")
+    za_grue_fill(({_x} + 40), {_y}, ({_z} - 1), ({_x} + 44), ({_y} + 2), ({_z} + 1), "minecraft:gray_concrete keep")
+    za_grue_fill(({_x} + 30), {_y}, ({_z} + 2), ({_x} + 33), ({_y} + 1), ({_z} + 3), "minecraft:orange_concrete keep")
+    set {_k2} to 0
+    while {_k2} <= 44:
+        set {_p} to location(({_x} + {_k2}), ({_y} + 1), {_z}, world("world"))
+        execute console command "execute in minecraft:overworld run particle minecraft:explosion %x-coordinate of {_p}% %y-coordinate of {_p}% %z-coordinate of {_p}% 1 0.5 1 0 2 force"
+        loop all entities in radius 4 around {_p}:
+            if loop-entity is a living entity:
+                damage loop-entity by 10
+                if loop-entity is a player:
+                    send "&4La flèche de la grue s'abat sur toi." to loop-entity
+        add 6 to {_k2}
+    execute console command "execute in minecraft:overworld run playsound minecraft:entity.generic.explode block @a %floor({_x}) + 20% %floor({_y})% %floor({_z})% 6 0.6"
+    za_monde_evt("Une grue de chantier s'est effondrée (%{_cause}%).", {_l}, 3, "catastrophe")
+    if za_mot_actif() is true:
+        za_mot_evt("grue_effondree", {_l}, 3, "-", "Une grue s'est effondrée en travers de la rue")
+
+# la remettre debout (admin) : la même forme que le générateur, débris retirés
+function za_grue_reparer(k: text):
+    set {_l} to za_grue_loc({_k})
+    if {_l} is not set:
+        stop
+    set {_x} to x-coordinate of {_l}
+    set {_y} to y-coordinate of {_l}
+    set {_z} to z-coordinate of {_l}
+    za_grue_fill(({_x} + 2), {_y}, ({_z} - 1), ({_x} + 44), ({_y} + 2), ({_z} + 3), "minecraft:air replace minecraft:yellow_concrete")
+    za_grue_fill(({_x} + 2), {_y}, ({_z} - 1), ({_x} + 44), ({_y} + 2), ({_z} + 3), "minecraft:air replace minecraft:iron_bars")
+    za_grue_fill(({_x} + 2), {_y}, ({_z} - 1), ({_x} + 44), ({_y} + 2), ({_z} + 3), "minecraft:air replace minecraft:gray_concrete")
+    za_grue_fill(({_x} + 2), {_y}, ({_z} - 1), ({_x} + 44), ({_y} + 2), ({_z} + 3), "minecraft:air replace minecraft:orange_concrete")
+    za_grue_fill(({_x} - 1), {_y}, ({_z} - 1), ({_x} + 1), ({_y} + 46), ({_z} + 1), "minecraft:yellow_concrete")
+    za_grue_fill({_x}, {_y}, {_z}, {_x}, ({_y} + 45), {_z}, "minecraft:ladder[facing=south]")
+    za_grue_fill(({_x} - 2), ({_y} + 46), ({_z} - 2), ({_x} + 2), ({_y} + 48), ({_z} + 2), "minecraft:yellow_concrete")
+    za_grue_fill(({_x} - 10), ({_y} + 49), {_z}, ({_x} + 28), ({_y} + 49), {_z}, "minecraft:yellow_concrete")
+    za_grue_fill(({_x} - 10), ({_y} + 45), ({_z} - 1), ({_x} - 6), ({_y} + 48), ({_z} + 1), "minecraft:gray_concrete")
+    za_grue_fill(({_x} + 24), ({_y} + 32), {_z}, ({_x} + 24), ({_y} + 48), {_z}, "minecraft:chain")
+    za_grue_fill(({_x} + 22), ({_y} + 29), ({_z} - 1), ({_x} + 26), ({_y} + 31), ({_z} + 1), "minecraft:orange_concrete")
+    delete {za::grue::tombee::%{_k}%}
+
+# une explosion près d'une grue
+on explosion:
+    set {_l} to event-location
+    if "%world of {_l}%" is not "world":
+        stop
+    loop {za::grue::liste::*}:
+        if {za::grue::tombee::%loop-value%} is not set:
+            set {_g} to za_grue_loc(loop-value)
+            if {_g} is set:
+                if distance between {_g} and {_l} < 30:
+                    za_grue_tomber(loop-value, "une explosion")
+                    stop
+
+# un orage violent (p55) : le vent a raison des grues, une à la fois, s'il y a quelqu'un pour le voir
+every 60 seconds:
+    if za_cata_actuelle() is not "tempete":
+        stop
+    loop {za::grue::liste::*}:
+        if {za::grue::tombee::%loop-value%} is not set:
+            set {_g} to za_grue_loc(loop-value)
+            delete {_ok}
+            if {_g} is set:
+                if chance of 5%:
+                    loop za_monde_joueurs():
+                        if {_ok} is not set:
+                            if world of loop-value-2 is world of {_g}:
+                                if distance between loop-value-2 and {_g} < 150:
+                                    set {_ok} to true
+                    if {_ok} is true:
+                        za_grue_tomber(loop-value, "l'orage")
+                        stop
+
+command /zagrue [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        set {_id} to arg-2 ? ""
+        if arg-1 is "tomber":
+            za_grue_tomber({_id}, "test admin")
+            send "&7Grue %{_id}% : chute lancée." to sender
+        else if arg-1 is "reparer":
+            za_grue_reparer({_id})
+            send "&7Grue remise debout." to sender
+        else:
+            za_grue_lister()
+            loop {za::grue::liste::*}:
+                set {_e} to "&adebout"
+                if {za::grue::tombee::%loop-value%} is set:
+                    set {_e} to "&ctombée"
+                send "&f%loop-value% &7(%{za::site::d::%loop-value%::x}%, %{za::site::d::%loop-value%::z}%) %{_e}%" to sender
+            send "&8/zagrue tomber <id> · /zagrue reparer <id>" to sender
+
+# ---------------------------------------------------------------- mains qui tremblent (S-2)
+
+every 5 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        set {_u} to "%{_p}'s uuid%"
+        set {_m} to 0
+        if za_pro({_p}) is false:
+            set {_m} to za_corps_malus({_p})
+            if ({za::bless::bras::%{_u}%} ? 0) > 0:
+                add 1 to {_m}
+        set {_n} to 0
+        if {_m} >= 4:
+            set {_n} to 2
+        else if {_m} >= 2:
+            set {_n} to 1
+        if {_n} is not ({za::fin2::tremble::%{_u}%} ? 0):
+            set {za::fin2::tremble::%{_u}%} to {_n}
+            remove "za_tremble" from scoreboard tags of {_p}
+            remove "za_tremble2" from scoreboard tags of {_p}
+            if {_n} is 1:
+                add "za_tremble" to scoreboard tags of {_p}
+                send "&7Tes mains tremblent. &8Tes tirs partiront un peu de travers. (/etat)" to {_p}
+            else if {_n} is 2:
+                add "za_tremble2" to scoreboard tags of {_p}
+                send "&cTu n'arrives plus à tenir ton arme droite. &8Tes tirs s'égarent ; elle peut s'enrayer. (/etat)" to {_p}
+            else:
+                send "&7Tes mains sont redevenues sûres." to {_p}

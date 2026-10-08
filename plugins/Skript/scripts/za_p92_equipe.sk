@@ -1,0 +1,1902 @@
+# =====================================================================
+#  ZombieApocalypse - L'ÉQUIPE : commander les survivants de sa base (complète za_p43)
+#  FICHE : chaque survivant a des compétences selon son métier (combat, récolte, médical, mécanique, vitesse, sur 10),
+#    une santé, une fatigue, un trait (volontaire, prudent, tête brûlée, bavard, loyal) et parfois une aversion
+#    (la forêt, la ville, les souterrains, la nuit). Clic droit -> « Sa fiche ».
+#  TÂCHES (clic droit -> « Donner une tâche », ou /equipe tache) :
+#    Récolte : bois, nourriture, plantes, matériaux, minerais · Exploration : reconnaissance, récupération (fouiller
+#    un lieu), chercher un lieu inconnu · Suivre le joueur · Rentrer à la base.
+#    Il peut REFUSER : fatigué, moral au plus bas, zone qu'il déteste, la nuit s'il a peur... La confiance aide.
+#  MISSION SUR LE TERRAIN : il sort VRAIMENT de la base, marche jusqu'à la zone, travaille, revient. Quand aucun joueur
+#    n'est autour, la mission continue « hors champ » (sa position avance quand même) ; dès qu'un joueur approche, il
+#    est là, en chair et en os, à l'endroit où il en est. Sur le chemin : des morts. Selon son trait et ses compétences,
+#    il combat, fuit (et perd une partie du sac), se cache, abandonne ou appelle à l'aide (SMS avec sa position).
+#    Sans aide : il s'en sort blessé, ou il DISPARAÎT (dernière position connue : /equipe ou), ou il meurt.
+#    Un disparu se retrouve pendant deux jours, blessé, son sac à moitié plein. Sa toute première mission ne le tue pas.
+#    Au retour, le sac va dans la Réserve : « 🪵 Marc a rapporté : 29 bois, 6 bâtons, 4 pommes ».
+#  POSTES À LA BASE (travail quotidien, en plus de ceux de za_p43) : scierie (scie mécanique Create à 16 blocs),
+#    ferme (terres labourées), mine, entretien électrique (moins de pannes des sous-stations, za_p61), opérateur radio
+#    (fréquences cachées, rumeurs), patrouille (compte comme garde), cuisine (cuit les vivres crus), intendance.
+#  Joueur : /equipe [fiche|tache|ou|rappeler|poste|priorite|zone|zones] · Admin : /zaequipe liste|fin <id>|incident <id>
+#  Données : {za::surv::<id>::st::*} (fiche) · {za::eq::m::<id>::*} (mission) · {za::eq::liste::*} (en mission)
+# =====================================================================
+
+options:
+    vit: 1.5
+    sac_max: 96
+
+# ---------------------------------------------------------------- fiche
+
+function za_eq_clamp(n: number) :: number:
+    return min(10, max(1, {_n}))
+
+function za_eq_init(id: number):
+    if {za::surv::%{_id}%::st::combat} is set:
+        stop
+    set {_m} to {za::surv::%{_id}%::metier} ? ""
+    set {_c} to 4
+    set {_r} to 4
+    set {_md} to 2
+    set {_mc} to 3
+    set {_v} to 5
+    if {_m} is "bucheron":
+        set {_r} to 8
+        set {_c} to 5
+    else if {_m} is "mineur":
+        set {_r} to 7
+        set {_c} to 5
+        set {_mc} to 4
+    else if {_m} is "policier":
+        set {_c} to 9
+        set {_r} to 3
+    else if {_m} is "soldat":
+        set {_c} to 8
+        set {_v} to 6
+    else if {_m} is "chasseur":
+        set {_c} to 7
+        set {_r} to 6
+        set {_v} to 6
+    else if {_m} is "infirmier":
+        set {_md} to 9
+        set {_r} to 3
+        set {_c} to 3
+    else if {_m} is "pharmacien":
+        set {_md} to 8
+        set {_c} to 3
+    else if {_m} is "mecanicien":
+        set {_mc} to 9
+        set {_c} to 5
+    else if {_m} is "electricien":
+        set {_mc} to 8
+    else if {_m} is "menuisier":
+        set {_mc} to 6
+        set {_r} to 6
+    else if {_m} is "agriculteur":
+        set {_r} to 8
+        set {_c} to 3
+    else if {_m} is "cuisinier":
+        set {_r} to 5
+        set {_md} to 3
+    else if {_m} is "ado":
+        set {_v} to 8
+        set {_r} to 5
+        set {_c} to 3
+    else if {_m} is "camionneur":
+        set {_v} to 6
+        set {_mc} to 5
+    else if {_m} is "enfant":
+        set {_c} to 1
+        set {_r} to 2
+        set {_v} to 4
+    set {za::surv::%{_id}%::st::combat} to za_eq_clamp({_c} + (random integer between -1 and 1))
+    set {za::surv::%{_id}%::st::recolte} to za_eq_clamp({_r} + (random integer between -1 and 1))
+    set {za::surv::%{_id}%::st::medical} to za_eq_clamp({_md} + (random integer between -1 and 1))
+    set {za::surv::%{_id}%::st::meca} to za_eq_clamp({_mc} + (random integer between -1 and 1))
+    set {za::surv::%{_id}%::st::vitesse} to za_eq_clamp({_v} + (random integer between -1 and 1))
+    set {za::surv::%{_id}%::st::sante} to 100
+    set {za::surv::%{_id}%::st::fatigue} to random integer between 5 and 25
+    set {za::surv::%{_id}%::st::trait} to random element out of "volontaire", "prudent", "tete_brulee", "bavard" and "loyal"
+    set {za::surv::%{_id}%::st::aversion} to ""
+    if chance of 55%:
+        set {za::surv::%{_id}%::st::aversion} to random element out of "foret", "ville", "souterrain" and "nuit"
+    set {za::surv::%{_id}%::st::missions} to 0
+
+function za_eq_st(id: number, k: text) :: number:
+    za_eq_init({_id})
+    return {za::surv::%{_id}%::st::%{_k}%} ? 5
+
+function za_eq_sa(id: number) :: number:
+    return za_eq_st({_id}, "sante")
+
+function za_eq_fa(id: number) :: number:
+    return za_eq_st({_id}, "fatigue")
+
+function za_eq_cbt(id: number) :: number:
+    return za_eq_st({_id}, "combat")
+
+function za_eq_rec(id: number) :: number:
+    return za_eq_st({_id}, "recolte")
+
+function za_eq_med(id: number) :: number:
+    return za_eq_st({_id}, "medical")
+
+function za_eq_mec(id: number) :: number:
+    return za_eq_st({_id}, "meca")
+
+function za_eq_vit(id: number) :: number:
+    return za_eq_st({_id}, "vitesse")
+
+function za_eq_st_ajouter(id: number, k: text, n: number):
+    za_eq_init({_id})
+    set {za::surv::%{_id}%::st::%{_k}%} to min(100, max(0, ({za::surv::%{_id}%::st::%{_k}%} ? 0) + {_n}))
+
+function za_eq_trait_nom(t: text) :: text:
+    if {_t} is "volontaire":
+        return "Volontaire"
+    if {_t} is "prudent":
+        return "Prudent"
+    if {_t} is "tete_brulee":
+        return "Tête brûlée"
+    if {_t} is "bavard":
+        return "Bavard (appelle vite à l'aide)"
+    if {_t} is "loyal":
+        return "Loyal"
+    return "-"
+
+function za_eq_aversion_nom(a: text) :: text:
+    if {_a} is "foret":
+        return "la forêt"
+    if {_a} is "ville":
+        return "la ville"
+    if {_a} is "souterrain":
+        return "les souterrains"
+    if {_a} is "nuit":
+        return "sortir la nuit"
+    return "rien de spécial"
+
+function za_eq_note(n: number) :: text:
+    set {_c} to "&c"
+    if {_n} >= 7:
+        set {_c} to "&a"
+    else if {_n} >= 4:
+        set {_c} to "&e"
+    return "%{_c}%%{_n}%&8/10"
+
+function za_eq_tache_nom(t: text) :: text:
+    if {_t} is "bois":
+        return "Récolte de bois"
+    if {_t} is "nourriture":
+        return "Recherche de nourriture"
+    if {_t} is "plantes":
+        return "Cueillette de plantes"
+    if {_t} is "materiaux":
+        return "Récupération de matériaux"
+    if {_t} is "minerais":
+        return "Extraction de minerais"
+    if {_t} is "recon":
+        return "Reconnaissance"
+    if {_t} is "recup":
+        return "Fouille d'un lieu"
+    if {_t} is "cherche":
+        return "Recherche d'un lieu inconnu"
+    if {_t} is "suivre":
+        return "Escorte (te suit)"
+    return {_t}
+
+function za_eq_unite(t: text) :: text:
+    if {_t} is "bois":
+        return "bois"
+    if {_t} is "nourriture":
+        return "vivres"
+    if {_t} is "plantes":
+        return "plantes"
+    if {_t} is "materiaux":
+        return "matériaux"
+    if {_t} is "minerais":
+        return "minerais"
+    return ""
+
+function za_eq_phase_nom(f: text) :: text:
+    if {_f} is "aller":
+        return "en route"
+    if {_f} is "travail":
+        return "au travail"
+    if {_f} is "retour":
+        return "sur le chemin du retour"
+    if {_f} is "cache":
+        return "caché, il attend que ça passe"
+    if {_f} is "danger":
+        return "&cEN DANGER, il appelle à l'aide"
+    if {_f} is "a_terre":
+        return "&4À TERRE"
+    if {_f} is "disparu":
+        return "&8disparu"
+    if {_f} is "suivre":
+        return "avec toi"
+    return {_f}
+
+function za_eq_fiche(p: player, id: number):
+    za_eq_init({_id})
+    set {_u} to "%{_p}'s uuid%"
+    set {za::eq::ctx::%{_u}%} to {_id}
+    set {_nom} to {za::surv::%{_id}%::nom}
+    send "&8&m                                   " to {_p}
+    send "&6&l%{_nom}%" to {_p}
+    send "&7Métier : &f%za_surv_metier_txt({za::surv::%{_id}%::metier}, {za::surv::%{_id}%::genre})% &8· &7poste : &f%za_surv_role_nom({za::surv::%{_id}%::role})%" to {_p}
+    send "&7Santé : &f%floor(za_eq_sa({_id}))% %% &8· &7Fatigue : &f%floor(za_eq_fa({_id}))% %% &8· &7Moral : &f%floor({za::surv::%{_id}%::moral} ? 50)% %%" to {_p}
+    send "&7Combat %za_eq_note(za_eq_cbt({_id}))% &7· Récolte %za_eq_note(za_eq_rec({_id}))% &7· Médical %za_eq_note(za_eq_med({_id}))% &7· Mécanique %za_eq_note(za_eq_mec({_id}))% &7· Vitesse %za_eq_note(za_eq_vit({_id}))%" to {_p}
+    send "&7Trait : &f%za_eq_trait_nom({za::surv::%{_id}%::st::trait})% &8· &7n'aime pas : &f%za_eq_aversion_nom({za::surv::%{_id}%::st::aversion})%" to {_p}
+    set {_pr::*} to {za::surv::%{_id}%::prio::*}
+    if size of {_pr::*} > 0:
+        send "&7Priorités : &f%{_pr::*}%" to {_p}
+    send "&7Missions : &f%{za::surv::%{_id}%::st::missions} ? 0% &8· &7confiance envers toi : &f%floor(za_surv_conf({_u}, {_id}))% %%" to {_p}
+    if {za::eq::m::%{_id}%::type} is set:
+        send "&7En ce moment : &e%za_eq_tache_nom({za::eq::m::%{_id}%::type})% &7— %za_eq_phase_nom({za::eq::m::%{_id}%::phase})%" to {_p}
+    set {_o::*} to "Donner une tâche|t", "Changer son poste|poste" and "Ses priorités|prio"
+    if {za::surv::%{_id}%::role} is "commercer":
+        add "Commercer|commerce" to {_o::*}
+    add "Le renvoyer|renvoyer" to {_o::*}
+    add "Retour|quit" to {_o::*}
+    za_menu({_p}, "zaeqclic", "Fiche de %{_nom}%", "Ses compétences sont dans le chat.", {_o::*})
+
+# ---------------------------------------------------------------- postes à la base
+
+function za_eq_poste_nom(r: text) :: text:
+    if {_r} is "scierie":
+        return "Scieur (scierie Create)"
+    if {_r} is "ferme":
+        return "Fermier"
+    if {_r} is "mine":
+        return "Mineur"
+    if {_r} is "electricite":
+        return "Électricien d'entretien"
+    if {_r} is "radio":
+        return "Opérateur radio"
+    if {_r} is "patrouille":
+        return "Patrouilleur"
+    if {_r} is "cuisine":
+        return "Cuisinier"
+    if {_r} is "intendance":
+        return "Intendant"
+    return {_r}
+
+function za_eq_poste_desc(r: text) :: text:
+    if {_r} is "scierie":
+        return "Travaille à la scie mécanique Create de la base (16 blocs) : planches et bâtons chaque jour. Bûcheron et menuisier : +40 %%."
+    if {_r} is "ferme":
+        return "Entretient les terres labourées de la base (16 blocs) : blé, carottes, patates selon la taille des champs."
+    if {_r} is "mine":
+        return "Descend creuser chaque jour : pierre, charbon, fer, cuivre. Mineur : +50 %%."
+    if {_r} is "electricite":
+        return "Entretient tes sous-stations (za_p61) : moins de pannes selon sa mécanique."
+    if {_r} is "radio":
+        return "Écoute les ondes : trouve parfois une fréquence cachée, rapporte les rumeurs (nids, hordes)."
+    if {_r} is "patrouille":
+        return "Fait le tour de la base : compte comme un garde (tirs, sièges)."
+    if {_r} is "cuisine":
+        return "Cuit chaque jour les vivres crus de la Réserve (viandes, poissons, patates)."
+    if {_r} is "intendance":
+        return "Tient l'inventaire : rien ne se perd (+3 Conserves par jour), et tout le monde mange mieux (moral)."
+    return ""
+
+function za_eq_postes_menu(p: player, id: number, page: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::eq::ctx::%{_u}%} to {_id}
+    set {_r} to {za::surv::%{_id}%::role}
+    if {_page} is 1:
+        set {_o::*} to "Réparateur|p:reparer", "Producteur|p:produire", "Soigneur|p:soigner", "Garde|p:garder", "Marchand|p:commercer" and "Autres postes...|postes2"
+    else:
+        set {_o::*} to "Scierie (Create)|p:scierie", "Fermier|p:ferme", "Mineur|p:mine", "Entretien électrique|p:electricite", "Opérateur radio|p:radio", "Patrouille|p:patrouille" and "Cuisine / Intendance...|postes3"
+    if {_page} is 3:
+        set {_o::*} to "Cuisinier|p:cuisine", "Intendant|p:intendance" and "Retour|postes1"
+    za_menu({_p}, "zaeqclic", "Poste de %{za::surv::%{_id}%::nom}%", "Poste actuel : %za_surv_role_nom({_r})%. %za_surv_role_desc({_r})%", {_o::*})
+
+# entretien électrique : points de pourcentage retirés aux pannes des sous-stations d'un joueur
+function za_eq_entretien(u: text) :: number:
+    if {_u} is "":
+        return 0
+    set {_best} to 0
+    loop {za::surv::liste::*}:
+        set {_id} to loop-value
+        if {za::surv::%{_id}%::etat} is "base":
+            if {za::surv::%{_id}%::base} is {_u}:
+                if {za::surv::%{_id}%::role} is "electricite":
+                    if {za::eq::m::%{_id}%::type} is not set:
+                        set {_best} to max({_best}, za_eq_st({_id}, "meca"))
+    return floor({_best} * 0.7)
+
+# compte les blocs d'un type autour du centre de la base (une fois par jour et par base)
+function za_eq_compte_blocs(u: text, quoi: text) :: number:
+    if {za::eq::equip::%{_u}%::%{_quoi}%::jour} is ({za::serveur::jours} ? 0):
+        return {za::eq::equip::%{_u}%::%{_quoi}%} ? 0
+    set {_bl} to {za::base::%{_u}%}
+    set {_n} to 0
+    if {_bl} is set:
+        if chunk at {_bl} is loaded:
+            loop blocks in radius 16 around {_bl}:
+                set {_t} to "%type of loop-block%"
+                if {_quoi} is "scie":
+                    if {_t} contains "saw":
+                        add 1 to {_n}
+                else if {_quoi} is "champ":
+                    if {_t} contains "farmland":
+                        add 1 to {_n}
+        else:
+            return {za::eq::equip::%{_u}%::%{_quoi}%} ? 0
+    set {za::eq::equip::%{_u}%::%{_quoi}%} to {_n}
+    set {za::eq::equip::%{_u}%::%{_quoi}%::jour} to {za::serveur::jours} ? 0
+    return {_n}
+
+function za_eq_stocker(u: text, it: itemtype) :: boolean:
+    if za_surv_stocker({_u}, {_it}) is true:
+        return true
+    set {_bl} to {za::base::%{_u}%}
+    if {_bl} is set:
+        if chunk at {_bl} is loaded:
+            drop {_it} at {_bl}
+            return true
+    return false
+
+# travail quotidien des nouveaux postes (appelé par za_surv_travail, za_p43)
+function za_eq_poste(id: number, u: text, r: text):
+    set {_nom} to {za::surv::%{_id}%::nom}
+    set {_m} to {za::surv::%{_id}%::metier}
+    set {_k} to 0.6 + (za_eq_st({_id}, "recolte") / 10)
+    set {_k} to {_k} * (1 - (za_eq_st({_id}, "fatigue") / 250))
+    if {_r} is "scierie":
+        if za_eq_compte_blocs({_u}, "scie") < 1:
+            za_surv_avis({_u}, "&e%{_nom}% ne peut pas travailler à la scierie : &7pose une scie mécanique Create à moins de 16 blocs du centre de la base.")
+            stop
+        if {_m} is "bucheron" or "menuisier":
+            set {_k} to {_k} * 1.4
+        set {_ok} to za_eq_stocker({_u}, (ceil(16 * {_k})) of oak planks)
+        set {_ok} to za_eq_stocker({_u}, (ceil(8 * {_k})) of stick)
+        za_surv_avis({_u}, "&7🪚 %{_nom}% a tourné la scierie : %ceil(16 * {_k})% planches, %ceil(8 * {_k})% bâtons.")
+    else if {_r} is "ferme":
+        set {_f} to za_eq_compte_blocs({_u}, "champ")
+        if {_f} < 4:
+            za_surv_avis({_u}, "&e%{_nom}% n'a rien à cultiver : &7laboure des champs à moins de 16 blocs du centre de la base.")
+            stop
+        if {_m} is "agriculteur":
+            set {_k} to {_k} * 1.4
+        set {_q} to min(32, ceil(({_f} / 3) * {_k}))
+        set {_ok} to za_eq_stocker({_u}, {_q} of wheat)
+        set {_ok} to za_eq_stocker({_u}, (ceil({_q} / 2)) of carrot)
+        set {_ok} to za_eq_stocker({_u}, (ceil({_q} / 2)) of potato)
+    else if {_r} is "mine":
+        if {_m} is "mineur":
+            set {_k} to {_k} * 1.5
+        set {_ok} to za_eq_stocker({_u}, (ceil(24 * {_k})) of cobblestone)
+        set {_ok} to za_eq_stocker({_u}, (ceil(4 * {_k})) of coal)
+        set {_ok} to za_eq_stocker({_u}, (ceil(2 * {_k})) of raw iron)
+        if chance of 40%:
+            set {_ok} to za_eq_stocker({_u}, (ceil(3 * {_k})) of raw copper)
+        za_eq_st_ajouter({_id}, "fatigue", 10)
+    else if {_r} is "radio":
+        set {_p} to za_surv_joueur({_u})
+        if {_p} is set:
+            if chance of 30%:
+                set {_f::*} to za_radio_freqs_cachees()
+                loop {_f::*}:
+                    if {za::freq::connue::%{_u}%::%loop-value%} is not set:
+                        add loop-value to {_inc::*}
+                if size of {_inc::*} > 0:
+                    set {_fr} to random element out of {_inc::*}
+                    za_radio_decouvrir({_p}, {_fr})
+                    send "&3📻 %{_nom}% &7a capté quelque chose sur le &f%{_fr}%&7. Ça grésille, mais c'est une voix." to {_p}
+                    stop
+            set {_bl} to {za::base::%{_u}%}
+            set {_ni} to za_nid_proche({_bl}, 700)
+            if {_ni} is not 0:
+                set {_c} to {za::nid::%{_ni}%::loc}
+                send "&3📻 %{_nom}% &7: « Sur les ondes, ils parlent d'un nid vers %za_dir_cardinale({_bl}, {_c})%, à %round(distance between {_c} and {_bl})% mètres. »" to {_p}
+            else:
+                send "&3📻 %{_nom}% &7: « Rien sur les ondes aujourd'hui. Le silence, c'est pas toujours bon signe. »" to {_p}
+    else if {_r} is "cuisine":
+        set {_b} to za_surv_reserve({_u})
+        if {_b} is not set:
+            stop
+        set {_inv} to inventory of {_b}
+        set {_i} to 0
+        set {_n} to 0
+        while slot {_i} of {_inv} is set:
+            set {_it} to slot {_i} of {_inv}
+            if {_it} is not air:
+                set {_t} to "%type of {_it}%"
+                set {_q} to item amount of {_it}
+                set {_c} to ""
+                if {_t} is "raw beef" or "beef":
+                    set {_c} to "cooked beef"
+                else if {_t} is "raw porkchop" or "porkchop":
+                    set {_c} to "cooked porkchop"
+                else if {_t} is "raw chicken" or "chicken":
+                    set {_c} to "cooked chicken"
+                else if {_t} is "raw mutton" or "mutton":
+                    set {_c} to "cooked mutton"
+                else if {_t} is "raw rabbit" or "rabbit":
+                    set {_c} to "cooked rabbit"
+                else if {_t} is "raw cod" or "cod":
+                    set {_c} to "cooked cod"
+                else if {_t} is "raw salmon" or "salmon":
+                    set {_c} to "cooked salmon"
+                else if {_t} is "potato" or "potatoes":
+                    set {_c} to "baked potato"
+                if {_c} is not "":
+                    set {_ct} to {_c} parsed as itemtype
+                    if {_ct} is set:
+                        set slot {_i} of {_inv} to {_q} of {_ct}
+                        add {_q} to {_n}
+            add 1 to {_i}
+        if {_n} > 0:
+            za_surv_avis({_u}, "&7🍳 %{_nom}% a cuisiné %{_n}% portion(s) dans la Réserve.")
+    else if {_r} is "intendance":
+        set {_ok} to za_eq_stocker({_u}, za_item("bread", "Conserve", "&f", 3))
+        loop {za::surv::liste::*}:
+            if {za::surv::%loop-value%::etat} is "base":
+                if {za::surv::%loop-value%::base} is {_u}:
+                    za_surv_moral_ajouter(loop-value, 2)
+
+# repos à la base : fatigue et santé (toutes les minutes)
+every 1 minute:
+    loop {za::surv::liste::*}:
+        set {_id} to loop-value
+        if {za::surv::%{_id}%::etat} is "base":
+            if {za::eq::m::%{_id}%::type} is not set:
+                if {za::surv::%{_id}%::st::combat} is set:
+                    za_eq_st_ajouter({_id}, "fatigue", -2)
+                    set {_s} to 1
+                    if ({za::surv::soigneurs::%{za::surv::%{_id}%::base}%} ? 0) > 0:
+                        set {_s} to 3
+                    za_eq_st_ajouter({_id}, "sante", {_s})
+
+# ---------------------------------------------------------------- zones de travail
+
+function za_eq_cat_nom(t: text) :: text:
+    if {_t} is "camp_chasse" or "chalet":
+        return "Forêt"
+    if {_t} is "ferme":
+        return "Ferme"
+    if {_t} is "carriere":
+        return "Carrière"
+    if {_t} is "industriel":
+        return "Zone industrielle"
+    return "Lieu"
+
+# lieu généré le plus proche d'une base, parmi des types, entre dmin et dmax ("" sinon)
+function za_eq_site_proche(b: location, types: text, dmin: number, dmax: number, sauf: text) :: text:
+    set {_t::*} to split {_types} at ","
+    set {_best} to ""
+    set {_bd} to {_dmax}
+    loop za_sites_donnees():
+        set {_c::*} to split loop-value at "|"
+        if {_t::*} contains {_c::2}:
+            if {_sauf} does not contain "/%{_c::1}%/":
+                set {_l} to location({_c::4} parsed as number, {_c::5} parsed as number, {_c::6} parsed as number, world of {_b})
+                set {_d} to distance between {_l} and {_b}
+                if {_d} >= {_dmin}:
+                    if {_d} < {_bd}:
+                        set {_bd} to {_d}
+                        set {_best} to {_c::1}
+    return {_best}
+
+# choisit la zone d'une mission : {za::eq::m::<id>::cible|zone|site}
+function za_eq_choisir_zone(id: number, t: text, u: text, z: text) :: boolean:
+    set {_bl} to {za::base::%{_u}%}
+    if {_bl} is not set:
+        return false
+    set {_k} to ""
+    set {_l} to {_bl}
+    # zone marquée par le joueur (/equipe zone)
+    if {_z} is not "":
+        if {za::eq::zone::%{_u}%::%{_z}%} is set:
+            set {_l} to {za::eq::zone::%{_u}%::%{_z}%}
+            set {za::eq::m::%{_id}%::cible} to {_l}
+            set {za::eq::m::%{_id}%::zone} to "Zone « %{_z}% »"
+            return true
+    if {_t} is "bois":
+        set {_k} to za_eq_site_proche({_bl}, "camp_chasse,chalet", 60, 1400, "")
+    else if {_t} is "nourriture":
+        set {_k} to za_eq_site_proche({_bl}, "ferme", 60, 1400, "")
+    else if {_t} is "plantes":
+        set {_k} to za_eq_site_proche({_bl}, "ferme,chalet,camp_chasse", 60, 1400, "")
+    else if {_t} is "materiaux":
+        set {_k} to za_eq_site_proche({_bl}, "garage,village,carambolage,industriel,depanneur,station,exode", 60, 1500, "")
+    else if {_t} is "minerais":
+        set {_k} to za_eq_site_proche({_bl}, "carriere", 60, 1500, "")
+    else if {_t} is "recup":
+        set {_sauf} to ""
+        loop {za::eq::fouille::%{_u}%::*}:
+            if ({za::serveur::jours} ? 0) - loop-value < 5:
+                set {_sauf} to "%{_sauf}%/%loop-index%/"
+        set {_k} to za_eq_site_proche({_bl}, "depanneur,clinique,garage,station,motel,checkpoint,convoi,carambolage,caserne,ecole,eglise,refuge,village", 40, 1500, {_sauf})
+    else if {_t} is "cherche":
+        set {_sauf} to ""
+        loop za_sites_donnees():
+            set {_c::*} to split loop-value at "|"
+            if {za::site::vu::%{_c::1}%::%{_u}%} is set:
+                set {_sauf} to "%{_sauf}%/%{_c::1}%/"
+            else if {za::carte::%{_u}%::site:%{_c::1}%} is set:
+                set {_sauf} to "%{_sauf}%/%{_c::1}%/"
+        set {_k} to za_eq_site_proche({_bl}, "village,ferme,chalet,camp_chasse,refuge,depanneur,station,garage,motel,checkpoint,ecole,clinique,eglise,caserne,carambolage,convoi", 100, 2500, {_sauf})
+    if {_k} is not "":
+        set {_x} to {za::site::d::%{_k}%::x}
+        set {_z2} to {za::site::d::%{_k}%::z}
+        # pas au cœur du bâtiment : au bord du lieu
+        set {_l} to location({_x} + ({za::site::d::%{_k}%::dx} ? 6) + 4, {za::site::d::%{_k}%::y}, {_z2}, world of {_bl})
+        set {za::eq::m::%{_id}%::site} to {_k}
+        set {_nm} to {za::site::d::%{_k}%::nom}
+        if {_t} is "bois":
+            set {_nm} to "Forêt près de %{_nm}%"
+        set {za::eq::m::%{_id}%::zone} to {_nm}
+    else:
+        # pas de lieu connu : une direction au hasard
+        set {_d} to 220
+        if {_t} is "recon":
+            set {_d} to 520
+        set {_a} to random number between 0 and 360
+        set {_l} to location(((x-coordinate of {_bl}) + ({_d} * cos({_a}))), (y-coordinate of {_bl}), ((z-coordinate of {_bl}) + ({_d} * sin({_a}))), (world of {_bl}))
+        set {_cat} to "Terres"
+        if {_t} is "bois":
+            set {_cat} to "Forêt"
+        else if {_t} is "minerais":
+            set {_cat} to "Affleurement rocheux"
+        else if {_t} is "recon":
+            set {_cat} to "Reconnaissance"
+        set {_dir} to za_dir_cardinale({_bl}, {_l})
+        set {_dir::*} to split {_dir} at " "
+        set {_dir} to last element of {_dir::*}
+        if {_dir} starts with "l'":
+            set {_dir} to subtext of {_dir} from characters 3 to length of {_dir}
+        set {za::eq::m::%{_id}%::zone} to "%{_cat}% %{_dir}%"
+    set {za::eq::m::%{_id}%::cible} to {_l}
+    return true
+
+# catégorie de la zone (pour les aversions)
+function za_eq_zone_cat(t: text, k: text) :: text:
+    if {_t} is "bois" or "plantes":
+        return "foret"
+    if {_k} is not "":
+        set {_ty} to {za::site::d::%{_k}%::type} ? ""
+        if {_ty} starts with "sous_":
+            return "souterrain"
+        if {_ty} is "camp_chasse" or "chalet":
+            return "foret"
+        if {_ty} is "village" or "depanneur" or "ecole" or "clinique" or "caserne" or "eglise" or "garage" or "station" or "motel":
+            return "ville"
+    return ""
+
+# ---------------------------------------------------------------- donner une tâche
+
+function za_eq_menu_tache(p: player, id: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::eq::ctx::%{_u}%} to {_id}
+    za_eq_init({_id})
+    set {_nom} to {za::surv::%{_id}%::nom}
+    set {_o::*} to "Récolte...|cat:recolte", "Exploration...|cat:explo", "Suis-moi|t:suivre", "Poste à la base...|postes1"
+    if {za::eq::m::%{_id}%::type} is set:
+        add "Rentre à la base|t:rentrer" to {_o::*}
+    add "Retour|quit" to {_o::*}
+    set {_z::*} to indices of {za::eq::zone::%{_u}%::*}
+    set {_tx} to "« Qu'est-ce que je fais ? » Santé %floor(za_eq_sa({_id}))% %%, fatigue %floor(za_eq_fa({_id}))% %%."
+    if size of {_z::*} > 0:
+        set {_tx} to "%{_tx}% Tes zones marquées : %{_z::*}% (/equipe tache <nom> bois <zone>)."
+    za_menu({_p}, "zaeqclic", "Tâche pour %{_nom}%", {_tx}, {_o::*})
+
+function za_eq_menu_cat(p: player, id: number, c: text):
+    set {_nom} to {za::surv::%{_id}%::nom}
+    if {_c} is "recolte":
+        set {_o::*} to "Bois|t:bois", "Nourriture|t:nourriture", "Plantes|t:plantes", "Matériaux|t:materiaux", "Minerais|t:minerais" and "Retour|tache"
+        za_menu({_p}, "zaeqclic", "Récolte", "%{_nom}% partira dans la zone la plus proche qui s'y prête, travaillera, puis reviendra déposer le sac dans la Réserve.", {_o::*})
+    else:
+        set {_o::*} to "Reconnaissance|t:recon", "Fouiller un lieu|t:recup", "Chercher un lieu inconnu|t:cherche" and "Retour|tache"
+        za_menu({_p}, "zaeqclic", "Exploration", "Reconnaissance : il repère nids et lieux sur ta carte. Fouille : il vide un lieu abandonné. Recherche : il trouve un endroit que tu ne connais pas.", {_o::*})
+
+# réponse du survivant : "" = il accepte, sinon sa phrase de refus
+function za_eq_refus(p: player, id: number, t: text, cat: text) :: text:
+    set {_u} to "%{_p}'s uuid%"
+    set {_c} to za_surv_conf({_u}, {_id})
+    set {_tr} to {za::surv::%{_id}%::st::trait}
+    if {za::surv::%{_id}%::metier} is "enfant":
+        return "Moi ? Toute seule dehors ? ... J'ai peur. S'il te plaît."
+    if {za::surv::%{_id}%::blesse} is true:
+        return "Avec ma blessure ? J'irais pas loin. Soigne-moi d'abord."
+    if za_eq_st({_id}, "sante") < 30:
+        return "Je tiens à peine debout. Laisse-moi récupérer."
+    if za_eq_st({_id}, "fatigue") >= 75:
+        if {_tr} is not "loyal":
+            return "Sérieusement ? Je viens déjà de passer la journée dehors."
+        if {_c} < 60:
+            return "Je suis vidé. Demain, promis."
+    if ({za::surv::%{_id}%::moral} ? 50) < 20:
+        return "À quoi bon ? On va tous y passer de toute façon."
+    if {_cat} is not "":
+        if {za::surv::%{_id}%::st::aversion} is {_cat}:
+            if {_c} < 80:
+                if {_cat} is "foret":
+                    return "Je ne retournerai pas dans le bois. Pas après ce que j'y ai vu."
+                if {_cat} is "ville":
+                    return "La ville ? Non. Trop de coins, trop de fenêtres. Envoie quelqu'un d'autre."
+                return "Sous la terre ? Jamais. Je ne respire pas, là-dessous."
+    if {za::surv::%{_id}%::st::aversion} is "nuit":
+        if za_eq_nuit({za::base::%{_u}%}) is true:
+            if {_c} < 70:
+                return "La nuit ? T'es malade. On en reparle au lever du soleil."
+    return ""
+
+function za_eq_nuit(l: location) :: boolean:
+    if {_l} is not set:
+        return false
+    set {_h} to time in world of {_l}
+    if {_h} is greater than 19:00:
+        return true
+    if {_h} is less than 5:00:
+        return true
+    return false
+
+function za_eq_accord(id: number, c: number) :: text:
+    set {_tr} to {za::surv::%{_id}%::st::trait}
+    if {_c} >= 75:
+        return "Je m'en occupe."
+    if {_tr} is "volontaire":
+        return "D'accord. Je reviens avant la nuit."
+    if {_tr} is "prudent":
+        return "OK. Mais au premier grognement, je fais demi-tour."
+    if {_tr} is "tete_brulee":
+        return "Enfin un peu d'action."
+    if {_tr} is "bavard":
+        return "J'y vais. Garde ton téléphone allumé, hein ?"
+    return "Compte sur moi."
+
+function za_eq_objectif(t: text) :: number:
+    if {_t} is "bois":
+        return 32
+    if {_t} is "nourriture":
+        return 16
+    if {_t} is "plantes":
+        return 12
+    if {_t} is "materiaux":
+        return 20
+    if {_t} is "minerais":
+        return 16
+    return 0
+
+# lance une mission ; renvoie vrai si le survivant est parti
+function za_eq_lancer(p: player, id: number, t: text, z: text) :: boolean:
+    set {_u} to "%{_p}'s uuid%"
+    set {_nom} to {za::surv::%{_id}%::nom}
+    if {za::surv::%{_id}%::etat} is not "base":
+        return false
+    if {za::surv::%{_id}%::base} is not {_u}:
+        send "&cCe n'est pas un survivant de ta base." to {_p}
+        return false
+    if {_t} is "rentrer":
+        if {za::eq::m::%{_id}%::type} is not set:
+            send "&7%{_nom}% est déjà à la base." to {_p}
+            return false
+        za_eq_rappeler({_id}, {_p})
+        return true
+    if {za::eq::m::%{_id}%::type} is set:
+        send "&7%{_nom}% est déjà occupé : %za_eq_tache_nom({za::eq::m::%{_id}%::type})%. &8(/equipe rappeler)" to {_p}
+        return false
+    za_eq_init({_id})
+    if {_t} is "suivre":
+        set {_ref} to za_eq_refus({_p}, {_id}, {_t}, "")
+    else:
+        delete {za::eq::m::%{_id}%::*}
+        if za_eq_choisir_zone({_id}, {_t}, {_u}, {_z}) is false:
+            send "&cIl faut une base (/base definir)." to {_p}
+            return false
+        set {_ref} to za_eq_refus({_p}, {_id}, {_t}, za_eq_zone_cat({_t}, {za::eq::m::%{_id}%::site} ? ""))
+    if {_ref} is not "":
+        delete {za::eq::m::%{_id}%::*}
+        za_surv_dit({_p}, {_nom}, {_ref})
+        za_zm("son %{_p}% minecraft:entity.villager.no 0.8 1")
+        return false
+    set {_bl} to {za::base::%{_u}%}
+    set {_dep} to za_surv_spot_base({_u})
+    set {za::eq::m::%{_id}%::type} to {_t}
+    set {za::eq::m::%{_id}%::u} to {_u}
+    set {za::eq::m::%{_id}%::pos} to {_dep}
+    set {za::eq::m::%{_id}%::depart} to now
+    set {za::eq::m::%{_id}%::depart_ts} to unix timestamp of now
+    set {za::eq::m::%{_id}%::debut_ts} to unix timestamp of now
+    set {za::eq::m::%{_id}%::obj} to za_eq_objectif({_t})
+    set {za::eq::m::%{_id}%::n} to 0
+    set {za::eq::m::%{_id}%::mat} to false
+    set {za::eq::m::%{_id}%::premier} to false
+    if ({za::surv::%{_id}%::st::missions} ? 0) is 0:
+        set {za::eq::m::%{_id}%::premier} to true
+    add {_id} to {za::eq::liste::*}
+    za_surv_npc_retirer({_id})
+    za_surv_recompte({_u})
+    za_surv_dit({_p}, {_nom}, za_eq_accord({_id}, za_surv_conf({_u}, {_id})))
+    za_zm("son %{_p}% minecraft:entity.villager.yes 0.8 1")
+    if {_t} is "suivre":
+        set {za::eq::m::%{_id}%::phase} to "suivre"
+        set {za::eq::m::%{_id}%::zone} to "avec %{_p}%"
+        set {za::eq::m::%{_id}%::pos} to location of {_p}
+        send "&7%{_nom}% te suit. Il se bat à tes côtés (combat %za_eq_note(za_eq_cbt({_id}))%&7). &8/equipe rappeler pour le renvoyer à la base." to {_p}
+        return true
+    set {za::eq::m::%{_id}%::phase} to "aller"
+    set {_cl} to {za::eq::m::%{_id}%::cible}
+    send "&8┌ &6Tâche : &f%za_eq_tache_nom({_t})%" to {_p}
+    send "&8│ &6Zone : &f%{za::eq::m::%{_id}%::zone}% &8(%za_dir_cardinale({_bl}, {_cl})%)" to {_p}
+    send "&8│ &6Distance : &f%round(distance between {_bl} and {_cl})% m" to {_p}
+    if za_eq_objectif({_t}) > 0:
+        send "&8└ &6Objectif : &f%za_eq_objectif({_t})% %za_eq_unite({_t})%" to {_p}
+    else:
+        send "&8└ &6Objectif : &frevenir avec ce qu'il trouve" to {_p}
+    za_journal("%{_nom}% est parti en mission : %za_eq_tache_nom({_t})% (%{za::eq::m::%{_id}%::zone}%).")
+    return true
+
+# ---------------------------------------------------------------- la mission : sac, journal, fin
+
+function za_eq_log(id: number, t: text):
+    add "%{_t}%" to {za::eq::m::%{_id}%::log::*}
+
+function za_eq_sac_ajouter(id: number, k: text, n: number):
+    if {_n} <= 0:
+        stop
+    set {za::eq::m::%{_id}%::sac::%{_k}%} to ({za::eq::m::%{_id}%::sac::%{_k}%} ? 0) + {_n}
+
+function za_eq_sac_perdre(id: number, part: number):
+    loop {za::eq::m::%{_id}%::sac::*}:
+        set {_i} to loop-index
+        set {za::eq::m::%{_id}%::sac::%{_i}%} to floor(loop-value * (1 - {_part}))
+    set {za::eq::m::%{_id}%::n} to floor(({za::eq::m::%{_id}%::n} ? 0) * (1 - {_part}))
+
+function za_eq_sac_total(id: number) :: number:
+    set {_n} to 0
+    loop {za::eq::m::%{_id}%::sac::*}:
+        add loop-value to {_n}
+    return {_n}
+
+# nom lisible d'un objet du sac
+function za_eq_sac_nom(k: text) :: text:
+    if {_k} contains "log":
+        return "bois"
+    if {_k} is "stick":
+        return "bâtons"
+    if {_k} is "apple":
+        return "pommes"
+    if {_k} is "sweet berries":
+        return "baies"
+    if {_k} is "carrot":
+        return "carottes"
+    if {_k} is "potato":
+        return "patates"
+    if {_k} is "wheat":
+        return "blé"
+    if {_k} is "raw beef" or "raw rabbit" or "raw porkchop":
+        return "viande"
+    if {_k} is "leather":
+        return "cuir"
+    if {_k} is "brown mushroom" or "red mushroom":
+        return "champignons"
+    if {_k} is "wheat seeds":
+        return "semences"
+    if {_k} is "iron nugget":
+        return "pépites de fer"
+    if {_k} is "string":
+        return "ficelle"
+    if {_k} is "glass pane":
+        return "vitres"
+    if {_k} is "oak planks":
+        return "planches"
+    if {_k} is "cobblestone":
+        return "pierre"
+    if {_k} is "coal":
+        return "charbon"
+    if {_k} is "raw iron":
+        return "fer brut"
+    if {_k} is "raw copper":
+        return "cuivre brut"
+    if {_k} is "raw gold":
+        return "or brut"
+    if {_k} starts with "za:":
+        return subtext of {_k} from characters 4 to length of {_k}
+    return {_k}
+
+function za_eq_icone(t: text) :: text:
+    if {_t} is "bois":
+        return "🪵"
+    if {_t} is "nourriture":
+        return "🥕"
+    if {_t} is "plantes":
+        return "🌿"
+    if {_t} is "materiaux":
+        return "🔩"
+    if {_t} is "minerais":
+        return "⛏"
+    return "🎒"
+
+# rendement d'une minute de travail (au rythme de base)
+function za_eq_produire(id: number, t: text, f: number):
+    set {_k} to {za::eq::m::%{_id}%::site} ? ""
+    if {_t} is "bois":
+        set {_log} to "oak log"
+        if {_k} is not "":
+            if {za::site::d::%{_k}%::type} is "chalet":
+                set {_log} to "spruce log"
+            else if {_k} contains "camp":
+                set {_log} to random element out of "spruce log", "birch log" and "oak log"
+        set {_q} to 8 * {_f}
+        za_eq_sac_ajouter({_id}, {_log}, {_q})
+        add {_q} to {za::eq::m::%{_id}%::n}
+        za_eq_sac_ajouter({_id}, "stick", 1.6 * {_f})
+        za_eq_sac_ajouter({_id}, "apple", 0.6 * {_f})
+    else if {_t} is "nourriture":
+        set {_q} to 4 * {_f}
+        set {_a} to random element out of "carrot", "potato", "wheat", "apple" and "sweet berries"
+        if {za::surv::%{_id}%::metier} is "chasseur":
+            set {_a} to random element out of "raw beef", "raw rabbit" and "raw porkchop"
+        za_eq_sac_ajouter({_id}, {_a}, {_q})
+        add {_q} to {za::eq::m::%{_id}%::n}
+        za_eq_sac_ajouter({_id}, "leather", 0.4 * {_f})
+    else if {_t} is "plantes":
+        set {_q} to 3 * {_f}
+        set {_a} to random element out of "sweet berries", "brown mushroom", "red mushroom" and "wheat seeds"
+        za_eq_sac_ajouter({_id}, {_a}, {_q})
+        add {_q} to {za::eq::m::%{_id}%::n}
+        if za_eq_st({_id}, "medical") >= 6:
+            za_eq_sac_ajouter({_id}, "za:Bandage", 0.3 * {_f})
+    else if {_t} is "materiaux":
+        set {_q} to 5 * {_f}
+        set {_a} to random element out of "iron nugget", "string", "glass pane", "oak planks" and "leather"
+        za_eq_sac_ajouter({_id}, {_a}, {_q})
+        add {_q} to {za::eq::m::%{_id}%::n}
+        za_eq_sac_ajouter({_id}, "za:Composant electronique", (0.08 + (za_eq_st({_id}, "meca") * 0.02)) * {_f})
+    else if {_t} is "minerais":
+        set {_q} to 4 * {_f}
+        za_eq_sac_ajouter({_id}, "cobblestone", 3 * {_q})
+        set {_a} to random element out of "coal", "coal", "raw iron", "raw copper" and "raw gold"
+        za_eq_sac_ajouter({_id}, {_a}, {_q})
+        add {_q} to {za::eq::m::%{_id}%::n}
+    # priorités secondaires : 20 %% de leur rythme
+    if {_t} is not "recup":
+        loop {za::surv::%{_id}%::prio::*}:
+            if loop-value is not {_t}:
+                if loop-value is "bois":
+                    za_eq_sac_ajouter({_id}, "oak log", 1.6 * {_f})
+                else if loop-value is "nourriture":
+                    za_eq_sac_ajouter({_id}, "apple", 0.8 * {_f})
+                else if loop-value is "plantes":
+                    za_eq_sac_ajouter({_id}, "sweet berries", 0.6 * {_f})
+                else if loop-value is "materiaux":
+                    za_eq_sac_ajouter({_id}, "iron nugget", 1 * {_f})
+                else if loop-value is "minerais":
+                    za_eq_sac_ajouter({_id}, "coal", 0.8 * {_f})
+
+# butin d'une fouille selon le lieu
+function za_eq_fouiller(id: number):
+    set {_k} to {za::eq::m::%{_id}%::site} ? ""
+    set {_ty} to ""
+    if {_k} is not "":
+        set {_ty} to {za::site::d::%{_k}%::type}
+    set {_b} to 1 + (za_eq_st({_id}, "recolte") / 8)
+    if {_ty} is "clinique":
+        za_eq_sac_ajouter({_id}, "za:Bandage", 3 * {_b})
+        za_eq_sac_ajouter({_id}, "za:Antibiotique", 0.7 * {_b})
+    else if {_ty} is "garage" or "station" or "carambolage" or "exode":
+        za_eq_sac_ajouter({_id}, "za:Essence (carburant)", 1.5 * {_b})
+        za_eq_sac_ajouter({_id}, "za:Composant electronique", 1 * {_b})
+        za_eq_sac_ajouter({_id}, "iron nugget", 6 * {_b})
+    else if {_ty} is "checkpoint" or "convoi" or "caserne":
+        za_eq_sac_ajouter({_id}, "iron ingot", 3 * {_b})
+        za_eq_sac_ajouter({_id}, "arrow", 12 * {_b})
+        za_eq_sac_ajouter({_id}, "za:Bandage", 1 * {_b})
+    else if {_ty} is "depanneur" or "motel" or "village":
+        za_eq_sac_ajouter({_id}, "za:Conserve", 4 * {_b})
+        za_eq_sac_ajouter({_id}, "torch", 6 * {_b})
+    else:
+        za_eq_sac_ajouter({_id}, "za:Conserve", 2 * {_b})
+        za_eq_sac_ajouter({_id}, "za:Bandage", 1 * {_b})
+        za_eq_sac_ajouter({_id}, "string", 3 * {_b})
+    if {_k} is not "":
+        set {za::eq::fouille::%{za::eq::m::%{_id}%::u}%::%{_k}%} to {za::serveur::jours} ? 0
+
+# révèle sur la carte du joueur (za_p95) ce que le survivant a vu autour d'un point
+function za_eq_reveler(id: number, c: location, r: number) :: texts:
+    set {_u} to {za::eq::m::%{_id}%::u}
+    loop za_sites_donnees():
+        set {_s::*} to split loop-value at "|"
+        set {_l} to location({_s::4} parsed as number, {_s::5} parsed as number, {_s::6} parsed as number, world of {_c})
+        if distance between {_l} and {_c} < {_r}:
+            if {za::carte::%{_u}%::site:%{_s::1}%} is not set:
+                set {za::carte::%{_u}%::site:%{_s::1}%} to {za::serveur::jours} ? 0
+                add "%{_s::3}% (X %{_s::4}%, Z %{_s::6}%)" to {_vu::*}
+    loop {za::nid::liste::*}:
+        set {_nl} to {za::nid::%loop-value%::loc}
+        if {_nl} is set:
+            if world of {_nl} is world of {_c}:
+                if distance between {_nl} and {_c} < {_r}:
+                    set {za::carte::%{_u}%::nid:%loop-value%} to {za::serveur::jours} ? 0
+                    add "&cun nid&7 (X %floor(x-coordinate of {_nl})%, Z %floor(z-coordinate of {_nl})%)" to {_vu::*}
+    return {_vu::*}
+
+# arrivée à la base : le sac va dans la Réserve
+function za_eq_terminer(id: number, issue: text):
+    set {_u} to {za::eq::m::%{_id}%::u}
+    set {_t} to {za::eq::m::%{_id}%::type}
+    set {_nom} to {za::surv::%{_id}%::nom}
+    set {_p} to za_surv_joueur({_u})
+    za_eq_dematerialiser({_id})
+    set {_bilan::*} to {za::eq::m::%{_id}%::log::*}
+    set {_txt} to ""
+    loop {za::eq::m::%{_id}%::sac::*}:
+        set {_q} to floor(loop-value)
+        if {_q} > 0:
+            set {_k} to loop-index
+            if {_k} starts with "za:":
+                set {_nm} to subtext of {_k} from characters 4 to length of {_k}
+                set {_mat} to "paper"
+                if {_nm} is "Conserve":
+                    set {_mat} to "bread"
+                else if {_nm} is "Antibiotique":
+                    set {_mat} to "honey bottle"
+                else if {_nm} is "Composant electronique":
+                    set {_mat} to "redstone"
+                else if {_nm} contains "Essence":
+                    set {_mat} to "lava bucket"
+                    if {_q} > 1:
+                        set {_q} to 1
+                set {_it} to za_item({_mat}, {_nm}, "&f", {_q})
+            else:
+                set {_ty} to {_k} parsed as itemtype
+                set {_it} to {_q} of {_ty}
+            if {_it} is set:
+                set {_ok} to za_eq_stocker({_u}, {_it})
+                if {_txt} is "":
+                    set {_txt} to "%{_q}% %za_eq_sac_nom({_k})%"
+                else:
+                    set {_txt} to "%{_txt}%, %{_q}% %za_eq_sac_nom({_k})%"
+    set {_ic} to za_eq_icone({_t})
+    if {_txt} is "":
+        set {_msg} to "&7%{_ic}% %{_nom}% est rentré les mains vides."
+    else:
+        set {_msg} to "&a%{_ic}% %{_nom}% a rapporté : &f%{_txt}%"
+    if {_issue} is "blesse":
+        set {_msg} to "%{_msg}% &c(blessé)"
+    if {_p} is set:
+        send "%{_msg}%" to {_p}
+        loop {_bilan::*}:
+            send "&8  · %loop-value%" to {_p}
+        za_zm("son %{_p}% minecraft:block.chest.close 0.7 1")
+    else:
+        za_surv_avis({_u}, {_msg})
+    # fatigue, moral, confiance
+    set {_min} to ((unix timestamp of now) - ({za::eq::m::%{_id}%::depart_ts} ? (unix timestamp of now))) / 60
+    za_eq_st_ajouter({_id}, "fatigue", 15 + min(40, 2 * {_min}))
+    add 1 to {za::surv::%{_id}%::st::missions}
+    if {_issue} is "ok":
+        za_surv_moral_ajouter({_id}, 3)
+        za_surv_conf_ajouter({_u}, {_id}, 2)
+    else if {_issue} is "blesse":
+        za_surv_moral_ajouter({_id}, -6)
+        set {za::surv::%{_id}%::blesse} to true
+    za_stat_ajouter({_u}, "missions_survivants", 1)
+    # le cerveau du survivant s'en souvient (ZAMoteur, IA-8)
+    set {_tt} to {_t} ? "tache"
+    set {_nn} to floor({za::eq::m::%{_id}%::n} ? 0)
+    za_mot("survres %{_id}% %{_tt}% %{_issue}% %{_nn}%")
+    za_eq_effacer({_id})
+    set {za::surv::%{_id}%::lieu} to za_surv_spot_base({_u})
+    za_surv_recompte({_u})
+    if {_p} is set:
+        if world of {_p} is world of {za::surv::%{_id}%::lieu}:
+            if distance between {_p} and {za::surv::%{_id}%::lieu} < 90:
+                za_surv_npc_placer({_id})
+
+function za_eq_effacer(id: number):
+    remove {_id} from {za::eq::liste::*}
+    delete {za::eq::m::%{_id}%::*}
+
+# le joueur le rappelle : il rentre (avec ce qu'il a)
+function za_eq_rappeler(id: number, p: player):
+    set {_f} to {za::eq::m::%{_id}%::phase}
+    set {_nom} to {za::surv::%{_id}%::nom}
+    if {_f} is "disparu" or "a_terre" or "danger":
+        send "&c%{_nom}% ne répond pas. Il faut aller le chercher." to {_p}
+        stop
+    set {_u} to {za::eq::m::%{_id}%::u}
+    if {_f} is "suivre":
+        za_eq_dematerialiser({_id})
+        za_eq_effacer({_id})
+        set {za::surv::%{_id}%::lieu} to za_surv_spot_base({_u})
+        za_surv_recompte({_u})
+        send "&7%{_nom}% rentre à la base." to {_p}
+        stop
+    set {za::eq::m::%{_id}%::phase} to "retour"
+    set {za::eq::m::%{_id}%::cible} to za_surv_spot_base({_u})
+    za_eq_log({_id}, "Rappelé à la base.")
+    send "&7%{_nom}% a reçu ton message. Il rentre." to {_p}
+
+# ---------------------------------------------------------------- le survivant en chair et en os
+
+function za_eq_ent(id: number) :: entity:
+    set {_l} to {za::eq::m::%{_id}%::pos}
+    if {_l} is not set:
+        stop
+    loop all villagers in radius 12 around {_l}:
+        if za_surv_a_tag(loop-entity, "za_mis_%{_id}%") is true:
+            return loop-entity
+
+function za_eq_vnom(id: number) :: text:
+    set {_n} to {za::surv::%{_id}%::vnom} ? {za::surv::%{_id}%::nom}
+    set {_f} to {za::eq::m::%{_id}%::phase}
+    if {_f} is "a_terre":
+        return "%{_n}% (à terre)"
+    if {_f} is "danger" or "disparu":
+        return "%{_n}% (blessé)"
+    return {_n}
+
+# sol sous un point (premier bloc plein en descendant, eau comprise)
+function za_eq_sol(l: location) :: location:
+    set {_x} to x-coordinate of {_l}
+    set {_z} to z-coordinate of {_l}
+    set {_y} to floor(y-coordinate of {_l}) + 2
+    set {_k} to 0
+    while {_k} < 12:
+        set {_b} to block at location({_x}, {_y} - 1, {_z}, world of {_l})
+        if za_eq_plein({_b}) is true:
+            if za_eq_plein(block at location({_x}, {_y}, {_z}, world of {_l})) is false:
+                return location({_x}, {_y}, {_z}, world of {_l})
+        if "%type of {_b}%" contains "water":
+            return location({_x}, {_y}, {_z}, world of {_l})
+        remove 1 from {_y}
+        add 1 to {_k}
+    return za_sol({_l})
+
+function za_eq_plein(b: block) :: boolean:
+    set {_t} to "%type of {_b}%"
+    if {_t} contains "door" or "gate" or "air" or "grass" or "fern" or "flower" or "torch" or "sign" or "carpet" or "snow" or "vine" or "sapling" or "rail" or "button" or "pressure plate" or "water" or "lava" or "bush" or "leaves":
+        if {_t} does not contain "trapdoor":
+            if {_t} does not contain "grass block":
+                if {_t} does not contain "snow block":
+                    return false
+    if {_b} is solid:
+        return true
+    return false
+
+function za_eq_materialiser(id: number):
+    set {_l} to za_eq_sol({za::eq::m::%{_id}%::pos})
+    set {za::eq::m::%{_id}%::pos} to {_l}
+    set {_wd} to za_dim(world of {_l})
+    set {_age} to ""
+    if {za::surv::%{_id}%::metier} is "enfant":
+        set {_age} to "Age:-2000000000,"
+    execute console command "execute in %{_wd}% run summon villager %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% {NoAI:1b,Invulnerable:1b,Silent:1b,CustomNameVisible:1b,CustomName:'""%za_eq_vnom({_id})%""',%{_age}%VillagerData:{profession:""minecraft:nitwit"",level:1,type:""minecraft:plains""},Tags:[""za_mis"",""za_mis_%{_id}%""]}"
+    set {za::eq::m::%{_id}%::mat} to true
+    set {_jeton} to random integer between 1 and 999999
+    set {za::eq::m::%{_id}%::boucle} to {_jeton}
+    za_eq_marcher({_id}, {_jeton})
+
+function za_eq_dematerialiser(id: number):
+    set {za::eq::m::%{_id}%::mat} to false
+    delete {za::eq::m::%{_id}%::boucle}
+    set {_l} to {za::eq::m::%{_id}%::pos}
+    if {_l} is set:
+        if chunk at {_l} is loaded:
+            loop all villagers in radius 16 around {_l}:
+                if za_surv_a_tag(loop-entity, "za_mis_%{_id}%") is true:
+                    delete loop-entity
+
+function za_eq_joueur_pres(l: location, r: number) :: boolean:
+    loop za_monde_joueurs():
+        if world of loop-value is world of {_l}:
+            if distance between loop-value and {_l} < {_r}:
+                return true
+    return false
+
+# boucle de marche (toutes les 4 ticks) tant que le survivant est visible
+function za_eq_marcher(id: number, jeton: number):
+    wait 10 ticks
+    set {_e} to za_eq_ent({_id})
+    if {_e} is not set:
+        set {za::eq::m::%{_id}%::mat} to false
+        stop
+    set {_i} to 0
+    set {_coince} to 0
+    while {za::eq::m::%{_id}%::boucle} is {_jeton}:
+        if {_e} is not alive:
+            set {za::eq::m::%{_id}%::mat} to false
+            stop
+        add 1 to {_i}
+        set {_f} to {za::eq::m::%{_id}%::phase}
+        set {_pos} to location of {_e}
+        set {_cible} to {za::eq::m::%{_id}%::cible}
+        set {_bouge} to false
+        set {_v} to 0.24 + (za_eq_st({_id}, "vitesse") * 0.018)
+        if {_f} is "aller" or "retour":
+            set {_bouge} to true
+        else if {_f} is "suivre":
+            set {_o} to za_surv_joueur({za::eq::m::%{_id}%::u})
+            if {_o} is set:
+                if world of {_o} is world of {_e}:
+                    set {_cible} to location of {_o}
+                    set {_d} to distance between {_o} and {_e}
+                    if {_d} > 40:
+                        teleport {_e} to za_eq_sol(location of {_o})
+                    else if {_d} > 3.5:
+                        set {_bouge} to true
+                        if {_d} > 8:
+                            set {_v} to {_v} * 1.6
+        else if {_f} is "travail":
+            # il tourne autour de la zone de travail
+            if mod({_i}, 25) is 0:
+                set {_c2} to {za::eq::m::%{_id}%::cible}
+                set {za::eq::m::%{_id}%::coin} to location(((x-coordinate of {_c2}) + (random number between -8 and 8)), (y-coordinate of {_c2}), ((z-coordinate of {_c2}) + (random number between -8 and 8)), (world of {_c2}))
+            set {_cible} to {za::eq::m::%{_id}%::coin} ? {_cible}
+            if distance between {_cible} and {_e} > 1.5:
+                set {_bouge} to true
+                set {_v} to {_v} * 0.6
+            if mod({_i}, 15) is 0:
+                za_eq_geste({_id}, {_e})
+        if {_bouge} is true:
+            if world of {_cible} is world of {_e}:
+                set {_dx} to (x-coordinate of {_cible}) - (x-coordinate of {_pos})
+                set {_dz} to (z-coordinate of {_cible}) - (z-coordinate of {_pos})
+                set {_n} to sqrt(({_dx} * {_dx}) + ({_dz} * {_dz}))
+                if {_n} > 0.2:
+                    set {_ok} to false
+                    loop 0, 50, -50, 90 and -90:
+                        if {_ok} is false:
+                            set {_a} to atan2({_dx}, {_dz}) + loop-value
+                            set {_nx} to (x-coordinate of {_pos}) + ({_v} * cos({_a}))
+                            set {_nz} to (z-coordinate of {_pos}) + ({_v} * sin({_a}))
+                            set {_t} to location({_nx}, (y-coordinate of {_pos}) + 1, {_nz}, world of {_pos})
+                            set {_s} to za_eq_sol({_t})
+                            if abs((y-coordinate of {_s}) - (y-coordinate of {_pos})) <= 1.2:
+                                set {_ok} to true
+                    if {_ok} is true:
+                        set {_coince} to 0
+                    else:
+                        add 1 to {_coince}
+                        if {_coince} >= 10:
+                            # il escalade / contourne : petit saut en avant
+                            set {_a} to atan2({_dx}, {_dz})
+                            set {_t} to location(((x-coordinate of {_pos}) + (3 * cos({_a}))), ((y-coordinate of {_pos}) + 4), ((z-coordinate of {_pos}) + (3 * sin({_a}))), (world of {_pos}))
+                            set {_s} to za_eq_sol({_t})
+                            set {_ok} to true
+                            set {_coince} to 0
+                    if {_ok} is true:
+                        set yaw of {_s} to atan2({_dz}, 0 - {_dx})
+                        teleport {_e} to {_s}
+                        set {za::eq::m::%{_id}%::pos} to {_s}
+        else:
+            set {za::eq::m::%{_id}%::pos} to location of {_e}
+        # combat (une fois par seconde)
+        if mod({_i}, 5) is 0:
+            za_eq_combat({_id}, {_e})
+            set name of {_e} to za_eq_vnom({_id})
+        # personne autour : il continue hors champ
+        if mod({_i}, 25) is 0:
+            if za_eq_joueur_pres(location of {_e}, 96) is false:
+                za_eq_dematerialiser({_id})
+                stop
+        wait 4 ticks
+
+# gestes au travail (vraie récolte quand c'est possible)
+function za_eq_geste(id: number, e: entity):
+    set {_t} to {za::eq::m::%{_id}%::type}
+    set {_l} to location of {_e}
+    set {_wd} to za_dim(world of {_l})
+    if {_t} is "bois":
+        set {_fait} to false
+        loop blocks in radius 5 around {_e}:
+            if {_fait} is false:
+                if "%type of loop-block%" contains "log":
+                    if za_eq_pres_base(location of loop-block) is false:
+                        set {_lb} to location of loop-block
+                        execute console command "execute in %{_wd}% run particle minecraft:block oak_log %x-coordinate of {_lb}% %y-coordinate of {_lb}% %z-coordinate of {_lb}% 0.3 0.3 0.3 0.1 14 force"
+                        execute console command "execute in %{_wd}% run playsound minecraft:block.wood.break block @a %x-coordinate of {_lb}% %y-coordinate of {_lb}% %z-coordinate of {_lb}% 1 0.9"
+                        set block at {_lb} to air
+                        set {_fait} to true
+        if {_fait} is false:
+            execute console command "execute in %{_wd}% run playsound minecraft:item.axe.strip block @a %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% 0.8 1"
+    else if {_t} is "minerais":
+        execute console command "execute in %{_wd}% run playsound minecraft:block.stone.break block @a %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% 0.8 0.8"
+        execute console command "execute in %{_wd}% run particle minecraft:block stone %x-coordinate of {_l}% %y-coordinate of {_l} + 0.5% %z-coordinate of {_l}% 0.4 0.2 0.4 0.1 10 force"
+    else:
+        execute console command "execute in %{_wd}% run playsound minecraft:block.grass.break block @a %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% 0.6 1"
+        execute console command "execute in %{_wd}% run particle minecraft:composter %x-coordinate of {_l}% %y-coordinate of {_l} + 0.5% %z-coordinate of {_l}% 0.4 0.2 0.4 0.1 6 force"
+
+# pas d'arbre coupé dans une base (la sienne ou celle d'un autre)
+function za_eq_pres_base(l: location) :: boolean:
+    loop {za::base::liste::*}:
+        set {_b} to {za::base::%loop-value%}
+        if {_b} is set:
+            if world of {_b} is world of {_l}:
+                if distance between {_b} and {_l} < 64:
+                    return true
+    return false
+
+# en chair et en os : il frappe les morts, ils le frappent
+function za_eq_combat(id: number, e: entity):
+    set {_f} to {za::eq::m::%{_id}%::phase}
+    if {_f} is "disparu":
+        stop
+    set {_cb} to za_eq_st({_id}, "combat")
+    set {_n} to 0
+    set {_cible} to {_none}
+    set {_bd} to 99
+    loop all zombies in radius 3.2 around {_e}:
+        add 1 to {_n}
+        set {_d} to distance between loop-value and {_e}
+        if {_d} < {_bd}:
+            set {_bd} to {_d}
+            set {_cible} to loop-value
+    if {_n} is 0:
+        stop
+    if {_f} is not "a_terre":
+        if {_cible} is set:
+            damage {_cible} by 1 + ({_cb} * 0.5)
+            execute console command "execute at %uuid of {_cible}% run particle minecraft:sweep_attack ~ ~1 ~ 0.2 0.2 0.2 0 1 force"
+            execute console command "execute at %uuid of {_e}% run playsound minecraft:entity.player.attack.strong neutral @a ~ ~ ~ 0.7 0.9"
+    # les morts au contact
+    set {_coup} to {_n} * (2.2 - ({_cb} * 0.12))
+    za_eq_st_ajouter({_id}, "sante", 0 - {_coup})
+    execute console command "execute at %uuid of {_e}% run particle minecraft:damage_indicator ~ ~1.2 ~ 0.2 0.2 0.2 0 2 force"
+    if za_eq_st({_id}, "sante") <= 0:
+        if {_f} is not "a_terre":
+            za_eq_a_terre({_id})
+
+# ---------------------------------------------------------------- incidents (hors champ)
+
+function za_eq_nb_morts(id: number) :: number:
+    set {_l} to {za::eq::m::%{_id}%::pos}
+    set {_d} to za_danger({_l})
+    return random integer between 2 and (3 + (2 * {_d}))
+
+# réaction d'un survivant à un groupe de morts : combattre | fuir | cacher | abandonner | appel
+function za_eq_reaction(id: number, n: number) :: text:
+    set {_tr} to {za::surv::%{_id}%::st::trait}
+    set {_cb} to za_eq_st({_id}, "combat")
+    if za_eq_st({_id}, "sante") < 40:
+        if {_tr} is "bavard":
+            return "appel"
+        return "fuir"
+    if {_tr} is "tete_brulee":
+        return "combattre"
+    if {_tr} is "prudent":
+        if {_n} >= 5:
+            return "abandonner"
+        if chance of 60%:
+            return "cacher"
+        return "fuir"
+    if {_tr} is "bavard":
+        if {_n} >= 4:
+            return "appel"
+        if chance of 50%:
+            return "appel"
+    if {_cb} >= 6:
+        return "combattre"
+    if {_n} >= 6:
+        return "appel"
+    if chance of 50%:
+        return "cacher"
+    return "fuir"
+
+function za_eq_incident(id: number):
+    set {_nom} to {za::surv::%{_id}%::nom}
+    set {_zone} to {za::eq::m::%{_id}%::zone}
+    set {_l} to {za::eq::m::%{_id}%::pos}
+    set {_u} to {za::eq::m::%{_id}%::u}
+    set {_n} to za_eq_nb_morts({_id})
+    set {_r} to za_eq_reaction({_id}, {_n})
+    # rumeur : une horde est passée par là
+    if {_n} >= 6:
+        if chance of 60%:
+            set {_p} to za_surv_joueur({_u})
+            if {_p} is set:
+                send "&6⚠ &eUne horde a traversé : %{_zone}%." to {_p}
+                za_zm("son %{_p}% minecraft:entity.zombie.ambient 0.4 0.6")
+    if {_r} is "combattre":
+        set {_cb} to za_eq_st({_id}, "combat")
+        set {_pw} to min(90, max(10, 15 + ({_cb} * 8) - ({_n} * 4) - (za_danger({_l}) * 5)))
+        if chance of {_pw}%:
+            za_eq_st_ajouter({_id}, "sante", 0 - (random integer between 0 and 12))
+            za_eq_log({_id}, "A croisé %{_n}% morts (%{_zone}%) : il les a abattus.")
+            za_stat_ajouter({_u}, "morts_par_survivants", {_n})
+        else:
+            za_eq_st_ajouter({_id}, "sante", 0 - (random integer between 25 and 45))
+            za_eq_sac_perdre({_id}, 0.3)
+            za_eq_log({_id}, "A voulu se battre contre %{_n}% morts. Il a dû fuir, blessé, en lâchant une partie du sac.")
+    else if {_r} is "fuir":
+        za_eq_sac_perdre({_id}, 0.25)
+        za_eq_st_ajouter({_id}, "sante", 0 - (random integer between 0 and 10))
+        za_eq_log({_id}, "A fui devant %{_n}% morts en lâchant une partie du sac.")
+        if {za::eq::m::%{_id}%::phase} is "travail":
+            if chance of 40%:
+                za_eq_retour({_id}, "Trop de morts dans le coin : il rentre.")
+    else if {_r} is "cacher":
+        set {za::eq::m::%{_id}%::phase_avant} to {za::eq::m::%{_id}%::phase}
+        set {za::eq::m::%{_id}%::phase} to "cache"
+        set {za::eq::m::%{_id}%::fin} to now
+        add 1 minute to {za::eq::m::%{_id}%::fin}
+        za_eq_st_ajouter({_id}, "sante", 0 - (random integer between 0 and 5))
+        za_eq_log({_id}, "S'est caché pendant que %{_n}% morts passaient.")
+    else if {_r} is "abandonner":
+        za_eq_log({_id}, "A vu %{_n}% morts et a tout laissé tomber.")
+        za_eq_retour({_id}, "Il abandonne la tâche.")
+    else if {_r} is "appel":
+        za_eq_appel({_id}, {_n})
+    if za_eq_st({_id}, "sante") <= 0:
+        za_eq_a_terre({_id})
+    else if za_eq_st({_id}, "sante") < 35:
+        if {za::eq::m::%{_id}%::phase} is "aller" or "travail":
+            za_eq_retour({_id}, "Blessé, il rentre.")
+
+function za_eq_retour(id: number, raison: text):
+    set {za::eq::m::%{_id}%::phase} to "retour"
+    set {za::eq::m::%{_id}%::cible} to za_surv_spot_base({za::eq::m::%{_id}%::u})
+    if {_raison} is not "":
+        za_eq_log({_id}, {_raison})
+
+function za_eq_pos_txt(l: location) :: text:
+    return "X %floor(x-coordinate of {_l})%, Z %floor(z-coordinate of {_l})%"
+
+function za_eq_appel(id: number, n: number):
+    set {_nom} to {za::surv::%{_id}%::nom}
+    set {_u} to {za::eq::m::%{_id}%::u}
+    set {_l} to {za::eq::m::%{_id}%::pos}
+    set {za::eq::m::%{_id}%::phase} to "danger"
+    set {za::eq::m::%{_id}%::fin} to now
+    add 3 minutes to {za::eq::m::%{_id}%::fin}
+    set {za::eq::m::%{_id}%::assaut} to {_n}
+    za_eq_log({_id}, "A appelé à l'aide, encerclé par %{_n}% morts.")
+    set {_txt} to random element out of "Ils sont partout ! Je suis à %za_eq_pos_txt({_l})%, viens vite !", "J'suis coincé... %za_eq_pos_txt({_l})%. Je tiendrai pas longtemps." and "Au secours ! %{_n}% morts, %za_eq_pos_txt({_l})%. Je me suis barricadé, mais la porte..."
+    za_tel_sms({_u}, {_nom}, {_txt})
+    set {_p} to za_surv_joueur({_u})
+    if {_p} is set:
+        send title "&c%{_nom}%" with subtitle "&7appelle à l'aide (%za_eq_pos_txt({_l})%)" to {_p} for 3 seconds
+        za_zm("son %{_p}% minecraft:block.note_block.bell 0.8 0.6")
+
+function za_eq_a_terre(id: number):
+    set {za::surv::%{_id}%::st::sante} to 0
+    if {za::eq::m::%{_id}%::phase} is "a_terre":
+        stop
+    set {za::eq::m::%{_id}%::phase} to "a_terre"
+    set {za::eq::m::%{_id}%::fin} to now
+    add 4 minutes to {za::eq::m::%{_id}%::fin}
+    za_eq_log({_id}, "Est tombé.")
+    set {_u} to {za::eq::m::%{_id}%::u}
+    set {_l} to {za::eq::m::%{_id}%::pos}
+    za_tel_sms({_u}, {za::surv::%{_id}%::nom}, "... %za_eq_pos_txt({_l})% ... j'ai mal...")
+
+# personne n'est venu : il s'en sort, il disparaît, ou il meurt
+function za_eq_issue_seul(id: number):
+    set {_f} to {za::eq::m::%{_id}%::phase}
+    set {_nom} to {za::surv::%{_id}%::nom}
+    set {_u} to {za::eq::m::%{_id}%::u}
+    set {_ps} to 55
+    set {_pd} to 30
+    if {_f} is "a_terre":
+        set {_ps} to 30
+        set {_pd} to 40
+    # première mission, ou personne en ligne pour l'aider : jamais de mort sèche
+    set {_mort_ok} to true
+    if {za::eq::m::%{_id}%::premier} is true:
+        set {_mort_ok} to false
+    if za_surv_joueur({_u}) is not set:
+        set {_mort_ok} to false
+    set {_r} to random integer between 1 and 100
+    if {_r} <= {_ps}:
+        set {za::surv::%{_id}%::st::sante} to 15
+        za_eq_sac_perdre({_id}, 0.5)
+        za_eq_log({_id}, "S'en est sorti tout seul, de justesse.")
+        za_eq_retour({_id}, "")
+        set {za::eq::m::%{_id}%::blesse} to true
+        za_tel_sms({_u}, {_nom}, "Je m'en suis sorti. J'ai perdu la moitié du sac. Je rentre.")
+    else if {_r} <= ({_ps} + {_pd}):
+        za_eq_disparaitre({_id})
+    else if {_mort_ok} is false:
+        za_eq_disparaitre({_id})
+    else:
+        za_eq_mort({_id}, "Mort en mission, seul, %{za::eq::m::%{_id}%::zone}%.")
+
+function za_eq_disparaitre(id: number):
+    set {za::eq::m::%{_id}%::phase} to "disparu"
+    set {za::eq::m::%{_id}%::disparu} to {za::serveur::jours} ? 0
+    set {za::surv::%{_id}%::st::sante} to 10
+    za_eq_sac_perdre({_id}, 0.5)
+    za_eq_log({_id}, "A disparu.")
+    set {_u} to {za::eq::m::%{_id}%::u}
+    set {_nom} to {za::surv::%{_id}%::nom}
+    za_surv_avis({_u}, "&8%{_nom}% n'est toujours pas revenu. &7Dernière position : %{za::eq::m::%{_id}%::zone}% (%za_eq_pos_txt({za::eq::m::%{_id}%::pos})%). &8/equipe ou")
+    za_journal("%{_nom}% a disparu : %{za::eq::m::%{_id}%::zone}%.")
+
+function za_eq_mort(id: number, cause: text):
+    set {_u} to {za::eq::m::%{_id}%::u}
+    set {_nom} to {za::surv::%{_id}%::nom}
+    set {_l} to {za::eq::m::%{_id}%::pos}
+    za_eq_dematerialiser({_id})
+    za_eq_effacer({_id})
+    if {_l} is set:
+        set {za::surv::%{_id}%::lieu} to {_l}
+        # un sur trois se relève
+        if chance of 33%:
+            set {za::eq::relever::%za_lkey({_l})%} to "%{_nom}%"
+            set {za::eq::relever_loc::%za_lkey({_l})%} to {_l}
+    za_souvenir_ajouter({_u}, "eq:%{_id}%", "chute", "%{_nom}% n'est jamais revenu de mission.")
+    za_surv_mourir({_id}, "mission")
+
+# le mort qui se relève, quand quelqu'un passe par là
+every 10 seconds:
+    loop {za::eq::relever_loc::*}:
+        set {_k} to loop-index
+        set {_l} to loop-value
+        if za_eq_joueur_pres({_l}, 40) is true:
+            set {_nom} to {za::eq::relever::%{_k}%}
+            execute console command "execute in %za_dim(world of {_l})% run summon zombie_villager %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% {CustomName:'""%{_nom}%""',CustomNameVisible:1b,PersistenceRequired:1b}"
+            delete {za::eq::relever::%{_k}%}
+            delete {za::eq::relever_loc::%{_k}%}
+
+# ---------------------------------------------------------------- tick des missions (toutes les 5 s)
+
+every 5 seconds:
+    loop {za::eq::liste::*}:
+        za_eq_tick(loop-value)
+
+function za_eq_tick(id: number):
+    if {za::surv::%{_id}%::etat} is not "base":
+        za_eq_dematerialiser({_id})
+        za_eq_effacer({_id})
+        stop
+    set {_f} to {za::eq::m::%{_id}%::phase}
+    set {_u} to {za::eq::m::%{_id}%::u}
+    set {_l} to {za::eq::m::%{_id}%::pos}
+    if {_l} is not set:
+        za_eq_effacer({_id})
+        stop
+    set {_mat} to {za::eq::m::%{_id}%::mat}
+    # apparaître si un joueur approche
+    if {_mat} is not true:
+        if za_eq_joueur_pres({_l}, 72) is true:
+            if chunk at {_l} is loaded:
+                za_eq_materialiser({_id})
+                set {_mat} to true
+    if {_f} is "suivre":
+        set {_o} to za_surv_joueur({_u})
+        if {_o} is not set:
+            za_eq_dematerialiser({_id})
+            za_eq_effacer({_id})
+            set {za::surv::%{_id}%::lieu} to za_surv_spot_base({_u})
+            stop
+        if {_mat} is not true:
+            set {za::eq::m::%{_id}%::pos} to location of {_o}
+            if za_pro({_o}) is false:
+                za_eq_materialiser({_id})
+        stop
+    if {_f} is "aller" or "retour":
+        set {_c} to {za::eq::m::%{_id}%::cible}
+        if world of {_c} is not world of {_l}:
+            set {za::eq::m::%{_id}%::pos} to {_c}
+            set {_l} to {_c}
+        if {_mat} is not true:
+            set {_d} to distance between {_l} and {_c}
+            set {_pas} to 5 * ({@vit} + (za_eq_st({_id}, "vitesse") * 0.05))
+            if {_d} > {_pas}:
+                set {_k} to {_pas} / {_d}
+                set {za::eq::m::%{_id}%::pos} to location(((x-coordinate of {_l}) + (((x-coordinate of {_c}) - (x-coordinate of {_l})) * {_k})), ((y-coordinate of {_l}) + (((y-coordinate of {_c}) - (y-coordinate of {_l})) * {_k})), ((z-coordinate of {_l}) + (((z-coordinate of {_c}) - (z-coordinate of {_l})) * {_k})), (world of {_l}))
+            else:
+                set {za::eq::m::%{_id}%::pos} to {_c}
+        set {_l} to {za::eq::m::%{_id}%::pos}
+        set {_d2} to (x-coordinate of {_l}) - (x-coordinate of {_c})
+        set {_d3} to (z-coordinate of {_l}) - (z-coordinate of {_c})
+        if sqrt(({_d2} * {_d2}) + ({_d3} * {_d3})) < 3:
+            if {_f} is "aller":
+                set {za::eq::m::%{_id}%::phase} to "travail"
+                set {za::eq::m::%{_id}%::debut_ts} to unix timestamp of now
+                set {za::eq::m::%{_id}%::coin} to {_c}
+            else:
+                set {_is} to "ok"
+                if {za::eq::m::%{_id}%::blesse} is true:
+                    set {_is} to "blesse"
+                if za_eq_st({_id}, "sante") < 35:
+                    set {_is} to "blesse"
+                za_eq_terminer({_id}, {_is})
+                stop
+    else if {_f} is "travail":
+        set {_t} to {za::eq::m::%{_id}%::type}
+        set {_min} to ((unix timestamp of now) - ({za::eq::m::%{_id}%::debut_ts} ? (unix timestamp of now))) / 60
+        if {_t} is "recon":
+            if {_min} >= 1.5:
+                set {_vu::*} to za_eq_reveler({_id}, {_l}, 320)
+                if size of {_vu::*} is 0:
+                    za_eq_log({_id}, "Reconnaissance : rien de nouveau dans le coin.")
+                else:
+                    za_eq_log({_id}, "A repéré : %{_vu::*}%")
+                za_eq_retour({_id}, "")
+        else if {_t} is "cherche":
+            if {_min} >= 1:
+                set {_vu::*} to za_eq_reveler({_id}, {_l}, 60)
+                if size of {_vu::*} > 0:
+                    za_eq_log({_id}, "A trouvé : %{_vu::*}%")
+                za_eq_retour({_id}, "")
+        else if {_t} is "recup":
+            if {_min} >= 3:
+                za_eq_fouiller({_id})
+                za_eq_log({_id}, "A fouillé %{za::eq::m::%{_id}%::zone}%.")
+                za_eq_retour({_id}, "")
+        else:
+            # rythme : récolte, spécialité, fatigue, moral
+            set {_rate} to (za_eq_st({_id}, "recolte") / 6) * (1 - (za_eq_st({_id}, "fatigue") / 200)) * (0.7 + (({za::surv::%{_id}%::moral} ? 50) / 170))
+            set {_m} to {za::surv::%{_id}%::metier}
+            if {_t} is "bois":
+                if {_m} is "bucheron":
+                    set {_rate} to {_rate} * 1.4
+                else if {_m} is "menuisier":
+                    set {_rate} to {_rate} * 1.2
+            else if {_t} is "nourriture":
+                if {_m} is "agriculteur" or "chasseur" or "cuisinier":
+                    set {_rate} to {_rate} * 1.3
+            else if {_t} is "minerais":
+                if {_m} is "mineur":
+                    set {_rate} to {_rate} * 1.5
+            else if {_t} is "materiaux":
+                if {_m} is "mecanicien" or "camionneur" or "electricien":
+                    set {_rate} to {_rate} * 1.3
+            # 5 s = 1/12 de minute
+            za_eq_produire({_id}, {_t}, {_rate} / 12)
+            if {za::eq::m::%{_id}%::n} >= {za::eq::m::%{_id}%::obj}:
+                za_eq_retour({_id}, "")
+            else if {_min} >= 12:
+                za_eq_retour({_id}, "La journée de travail est finie.")
+            else if za_eq_sac_total({_id}) >= {@sac_max}:
+                za_eq_retour({_id}, "Le sac est plein.")
+            else if za_eq_nuit({_l}) is true:
+                if {za::surv::%{_id}%::st::trait} is not "tete_brulee":
+                    if {za::eq::m::%{_id}%::nuit} is not set:
+                        set {za::eq::m::%{_id}%::nuit} to true
+                        za_eq_retour({_id}, "La nuit tombe : il rentre avec ce qu'il a.")
+    else if {_f} is "cache":
+        if now > {za::eq::m::%{_id}%::fin}:
+            set {za::eq::m::%{_id}%::phase} to {za::eq::m::%{_id}%::phase_avant} ? "retour"
+    else if {_f} is "danger" or "a_terre":
+        # quelqu'un est venu ?
+        set {_aide} to false
+        loop za_monde_joueurs():
+            if world of loop-value is world of {_l}:
+                if distance between loop-value and {_l} < 20:
+                    set {_aide} to true
+                    set {_sauveur} to loop-value
+        if {_aide} is true:
+            if {za::eq::m::%{_id}%::secours} is not set:
+                set {za::eq::m::%{_id}%::secours} to true
+                # le combat devient réel : les morts sont là
+                set {_n} to min(6, {za::eq::m::%{_id}%::assaut} ? 3)
+                loop {_n} times:
+                    set {_zt} to random element out of "ZA_Shambler", "ZA_Citoyen_Infecte" and "ZA_Runner"
+                    za_spawn_at({_l}, {_zt}, 4, 9)
+                send "&e%{za::surv::%{_id}%::nom}% est là ! &7Dégage les morts autour de lui." to {_sauveur}
+                if {_f} is "a_terre":
+                    send "&7Il est à terre : &fclic droit avec un Bandage &7pour le relever." to {_sauveur}
+            if {_f} is "danger":
+                if size of (all zombies in radius 10 around {_l}) is 0:
+                    set {za::eq::m::%{_id}%::blesse} to true
+                    delete {za::eq::m::%{_id}%::secours}
+                    za_eq_log({_id}, "%{_sauveur}% est venu le chercher.")
+                    za_surv_conf_ajouter({_u}, {_id}, 15)
+                    za_eq_retour({_id}, "")
+                    send "&a%{za::surv::%{_id}%::nom}% &f« Je pensais que personne viendrait. Merci. » &7Il rentre à la base." to {_sauveur}
+        else if now > {za::eq::m::%{_id}%::fin}:
+            za_eq_issue_seul({_id})
+        stop
+    else if {_f} is "disparu":
+        # retrouvé ?
+        if {_mat} is true:
+            set {_e} to za_eq_ent({_id})
+            if {_e} is set:
+                loop za_monde_joueurs():
+                    if world of loop-value is world of {_e}:
+                        if distance between loop-value and {_e} < 6:
+                            if {za::eq::m::%{_id}%::trouve} is not set:
+                                set {za::eq::m::%{_id}%::trouve} to true
+                                send "&7Tu retrouves &f%{za::surv::%{_id}%::nom}%&7, assis contre un arbre, blessé, son sac à moitié vide. &f« T'es venu... »" to loop-value
+                                send "&8(clic droit : le ramener)" to loop-value
+        if ({za::serveur::jours} ? 0) - ({za::eq::m::%{_id}%::disparu} ? 0) >= 2:
+            if {za::eq::m::%{_id}%::trouve} is not set:
+                za_surv_avis({_u}, "&8Plus personne n'attend %{za::surv::%{_id}%::nom}%. Deux jours sans nouvelles, là-bas, c'est une réponse.")
+                za_eq_mort({_id}, "Disparu en mission.")
+        stop
+    # incidents hors champ
+    if {_mat} is not true:
+        set {_d} to za_danger({za::eq::m::%{_id}%::pos})
+        set {_ch} to 0.2
+        if {_d} is 1:
+            set {_ch} to 0.5
+        else if {_d} is 2:
+            set {_ch} to 1.2
+        else if {_d} is 3:
+            set {_ch} to 2.5
+        else if {_d} >= 4:
+            set {_ch} to 4
+        if za_eq_nuit({_l}) is true:
+            set {_ch} to {_ch} * 1.8
+        set {_ch} to {_ch} * (1 + ((za_evo_niveau() - 1) * 0.15))
+        if chance of {_ch}%:
+            za_eq_incident({_id})
+        else if {za::eq::m::%{_id}%::phase} is "aller":
+            # se perdre
+            if chance of 0.15%:
+                set {_c} to {za::eq::m::%{_id}%::cible}
+                set {za::eq::m::%{_id}%::pos} to location(((x-coordinate of {_l}) + (random number between -60 and 60)), (y-coordinate of {_l}), ((z-coordinate of {_l}) + (random number between -60 and 60)), (world of {_l}))
+                za_eq_log({_id}, "S'est perdu en chemin. Il a retrouvé la route, tard.")
+    else:
+        # en chair et en os : de vrais morts arrivent
+        if za_danger({_l}) >= 1:
+            if chance of 3%:
+                loop (random integer between 2 and 4) times:
+                    set {_zt} to random element out of "ZA_Shambler", "ZA_Citoyen_Infecte" and "ZA_Runner"
+                    za_spawn_at({_l}, {_zt}, 10, 16)
+
+# ---------------------------------------------------------------- clic droit sur un survivant en mission
+
+on right click on villager:
+    if za_pro(player) is true:
+        stop
+    if za_surv_a_tag(clicked entity, "za_mis") is false:
+        stop
+    cancel the event
+    set {_id} to 0
+    loop scoreboard tags of clicked entity:
+        if loop-value starts with "za_mis_":
+            set {_id} to (subtext of loop-value from characters 8 to length of loop-value) parsed as number
+    if {za::eq::m::%{_id}%::type} is not set:
+        delete clicked entity
+        stop
+    set {_u} to "%player's uuid%"
+    set {za::eq::ctx::%{_u}%} to {_id}
+    set {_f} to {za::eq::m::%{_id}%::phase}
+    set {_nom} to {za::surv::%{_id}%::nom}
+    if {_f} is "a_terre":
+        if za_take_named(player, "Bandage", 1) is true:
+            set {za::surv::%{_id}%::st::sante} to 25
+            set {za::eq::m::%{_id}%::blesse} to true
+            delete {za::eq::m::%{_id}%::secours}
+            za_eq_log({_id}, "%player% l'a relevé.")
+            za_surv_conf_ajouter({_u}, {_id}, 20)
+            send "&a%{_nom}% se relève en grimaçant. &f« Je te dois une fière chandelle. »" to player
+            if {za::eq::m::%{_id}%::type} is "suivre":
+                set {za::eq::m::%{_id}%::phase} to "suivre"
+            else:
+                za_eq_retour({_id}, "")
+        else:
+            send "&c%{_nom}% est à terre. Il te faut un Bandage pour le relever." to player
+        stop
+    if {_f} is "disparu":
+        set {za::surv::%{_id}%::st::sante} to 20
+        set {za::eq::m::%{_id}%::blesse} to true
+        za_eq_log({_id}, "Retrouvé par %player%.")
+        za_surv_conf_ajouter({_u}, {_id}, 25)
+        set {za::eq::m::%{_id}%::type} to "suivre"
+        set {za::eq::m::%{_id}%::phase} to "suivre"
+        if {za::eq::m::%{_id}%::u} is not {_u}:
+            set {za::eq::m::%{_id}%::phase} to "retour"
+            set {za::eq::m::%{_id}%::cible} to za_surv_spot_base({za::eq::m::%{_id}%::u})
+        send "&a%{_nom}% s'appuie sur ton épaule. &7Il te suit. &8(/equipe rappeler pour qu'il rentre seul)" to player
+        stop
+    set {_o::*} to "Ça va ?|etat", "Rentre à la base|t:rentrer", "Suis-moi|t:suivre", "Donne-moi le sac|sac" and "Continue|quit"
+    za_menu(player, "zaeqclic", {_nom}, "%za_eq_tache_nom({za::eq::m::%{_id}%::type})% — %za_eq_phase_nom({_f})%. Santé %floor(za_eq_sa({_id}))% %%. Sac : %floor(za_eq_sac_total({_id}))% objets.", {_o::*})
+
+# ---------------------------------------------------------------- clics des menus
+
+command /zaeqclic <player> <text>:
+    executable by: console
+    trigger:
+        wait 2 ticks
+        set {_p} to arg-1
+        set {_u} to "%{_p}'s uuid%"
+        set {_id} to {za::eq::ctx::%{_u}%}
+        if {_id} is not set:
+            stop
+        if {za::surv::%{_id}%::etat} is not set:
+            send "&8&o(Il n'est plus là.)" to {_p}
+            stop
+        set {_n} to arg-2
+        set {_nom} to {za::surv::%{_id}%::nom}
+        if {_n} is "t" or "tache":
+            za_eq_menu_tache({_p}, {_id})
+        else if {_n} starts with "cat:":
+            za_eq_menu_cat({_p}, {_id}, subtext of {_n} from characters 5 to length of {_n})
+        else if {_n} starts with "t:":
+            set {_t} to subtext of {_n} from characters 3 to length of {_n}
+            if {_t} is "suivre":
+                if {za::eq::m::%{_id}%::type} is set:
+                    if {za::eq::m::%{_id}%::phase} is not "disparu" or "a_terre" or "danger":
+                        set {za::eq::m::%{_id}%::type} to "suivre"
+                        set {za::eq::m::%{_id}%::phase} to "suivre"
+                        send "&7%{_nom}% laisse tomber sa tâche et te suit." to {_p}
+                        stop
+            set {_ok} to za_eq_lancer({_p}, {_id}, {_t}, "")
+        else if {_n} is "postes1":
+            za_eq_postes_menu({_p}, {_id}, 1)
+        else if {_n} is "postes2":
+            za_eq_postes_menu({_p}, {_id}, 2)
+        else if {_n} is "postes3":
+            za_eq_postes_menu({_p}, {_id}, 3)
+        else if {_n} is "poste":
+            za_eq_postes_menu({_p}, {_id}, 1)
+        else if {_n} starts with "p:":
+            set {_r} to subtext of {_n} from characters 3 to length of {_n}
+            set {za::surv::%{_id}%::role} to {_r}
+            za_surv_recompte({za::surv::%{_id}%::base})
+            send "&a%{_nom}% est maintenant &e%za_surv_role_nom({_r})%&a." to {_p}
+            send "&8&o%za_surv_role_desc({_r})%" to {_p}
+        else if {_n} is "prio":
+            send "&7Priorités de %{_nom}% : &f/equipe priorite %{_nom}% bois nourriture &8(jusqu'à 3 : bois, nourriture, plantes, materiaux, minerais)" to {_p}
+        else if {_n} is "commerce":
+            set {za::surv::ctx::%{_u}%} to {_id}
+            za_surv_commerce_menu({_p}, {_id})
+        else if {_n} is "renvoyer":
+            if {za::eq::m::%{_id}%::type} is set:
+                send "&7Il est en mission." to {_p}
+                stop
+            send "&7Tu demandes à %{_nom}% de partir. Il ramasse ses affaires sans un mot." to {_p}
+            za_surv_partir({_id}, "renvoi")
+        else if {_n} is "etat":
+            set {_lg::*} to {za::eq::m::%{_id}%::log::*}
+            za_surv_dit({_p}, {_nom}, "Santé %floor(za_eq_sa({_id}))% %%. J'ai %floor(za_eq_sac_total({_id}))% trucs dans le sac, %floor({za::eq::m::%{_id}%::n} ? 0)%/%{za::eq::m::%{_id}%::obj} ? 0% pour la tâche.")
+            loop {_lg::*}:
+                send "&8  · %loop-value%" to {_p}
+        else if {_n} is "sac":
+            set {_tot} to za_eq_sac_total({_id})
+            if {_tot} < 1:
+                za_surv_dit({_p}, {_nom}, "Il est vide, le sac.")
+                stop
+            loop {za::eq::m::%{_id}%::sac::*}:
+                set {_q} to floor(loop-value)
+                if {_q} > 0:
+                    set {_k} to loop-index
+                    if {_k} starts with "za:":
+                        give za_item("paper", subtext of {_k} from characters 4 to length of {_k}, "&f", {_q}) to {_p}
+                    else:
+                        set {_ty} to {_k} parsed as itemtype
+                        if {_ty} is set:
+                            give {_q} of {_ty} to {_p}
+            delete {za::eq::m::%{_id}%::sac::*}
+            set {za::eq::m::%{_id}%::n} to 0
+            za_surv_dit({_p}, {_nom}, "Tiens. Je recommence à zéro.")
+
+# ---------------------------------------------------------------- /equipe
+
+function za_eq_liste(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    send "&6&lTON ÉQUIPE" to {_p}
+    set {_k} to 0
+    loop {za::surv::liste::*}:
+        set {_id} to loop-value
+        if {za::surv::%{_id}%::etat} is "base":
+            if {za::surv::%{_id}%::base} is {_u}:
+                add 1 to {_k}
+                za_eq_init({_id})
+                set {_s} to "&8[%floor(za_eq_sa({_id}))%%% ♥ · %floor(za_eq_fa({_id}))%%% fatigue]"
+                if {za::eq::m::%{_id}%::type} is set:
+                    set {_l} to {za::eq::m::%{_id}%::pos}
+                    send "&f%{_k}%. &e%{za::surv::%{_id}%::nom}% &7— %za_eq_tache_nom({za::eq::m::%{_id}%::type})%, %{za::eq::m::%{_id}%::zone}% : %za_eq_phase_nom({za::eq::m::%{_id}%::phase})% %{_s}%" to {_p}
+                else:
+                    send "&f%{_k}%. &e%{za::surv::%{_id}%::nom}% &7— à la base, %za_surv_role_nom({za::surv::%{_id}%::role})% %{_s}%" to {_p}
+    if {_k} is 0:
+        send "&7Personne à la base." to {_p}
+    send "&8/equipe fiche|tache|ou|rappeler|poste|priorite <nom> · /equipe zone <nom> (marquer une zone de travail ici)" to {_p}
+
+command /equipe [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        if arg-1 is not set:
+            za_eq_liste(player)
+            stop
+        set {_w::*} to split arg-1 at " "
+        set {_a} to {_w::1}
+        if {_a} is "zone":
+            if {za::base::%{_u}%} is not set:
+                send "&cIl faut une base (/base definir)." to player
+                stop
+            set {_z} to {_w::2} ? ""
+            if {_z} is "":
+                send "&7/equipe zone <nom> : marque l'endroit où tu es comme zone de travail (5 au plus)." to player
+                stop
+            if distance between player and {za::base::%{_u}%} > 1500:
+                send "&cTrop loin de ta base (1 500 m au plus)." to player
+                stop
+            set {_zz::*} to indices of {za::eq::zone::%{_u}%::*}
+            if size of {_zz::*} >= 5:
+                if {za::eq::zone::%{_u}%::%{_z}%} is not set:
+                    send "&cCinq zones au plus. &7/equipe zones pour les voir, /equipe zone <nom> effacer" to player
+                    stop
+            if {_w::3} is "effacer":
+                delete {za::eq::zone::%{_u}%::%{_z}%}
+                send "&7Zone « %{_z}% » effacée." to player
+                stop
+            set {za::eq::zone::%{_u}%::%{_z}%} to location of player
+            send "&aZone « %{_z}% » marquée &7(%za_eq_pos_txt(location of player)%). &8/equipe tache <survivant> bois %{_z}%" to player
+            stop
+        if {_a} is "zones":
+            loop {za::eq::zone::%{_u}%::*}:
+                send "&7%loop-index% : &f%za_eq_pos_txt(loop-value)%" to player
+            stop
+        set {_q} to {_w::2} ? ""
+        set {_id} to za_surv_trouver({_u}, {_q})
+        if {_id} is 0:
+            send "&cAucun survivant de ta base ne correspond à « %{_q}% ». &7(/equipe)" to player
+            stop
+        set {za::eq::ctx::%{_u}%} to {_id}
+        set {_nom} to {za::surv::%{_id}%::nom}
+        if {_a} is "fiche":
+            za_eq_fiche(player, {_id})
+        else if {_a} is "tache":
+            set {_t} to {_w::3} ? ""
+            if {_t} is "":
+                za_eq_menu_tache(player, {_id})
+                stop
+            if {_t} is not "bois" or "nourriture" or "plantes" or "materiaux" or "minerais" or "recon" or "recup" or "cherche" or "suivre" or "rentrer":
+                send "&7Tâches : bois, nourriture, plantes, materiaux, minerais, recon, recup, cherche, suivre, rentrer" to player
+                stop
+            set {_ok} to za_eq_lancer(player, {_id}, {_t}, {_w::4} ? "")
+        else if {_a} is "ou":
+            if {za::eq::m::%{_id}%::type} is not set:
+                send "&7%{_nom}% est à la base." to player
+                stop
+            set {_l} to {za::eq::m::%{_id}%::pos}
+            set {_txt} to "Dernière position connue"
+            if {za::eq::m::%{_id}%::phase} is not "disparu":
+                set {_txt} to "Position"
+            send "&7%{_txt}% de &f%{_nom}% &7: %za_eq_pos_txt({_l})% &8(%{za::eq::m::%{_id}%::zone}%)" to player
+            if world of {_l} is world of player:
+                send "&7À &f%round(distance between player and {_l})% m&7, vers %za_dir_cardinale(location of player, {_l})%. &8%za_eq_phase_nom({za::eq::m::%{_id}%::phase})%" to player
+        else if {_a} is "rappeler":
+            if {za::eq::m::%{_id}%::type} is not set:
+                send "&7%{_nom}% est à la base." to player
+                stop
+            za_eq_rappeler({_id}, player)
+        else if {_a} is "poste":
+            za_eq_postes_menu(player, {_id}, 1)
+        else if {_a} is "priorite":
+            delete {za::surv::%{_id}%::prio::*}
+            set {_i} to 3
+            while {_i} <= min(5, size of {_w::*}):
+                if {_w::%{_i}%} is "bois" or "nourriture" or "plantes" or "materiaux" or "minerais":
+                    add {_w::%{_i}%} to {za::surv::%{_id}%::prio::*}
+                add 1 to {_i}
+            set {_pr::*} to {za::surv::%{_id}%::prio::*}
+            send "&7Priorités de %{_nom}% : &f%{_pr::*}% &8(en mission, il ramasse aussi un peu de ces ressources ; puis il rentre)" to player
+        else:
+            za_eq_liste(player)
+
+command /zaequipe [<text>] [<number>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "liste":
+            loop {za::eq::liste::*}:
+                set {_id} to loop-value
+                send "&7#%{_id}% %{za::surv::%{_id}%::nom}% : %{za::eq::m::%{_id}%::type}% %{za::eq::m::%{_id}%::phase}% %za_eq_pos_txt({za::eq::m::%{_id}%::pos})% mat=%{za::eq::m::%{_id}%::mat}%" to sender
+        else if arg-1 is "fin":
+            za_eq_dematerialiser(arg-2)
+            za_eq_effacer(arg-2)
+            send "&7Mission #%arg-2% effacée." to sender
+        else if arg-1 is "incident":
+            za_eq_incident(arg-2)
+            send "&7Incident déclenché pour #%arg-2%." to sender
+        else:
+            send "&7/zaequipe liste | fin <id> | incident <id>" to sender
+
+# au redémarrage, plus personne n'est « en chair et en os »
+on load:
+    loop {za::eq::liste::*}:
+        set {za::eq::m::%loop-value%::mat} to false
+        delete {za::eq::m::%loop-value%::boucle}
+
+# fantômes (survivants en mission restés dans un tronçon chargé) : ménage
+every 30 seconds:
+    loop za_monde_joueurs():
+        loop all villagers in radius 64 around loop-value-1:
+            if za_surv_a_tag(loop-value-2, "za_mis") is true:
+                set {_id} to 0
+                loop scoreboard tags of loop-value-2:
+                    if loop-value-3 starts with "za_mis_":
+                        set {_id} to (subtext of loop-value-3 from characters 8 to length of loop-value-3) parsed as number
+                if {za::eq::m::%{_id}%::mat} is not true:
+                    delete loop-value-2

@@ -399,6 +399,10 @@ function za_terr_change(cle: text, f: text, ctrl: number):
         delete {za::terr::%{_cle}%::ruine}
     za_journal("%za_terr_nom({_cle})% %za_terr_pos_c({_cle})% : %{_old}% -> %{_f}%.")
     za_lieu_terr({_cle}, {_old}, {_f})
+    # relations entre factions (za_p67_diplomatie)
+    za_diplo_changement({_old}, {_f})
+    # une faction qui perd son dernier territoire (za_p126)
+    za_lien_faction_perd({_old}, {_cle})
 
 # un territoire tombe : chez un rival voisin (35 %%) ou aux morts
 function za_terr_chute(cle: text, motif: text):
@@ -619,7 +623,7 @@ function za_terr_verif(cle: text, p: player):
     if {za::terr::%{_cle}%::pose} is not {_f}:
         set {_recree} to true
     else:
-        set {_pb} to block at location({_bx} + 5, {_gy} + 2, {_bz} - 4, world of {_c})
+        set {_pb} to block at location(({_bx} + 5), ({_gy} + 2), ({_bz} - 4), (world of {_c}))
         if "%type of {_pb}%" does not contain "log":
             set {_recree} to true
     if {_recree} is true:
@@ -1312,7 +1316,7 @@ function za_terr_reclamer(p: player, cle: text):
         give za_item("paper", "Bandage", "&f", 2) to {_p}
         give za_item("bread", "Pain rassis", "&f", 3) to {_p}
         set {_c} to za_terr_loc({_cle})
-        set {_sl} to za_sol(location(x-coordinate of {_c}, y-coordinate of {_c}, (z-coordinate of {_c}) - 6, world of {_c}))
+        set {_sl} to za_sol(location((x-coordinate of {_c}), (y-coordinate of {_c}), ((z-coordinate of {_c}) - 6), (world of {_c})))
         execute console command "zasurv creer %floor(x-coordinate of {_sl})% %floor(y-coordinate of {_sl})% %floor(z-coordinate of {_sl})% %world of {_sl}%"
         send "&7Un survivant qu'ils ont recueilli veut te suivre. &8(Cherche-le près du poteau.)" to {_p}
     else if {_f} is "culte":

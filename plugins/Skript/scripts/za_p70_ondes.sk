@@ -1,0 +1,409 @@
+# =====================================================================
+#  ZombieApocalypse - LES ONDES : bulletin de Léa et téléphone (MISSION §43-44)
+#  RADIO QUI OBSERVE : chaque nouveau jour de serveur, Léa lit à l'antenne ce qui s'est VRAIMENT passé la veille
+#  (tiré du journal du serveur za_p21 : morts, camps, territoires, réseau, légendes...). Les modules existants gardent
+#  leurs propres annonces ; ce bulletin donne l'impression que quelqu'un écoute.
+#  TÉLÉPHONE : le « Cellulaire mort » reçu au réveil du Jour 8 se répare (clic droit avec 1 Composant electronique).
+#    * Réseau : il n'y a plus d'antennes... sauf là où le courant revient : centrale en marche, ou à 300 blocs d'une
+#      sous-station qui produit (za_p61). Pas de réseau = pas de nouveaux messages ni d'appels (ils attendent).
+#    * Batterie : -1 %% par minute, +15 %% par minute dans une zone sous tension (base, sous-station, quartier alimenté).
+#    * SMS selon le contexte : camp attaqué (si le camp te fait confiance), contrat de faction (si tu y es connu), horde,
+#      lune de sang, sous-station endommagée (à son responsable), nouvelles des survivants retrouvés, et un numéro inconnu...
+#    * /telephone : messages, appeler Léa / Dr Lefort / Sgt Vega (réponses selon la confiance et ce qui se passe),
+#      alertes en cours, missions (contrats, sous-stations à réparer, dossier Arel, /guide).
+#  API : za_tel_sms(uuid, expéditeur, texte) · za_tel_a(joueur) :: boolean · za_tel_signal(joueur) :: boolean
+#  Admin : /zatel <joueur> donner|sms <texte>|batterie <n>|reset
+# =====================================================================
+
+options:
+    sms_max: 20
+    rayon_antenne: 300
+
+# ---------------------------------------------------------------- bulletin de Léa
+
+function za_ondes_bulletin(j: number):
+    set {_pref} to "Jour %{_j}% - "
+    loop {za::journal::*}:
+        if "%loop-value%" starts with {_pref}:
+            if "%loop-value%" does not contain "Radio (":
+                set {_t} to subtext of "%loop-value%" from (length of {_pref} + 1) to length of "%loop-value%"
+                add {_t} to {_evts::*}
+    if size of {_evts::*} is 0:
+        za_radio("&bLéa", "Bulletin du jour %{_j} + 1%. Rien à signaler hier. Et ici, « rien », c'est une bonne nouvelle. Restez à l'écoute.")
+        stop
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_zm("son %loop-player% za_modeles:sfx.jingle_ckza 0.6 1")
+    za_radio("&bLéa", "Bulletin du jour %{_j} + 1%, CKZA 98,5. Voici ce que les ondes m'ont appris hier.")
+    set {_n} to 0
+    while {_n} < 3:
+        if size of {_evts::*} is 0:
+            exit loop
+        set {_e} to random element out of {_evts::*}
+        remove {_e} from {_evts::*}
+        add 1 to {_n}
+        wait 4 seconds
+        za_radio("&bLéa", "%{_e}%")
+    wait 4 seconds
+    za_radio("&bLéa", "C'était Léa. Si vous m'entendez, c'est que vous êtes encore là. Continuez.")
+
+every 60 seconds:
+    if {za::ondes::jour} is not {za::serveur::jours}:
+        set {_hier} to {za::ondes::jour}
+        set {za::ondes::jour} to {za::serveur::jours}
+        if {_hier} is set:
+            za_ondes_bulletin({_hier})
+
+# ---------------------------------------------------------------- téléphone : état
+
+function za_tel_a(p: player) :: boolean:
+    if za_count_named({_p}, "Cellulaire") >= 1:
+        return true
+    return false
+
+function za_tel_bat(p: player) :: number:
+    return {za::tel::bat::%{_p}'s uuid%} ? 100
+
+function za_tel_signal(p: player) :: boolean:
+    if za_pro({_p}) is true:
+        return false
+    # silence radio (za_p85) : souterrains, zones mortes, NORDA
+    if za_sans_signal({_p}) is true:
+        return false
+    # tour radio de sa base (za_p90) : capte à 300 blocs, même sans courant
+    set {_t} to {za::infra::%{_p}'s uuid%::tour}
+    if {_t} is set:
+        set {_por} to 300
+        if {za::infra::%{_p}'s uuid%::camoufle} is true:
+            set {_por} to 120
+        if world of {_t} is world of {_p}:
+            if distance between {_t} and {_p} < {_por}:
+                return true
+    if za_courant() is true:
+        return true
+    if za_elec_pres(location of {_p}, {@rayon_antenne}) is true:
+        return true
+    return false
+
+# zone sous tension (recharge)
+function za_tel_prise(p: player) :: boolean:
+    set {_u} to "%{_p}'s uuid%"
+    if {za::base::%{_u}%} is set:
+        if za_elec_base({_u}) is true:
+            if world of {_p} is world of {za::base::%{_u}%}:
+                if distance between {_p} and {za::base::%{_u}%} < 40:
+                    return true
+    if za_elec_pres(location of {_p}, 32) is true:
+        return true
+    set {_k} to za_bat_proche(location of {_p}, 32)
+    if {_k} is not "":
+        set {_t::*} to split {_k} at ";"
+        if za_reseau_actif(za_reseau_quartier_de({_t::1})) is true:
+            return true
+    return false
+
+function za_tel_item(b: number) :: itemtype:
+    set {_it} to za_item("clock", "Cellulaire", "&f", 1)
+    set lore of {_it} to "&7Écran fendu, réparé au ruban adhésif." and "&8Clic droit ou /telephone"
+    return {_it}
+
+# ---------------------------------------------------------------- SMS
+
+function za_tel_sms(u: text, de: text, texte: text):
+    add "%{za::serveur::jours} ? 0%|%{_de}%|%{_texte}%" to {za::tel::sms::%{_u}%::*}
+    set {_n} to size of {za::tel::sms::%{_u}%::*}
+    while {_n} > {@sms_max}:
+        set {_ks::*} to indices of {za::tel::sms::%{_u}%::*}
+        delete {za::tel::sms::%{_u}%::%{_ks::1}%}
+        set {_n} to size of {za::tel::sms::%{_u}%::*}
+    add 1 to {za::tel::nonlu::%{_u}%}
+    set {_p} to za_surv_joueur({_u})
+    if {_p} is set:
+        if za_tel_a({_p}) is true:
+            if za_tel_bat({_p}) > 0:
+                if za_tel_signal({_p}) is true:
+                    za_zm("son %{_p}% za_modeles:sfx.texto 0.9 1")
+                    send "&8[&a☎ %{_de}%&8] &f%{_texte}%" to {_p}
+                    set {za::tel::nonlu::%{_u}%} to 0
+
+# SMS à tous ceux qui ont un téléphone
+function za_tel_sms_tous(de: text, texte: text):
+    loop za_monde_joueurs():
+        if za_tel_a(loop-value) is true:
+            za_tel_sms("%loop-value's uuid%", {_de}, {_texte})
+
+function za_tel_messages(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    send "&a☎ &fMessages &8(les plus récents en bas)" to {_p}
+    set {_i::*} to indices of {za::tel::sms::%{_u}%::*}
+    set {_n} to size of {_i::*}
+    set {_d} to max(1, {_n} - 7)
+    set {_k} to 0
+    loop {_i::*}:
+        add 1 to {_k}
+        if {_k} >= {_d}:
+            set {_c::*} to split {za::tel::sms::%{_u}%::%loop-value%} at "|"
+            send "&8Jour %{_c::1}% &a%{_c::2}% &8» &7%{_c::3}%" to {_p}
+    if {_n} is 0:
+        send "&8Aucun message." to {_p}
+    set {za::tel::nonlu::%{_u}%} to 0
+
+# ---------------------------------------------------------------- appels
+
+function za_tel_appel(p: player, qui: text):
+    set {_u} to "%{_p}'s uuid%"
+    za_mot_cellulaire({_p})
+    if {za::tel::appel::%{_u}%::%{_qui}%} is set:
+        if difference between {za::tel::appel::%{_u}%::%{_qui}%} and now < 10 minutes:
+            send "&8&o(Ça sonne dans le vide. Rappelle plus tard.)" to {_p}
+            stop
+    set {za::tel::appel::%{_u}%::%{_qui}%} to now
+    za_zm("son %{_p}% minecraft:block.note_block.bit 0.6 0.8")
+    set {_t} to za_rel({_p}, {_qui})
+    if {_qui} is "lea":
+        set {_nom} to "&bLéa"
+        set {_d} to last element of {za::journal::*}
+        if {_t} < 30:
+            set {_r} to "Qui t'a donné ce numéro? ...Bon. Je n'ai rien pour toi. Fais attention à qui tu parles."
+        else:
+            set {_r} to "Tu as trouvé une ligne qui marche? Chanceux. Dernière chose captée : %{_d}%."
+            if za_elec_etat("hopital") is "BLACKOUT":
+                set {_r} to "%{_r}% Et l'hôpital est toujours dans le noir. Si quelqu'un réparait sa sous-station..."
+    else if {_qui} is "lefort":
+        set {_nom} to "&aDr Lefort"
+        if za_expl_a({_p}, "fini") is true:
+            set {_r} to "Tu as ouvert le casier 0731. Apporte-moi ce disque. Il faut que le monde sache ce que NORDA a fait."
+        else if za_ruines_ok() is true:
+            set {_r} to "Mon ancien bureau, à Saint-Aurèle... j'y ai laissé mon agenda. Commence par le Café du Coin : Arel y prenait son café chaque matin."
+        else:
+            set {_r} to "Je n'ai pas le temps, j'ai trois fiévreux sur les bras. Fais bouillir ton eau. Lave tes plaies. Rappelle-moi."
+        if {_t} < 30:
+            set {_r} to "Je préfère ne pas parler au téléphone. Viens me voir, si tu as le courage."
+    else:
+        set {_nom} to "&6Sergent Vega"
+        set {_dg} to za_danger(location of {_p})
+        if {_t} < 30:
+            set {_r} to "Cette fréquence est réservée. Dégage la ligne."
+        else if {_dg} >= 3:
+            set {_r} to "Tu es dans une zone rouge, soldat. Je t'entends respirer fort. Recule vers un point sûr et appelle-moi quand tu y es."
+        else:
+            set {_r} to "Secteur calme chez toi. Profites-en : ramasse des munitions, renforce ta base. Et si tu trouves des plaques de Bravo-3, ramène-les."
+    send "&8[&a☎ Appel&8] %{_nom}% &8» &f%{_r}%" to {_p}
+
+# ---------------------------------------------------------------- menus
+
+function za_tel_ouvrir(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    if za_pro({_p}) is true:
+        stop
+    if za_tel_a({_p}) is false:
+        send "&7Tu n'as pas de téléphone qui marche. &8(Le « Cellulaire mort » se répare avec 1 Composant electronique : clic droit.)" to {_p}
+        stop
+    if za_tel_bat({_p}) <= 0:
+        send "&8&oL'écran reste noir. Batterie à plat. Il faut une zone sous tension pour le recharger (base alimentée, sous-station...)." to {_p}
+        stop
+    set {_sig} to "&c✗ aucun réseau"
+    if za_tel_signal({_p}) is true:
+        set {_sig} to "&a▮▮▮ réseau"
+    set {_nl} to {za::tel::nonlu::%{_u}%} ? 0
+    set {_o::*} to "Messages (%{_nl}% non lu(s))|sms", "Appeler Léa|a_lea", "Appeler le Dr Lefort|a_lefort", "Appeler le Sgt Vega|a_vega", "Alertes|alertes", "Missions|missions", "Ranger le téléphone|quit"
+    if za_tel_signal({_p}) is false:
+        set {_o::*} to "Messages (%{_nl}% non lu(s))|sms", "!Appeler (pas de réseau)|x", "Alertes|alertes", "Missions|missions", "Ranger le téléphone|quit"
+    za_menu({_p}, "zatelclic", "Cellulaire", "Batterie %floor(za_tel_bat({_p}))% %% · %{_sig}%&7. Le réseau revient là où le courant revient.", {_o::*})
+
+command /zatelclic <player> <text>:
+    executable by: console
+    trigger:
+        set {_p} to arg-1
+        if za_tel_a({_p}) is false:
+            stop
+        if arg-2 is "sms":
+            za_tel_messages({_p})
+        else if arg-2 starts with "a_":
+            if za_tel_signal({_p}) is true:
+                set {_q} to arg-2
+                replace all "a_" with "" in {_q}
+                za_tel_appel({_p}, {_q})
+        else if arg-2 is "alertes":
+            za_tel_alertes({_p})
+        else if arg-2 is "missions":
+            za_tel_missions({_p})
+
+function za_tel_alertes(p: player):
+    send "&c⚠ &fAlertes" to {_p}
+    set {_n} to 0
+    if {za::horde::actif} is true:
+        send "&c • Une HORDE est en cours." to {_p}
+        add 1 to {_n}
+    if {za::boss::vivant} is true:
+        send "&4 • L'Undead Overlord rôde." to {_p}
+        add 1 to {_n}
+    if {za::evt::bloodmoon} is true:
+        send "&c • Lune de sang." to {_p}
+        add 1 to {_n}
+    if {za::cata::type} is set:
+        send "&e • Catastrophe en cours : %{za::cata::type}%." to {_p}
+        add 1 to {_n}
+    loop {za::camp::liste::*}:
+        if {za::camp::%loop-value%::attaque} is set:
+            send "&6 • Le camp %{za::camp::%loop-value%::nom}% est attaqué." to {_p}
+            add 1 to {_n}
+    loop za_reseau_quartiers():
+        if za_elec_etat(loop-value) is "PANNE":
+            send "&7 • %za_reseau_nom(loop-value)% : panne de sous-station." to {_p}
+            add 1 to {_n}
+    set {_dg} to za_danger(location of {_p})
+    if {_dg} >= 3:
+        send "&c • Ta zone est dangereuse (niveau %{_dg}%/4)." to {_p}
+        add 1 to {_n}
+    if {_n} is 0:
+        send "&a • Rien d'urgent. Pour l'instant." to {_p}
+
+function za_tel_missions(p: player):
+    send "&6✦ &fMissions" to {_p}
+    loop za_diplo_facs():
+        if {za::diplo::contrat::%loop-value%} is set:
+            send "&e • Contrat : %za_faction_nom(loop-value)% &7manque de %za_diplo_rnom({za::diplo::contrat::%loop-value%})% (/faction contrats)" to {_p}
+    loop {za::elec2::ss::liste::*}:
+        if {za::elec2::ss::%loop-value%::etat} is "endommagee":
+            send "&e • Réparer la %{za::elec2::ss::%loop-value%::nom}% &8(/electricite)" to {_p}
+    if za_ruines_ok() is true:
+        if za_expl_a({_p}, "fini") is false:
+            send "&e • Le dossier Arel : quelque chose attend à Saint-Aurèle. Commence au Café du Coin." to {_p}
+    send "&7 • Et ton fil rouge : &e/guide" to {_p}
+
+command /telephone:
+    aliases: /tel, /cellulaire
+    trigger:
+        if sender is console:
+            stop
+        za_tel_ouvrir(player)
+
+on right click with clock:
+    if za_pro(player) is true:
+        stop
+    if uncolored name of player's tool is "Cellulaire":
+        cancel the event
+        za_tel_ouvrir(player)
+
+# réparation du cellulaire mort du Jour 8
+on right click with dead bush:
+    if za_pro(player) is true:
+        stop
+    if uncolored name of player's tool is "Cellulaire mort":
+        cancel the event
+        if za_count_named(player, "Composant electronique") < 1:
+            send "&8&oL'écran est fendu, la batterie morte. Avec un Composant électronique, tu pourrais peut-être le rafistoler." to player
+            stop
+        za_take_named(player, "Composant electronique", 1)
+        za_take_named(player, "Cellulaire mort", 1)
+        give player za_tel_item(20)
+        set {za::tel::bat::%player's uuid%} to 20
+        set {za::tel::repare::%player's uuid%} to {za::serveur::jours} ? 0
+        send "&a☎ &fLe cellulaire se rallume. 20 %% de batterie. &7Pas de réseau ici... le réseau revient là où revient le courant." to player
+        za_zm("son %player% za_modeles:sfx.texto 1 1")
+
+# ---------------------------------------------------------------- batterie, file d'attente, messages de contexte
+
+every 60 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if za_tel_a({_p}) is true:
+            set {_u} to "%{_p}'s uuid%"
+            set {_b} to za_tel_bat({_p})
+            if za_tel_prise({_p}) is true:
+                set {_b} to min(100, {_b} + 15)
+            else:
+                set {_b} to max(0, {_b} - 1)
+            set {za::tel::bat::%{_u}%} to {_b}
+            # messages en attente : on prévient quand le réseau revient
+            if ({za::tel::nonlu::%{_u}%} ? 0) > 0:
+                if {_b} > 0:
+                    if za_tel_signal({_p}) is true:
+                        za_zm("son %{_p}% za_modeles:sfx.texto 0.9 1")
+                        send "&a☎ &f%{za::tel::nonlu::%{_u}%}% nouveau(x) message(s). &8/telephone" to {_p}
+                        set {za::tel::nonlu::%{_u}%} to 0
+            # le numéro inconnu (une fois, au moins un jour après la réparation)
+            if {za::tel::inconnu::%{_u}%} is not set:
+                if {za::tel::repare::%{_u}%} is set:
+                    if ({za::serveur::jours} ? 0) > {za::tel::repare::%{_u}%}:
+                        if za_tel_signal({_p}) is true:
+                            set {za::tel::inconnu::%{_u}%} to true
+                            za_tel_sms({_u}, "Numéro inconnu", "...es-tu là? Ici c'est... ...camp du nord, les soldats... ...je t'aime gros comme la... [message incomplet]")
+
+every 30 seconds:
+    # camps attaqués : ceux à qui le camp fait confiance
+    loop {za::camp::liste::*}:
+        set {_id} to loop-value-1
+        if {za::camp::%{_id}%::attaque} is set:
+            if {za::tel::vu::camp::%{_id}%} is not {za::camp::%{_id}%::attaque}:
+                set {za::tel::vu::camp::%{_id}%} to {za::camp::%{_id}%::attaque}
+                loop za_monde_joueurs():
+                    if za_cmp_conf("%loop-value-2's uuid%", {_id}) >= 20:
+                        za_tel_sms("%loop-value-2's uuid%", "%{za::camp::%{_id}%::nom}%", "ON EST ATTAQUÉS! Si tu peux venir, viens. Maintenant.")
+    # contrats de faction : ceux qui y sont connus
+    loop za_diplo_facs():
+        set {_f} to loop-value-1
+        if {za::diplo::contrat::%{_f}%} is set:
+            if {za::tel::vu::contrat::%{_f}%} is not {za::diplo::contrat::%{_f}%}:
+                set {za::tel::vu::contrat::%{_f}%} to {za::diplo::contrat::%{_f}%}
+                loop za_monde_joueurs():
+                    if ({za::fac::%{_f}%::%loop-value-2's uuid%} ? 0) >= 25:
+                        za_tel_sms("%loop-value-2's uuid%", uncolored za_faction_nom({_f}), "On manque de %za_diplo_rnom({za::diplo::contrat::%{_f}%})%. On paie. /faction contrats")
+    # horde et lune de sang : alerte générale
+    if {za::horde::actif} is true:
+        if {za::tel::vu::horde} is not true:
+            set {za::tel::vu::horde} to true
+            za_tel_sms_tous("ALERTE", "Horde signalée dans le secteur. Barricadez-vous.")
+    else:
+        set {za::tel::vu::horde} to false
+    if {za::evt::bloodmoon} is true:
+        if {za::tel::vu::lune} is not true:
+            set {za::tel::vu::lune} to true
+            za_tel_sms_tous("ALERTE", "Lune de sang cette nuit. Ne sortez pas.")
+    else:
+        set {za::tel::vu::lune} to false
+    # sous-stations endommagées : à leur responsable
+    loop {za::elec2::ss::liste::*}:
+        set {_i} to loop-value-1
+        if {za::elec2::ss::%{_i}%::etat} is "endommagee":
+            if {za::tel::vu::ss::%{_i}%} is not true:
+                set {za::tel::vu::ss::%{_i}%} to true
+                set {_pr} to {za::elec2::ss::%{_i}%::proprio} ? ""
+                if {_pr} is not "":
+                    za_tel_sms({_pr}, "Hydro (automate)", "Défaut sur la %{za::elec2::ss::%{_i}%::nom}%. Intervention requise.")
+        else:
+            delete {za::tel::vu::ss::%{_i}%}
+
+# nouvelles des survivants retrouvés (échos de Saint-Aurèle, za_p63)
+every 30 minutes:
+    loop za_echo_ids():
+        set {_c} to loop-value-1
+        if {za::echo::%{_c}%::etat} is "vivant":
+            if chance of 20%:
+                loop za_monde_joueurs():
+                    if {za::echo::salue::%{_c}%::%loop-value-2's uuid%} is set:
+                        set {_m} to random element out of "Toujours en vie par ici. Et toi?", "J'ai pensé à Saint-Aurèle aujourd'hui. Au monde d'avant.", "Si tu passes, apporte de l'eau. On te fera une place au feu." and "Il y en a beaucoup ce soir, dehors. Reste à l'abri."
+                        za_tel_sms("%loop-value-2's uuid%", za_echo_vnom({_c}), {_m})
+
+# ---------------------------------------------------------------- admin
+
+command /zatel <player> <text> [<text>]:
+    permission: za.admin
+    trigger:
+        set {_u} to "%arg-1's uuid%"
+        if arg-2 is "donner":
+            give arg-1 za_tel_item(100)
+            set {za::tel::bat::%{_u}%} to 100
+            set {za::tel::repare::%{_u}%} to {za::serveur::jours} ? 0
+            send "Téléphone donné à %arg-1%." to sender
+        else if arg-2 is "sms":
+            za_tel_sms({_u}, "Admin", arg-3 ? "test")
+        else if arg-2 is "batterie":
+            set {za::tel::bat::%{_u}%} to (arg-3 parsed as number) ? 100
+        else if arg-2 is "reset":
+            delete {za::tel::sms::%{_u}%::*}
+            delete {za::tel::bat::%{_u}%}
+            delete {za::tel::inconnu::%{_u}%}
+            delete {za::tel::nonlu::%{_u}%}
+        send "%arg-1% : batterie %{za::tel::bat::%{_u}%}%, réseau %za_tel_signal(arg-1)%" to sender

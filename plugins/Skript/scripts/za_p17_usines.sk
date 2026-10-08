@@ -22,7 +22,7 @@ function za_est_machine(s: text) :: boolean:
         set {_mod} to true
     if {_mod} is false:
         return false
-    set {_kw::*} to "press", "mixer", "crusher", "millstone", "saw", "drill", "harvester", "deployer", "fan", "wheel", "windmill", "engine", "motor", "generator", "alternator", "furnace", "assembler", "pump", "refinery", "turbine", "dynamo", "lathe", "arc"
+    set {_kw::*} to "press", "mixer", "crusher", "millstone", "saw", "drill", "harvester", "deployer", "fan", "wheel", "windmill", "engine", "motor", "generator", "alternator", "furnace", "assembler", "pump", "refinery", "turbine", "dynamo", "lathe", "arc", "diesel", "pumpjack", "distillation", "energiser", "stirling", "reactor", "cannon"
     loop {_kw::*}:
         if {_s} contains loop-value:
             return true
@@ -59,13 +59,15 @@ every 45 seconds:
         loop {za::usines::liste::*}:
             set {_k} to loop-value
             set {_l} to {za::usines::%{_k}%::loc}
-            if block at {_l} is air:
-                remove {_k} from {za::usines::liste::*}
-                delete {za::usines::%{_k}%::*}
-            else:
-                set {_ck} to za_ckey({_l})
-                add 1 to {_cnt::%{_ck}%}
-                set {_pos::%{_ck}%} to {_l}
+            # chunk déchargé : on attend (ne pas le charger à chaque passage)
+            if chunk at {_l} is loaded:
+                if block at {_l} is air:
+                    remove {_k} from {za::usines::liste::*}
+                    delete {za::usines::%{_k}%::*}
+                else:
+                    set {_ck} to za_ckey({_l})
+                    add 1 to {_cnt::%{_ck}%}
+                    set {_pos::%{_ck}%} to {_l}
         loop {_cnt::*}:
             set {_ck} to loop-index
             set {_n} to loop-value

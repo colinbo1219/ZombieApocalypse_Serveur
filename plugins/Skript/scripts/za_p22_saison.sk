@@ -33,8 +33,19 @@ on death of zombie:
     if attacker is a player:
         add 1 to {za::saison::kills}
     if uncolored name of victim contains "Overlord":
-        set {za::boss::vivant} to false
-        if {za::saison::finale::actif} is true:
+        # la finale ne se termine QUE sur la mort de l'Overlord final, reconnu par son tag/UUID (audit C7)
+        set {_final} to false
+        if scoreboard tags of victim contain "za_overlord_final":
+            set {_final} to true
+        else if "%uuid of victim%" is ({za::boss::final_uuid} ? "-"):
+            set {_final} to true
+        if {_final} is false:
+            set {za::boss::vivant} to false
+        else:
+            delete {za::boss::final_vivant}
+        if {_final} is true:
+            if {za::saison::finale::actif} is not true:
+                stop
             delete {za::saison::finale::actif}
             set {za::saison::finie} to true
             set {za::saison::reussie::%{za::saison::num}%} to true
@@ -51,6 +62,12 @@ on death of zombie:
 function za_overlord_spawn(finale: boolean):
     if size of za_monde_joueurs() is 0:
         stop
+    # un seul Overlord normal à la fois, un seul final (audit C7)
+    if {_finale} is true:
+        if {za::boss::final_vivant} is true:
+            stop
+    else if {za::boss::vivant} is true:
+        stop
     set {_p} to random element out of za_monde_joueurs()
     set {_g} to za_point_loin({_p}, 60, 100)
     set {_bx} to floor(x-coordinate of {_g})
@@ -58,7 +75,11 @@ function za_overlord_spawn(finale: boolean):
     set {_bz} to floor(z-coordinate of {_g})
     set {_wn} to "%world of {_g}%"
     execute console command "mm mobs spawn ZA_Overlord 1 %{_wn}%,%{_bx}%,%{_by}%,%{_bz}%"
-    set {za::boss::vivant} to true
+    if {_finale} is true:
+        set {za::boss::final_vivant} to true
+    else:
+        set {za::boss::vivant} to true
+    za_overlord_marquer({_g}, {_finale})
     if {_finale} is true:
         set {za::saison::finale::actif} to true
         set {_ax} to floor({_bx} / 100) * 100
@@ -85,7 +106,7 @@ every 5 hours:
 every 3 hours:
     if {za::saison::revele} is true:
         if {za::saison::finie} is not true:
-            if {za::boss::vivant} is not true:
+            if {za::boss::final_vivant} is not true:
                 za_overlord_spawn(true)
 
 # ---------- cargaison pillee (le coffre est marque a sa creation dans za_cargaison) ----------

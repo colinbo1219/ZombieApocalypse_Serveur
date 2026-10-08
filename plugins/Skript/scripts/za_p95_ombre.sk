@@ -1,0 +1,646 @@
+# =====================================================================
+#  ZombieApocalypse - L'OMBRE : factions secrètes, espionnage, double jeu
+#  Chaque faction a ses gens de l'ombre. Ils ne te parlent pas en face : un SMS, une boîte morte, un rendez-vous.
+#  MISSIONS SECRÈTES (/ombre : trois offres par jour, une à la fois) :
+#    VOL DE DOCUMENTS — t'infiltrer dans un territoire rival (za_p45), rester 10 s au cœur, ressortir avec ses papiers
+#    SABOTAGE         — 15 s au cœur du territoire : son emprise chute de 20
+#    ÉCOUTE           — poser un micro (1 Composant électronique) : trois jours de renseignements, payés chaque jour
+#    TAUPE            — un des gardes d'une faction la trahit : écouter les trois, désigner le bon
+#    Puis LIVRER à la boîte morte (un lieu isolé) : jetons et réputation SECRÈTE auprès du commanditaire.
+#  DISCRÉTION : près des gardes, accroupi = 8 %% de risque d'être repéré toutes les 5 s, debout = 30 %%, invisible = 0.
+#    Repéré : la faction visée te déteste (-15), ses hommes réagissent, la mission est perdue.
+#  DOUBLE RÉPUTATION : /ombre infiltrer <faction> — tu rejoins une faction en façade (+20 publique) pour le compte
+#    d'une autre (réputation secrète >= 20). Chaque jour : une paie et des renseignements ; mais le risque d'être
+#    démasqué monte avec chaque coup porté contre elle (radio, -60). /ombre sortir pour disparaître à temps.
+#  FAUX CONTRATS : certains commanditaires n'existent pas (piège des Pilleurs à la boîte morte). Et toi aussi, tu peux
+#    falsifier : /ombre forger <faction> avec des Documents volés -> un faux ordre revendu 40 jetons... s'il ne remonte pas.
+#  TRAÎTRES : un survivant de ta base peut travailler pour une faction (vols dans la Réserve, fuites, raids).
+#    /ombre enqueter puis, le lendemain, /ombre accuser <nom>. Un innocent accusé ne l'oublie pas.
+#  Admin : /zaombre offres <joueur> | taupe <id survivant> <faction> | etat
+# =====================================================================
+
+options:
+    det_accroupi: 8
+    det_debout: 30
+
+function za_om_nom_contact(f: text) :: text:
+    if {_f} is "milice":
+        return "« Sentinelle » (Milice)"
+    if {_f} is "scientifiques":
+        return "« Protocole » (Scientifiques)"
+    if {_f} is "marchands":
+        return "« Balance » (Marchands)"
+    if {_f} is "pilleurs":
+        return "« Rouille » (Pilleurs)"
+    if {_f} is "survivants":
+        return "« Phare » (Survivants)"
+    return "« Psaume » (Culte)"
+
+function za_om_type_nom(t: text) :: text:
+    if {_t} is "vol":
+        return "Vol de documents"
+    if {_t} is "sabotage":
+        return "Sabotage"
+    if {_t} is "micro":
+        return "Écoute"
+    if {_t} is "taupe":
+        return "Démasquer une taupe"
+    return {_t}
+
+function za_om_secret(u: text, f: text) :: number:
+    return {za::ombre::secret::%{_f}%::%{_u}%} ? 0
+
+function za_om_secret_ajouter(u: text, f: text, n: number):
+    set {za::ombre::secret::%{_f}%::%{_u}%} to za_om_secret({_u}, {_f}) + {_n}
+
+# ---------------------------------------------------------------- offres du jour
+
+function za_om_offres(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    delete {za::ombre::offre::%{_u}%::*}
+    set {_cles::*} to za_terr_cles()
+    if size of {_cles::*} is 0:
+        stop
+    set {_i} to 0
+    loop 3 times:
+        add 1 to {_i}
+        set {_t} to random element out of "vol", "sabotage", "micro" and "taupe"
+        set {_cle} to random element out of {_cles::*}
+        set {_cf} to za_terr_fac({_cle})
+        if za_terr_reelle({_cf}) is true:
+            set {_facs::*} to za_diplo_facs()
+            remove {_cf} from {_facs::*}
+            set {_f} to random element out of {_facs::*}
+            if {_t} is "taupe":
+                # la taupe est chez le commanditaire lui-même
+                set {_f} to {_cf}
+            set {_r} to za_terr_rival({_cf})
+            if {_t} is not "taupe":
+                if {_r} is not "":
+                    if chance of 50%:
+                        set {_f} to {_r}
+            set {_c} to za_terr_loc({_cle})
+            if {_c} is set:
+                set {_drop} to za_eq_site_proche({_c}, "refuge,chalet,camp_chasse,eglise,motel", 150, 1400, "")
+                if {_drop} is not "":
+                    set {_faux} to "non"
+                    if {_t} is not "taupe":
+                        if chance of 18%:
+                            set {_faux} to "oui"
+                    set {za::ombre::offre::%{_u}%::%{_i}%} to "%{_t}%|%{_f}%|%{_cf}%|%{_cle}%|%{_drop}%|%{_faux}%"
+    set {za::ombre::offre_jour::%{_u}%} to {za::serveur::jours} ? 0
+
+function za_om_afficher(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    if ({za::ombre::offre_jour::%{_u}%} ? -1) is not ({za::serveur::jours} ? 0):
+        za_om_offres({_p})
+    send "&8&l━━ L'OMBRE ━━" to {_p}
+    set {_m} to {za::ombre::m::%{_u}%::type}
+    if {_m} is set:
+        set {_cle} to {za::ombre::m::%{_u}%::cle}
+        send "&7Mission : &f%za_om_type_nom({_m})% &7pour %za_om_nom_contact({za::ombre::m::%{_u}%::f})%" to {_p}
+        if {za::ombre::m::%{_u}%::etape} is "livrer":
+            set {_k} to {za::ombre::m::%{_u}%::drop}
+            send "&7Boîte morte : &f%{za::site::d::%{_k}%::nom}% &7(X %{za::site::d::%{_k}%::x}%, Z %{za::site::d::%{_k}%::z}%)" to {_p}
+        else:
+            send "&7Cible : &f%za_terr_nom({_cle})% &7de %za_faction_nom({za::ombre::m::%{_u}%::cible})% &7(%za_terr_pos_c({_cle})%)" to {_p}
+        send "&8/ombre abandonner" to {_p}
+    else:
+        set {_i} to 0
+        loop {za::ombre::offre::%{_u}%::*}:
+            set {_c::*} to split loop-value at "|"
+            send "&f%loop-index%. &7%za_om_type_nom({_c::1})% &8— &7pour %za_om_nom_contact({_c::2})% &8— &7cible : %za_terr_nom({_c::4})% de %za_faction_nom({_c::3})%" to {_p}
+            add 1 to {_i}
+        if {_i} is 0:
+            send "&7Personne n'a de travail discret pour toi aujourd'hui." to {_p}
+        else:
+            send "&8/ombre prendre <n°>" to {_p}
+    set {_inf} to {za::ombre::infiltre::%{_u}%}
+    if {_inf} is set:
+        set {_c::*} to split {_inf} at "|"
+        send "&5Double jeu : &7en façade chez %za_faction_nom({_c::1})%&7, en secret pour %za_faction_nom({_c::2})%&7. Soupçons : &f%{za::ombre::soupcon::%{_u}%} ? 0% %%" to {_p}
+    loop za_diplo_facs():
+        set {_s} to za_om_secret({_u}, loop-value)
+        if {_s} is not 0:
+            add "%za_faction_nom(loop-value)% &f%{_s}%" to {_sec::*}
+    if size of {_sec::*} > 0:
+        send "&7Réputation secrète : %{_sec::*}%" to {_p}
+
+function za_om_prendre(p: player, n: text):
+    set {_u} to "%{_p}'s uuid%"
+    if {za::ombre::m::%{_u}%::type} is set:
+        send "&7Une chose à la fois." to {_p}
+        stop
+    set {_v} to {za::ombre::offre::%{_u}%::%{_n}%}
+    if {_v} is not set:
+        send "&cPas d'offre n°%{_n}%. (/ombre)" to {_p}
+        stop
+    delete {za::ombre::offre::%{_u}%::%{_n}%}
+    set {_c::*} to split {_v} at "|"
+    set {za::ombre::m::%{_u}%::type} to {_c::1}
+    set {za::ombre::m::%{_u}%::f} to {_c::2}
+    set {za::ombre::m::%{_u}%::cible} to {_c::3}
+    set {za::ombre::m::%{_u}%::cle} to {_c::4}
+    set {za::ombre::m::%{_u}%::drop} to {_c::5}
+    set {za::ombre::m::%{_u}%::faux} to {_c::6}
+    set {za::ombre::m::%{_u}%::etape} to "aller"
+    set {za::ombre::m::%{_u}%::prog} to 0
+    set {za::ombre::m::%{_u}%::jour} to {za::serveur::jours} ? 0
+    set {_cle} to {_c::4}
+    set {_txt} to "Le %za_terr_nom({_cle})% (%za_terr_pos_c({_cle})%). "
+    if {_c::1} is "vol":
+        set {_txt} to "%{_txt}%Leurs papiers sont au cœur du bâtiment. Dix secondes, et tu ressors."
+    else if {_c::1} is "sabotage":
+        set {_txt} to "%{_txt}%Quinze secondes au cœur du bâtiment. Ils mettront des semaines à s'en remettre."
+    else if {_c::1} is "micro":
+        set {_txt} to "%{_txt}%Pose ça au cœur du bâtiment (1 Composant électronique). Ensuite, on écoute."
+    else:
+        set {_txt} to "%{_txt}%Un de nos gardes parle aux autres. Va les écouter. Dis-nous lequel."
+    za_tel_sms({_u}, za_om_nom_contact({_c::2}), {_txt})
+    send "&8Le message s'efface tout seul après lecture." to {_p}
+
+# ---------------------------------------------------------------- sur le terrain (toutes les 5 s)
+
+function za_om_gardes(c: location, cle: text) :: number:
+    set {_id} to za_terr_id({_cle})
+    set {_n} to 0
+    loop all villagers in radius 26 around {_c}:
+        if "%scoreboard tags of loop-entity%" contains "za_terr_%{_id}%":
+            add 1 to {_n}
+    return {_n}
+
+function za_om_repere(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_cible} to {za::ombre::m::%{_u}%::cible}
+    set {_cle} to {za::ombre::m::%{_u}%::cle}
+    send title "&c✖ REPÉRÉ" with subtitle "&7Ils t'ont vu. La mission est perdue." to {_p} for 3 seconds
+    za_zm("son %{_p}% minecraft:entity.villager.no 1 0.6")
+    za_faction_ajouter({_p}, {_cible}, -15)
+    if {_cible} is "pilleurs":
+        loop 3 times:
+            za_spawn_near({_p}, "ZA_Pillard", 8, 14)
+    else:
+        damage {_p} by 3
+        apply potion of slowness of tier 2 to {_p} for 5 seconds
+        send "&c« Hé ! Toi ! » &7Un coup de crosse. Tu cours." to {_p}
+    # sous couverture chez eux ? c'est fini
+    set {_inf} to {za::ombre::infiltre::%{_u}%}
+    if {_inf} is set:
+        set {_c::*} to split {_inf} at "|"
+        if {_c::1} is {_cible}:
+            za_om_demasque({_p})
+    za_journal("Un espion a été repéré près du %za_terr_nom({_cle})%.")
+    delete {za::ombre::m::%{_u}%::*}
+
+every 5 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        set {_u} to "%{_p}'s uuid%"
+        if {za::ombre::m::%{_u}%::type} is set:
+            if za_pro({_p}) is false:
+                za_om_tick({_p})
+
+function za_om_tick(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_t} to {za::ombre::m::%{_u}%::type}
+    set {_e} to {za::ombre::m::%{_u}%::etape}
+    set {_cle} to {za::ombre::m::%{_u}%::cle}
+    # trois jours pour faire le travail
+    if ({za::serveur::jours} ? 0) - ({za::ombre::m::%{_u}%::jour} ? 0) > 3:
+        za_tel_sms({_u}, za_om_nom_contact({za::ombre::m::%{_u}%::f}), "Trop lent. On a trouvé quelqu'un d'autre. Oublie ce numéro.")
+        delete {za::ombre::m::%{_u}%::*}
+        stop
+    if {_e} is "livrer":
+        set {_k} to {za::ombre::m::%{_u}%::drop}
+        if "%world of {_p}%" is "world":
+            set {_dx} to (x-coordinate of {_p}) - {za::site::d::%{_k}%::x}
+            set {_dz} to (z-coordinate of {_p}) - {za::site::d::%{_k}%::z}
+            if sqrt(({_dx} * {_dx}) + ({_dz} * {_dz})) < 15:
+                za_om_livrer({_p})
+        stop
+    set {_c} to za_terr_loc({_cle})
+    if {_c} is not set:
+        stop
+    if world of {_c} is not world of {_p}:
+        stop
+    set {_d} to distance between {_p} and {_c}
+    if {_d} > 30:
+        if {za::ombre::m::%{_u}%::prog} > 0:
+            set {za::ombre::m::%{_u}%::prog} to 0
+            send "&7Tu as quitté les lieux : tout est à refaire." to {_p}
+        stop
+    if {_t} is "taupe":
+        if {_d} < 18:
+            za_om_taupe_menu({_p})
+        stop
+    # discrétion
+    set {_g} to za_om_gardes({_c}, {_cle})
+    if {_g} > 0:
+        set {_ch} to {@det_debout}
+        if {_p} is sneaking:
+            set {_ch} to {@det_accroupi}
+        if "%potion effects of {_p}%" contains "invisib":
+            set {_ch} to 0
+        if za_eq_nuit(location of {_p}) is true:
+            set {_ch} to {_ch} * 0.6
+        set {_ch} to {_ch} * min(2, 0.5 + ({_g} * 0.5))
+        if chance of {_ch}%:
+            za_om_repere({_p})
+            stop
+    # au cœur du bâtiment
+    if {_d} < 7:
+        set {_need} to 10
+        if {_t} is "sabotage":
+            set {_need} to 15
+        else if {_t} is "micro":
+            set {_need} to 8
+            if {za::ombre::m::%{_u}%::prog} is 0:
+                if za_count_named({_p}, "Composant electronique") < 1:
+                    send action bar "&cIl te faut 1 Composant électronique pour le micro." to {_p}
+                    stop
+        add 5 to {za::ombre::m::%{_u}%::prog}
+        send action bar "&8[&7%za_om_type_nom({_t})%&8] &f%{za::ombre::m::%{_u}%::prog}%&7/%{_need}% s &8— reste discret" to {_p}
+        if {za::ombre::m::%{_u}%::prog} >= {_need}:
+            za_om_reussi({_p})
+    else:
+        send action bar "&8Approche du cœur du bâtiment... (%round({_d})% m)" to {_p}
+
+function za_om_reussi(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_t} to {za::ombre::m::%{_u}%::type}
+    set {_cible} to {za::ombre::m::%{_u}%::cible}
+    set {_cle} to {za::ombre::m::%{_u}%::cle}
+    if {_t} is "vol":
+        give za_item("paper", "Documents de %{_cible}%", "&e", 1) to {_p}
+        send "&aTu glisses les papiers sous ta veste." to {_p}
+    else if {_t} is "sabotage":
+        set {za::terr::%{_cle}%::ctrl} to max(0, za_terr_ctrl({_cle}) - 20)
+        send "&aTu coupes, tu dévisses, tu verses du sable dans le réservoir. Ça ne se verra que demain." to {_p}
+        za_radio("&8Rumeur", "Le %za_terr_nom({_cle})% a des problèmes : pannes, vivres gâtés. On parle de sabotage.")
+    else if {_t} is "micro":
+        za_take_named({_p}, "Composant electronique", 1)
+        set {za::ombre::micro::%{_u}%} to "%{_cible}%|%{za::ombre::m::%{_u}%::f}%|%({za::serveur::jours} ? 0) + 3%"
+        send "&aLe micro est en place, derrière une plinthe. Il ne reste qu'à prévenir le commanditaire." to {_p}
+    # coup porté à une faction où l'on est infiltré : les soupçons montent
+    set {_inf} to {za::ombre::infiltre::%{_u}%}
+    if {_inf} is set:
+        set {_c::*} to split {_inf} at "|"
+        if {_c::1} is {_cible}:
+            add 15 to {za::ombre::soupcon::%{_u}%}
+    set {za::ombre::m::%{_u}%::etape} to "livrer"
+    set {_k} to {za::ombre::m::%{_u}%::drop}
+    send "&7Boîte morte : &f%{za::site::d::%{_k}%::nom}% &7(X %{za::site::d::%{_k}%::x}%, Z %{za::site::d::%{_k}%::z}%)." to {_p}
+
+function za_om_livrer(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_t} to {za::ombre::m::%{_u}%::type}
+    set {_f} to {za::ombre::m::%{_u}%::f}
+    set {_cible} to {za::ombre::m::%{_u}%::cible}
+    if {za::ombre::m::%{_u}%::faux} is "oui":
+        send "&cPersonne à la boîte morte. Puis des pas. Le contrat était faux." to {_p}
+        loop 3 times:
+            za_spawn_near({_p}, "ZA_Pillard", 10, 16)
+        za_tel_sms({_u}, "Inconnu", "Merci pour les papiers. Rémi te salue.")
+        if {_t} is "vol":
+            za_take_named({_p}, "Documents de %{_cible}%", 1)
+        delete {za::ombre::m::%{_u}%::*}
+        stop
+    if {_t} is "vol":
+        if za_take_named({_p}, "Documents de %{_cible}%", 1) is false:
+            send "&7Il te faut les Documents de %{_cible}% pour la livraison." to {_p}
+            stop
+        set {za::facres::%{_cible}%::munitions} to max(0, ({za::facres::%{_cible}%::munitions} ? 0) - 4)
+    set {_gain} to random integer between 30 and 50
+    za_jetons_ajouter({_p}, {_gain})
+    za_om_secret_ajouter({_u}, {_f}, 10)
+    za_diplo_ajouter({_f}, {_cible}, -5)
+    za_stat_ajouter({_u}, "missions_secretes", 1)
+    za_tel_sms({_u}, za_om_nom_contact({_f}), "Reçu. %{_gain}% jetons sous la pierre plate. On se reparlera.")
+    send "&8Sous une pierre plate : &6%{_gain}% jetons&8. Ta réputation secrète auprès de %za_faction_nom({_f})% &8monte." to {_p}
+    delete {za::ombre::m::%{_u}%::*}
+
+# ---------------------------------------------------------------- taupe dans une faction
+
+function za_om_taupe_menu(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    if {za::ombre::m::%{_u}%::noms} is not set:
+        set {_g::*} to "Caron", "Lavoie", "Dubé", "Poulin", "Hamel", "Nadeau", "Rioux" and "Savard"
+        set {_a} to random element out of {_g::*}
+        remove {_a} from {_g::*}
+        set {_b} to random element out of {_g::*}
+        remove {_b} from {_g::*}
+        set {_c} to random element out of {_g::*}
+        set {za::ombre::m::%{_u}%::noms} to "%{_a}%|%{_b}%|%{_c}%"
+        set {za::ombre::m::%{_u}%::traitre} to random integer between 1 and 3
+    if {za::ombre::m::%{_u}%::vu} is set:
+        stop
+    set {za::ombre::m::%{_u}%::vu} to true
+    set {_n::*} to split {za::ombre::m::%{_u}%::noms} at "|"
+    set {_t} to {za::ombre::m::%{_u}%::traitre}
+    set {_al::*} to "« J'étais de garde à la porte nord toute la nuit. Demande à n'importe qui. »", "« Moi ? Je dormais. Je dors toujours, entre deux tours. »" and "« J'ai vu une lampe vers la vieille route. J'ai rien dit, j'aime pas les histoires. »"
+    send "&7Tu écoutes les trois gardes, l'air de rien :" to {_p}
+    set {_i} to 0
+    loop {_n::*}:
+        add 1 to {_i}
+        if {_i} is {_t}:
+            send "&f%{_i}%. %loop-value% &8» &7« La porte nord ? Ouais, j'y étais. Enfin, la plupart du temps. » &8(il regarde ses bottes : de la boue de la vieille route)" to {_p}
+        else:
+            send "&f%{_i}%. %loop-value% &8» &7%{_al::%{_i}%}%" to {_p}
+    send "&8Le traître, c'est : /ombre designer <1-3>" to {_p}
+
+function za_om_designer(p: player, n: number):
+    set {_u} to "%{_p}'s uuid%"
+    if {za::ombre::m::%{_u}%::type} is not "taupe":
+        stop
+    if {za::ombre::m::%{_u}%::vu} is not set:
+        send "&7Va d'abord les écouter." to {_p}
+        stop
+    set {_f} to {za::ombre::m::%{_u}%::f}
+    set {_n::*} to split {za::ombre::m::%{_u}%::noms} at "|"
+    if {_n} is {za::ombre::m::%{_u}%::traitre}:
+        za_jetons_ajouter({_p}, 35)
+        za_om_secret_ajouter({_u}, {_f}, 15)
+        za_faction_ajouter({_p}, {_f}, 10)
+        za_tel_sms({_u}, za_om_nom_contact({_f}), "%{_n::%{_n}%}% a avoué. On s'en occupe. Merci.")
+    else:
+        za_om_secret_ajouter({_u}, {_f}, -10)
+        za_tel_sms({_u}, za_om_nom_contact({_f}), "%{_n::%{_n}%}% était innocent. On l'a su trop tard. Ne nous recontacte pas avant longtemps.")
+    delete {za::ombre::m::%{_u}%::*}
+
+# ---------------------------------------------------------------- écoute : trois jours de renseignements
+
+every 1 minute:
+    loop {za::ombre::micro::*}:
+        set {_u} to loop-index
+        set {_c::*} to split loop-value at "|"
+        if ({za::serveur::jours} ? 0) > ({_c::3} parsed as number):
+            delete {za::ombre::micro::%{_u}%}
+        else if {za::ombre::micro_jour::%{_u}%} is not ({za::serveur::jours} ? 0):
+            set {_p} to za_surv_joueur({_u})
+            if {_p} is set:
+                set {za::ombre::micro_jour::%{_u}%} to {za::serveur::jours} ? 0
+                set {_ci} to {_c::1}
+                set {_v} to {za::facres::%{_ci}%::vivres} ? 0
+                set {_m} to {za::facres::%{_ci}%::munitions} ? 0
+                send "&8[Écoute] &7Chez %za_faction_nom({_ci})%&7 : vivres %{_v}%, munitions %{_m}%, %za_terr_compte({_ci})% territoire(s). On parle d'un mouvement vers le sud." to {_p}
+                za_jetons_ajouter({_p}, 10)
+
+# ---------------------------------------------------------------- double jeu (infiltration)
+
+function za_om_infiltrer(p: player, cible: text):
+    set {_u} to "%{_p}'s uuid%"
+    if {za::ombre::infiltre::%{_u}%} is set:
+        send "&7Tu joues déjà un double jeu." to {_p}
+        stop
+    if za_terr_reelle({_cible}) is false:
+        send "&7Factions : milice, scientifiques, marchands, pilleurs, survivants, culte" to {_p}
+        stop
+    # pour le compte de qui ? celui qui a la meilleure réputation secrète (>= 20)
+    set {_best} to ""
+    set {_bv} to 19
+    loop za_diplo_facs():
+        if loop-value is not {_cible}:
+            if za_om_secret({_u}, loop-value) > {_bv}:
+                set {_bv} to za_om_secret({_u}, loop-value)
+                set {_best} to loop-value
+    if {_best} is "":
+        send "&7Personne ne te fait assez confiance dans l'ombre pour t'envoyer là-bas. &8(réputation secrète 20 auprès d'une faction)" to {_p}
+        stop
+    set {za::ombre::infiltre::%{_u}%} to "%{_cible}%|%{_best}%|%{za::serveur::jours} ? 0%"
+    set {za::ombre::soupcon::%{_u}%} to 5
+    za_faction_ajouter({_p}, {_cible}, 20)
+    za_tel_sms({_u}, za_om_nom_contact({_best}), "Bienvenue chez %{_cible}%. Souris, rends service, écoute. On paie chaque jour.")
+    send "&5Tu rejoins %za_faction_nom({_cible})% &5en façade. En secret, tu travailles pour %za_faction_nom({_best})%&5." to {_p}
+
+function za_om_demasque(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_inf} to {za::ombre::infiltre::%{_u}%}
+    if {_inf} is not set:
+        stop
+    set {_c::*} to split {_inf} at "|"
+    delete {za::ombre::infiltre::%{_u}%}
+    delete {za::ombre::soupcon::%{_u}%}
+    za_faction_ajouter({_p}, {_c::1}, -60)
+    za_radio("&8Rumeur", "%{_p}% était un espion de %{_c::2}% chez %{_c::1}%. Ils l'ont démasqué. À sa place, je ne dormirais plus dehors.")
+    send title "&4DÉMASQUÉ" with subtitle "&7%za_faction_nom({_c::1})% &7sait tout." to {_p} for 3 seconds
+    za_souvenir_ajouter({_u}, "ombre:demasque", "chute", "On m'a démasqué chez %{_c::1}%.")
+
+every 1 minute:
+    loop {za::ombre::infiltre::*}:
+        set {_u} to loop-index
+        set {_c::*} to split loop-value at "|"
+        if {za::ombre::paie::%{_u}%} is not ({za::serveur::jours} ? 0):
+            set {_p} to za_surv_joueur({_u})
+            if {_p} is set:
+                set {za::ombre::paie::%{_u}%} to {za::serveur::jours} ? 0
+                add 4 to {za::ombre::soupcon::%{_u}%}
+                set {_sp} to {za::ombre::soupcon::%{_u}%} ? 0
+                if chance of {_sp}%:
+                    za_om_demasque({_p})
+                else:
+                    za_jetons_ajouter({_p}, 12)
+                    za_om_secret_ajouter({_u}, {_c::2}, 3)
+                    set {_ci} to {_c::1}
+                    send "&5[Double jeu] &7Paie du jour : 12 jetons. Chez %{_ci}%, on se méfie : soupçons &f%{za::ombre::soupcon::%{_u}%}% %%&7." to {_p}
+
+# ---------------------------------------------------------------- faux contrats
+
+function za_om_forger(p: player, f: text):
+    set {_u} to "%{_p}'s uuid%"
+    if za_count_named({_p}, "Documents de %{_f}%") < 1:
+        send "&7Pour falsifier un ordre de %{_f}%, il faut d'abord leurs Documents (mission de vol)." to {_p}
+        stop
+    za_take_named({_p}, "Documents de %{_f}%", 1)
+    za_jetons_ajouter({_p}, 40)
+    send "&8Une signature imitée, un tampon refait au couteau. Les Marchands t'en donnent 40 jetons sans poser de questions." to {_p}
+    if chance of 35%:
+        set {za::ombre::faux::%{_u}%} to "%{_f}%|%({za::serveur::jours} ? 0) + 2%"
+
+every 1 minute:
+    loop {za::ombre::faux::*}:
+        set {_u} to loop-index
+        set {_c::*} to split loop-value at "|"
+        if ({za::serveur::jours} ? 0) >= ({_c::2} parsed as number):
+            set {_p} to za_surv_joueur({_u})
+            if {_p} is set:
+                delete {za::ombre::faux::%{_u}%}
+                za_faction_ajouter({_p}, {_c::1}, -20)
+                za_faction_ajouter({_p}, "marchands", -10)
+                za_radio("&6Marchands", "Un faux ordre de mission circulait au nom de %{_c::1}%. On sait d'où il venait, %{_p}%.")
+
+# ---------------------------------------------------------------- traîtres dans ta base
+
+# chaque jour, chaque nouveau survivant est « testé » une fois : un sur douze travaille pour quelqu'un
+every 1 minute:
+    if {za::ombre::taupe_jour} is ({za::serveur::jours} ? 0):
+        stop
+    set {za::ombre::taupe_jour} to {za::serveur::jours} ? 0
+    loop {za::surv::liste::*}:
+        set {_id} to loop-value
+        if {za::surv::%{_id}%::etat} is "base":
+            if {za::surv::%{_id}%::ombre_teste} is not set:
+                set {za::surv::%{_id}%::ombre_teste} to true
+                if chance of 8%:
+                    set {za::surv::%{_id}%::taupe} to random element out of "pilleurs", "culte" and "marchands"
+            if {za::surv::%{_id}%::taupe} is set:
+                za_om_taupe_agit({_id})
+
+function za_om_taupe_agit(id: number):
+    set {_u} to {za::surv::%{_id}%::base}
+    set {_b} to za_surv_reserve({_u})
+    if {_b} is set:
+        set {_inv} to inventory of {_b}
+        set {_pris} to 0
+        set {_i} to 0
+        while slot {_i} of {_inv} is set:
+            if {_pris} < 3:
+                set {_it} to slot {_i} of {_inv}
+                if {_it} is not air:
+                    if chance of 15%:
+                        set {_q} to max(1, floor((item amount of {_it}) / 3))
+                        remove {_q} from item amount of {_it}
+                        if item amount of {_it} <= 0:
+                            set slot {_i} of {_inv} to air
+                        else:
+                            set slot {_i} of {_inv} to {_it}
+                        add 1 to {_pris}
+            add 1 to {_i}
+        if {_pris} > 0:
+            za_surv_avis({_u}, "&8Il manque des choses dans la Réserve. Personne n'a rien vu, évidemment.")
+    if {za::surv::%{_id}%::taupe} is "pilleurs":
+        if chance of 20%:
+            set {_p} to za_surv_joueur({_u})
+            if {_p} is set:
+                set {_bl} to {za::base::%{_u}%}
+                if world of {_bl} is world of {_p}:
+                    if distance between {_bl} and {_p} < 80:
+                        loop 3 times:
+                            za_spawn_at({_bl}, "ZA_Pillard", 20, 30)
+                        send "&cDes pillards savaient exactement où frapper. Comme si quelqu'un leur avait dessiné un plan." to {_p}
+
+function za_om_enqueter(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::ombre::enquete::%{_u}%} to ({za::serveur::jours} ? 0) + 1
+    send "&7Tu commences à observer les tiens. Qui sort la nuit, qui parle trop, qui ne regarde jamais en face. &8(réponse demain : /ombre suspects)" to {_p}
+
+function za_om_suspects(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    if {za::ombre::enquete::%{_u}%} is not set:
+        send "&7Tu n'as rien observé. &8(/ombre enqueter)" to {_p}
+        stop
+    if ({za::serveur::jours} ? 0) < {za::ombre::enquete::%{_u}%}:
+        send "&7Encore un peu de patience : demain." to {_p}
+        stop
+    set {_taupe} to 0
+    loop {za::surv::liste::*}:
+        if {za::surv::%loop-value%::etat} is "base":
+            if {za::surv::%loop-value%::base} is {_u}:
+                if {za::surv::%loop-value%::taupe} is set:
+                    set {_taupe} to loop-value
+                else:
+                    add loop-value to {_inno::*}
+    # un policier ou un opérateur radio à la base resserre la liste
+    set {_n} to 2
+    if za_surv_role_nb({_u}, "radio") > 0:
+        set {_n} to 1
+    loop {za::surv::liste::*}:
+        if {za::surv::%loop-value%::base} is {_u}:
+            if {za::surv::%loop-value%::metier} is "policier":
+                set {_n} to 1
+    if {_taupe} is not 0:
+        add {_taupe} to {_sus::*}
+    loop {_n} times:
+        if size of {_inno::*} > 0:
+            set {_x} to random element out of {_inno::*}
+            remove {_x} from {_inno::*}
+            add {_x} to {_sus::*}
+    if size of {_sus::*} is 0:
+        send "&7Rien de louche. Peut-être que tu te fais des idées." to {_p}
+        stop
+    send "&7Ceux qui t'inquiètent :" to {_p}
+    loop shuffled {_sus::*}:
+        send "&8 • &f%{za::surv::%loop-value%::nom}%" to {_p}
+    send "&8/ombre accuser <nom>" to {_p}
+
+function za_om_accuser(p: player, q: text):
+    set {_u} to "%{_p}'s uuid%"
+    set {_id} to za_surv_trouver({_u}, {_q})
+    if {_id} is 0:
+        send "&cPersonne de ce nom à ta base." to {_p}
+        stop
+    delete {za::ombre::enquete::%{_u}%}
+    set {_nom} to {za::surv::%{_id}%::nom}
+    if {za::surv::%{_id}%::taupe} is set:
+        set {_f} to {za::surv::%{_id}%::taupe}
+        send "&a%{_nom}% pâlit. Dans son sac : des notes, un plan de la base, un brassard %{_f}%. Il s'enfuit dans la nuit." to {_p}
+        za_jetons_ajouter({_p}, 20)
+        za_souvenir_ajouter({_u}, "ombre:taupe", "decouverte", "%{_nom}% travaillait pour %{_f}%. Je l'ai démasqué.")
+        loop {za::surv::liste::*}:
+            if {za::surv::%loop-value%::base} is {_u}:
+                za_surv_moral_ajouter(loop-value, 5)
+        za_surv_partir({_id}, "renvoi")
+    else:
+        send "&c%{_nom}% te regarde, blessé. « Moi ? Après tout ce que j'ai fait ici ? »" to {_p}
+        za_surv_moral_ajouter({_id}, -40)
+        za_surv_conf_ajouter({_u}, {_id}, -40)
+
+# ---------------------------------------------------------------- commandes
+
+command /ombre [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        set {_w::*} to split (arg-1 ? "") at " "
+        set {_a} to {_w::1}
+        if {_a} is "prendre":
+            if ({za::ombre::offre_jour::%{_u}%} ? -1) is not ({za::serveur::jours} ? 0):
+                za_om_offres(player)
+            za_om_prendre(player, {_w::2} ? "")
+        else if {_a} is "abandonner":
+            delete {za::ombre::m::%{_u}%::*}
+            send "&8Tu effaces le numéro. Ils ne te rappelleront pas de sitôt." to player
+            loop za_diplo_facs():
+                if za_om_secret({_u}, loop-value) > 0:
+                    za_om_secret_ajouter({_u}, loop-value, -2)
+        else if {_a} is "designer":
+            za_om_designer(player, ({_w::2} ? "0") parsed as number)
+        else if {_a} is "infiltrer":
+            za_om_infiltrer(player, {_w::2} ? "")
+        else if {_a} is "sortir":
+            if {za::ombre::infiltre::%{_u}%} is set:
+                set {_c::*} to split {za::ombre::infiltre::%{_u}%} at "|"
+                delete {za::ombre::infiltre::%{_u}%}
+                delete {za::ombre::soupcon::%{_u}%}
+                za_faction_ajouter(player, {_c::1}, -20)
+                send "&7Tu disparais de chez %{_c::1}% un matin, sans un mot. Ils trouveront ça étrange. Rien de plus." to player
+        else if {_a} is "forger":
+            za_om_forger(player, {_w::2} ? "")
+        else if {_a} is "enqueter":
+            za_om_enqueter(player)
+        else if {_a} is "suspects":
+            za_om_suspects(player)
+        else if {_a} is "accuser":
+            set {_q} to {_w::2} ? ""
+            za_om_accuser(player, {_q})
+        else:
+            za_om_afficher(player)
+
+command /zaombre [<text>] [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "offres":
+            set {_p} to (arg-2 parsed as player) ? player
+            za_om_offres({_p})
+            send "&7Offres régénérées pour %{_p}%." to sender
+        else if arg-1 is "taupe":
+            set {_id} to arg-2 parsed as number
+            set {za::surv::%{_id}%::taupe} to arg-3 ? "pilleurs"
+            set {za::surv::%{_id}%::ombre_teste} to true
+            send "&7%{za::surv::%{_id}%::nom}% est maintenant une taupe (%arg-3%)." to sender
+        else:
+            loop {za::ombre::infiltre::*}:
+                send "&7Double jeu : %loop-index% -> %loop-value% (soupçons %{za::ombre::soupcon::%loop-index%}%)" to sender
+            loop {za::surv::liste::*}:
+                if {za::surv::%loop-value%::taupe} is set:
+                    send "&7Taupe : #%loop-value% %{za::surv::%loop-value%::nom}% (%{za::surv::%loop-value%::taupe}%)" to sender

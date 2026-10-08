@@ -1,0 +1,270 @@
+# =====================================================================
+#  ZombieApocalypse - INFRASTRUCTURES DE BASE et RÉSEAU ÉLECTRIQUE AVANCÉ
+#  INFRASTRUCTURES (/infra construire <type> en regardant le bloc, dans ta base, 1 de chaque) :
+#    mirador   — un bloc à 6 blocs de haut ou plus : repère les hordes à 64 blocs (ils brillent, tu es prévenu)
+#    tour      — un paratonnerre à 10 blocs de haut ou plus : ton téléphone capte à 300 blocs de la tour, même
+#                sans courant (za_p70)
+#    infirmerie — un lit : à 8 blocs, régénération et stress qui baisse (za_p86)
+#    antenne   — un paratonnerre : signale l'activité des nids et des territoires à 500 blocs (direction, distance)
+#    Coût : jetons + Composants électroniques. Murs et portes : portes adaptatives (za_p79) et renforts (za_p23).
+#  RÉSEAU AVANCÉ (/ligne) :
+#    couper <quartier> / retablir <quartier> — panne VOLONTAIRE (propriétaire d'une sous-station du quartier)
+#    saboter   — près d'une sous-station qui n'est pas à toi : 15 s sans bouger ; 30 %% de chances d'être reconnu
+#    deriver   — près d'une sous-station qui produit : ta base reçoit du courant en douce (-2 unités pour tous) ;
+#                chaque jour, 20 %% de chances que la dérivation soit trouvée et arrachée (et ton nom avec)
+#    Ligne prioritaire : /electricite priorite (za_p61). Surcharge : déjà dans za_p61.
+#    PANNE EN CASCADE : quand une sous-station tombe, chacune des autres qui produit a 30 %% de chances de lâcher
+#    à son tour dans les secondes qui suivent (3 au plus) : « ⚡ SURCHARGE ».
+# =====================================================================
+
+# ---------------------------------------------------------------- panne en cascade (appelée par za_elec_endommager)
+
+function za_reseau_cascade(i: number):
+    if ({za::reseau2::cascade} ? 0) >= 3:
+        stop
+    add 1 to {za::reseau2::cascade}
+    wait 4 seconds
+    loop {za::elec2::ss::liste::*}:
+        if loop-value is not {_i}:
+            if ({za::elec2::ss::%loop-value%::prod} ? 0) > 0:
+                if {za::elec2::ss::%loop-value%::etat} is not "endommagee":
+                    if chance of 30%:
+                        loop za_monde_joueurs():
+                            send title "&e⚡ SURCHARGE" with subtitle "&7Le réseau s'effondre en cascade" to loop-value-2 for 3 seconds
+                        za_elec_endommager(loop-value-1, "Panne en cascade!")
+                        stop
+    set {za::reseau2::cascade} to 0
+
+every 1 minute:
+    set {za::reseau2::cascade} to 0
+
+# ---------------------------------------------------------------- réseau : commandes
+
+function za_ligne_ss_proche(p: player, r: number) :: number:
+    return za_elec_proche(location of {_p}, {_r})
+
+command /ligne [<text>] [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        if arg-1 is "couper" or "retablir":
+            set {_q} to arg-2 ? ""
+            if za_reseau_quartiers() does not contain {_q}:
+                send "&7Quartiers : %za_reseau_quartiers()%" to player
+                stop
+            set {_ok} to false
+            loop {za::elec2::ss::liste::*}:
+                if {za::elec2::ss::%loop-value%::proprio} is {_u}:
+                    if {za::elec2::ss::%loop-value%::quartier} is {_q}:
+                        set {_ok} to true
+            if player has permission "za.admin":
+                set {_ok} to true
+            if {_ok} is false:
+                send "&cIl faut tenir une sous-station de ce quartier pour y couper le courant." to player
+                stop
+            if arg-1 is "couper":
+                set {za::reseau2::coupe::%{_q}%} to "%player%"
+                za_radio("&6CKZA", "Le quartier %{_q}% est plongé dans le noir. Ce n'est pas une panne : quelqu'un a coupé.")
+            else:
+                delete {za::reseau2::coupe::%{_q}%}
+                za_radio("&6CKZA", "Le courant revient dans le quartier %{_q}%.")
+            za_journal("%player% : %arg-1% le quartier %{_q}%.")
+        else if arg-1 is "saboter":
+            set {_i} to za_ligne_ss_proche(player, 5)
+            if {_i} is 0:
+                send "&7Aucune sous-station à portée." to player
+                stop
+            if {za::elec2::ss::%{_i}%::proprio} is {_u}:
+                send "&7C'est la tienne." to player
+                stop
+            set {_l} to location of player
+            send "&8Tu dévisses le panneau... ne bouge pas (15 s)." to player
+            wait 15 seconds
+            if player is not online:
+                stop
+            if distance between player and {_l} > 1.5:
+                send "&7Tu as bougé : sabotage abandonné." to player
+                stop
+            za_elec_endommager({_i}, "Sabotage!")
+            if chance of 30%:
+                za_diffuser("&c[Réseau] &7Des témoins ont vu &f%player% &7près de la sous-station sabotée.")
+                za_journal("%player% a saboté une sous-station.")
+            else:
+                za_journal("Une sous-station a été sabotée. Personne n'a rien vu.")
+        else if arg-1 is "deriver":
+            set {_i} to za_ligne_ss_proche(player, 5)
+            if {_i} is 0:
+                send "&7Aucune sous-station à portée." to player
+                stop
+            if ({za::elec2::ss::%{_i}%::prod} ? 0) < 2:
+                send "&7Cette sous-station ne produit pas assez pour être détournée." to player
+                stop
+            if {za::base::%{_u}%} is not set:
+                send "&7Il te faut une base (/base definir) pour y amener le câble." to player
+                stop
+            if za_count_named(player, "Composant electronique") < 1:
+                send "&cIl faut 1 Composant électronique pour poser la dérivation." to player
+                stop
+            za_take_named(player, "Composant electronique", 1)
+            set {za::reseau2::derivation::%{_u}%} to {_i}
+            send "&8Le câble est posé, enterré, invisible. Ta base a du courant. Pour l'instant." to player
+        else if arg-1 is "liste":
+            loop za_reseau_quartiers():
+                set {_c} to {za::reseau2::coupe::%loop-value%} ? ""
+                if {_c} is not "":
+                    send "&7%loop-value% : &8coupé par %{_c}%" to player
+                else:
+                    send "&7%loop-value% : %za_elec_etat_txt(za_elec_etat(loop-value))%" to player
+        else:
+            send "&6/ligne couper|retablir <quartier> &7(ta sous-station) | &6saboter &7| &6deriver &7| &6liste" to player
+
+# chaque jour, les dérivations peuvent être découvertes
+every 20 minutes:
+    loop {za::reseau2::derivation::*}:
+        if chance of 20%:
+            set {_u} to loop-index
+            set {_p} to za_surv_joueur({_u})
+            set {_nom} to "quelqu'un"
+            if {_p} is set:
+                set {_nom} to "%{_p}%"
+                send "&c[Réseau] &7Ta dérivation a été trouvée et arrachée." to {_p}
+            za_diffuser("&6[Réseau] &7Une dérivation clandestine a été trouvée sur une sous-station. Elle menait chez %{_nom}%.")
+            delete {za::reseau2::derivation::%{_u}%}
+
+# ---------------------------------------------------------------- infrastructures
+
+function za_infra_cout(t: text) :: number:
+    if {_t} is "mirador":
+        return 20
+    if {_t} is "tour":
+        return 40
+    if {_t} is "infirmerie":
+        return 30
+    return 35
+
+command /infra [<text>] [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        if arg-1 is "construire":
+            set {_t} to arg-2 ? ""
+            if {_t} is not "mirador" or "tour" or "infirmerie" or "antenne":
+                send "&7/infra construire mirador|tour|infirmerie|antenne (en regardant le bloc)" to player
+                stop
+            if {za::base::%{_u}%} is not set:
+                send "&cIl faut une base (/base definir)." to player
+                stop
+            set {_b} to target block of player
+            if {_b} is not set:
+                send "&7Regarde le bloc à équiper." to player
+                stop
+            set {_bl} to {za::base::%{_u}%}
+            if world of {_bl} is not world of player:
+                stop
+            if distance between {_bl} and {_b} > 48:
+                send "&cCe bloc est trop loin de ta base." to player
+                stop
+            set {_haut} to (y-coordinate of {_b}) - (y-coordinate of {_bl})
+            if {_t} is "mirador":
+                if {_haut} < 6:
+                    send "&cUn mirador doit être à 6 blocs de haut au moins." to player
+                    stop
+            if {_t} is "tour" or "antenne":
+                if {_b} is not lightning rod:
+                    send "&cIl faut un paratonnerre (l'antenne)." to player
+                    stop
+                if {_t} is "tour":
+                    if {_haut} < 10:
+                        send "&cUne tour radio doit être à 10 blocs de haut au moins." to player
+                        stop
+            if {_t} is "infirmerie":
+                if "%type of {_b}%" does not contain "bed":
+                    send "&cL'infirmerie se monte sur un lit." to player
+                    stop
+            set {_c} to za_infra_cout({_t})
+            if za_jetons(player) < {_c}:
+                send "&cIl faut %{_c}% jetons." to player
+                stop
+            if za_count_named(player, "Composant electronique") < 1:
+                send "&cIl faut 1 Composant électronique." to player
+                stop
+            za_jetons_ajouter(player, 0 - {_c})
+            za_take_named(player, "Composant electronique", 1)
+            set {za::infra::%{_u}%::%{_t}%} to location of {_b}
+            # le moteur en tient compte (106) : une tour aide le réseau... et NORDA ; une antenne est une signature (96)
+            set {_bx} to floor(x-coordinate of {_b})
+            set {_bz} to floor(z-coordinate of {_b})
+            if {_t} is "tour":
+                za_mot("infra %{_bx}% %{_bz}% tour on")
+            else if {_t} is "antenne":
+                za_mot("infra %{_bx}% %{_bz}% repeteur on")
+                za_mot("preuve %{_u}% antenne 6 %{_bx}% %{_bz}%")
+            send "&a%{_t}% en service." to player
+            za_journal("%player% a construit un(e) %{_t}%.")
+        else if arg-1 is "camoufler":
+            # antenne de base (96) : camouflée, moins de portée, moins de signature pour NORDA
+            if {za::infra::%{_u}%::tour} is not set:
+                if {za::infra::%{_u}%::antenne} is not set:
+                    send "&7Tu n'as ni tour ni antenne." to player
+                    stop
+            if {za::infra::%{_u}%::camoufle} is true:
+                delete {za::infra::%{_u}%::camoufle}
+                send "&7Tu retires les filets et les branches. &8Pleine portée (300 blocs), pleine signature." to player
+            else:
+                set {za::infra::%{_u}%::camoufle} to true
+                send "&7Filets, branches, peinture mate. &8Portée réduite (120 blocs) ; NORDA a plus de mal à la repérer." to player
+        else:
+            send "&6&l━━ INFRASTRUCTURES ━━" to player
+            loop "mirador", "tour", "infirmerie" and "antenne":
+                set {_l} to {za::infra::%{_u}%::%loop-value%}
+                set {_e} to "&8—"
+                if {_l} is set:
+                    set {_e} to "&aen service"
+                send "&7%loop-value% (%za_infra_cout(loop-value)% jetons + 1 composant) : %{_e}%" to player
+            send "&7/infra construire <type> en regardant le bloc, dans ta base. &8/infra camoufler : tour et antenne discrètes." to player
+
+every 10 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value-1
+        set {_u} to "%{_p}'s uuid%"
+        # mirador : les hordes se voient de loin
+        set {_m} to {za::infra::%{_u}%::mirador}
+        if {_m} is set:
+            if chunk at {_m} is loaded:
+                set {_z::*} to all zombies in radius 64 around {_m}
+                if size of {_z::*} >= 5:
+                    loop {_z::*}:
+                        apply potion of glowing of tier 1 to loop-value-2 for 10 seconds
+                    send action bar "&e[Mirador] &7%size of {_z::*}% morts en approche." to {_p}
+        # infirmerie
+        set {_i} to {za::infra::%{_u}%::infirmerie}
+        if {_i} is set:
+            if world of {_i} is world of {_p}:
+                if distance between {_i} and {_p} < 8:
+                    apply potion of regeneration of tier 1 to {_p} for 6 seconds
+                    za_stress_ajouter({_p}, -5)
+
+every 1 minute:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        set {_u} to "%{_p}'s uuid%"
+        set {_a} to {za::infra::%{_u}%::antenne}
+        if {_a} is set:
+            set {_id} to za_nid_proche({_a}, 500)
+            if {_id} is not 0:
+                set {_c} to {za::nid::%{_id}%::loc}
+                set {_d} to round(distance between {_c} and {_a})
+                set {_dx} to (x-coordinate of {_c}) - (x-coordinate of {_a})
+                set {_dz} to (z-coordinate of {_c}) - (z-coordinate of {_a})
+                set {_dir} to ""
+                if {_dz} < -40:
+                    set {_dir} to "nord"
+                else if {_dz} > 40:
+                    set {_dir} to "sud"
+                if {_dx} > 40:
+                    set {_dir} to "%{_dir}%-est"
+                else if {_dx} < -40:
+                    set {_dir} to "%{_dir}%-ouest"
+                send "&3[Antenne] &7Activité anormale à %{_d}% m (%{_dir}%)." to {_p}

@@ -1,0 +1,296 @@
+# =====================================================================
+#  ZombieApocalypse - ÉCHOS DE SAINT-AURÈLE : les gens du prologue ne sont pas tous morts
+#  Les personnages secondaires croisés pendant les 8 jours réapparaissent dans le monde de survie, UNE fois pour tout le
+#  serveur, chez un joueur dont les choix les ont épargnés (ou condamnés) :
+#    ginette   Ginette Tremblay (dépanneur)            : tout le monde        -> survivante recrutable (cuisinière)
+#    rita      Rita Bélanger (café)                    : tout le monde        -> survivante recrutable (cuisinière)
+#    cote      Infirmière Josée Côté (pharmacie)       : hopital = aide       -> survivante recrutable (infirmière)
+#    roy       Policier Martin Roy (barrière)          : leblanc = sauvee     -> survivant (garde) + carnet de l'agente Pelletier
+#    nguyen    Soldat Nguyen (checkpoint)              : vega = obei          -> survivant (soldat)
+#    ortiz     Soldat Ortiz (checkpoint)               : vega = clandestin    -> un soldat infecté qui te reconnaît
+#  Les survivants passent par le module survivants (za_p43) : on peut les nourrir, les recruter, les perdre.
+#  État persistant de chaque personnage : {za::echo::<id>::etat} = "" | vivant | disparu | mort | zombie | repose
+#  Mort, disparition, retrouvailles : mémoire du monde (za_monde_evt), journal, souvenirs du joueur.
+#  Documents datés (za_doc_donner) : numéro, date, lieu, auteur, contexte (MISSION §45).
+#  Admin/console : /zaecho etat | lancer <id> <joueur> | reinit <id>
+# =====================================================================
+
+options:
+    # chance par joueur et par tranche de 5 minutes
+    echo_chance: 6
+    # délai minimal entre deux échos pour un même joueur (minutes)
+    echo_delai: 40
+    # jours de serveur avant qu'un personnage disparu puisse être recroisé
+    echo_retour: 3
+
+# ---------------------------------------------------------------- documents datés (réutilisable)
+
+# livre écrit : première page = fiche (n°, date, lieu, auteur), pages suivantes séparées par « || »
+function za_doc_donner(p: player, numero: text, date: text, lieu: text, auteur: text, titre: text, texte: text):
+    set {_t} to {_texte}
+    replace all "'" with "’" in {_t}
+    replace all """" with "« " in {_t}
+    set {_ti} to {_titre}
+    replace all "'" with "’" in {_ti}
+    set {_au} to {_auteur}
+    replace all "'" with "’" in {_au}
+    set {_fiche} to "§8Document n° %{_numero}%\\n\\n§0Date : %{_date}%\\nLieu : %{_lieu}%\\nAuteur : %{_au}%\\n\\n§l%{_ti}%"
+    replace all "'" with "’" in {_fiche}
+    set {_pages} to "'{""text"":""%{_fiche}%""}'"
+    set {_ps::*} to split {_t} at "||"
+    loop {_ps::*}:
+        set {_pages} to "%{_pages}%,'{""text"":""%loop-value%""}'"
+    execute console command "give %{_p}% written_book{title:""%{_ti}%"",author:""%{_au}%"",generation:2,pages:[%{_pages}%]} 1"
+    za_zm("son %{_p}% minecraft:item.book.page_turn 0.8 1")
+
+# ---------------------------------------------------------------- fiches des personnages
+
+function za_echo_ids() :: texts:
+    return "ginette", "rita", "cote", "roy", "nguyen" and "ortiz"
+
+function za_echo_nom(c: text) :: text:
+    if {_c} is "ginette":
+        return "Ginette Tremblay"
+    if {_c} is "rita":
+        return "Rita Bélanger"
+    if {_c} is "cote":
+        return "Josée Côté"
+    if {_c} is "roy":
+        return "Martin Roy"
+    if {_c} is "nguyen":
+        return "Nguyen"
+    return "Ortiz"
+
+# nom affiché sur le villageois (le pack client choisit la peau d'après le début du nom)
+function za_echo_vnom(c: text) :: text:
+    if {_c} is "cote":
+        return "Infirmière Josée Côté"
+    if {_c} is "roy":
+        return "Policier Martin Roy"
+    if {_c} is "nguyen":
+        return "Soldat Nguyen"
+    return za_echo_nom({_c})
+
+function za_echo_metier(c: text) :: text:
+    if {_c} is "cote":
+        return "infirmier"
+    if {_c} is "roy" or "nguyen":
+        return "soldat"
+    return "cuisinier"
+
+function za_echo_genre(c: text) :: text:
+    if {_c} is "roy" or "nguyen":
+        return "m"
+    return "f"
+
+function za_echo_histoire(c: text) :: text:
+    if {_c} is "ginette":
+        return "Trente-deux ans derrière le comptoir du dépanneur, rue Principale. Le jour 1, j'ai mis la pancarte « Fermé pour cause de maladie ». J'ai jamais rouvert."
+    if {_c} is "rita":
+        return "Je servais les cafés au coin de la rue Principale. Le jeune Arel toussait dans sa tasse. J'y ai même dit de rentrer se coucher."
+    if {_c} is "cote":
+        return "Pharmacie de l'hôpital de Saint-Aurèle. J'ai compté les ampoules jusqu'à la dernière. Après, j'ai compté les patients."
+    if {_c} is "roy":
+        return "Agent au poste de Saint-Aurèle. On nous a dit « contrôle de foule ». Personne nous a dit de quoi la foule avait peur."
+    if {_c} is "nguyen":
+        return "Escouade Bravo-3, Sergent Vega. Au checkpoint, on a fait passer les gens un par un. Jusqu'à ce qu'on arrête de compter."
+    return ""
+
+# le personnage peut-il revenir pour ce joueur ?
+function za_echo_eligible(p: player, c: text) :: boolean:
+    set {_u} to "%{_p}'s uuid%"
+    set {_e} to {za::echo::%{_c}%::etat} ? ""
+    if {_e} is "disparu":
+        if ({za::serveur::jours} ? 0) < (({za::echo::%{_c}%::jour} ? 0) + {@echo_retour}):
+            return false
+    else if {_e} is not "":
+        return false
+    if {_c} is "cote":
+        if za_choix({_u}, "hopital") is "aide":
+            return true
+        return false
+    if {_c} is "roy":
+        if za_choix({_u}, "leblanc") is "sauvee":
+            return true
+        return false
+    if {_c} is "nguyen":
+        if za_choix({_u}, "vega") is "obei":
+            return true
+        return false
+    if {_c} is "ortiz":
+        if za_choix({_u}, "vega") is "clandestin":
+            return true
+        return false
+    return true
+
+# ---------------------------------------------------------------- apparition
+
+function za_echo_survivant(p: player, c: text) :: boolean:
+    if za_surv_libres() >= 3:
+        return false
+    set {_l} to za_surv_point({_p})
+    if {_l} is not set:
+        return false
+    set {_id} to za_surv_creer_rec(za_echo_metier({_c}), za_echo_genre({_c}), {_l}, "cache")
+    set {za::surv::%{_id}%::nom} to za_echo_nom({_c})
+    set {za::surv::%{_id}%::titre} to za_echo_vnom({_c})
+    set {za::surv::%{_id}%::vnom} to za_echo_vnom({_c})
+    set {za::surv::%{_id}%::hist} to za_echo_histoire({_c})
+    set {za::surv::%{_id}%::special} to "echo_%{_c}%"
+    set {za::surv::%{_id}%::expire} to now
+    add 60 minutes to {za::surv::%{_id}%::expire}
+    za_surv_npc_placer({_id})
+    za_surv_indice({_p}, {_id})
+    set {za::echo::%{_c}%::etat} to "vivant"
+    set {za::echo::%{_c}%::id} to {_id}
+    set {za::echo::%{_c}%::pour} to "%{_p}'s uuid%"
+    set {za::echo::%{_c}%::jour} to {za::serveur::jours} ? 0
+    za_journal("Écho de Saint-Aurèle : %za_echo_vnom({_c})% est encore en vie quelque part.")
+    return true
+
+# Ortiz : un soldat infecté qui porte encore sa plaque (le modèle « Soldat infecté » du pack s'applique au nom)
+function za_echo_ortiz(p: player) :: boolean:
+    set {_l} to za_surv_point({_p})
+    if {_l} is not set:
+        return false
+    set {_wd} to za_dim(world of {_l})
+    execute console command "execute in %{_wd}% run summon zombie %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% {CustomName:'""Soldat infecté — Ortiz""',CustomNameVisible:1b,PersistenceRequired:1b,CanPickUpLoot:0b,Tags:[""za_echo"",""za_echo_ortiz""],ArmorItems:[{id:""minecraft:leather_boots"",Count:1b,tag:{display:{color:4011569}}},{id:""minecraft:leather_leggings"",Count:1b,tag:{display:{color:4011569}}},{id:""minecraft:leather_chestplate"",Count:1b,tag:{display:{color:4011569}}},{id:""minecraft:iron_helmet"",Count:1b}],ArmorDropChances:[0f,0f,0f,0f],Attributes:[{Name:""generic.max_health"",Base:40},{Name:""generic.attack_damage"",Base:5},{Name:""generic.follow_range"",Base:48}],Health:40f}"
+    set {za::echo::ortiz::etat} to "zombie"
+    set {za::echo::ortiz::pour} to "%{_p}'s uuid%"
+    set {za::echo::ortiz::jour} to {za::serveur::jours} ? 0
+    set {za::echo::ortiz::loc} to {_l}
+    za_zm("son %{_p}% za_modeles:sfx.radio_statique 0.6 0.8")
+    send "&2[Radio militaire] &7...Bravo-3, Ortiz... répondez... Ortiz, votre position..." to {_p}
+    send "&8&o(Ce nom. Le soldat du checkpoint. Celui qui regardait ailleurs pendant que tu filais par la ruelle.)" to {_p}
+    return true
+
+function za_echo_lancer(p: player, c: text) :: boolean:
+    if za_pro({_p}) is true:
+        return false
+    if {_c} is "ortiz":
+        return za_echo_ortiz({_p})
+    return za_echo_survivant({_p}, {_c})
+
+every 5 minutes:
+    loop za_monde_joueurs():
+        set {_p} to loop-value-1
+        set {_u} to "%{_p}'s uuid%"
+        set {_ok} to false
+        if {za::intro::%{_u}%} is set:
+            if chance of {@echo_chance}%:
+                set {_ok} to true
+        if {za::echo::der::%{_u}%} is set:
+            if difference between {za::echo::der::%{_u}%} and now < {@echo_delai} minutes:
+                set {_ok} to false
+        if {_ok} is true:
+            delete {_cands::*}
+            loop za_echo_ids():
+                if za_echo_eligible({_p}, loop-value-2) is true:
+                    add loop-value-2 to {_cands::*}
+            if size of {_cands::*} > 0:
+                set {_c} to random element out of {_cands::*}
+                if za_echo_lancer({_p}, {_c}) is true:
+                    set {za::echo::der::%{_u}%} to now
+
+# ---------------------------------------------------------------- suivi : retrouvailles, disparition, mort
+
+function za_echo_ligne(c: text, u: text) :: text:
+    if {_c} is "ginette":
+        return "Je te reconnais... le lait pis le pain, le premier matin. Ta mère va bien? ...Excuse. On pose plus cette question-là."
+    if {_c} is "rita":
+        return "Toi! Tu venais prendre ton café en face de chez nous. Le monde normal, hein? Ça me paraît il y a cent ans."
+    if {_c} is "cote":
+        return "Les caisses de soluté. C'était toi. Grâce à toi, on a tenu deux jours de plus. Deux jours, c'est beaucoup de vies."
+    if {_c} is "roy":
+        return "Tu as ramené Leblanc derrière la barrière. J'ai vu ça. Pelletier aussi l'a vu... avant. Tiens. Elle voudrait que quelqu'un le lise."
+    if {_c} is "nguyen":
+        return "T'as fait la file au checkpoint, sans discuter. Vega disait toujours : ceux qui écoutent, ce sont eux qui durent."
+    return ""
+
+function za_echo_salut(p: player, c: text):
+    set {_u} to "%{_p}'s uuid%"
+    set {_id} to {za::echo::%{_c}%::id}
+    set {_l} to {za::surv::%{_id}%::lieu}
+    send "&e%za_echo_vnom({_c})% &8» &f%za_echo_ligne({_c}, {_u})%" to {_p}
+    za_zm("son %{_p}% za_modeles:sfx.sting_revelation 0.5 1")
+    za_souvenir_ajouter({_u}, "monde", "retrouvailles", "Retrouvé %za_echo_vnom({_c})%, croisé(e) à Saint-Aurèle avant la chute.")
+    if {_l} is set:
+        za_monde_evt("%za_echo_vnom({_c})%, de Saint-Aurèle, est retrouvé(e) vivant(e).", {_l}, 1, "retrouvailles")
+    if {_c} is "roy":
+        za_doc_donner({_p}, "SA-0317", "Jour 3, 22 h 40", "Barrière de l'hôpital de Saint-Aurèle", "Agente C. Pelletier", "Carnet de service", "Consigne reçue à 20 h : personne n'entre, personne ne sort. Pas d'explication.||21 h 55. Un patient sort en courant de l'urgence. Il saigne des yeux. L'infirmière Leblanc tombe en essayant de le retenir.||22 h 10. Un civil a aidé Leblanc à se relever. Je n'ai pas eu le temps de prendre son nom.||22 h 40. Le patient ne respire plus. Personne ne veut s'approcher du corps. Moi non plus.||Si on retrouve ce carnet : je suis retournée au poste chercher des munitions. Martin, ne m'attends pas.")
+    if {_c} is "cote":
+        za_rel_ajouter({_p}, "lefort", 5)
+    if {_c} is "nguyen":
+        za_rel_ajouter({_p}, "vega", 5)
+        za_faction_ajouter({_p}, "milice", 5)
+
+every 10 seconds:
+    loop za_echo_ids():
+        set {_c} to loop-value-1
+        if {za::echo::%{_c}%::etat} is "vivant":
+            set {_id} to {za::echo::%{_c}%::id}
+            if {za::surv::liste::*} does not contain {_id}:
+                # le survivant a quitté le registre : mort (plaque + registre des morts) ou disparu
+                set {_mort} to false
+                loop {za::surv::morts::*}:
+                    if "%loop-value-2%" starts with za_echo_nom({_c}):
+                        set {_mort} to true
+                set {za::echo::%{_c}%::jour} to {za::serveur::jours} ? 0
+                if {_mort} is true:
+                    set {za::echo::%{_c}%::etat} to "mort"
+                    za_radio("&bLéa", "%za_echo_vnom({_c})%... Je connaissais ce nom. Saint-Aurèle perd encore quelqu'un.")
+                    za_journal("%za_echo_vnom({_c})% (Saint-Aurèle) est mort(e).")
+                else:
+                    set {za::echo::%{_c}%::etat} to "disparu"
+                    za_journal("%za_echo_vnom({_c})% (Saint-Aurèle) a disparu. Peut-être qu'on le/la recroisera.")
+            else:
+                set {_l} to {za::surv::%{_id}%::lieu}
+                if {_l} is set:
+                    loop za_monde_joueurs():
+                        set {_p} to loop-value-2
+                        if world of {_p} is world of {_l}:
+                            if distance between {_p} and {_l} < 6:
+                                if {za::echo::salue::%{_c}%::%{_p}'s uuid%} is not set:
+                                    set {za::echo::salue::%{_c}%::%{_p}'s uuid%} to true
+                                    za_echo_salut({_p}, {_c})
+
+# ---------------------------------------------------------------- Ortiz
+
+on death of zombie:
+    if za_pro(victim) is true:
+        stop
+    if "%scoreboard tags of victim%" contains "za_echo_ortiz":
+        set {za::echo::ortiz::etat} to "repose"
+        set {_it} to za_item("iron nugget", "Plaque d'identité — Ortiz", "&7", 1)
+        set lore of {_it} to "&7Escouade Bravo-3. Sgt M. Vega." and "&8Il t'a laissé passer, à la ruelle. Rends-la à Vega."
+        drop {_it} at location of victim
+        za_monde_evt("Le soldat Ortiz, de l'escouade Bravo-3, a enfin trouvé le repos.", location of victim, 1, "chute")
+        za_journal("Le soldat Ortiz (Bravo-3) a été abattu. Il était infecté.")
+        if attacker is a player:
+            send "&8&o(Il portait encore son brassard. Au checkpoint, il avait regardé ailleurs. Aujourd'hui, c'est toi qui ne peux pas.)" to attacker
+            za_souvenir_ajouter("%attacker's uuid%", "monde", "chute", "Abattu le soldat Ortiz, qui t'avait laissé passer à Saint-Aurèle.")
+
+# ---------------------------------------------------------------- commandes
+
+command /zaecho [<text>] [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "lancer":
+            set {_p} to arg-3 parsed as player
+            if {_p} is not set:
+                send "&cJoueur introuvable." to sender
+                stop
+            if za_echo_lancer({_p}, arg-2) is true:
+                send "&aÉcho « %arg-2% » lancé près de %{_p}%." to sender
+            else:
+                send "&cImpossible (limite de survivants libres, pas de sol, ou joueur dans le prologue)." to sender
+        else if arg-1 is "reinit":
+            delete {za::echo::%arg-2%::*}
+            delete {za::echo::salue::%arg-2%::*}
+            send "&aÉcho « %arg-2% » réinitialisé." to sender
+        else:
+            send "&6Échos de Saint-Aurèle :" to sender
+            loop za_echo_ids():
+                set {_e} to {za::echo::%loop-value%::etat} ? "inconnu"
+                send "&e%loop-value% &7(%za_echo_vnom(loop-value)%) : &f%{_e}%" to sender
+            send "&7/zaecho lancer <id> <joueur> | reinit <id>" to sender

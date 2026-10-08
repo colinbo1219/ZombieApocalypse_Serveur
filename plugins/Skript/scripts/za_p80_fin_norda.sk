@@ -1,0 +1,181 @@
+# =====================================================================
+#  ZombieApocalypse - FIN DE SAISON : l'arc NORDA se referme, et les survivants CHOISISSENT
+#  Après la cérémonie (za_p41) : cinématique (noir, titres, voix de Léa), puis un VOTE de tous les joueurs en ligne
+#  (10 minutes, ou dès que tout le monde a voté) :
+#    1. DÉTRUIRE  — faire sauter le niveau -2 de NORDA : le souterrain devient une ruine scellée (plus de morts, plus
+#                   de butin), et la saison suivante compte deux fois moins de mutants (za_p59 {za::theme::mutants}).
+#    2. VÉRITÉ    — Léa lit le dossier Arel à la radio : chaque joueur en ligne reçoit le titre « Témoin de la vérité »,
+#                   la légende du monde le retient, la radio en parle au début de la saison suivante.
+#    3. REMÈDE    — le Dr Lefort garde les données Z-01 : morsures moins contagieuses (-8 %% à chaque morsure, za_infection),
+#                   un antidote pour chacun au début de la saison suivante (à la connexion).
+#  Égalité : Léa tranche pour la vérité. Choix archivés par saison : {za::fin::choix::<saison>}.
+#  Joueur : /choix detruire|verite|remede      Admin : /zafin test | vote | resultat | effacer
+# =====================================================================
+
+options:
+    duree_vote: 10 minutes
+
+function za_fin_nom(c: text) :: text:
+    if {_c} is "detruire":
+        return "Détruire NORDA"
+    if {_c} is "verite":
+        return "Diffuser la vérité"
+    return "Garder le remède"
+
+function za_fin_voix(cle: text):
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_zm("son %loop-player% za_modeles:voix.%{_cle}% 1 1")
+
+# la cinématique, puis l'ouverture du vote (appelée à la fin de za_saison_ceremonie)
+function za_fin_norda():
+    set {_n} to {za::saison::num} ? 1
+    wait 20 seconds
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_zm("noir %loop-player% 20 140 20")
+            za_zm("son %loop-player% za_modeles:sfx.silence_ville 0.8 0.8")
+    wait 2 seconds
+    za_fin_voix("fin_intro")
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_zm("noir-texte %loop-player% 0 120 20 NORDA_BIOTECH._Niveau_-2._Programme_Z-01.")
+    wait 7 seconds
+    loop all players:
+        if za_pro(loop-player) is false:
+            za_zm("noir-texte %loop-player% 0 120 20 Tout_a_commencé_sous_vos_pieds.")
+    wait 7 seconds
+    za_diffuser("&8&m                                                  ")
+    za_diffuser("&4&lLE CHOIX DE SAINT-AURÈLE &7— la saison %{_n}% se termine")
+    za_diffuser("&7Le dossier Arel est complet. Ce que NORDA a fait ici, vous le savez. Que faire de ce savoir ?")
+    za_diffuser("&c1. /choix detruire &7— faire sauter le niveau -2. Plus jamais ça.")
+    za_diffuser("&b2. /choix verite &7— Léa lit tout à la radio. Que le monde sache.")
+    za_diffuser("&a3. /choix remede &7— Lefort garde les données Z-01. Un vaccin... et des ennemis.")
+    za_diffuser("&8Vote de tous les survivants en ligne : 10 minutes.")
+    za_diffuser("&8&m                                                  ")
+    delete {za::fin::vote::*}
+    set {za::fin::ouvert} to now
+    set {za::fin::saison_vote} to {_n}
+
+function za_fin_compter(c: text) :: number:
+    set {_k} to 0
+    loop {za::fin::vote::*}:
+        if loop-value is {_c}:
+            add 1 to {_k}
+    return {_k}
+
+function za_fin_cloturer():
+    delete {za::fin::ouvert}
+    # le monde vote aussi (za_p116, S-7) : traqués de NORDA, confiance de Léa, recherche et villes reprises
+    set {_d} to za_fin_compter("detruire") + za_cmpg_poids("detruire")
+    set {_v} to za_fin_compter("verite") + za_cmpg_poids("verite")
+    set {_r} to za_fin_compter("remede") + za_cmpg_poids("remede")
+    set {_c} to "verite"
+    if {_d} > {_v}:
+        if {_d} >= {_r}:
+            set {_c} to "detruire"
+    if {_r} > {_v}:
+        if {_r} > {_d}:
+            set {_c} to "remede"
+    set {_n} to {za::fin::saison_vote} ? ({za::saison::num} ? 1)
+    set {za::fin::choix::%{_n}%} to {_c}
+    set {za::fin::effet} to {_c}
+    set {za::fin::effet_saison} to {_n} + 1
+    za_diffuser("&6[Le choix] &7Détruire : &f%{_d}% &8| &7Vérité : &f%{_v}% &8| &7Remède : &f%{_r}%")
+    za_diffuser("&6&lSaint-Aurèle a choisi : %za_fin_nom({_c})%.")
+    za_journal("Fin de la saison %{_n}% : les survivants ont choisi « %za_fin_nom({_c})% ».")
+    za_monde_legende("Saison %{_n}% : les survivants ont choisi « %za_fin_nom({_c})% ».")
+    za_fin_appliquer({_c})
+
+function za_fin_appliquer(c: text):
+    if {_c} is "detruire":
+        za_fin_voix("fin_detruire")
+        # le niveau -2 saute : explosion au kiosque, le souterrain devient une ruine scellée
+        if {za::site::d::norda_sous_sol::x} is set:
+            set {_w} to world("world")
+            set {_x} to {za::site::d::norda_sous_sol::x}
+            set {_y} to {za::site::d::norda_sous_sol::y}
+            set {_z} to {za::site::d::norda_sous_sol::z}
+            execute console command "execute in minecraft:overworld run particle minecraft:explosion_emitter %{_x}% %{_y} + 20% %{_z}% 4 2 4 0 12 force"
+            execute console command "execute in minecraft:overworld run playsound minecraft:entity.generic.explode master @a %{_x}% %{_y} + 20% %{_z}% 16 0.5"
+            za_lieu_tomber("site:norda_sous_sol", "Le niveau -2 de NORDA a sauté. Il n'en reste qu'un trou de béton et de silence.")
+        set {za::fin::norda_scelle} to true
+    else if {_c} is "verite":
+        za_fin_voix("fin_verite")
+        loop all players:
+            if za_pro(loop-player) is false:
+                set {za::titres::%loop-player's uuid%::temoin} to "Témoin de la vérité"
+                send "&bTitre obtenu : &fTémoin de la vérité" to loop-player
+    else:
+        za_fin_voix("fin_remede")
+        set {za::fin::remede} to 8
+
+# un vote
+command /choix [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        if {za::fin::ouvert} is not set:
+            send "&7Aucun choix n'est en cours. Il viendra à la fin de la saison." to player
+            if size of {za::fin::choix::*} > 0:
+                loop {za::fin::choix::*}:
+                    send "&8 Saison %loop-index% : %za_fin_nom(loop-value)%" to player
+            stop
+        if arg-1 is not "detruire" or "verite" or "remede":
+            send "&7/choix detruire &8| &7/choix verite &8| &7/choix remede" to player
+            stop
+        set {za::fin::vote::%player's uuid%} to arg-1
+        send "&7Ton choix est noté : &f%za_fin_nom(arg-1)%&7. Tu peux changer d'avis jusqu'à la fin du vote." to player
+        # tout le monde a voté : on clôt
+        set {_tous} to true
+        loop za_monde_joueurs():
+            if {za::fin::vote::%loop-value's uuid%} is not set:
+                set {_tous} to false
+        if {_tous} is true:
+            za_fin_cloturer()
+
+every 30 seconds:
+    if {za::fin::ouvert} is set:
+        if difference between {za::fin::ouvert} and now >= {@duree_vote}:
+            za_fin_cloturer()
+    # conséquences au début de la saison suivante (une seule fois)
+    if {za::fin::effet} is set:
+        if ({za::saison::num} ? 0) >= ({za::fin::effet_saison} ? 999):
+            if {za::fin::effet_fait} is not {za::fin::effet_saison}:
+                set {za::fin::effet_fait} to {za::fin::effet_saison}
+                if {za::fin::effet} is "detruire":
+                    set {za::theme::mutants} to floor(({za::theme::mutants} ? 0) / 2)
+                    za_diffuser("&8[Radio] &bLéa &8» &7Depuis que NORDA a sauté, on voit moins de... choses bizarres. Moins, pas zéro.")
+                else if {za::fin::effet} is "verite":
+                    za_diffuser("&8[Radio] &bLéa &8» &7Des gens nous écrivent de partout. Ils savent, maintenant. Ils veulent aider.")
+                else:
+                    za_diffuser("&8[Radio] &bLéa &8» &7Lefort a fait des antidotes. Un pour chacun. Et un convoi sans insigne rôde sur la 40...")
+                    set {za::fin::antidotes} to {za::fin::effet_saison}
+
+# antidote du remède : une fois par joueur, à la connexion
+on join:
+    if za_pro(player) is true:
+        stop
+    if {za::fin::antidotes} is set:
+        if {za::fin::antidote_recu::%player's uuid%} is not {za::fin::antidotes}:
+            set {za::fin::antidote_recu::%player's uuid%} to {za::fin::antidotes}
+            wait 5 seconds
+            execute console command "mm items give %player% ZA_Antidote 1"
+            send "&aLe Dr Lefort t'a gardé un antidote. « Les données Z-01 servent enfin à quelque chose. »" to player
+
+command /zafin <text>:
+    permission: za.admin
+    trigger:
+        if arg-1 is "test" or "vote":
+            za_fin_norda()
+            send "&7Cinématique et vote lancés." to sender
+        else if arg-1 is "resultat":
+            if {za::fin::ouvert} is set:
+                za_fin_cloturer()
+            else:
+                send "&7Aucun vote ouvert." to sender
+        else if arg-1 is "effacer":
+            delete {za::fin::*}
+            send "&7Choix de fin de saison effacés." to sender
+        else:
+            send "&7/zafin test | resultat | effacer" to sender

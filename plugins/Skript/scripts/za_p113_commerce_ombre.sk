@@ -1,0 +1,447 @@
+# za_p113_commerce_ombre.sk — faux remèdes, frigo médical, péages (bible v2, points 94, 97, 101, 109)
+#  * FAUX REMÈDES (94) : le Trafiquant vend des Sérums et des Antibiotiques moins chers... identiques aux vrais.
+#    Un faux (donnée de modèle 7, invisible) n'a aucun effet. /analyser au labo dit la vérité. /contrefaire en
+#    fabrique (c'est un crime : NORDA et les rumeurs le retiennent). Le « Vaccin NORDA » offert aux barrages est une
+#    balise : NORDA suit celui qui l'a pris pendant trois jours (101).
+#  * FRIGO MÉDICAL (97) : /frigo definir en regardant un coffre, un baril ou un frigo moddé. Alimenté (courant de base,
+#    sous-station, génératrice), il garde les échantillons frais. Le courant coupe : alarme, et après 15 minutes,
+#    médicaments périmés, échantillons et poches de sang perdus, nourriture pourrie. Il laisse une petite signature.
+#  * PÉAGES (109) : NORDA pose des barrages sur les routes (zaevt norda_barrage, palier 3). Un joueur reconnu (50) par la
+#    faction du coin pose le sien : /peage poser <prix> (un garde PNJ fouille, jamais un piège). En passant :
+#    /peage payer, ou faire demi-tour. Forcer le passage se paie. Fouille : contrebande confisquée, faux papiers.
+#  Variables : {za::peage::*}, {za::frigo::*}, {za::balise::<uuid>}
+
+# ---------------------------------------------------------------- faux remèdes (94)
+
+function za_faux_item(mat: text, nom: text, col: text, n: number) :: itemtype:
+    set {_it} to za_item({_mat}, {_nom}, {_col}, {_n})
+    set custom model data of {_it} to 7
+    return {_it}
+
+function za_faux(i: itemtype) :: boolean:
+    if custom model data of {_i} is 7:
+        return true
+    return false
+
+# appelé par za_infection et za_p27 quand un faux est avalé
+function za_faux_effet(p: player, nom: text):
+    send "&7Tu attends. Rien. &8Ça goûtait le sucre et le sirop. &c(%{_nom}% : un faux.)" to {_p}
+    if chance of 30%:
+        za_effet({_p}, "nausea", 15, 0)
+    za_mot_evt("faux_remede", location of {_p}, 1, "%{_p}'s uuid%", "Des faux %{_nom}%s circulent")
+
+command /analyser:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        if za_sci_labo(player) is false:
+            send "&7Il faut un labo : un alambic à moins de 6 blocs." to player
+            stop
+        set {_n} to uncolored name of player's tool ? ""
+        if {_n} is not "Serum" or "Antibiotique" or "Antidote":
+            send "&7Tiens dans ta main le remède à analyser (Serum, Antibiotique, Antidote)." to player
+            stop
+        send "&8Une goutte sous la lentille. Tu attends que la couleur tourne..." to player
+        if za_faux(player's tool) is true:
+            set name of player's tool to "&8Faux %{_n}%"
+            send "&cC'est un faux. &7De l'eau, du sucre, un colorant. Quelqu'un s'est enrichi sur le dos des mourants." to player
+        else:
+            send "&aAuthentique." to player
+
+command /contrefaire [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_t} to arg-1 ? ""
+        if {_t} is not "serum" or "antibiotique":
+            send "&7/contrefaire <serum|antibiotique> &8: 1 bouteille de miel + 1 sucre, dans un labo. C'est un crime." to player
+            stop
+        if za_sci_labo(player) is false:
+            send "&7Il faut un labo (un alambic à moins de 6 blocs) pour que ça ait l'air vrai." to player
+            stop
+        if player does not have honey bottle:
+            send "&7Il faut une bouteille de miel." to player
+            stop
+        if player does not have sugar:
+            send "&7Il faut du sucre." to player
+            stop
+        remove 1 honey bottle from player
+        remove 1 sugar from player
+        if {_t} is "serum":
+            give player za_faux_item("honey bottle", "Serum", "&d", 1)
+        else:
+            give player za_faux_item("honey bottle", "Antibiotique", "&b", 1)
+        send "&8Ça a l'air vrai. C'est tout ce qui compte, non ?" to player
+        if {za::cmpg::faux::%player's uuid%} is not set:
+            set {za::cmpg::faux::%player's uuid%} to true
+            za_cmpg_decision("%player's uuid%", "Tu as fabriqué ton premier faux remède.")
+        za_mot("preuve %player's uuid% contrefacon 3 %floor(x-coordinate of player)% %floor(z-coordinate of player)%")
+
+# le vaccin de NORDA : une balise (101)
+on consume:
+    if za_pro(player) is true:
+        stop
+    if uncolored name of event-item is "Vaccin NORDA":
+        set {za::balise::%player's uuid%} to (unix timestamp of now) + 259200
+        send "&7Une piqûre froide. Rien d'autre. &8(Tu te sens protégé. Tu as tort.)" to player
+
+every 60 seconds:
+    loop za_monde_joueurs():
+        set {_u} to "%loop-value's uuid%"
+        if {za::balise::%{_u}%} is set:
+            if {za::balise::%{_u}%} < unix timestamp of now:
+                delete {za::balise::%{_u}%}
+            else if chance of 20%:
+                za_mot("preuve %{_u}% balise 2 %floor(x-coordinate of loop-value)% %floor(z-coordinate of loop-value)%")
+
+# ---------------------------------------------------------------- frigo médical (97)
+
+command /frigo [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        if arg-1 is "definir":
+            set {_b} to target block of player
+            if {_b} is not set:
+                stop
+            set {_t} to "%type of {_b}%"
+            if {_t} does not contain "chest" or "barrel" or "fridge" or "freezer" or "refrigerator":
+                send "&7Regarde un coffre, un baril ou un frigo." to player
+                stop
+            set {za::frigo::%{_u}%} to location of {_b}
+            add {_u} to {za::frigo::liste::*}
+            delete {za::frigo::panne::%{_u}%}
+            send "&b[Frigo] &7Frigo médical désigné. &8Avec du courant, il garde les échantillons frais. Sans courant, tout se gâte." to player
+            stop
+        if {za::frigo::%{_u}%} is not set:
+            send "&7Aucun frigo. &f/frigo definir &7en regardant un coffre, un baril ou un frigo." to player
+            stop
+        if za_frigo_courant({_u}, {za::frigo::%{_u}%}) is true:
+            send "&b[Frigo] &aAlimenté. &7Tout reste au froid." to player
+        else if {za::frigo::panne::%{_u}%} is set:
+            set {_m} to floor(((unix timestamp of now) - {za::frigo::panne::%{_u}%}) / 60)
+            send "&b[Frigo] &cSans courant depuis %{_m}% min. &7À 15 minutes, tout se gâte." to player
+        else:
+            send "&b[Frigo] &cSans courant." to player
+
+function za_frigo_courant(u: text, l: location) :: boolean:
+    if za_elec_base({_u}) is true:
+        return true
+    if za_elec_pres({_l}, 80) is true:
+        return true
+    loop {za::gen::liste::*}:
+        set {_gl} to {za::gen::%loop-value%::loc}
+        if {_gl} is set:
+            if world of {_gl} is world of {_l}:
+                if distance between {_gl} and {_l} < 32:
+                    if {za::gen::%loop-value%::fin} is greater than now:
+                        return true
+    return false
+
+every 30 seconds:
+    loop {za::frigo::liste::*}:
+        za_frigo_tick(loop-value)
+
+function za_frigo_tick(u: text):
+    set {_l} to {za::frigo::%{_u}%}
+    if {_l} is not set:
+        remove {_u} from {za::frigo::liste::*}
+        stop
+    if za_frigo_courant({_u}, {_l}) is true:
+        if {za::frigo::panne::%{_u}%} is set:
+            delete {za::frigo::panne::%{_u}%}
+            za_surv_avis({_u}, "&b[Frigo] &aLe courant est revenu. Le compresseur repart.")
+        # une petite signature électrique (108), et les échantillons restent frais
+        if chance of 10%:
+            za_mot("habitude %floor(x-coordinate of {_l})% %floor(z-coordinate of {_l})% courant 0.2")
+        if chunk at {_l} is loaded:
+            za_frigo_rafraichir({_l})
+        stop
+    if {za::frigo::panne::%{_u}%} is not set:
+        set {za::frigo::panne::%{_u}%} to unix timestamp of now
+        za_surv_avis({_u}, "&c[Frigo] Alarme ! Le frigo médical n'a plus de courant. &7Quinze minutes avant que tout se gâte.")
+        if chunk at {_l} is loaded:
+            play sound "block.note_block.bit" with volume 2 and pitch 2 at {_l}
+        stop
+    if (unix timestamp of now) - {za::frigo::panne::%{_u}%} < 900:
+        if chunk at {_l} is loaded:
+            play sound "block.note_block.bit" with volume 1.5 and pitch 2 at {_l}
+        stop
+    if chunk at {_l} is not loaded:
+        stop
+    if za_frigo_gater({_l}) > 0:
+        za_surv_avis({_u}, "&c[Frigo] Le frigo est chaud. Médicaments périmés, échantillons perdus, nourriture pourrie.")
+    set {za::frigo::panne::%{_u}%} to (unix timestamp of now) - 600
+
+function za_frigo_rafraichir(l: location):
+    set {_j} to {za::serveur::jours} ? 0
+    loop items in inventory of block at {_l}:
+        set {_n} to uncolored name of loop-item ? ""
+        if {_n} starts with "Échantillon":
+            if {_n} does not end with "jour %{_j}%":
+                add loop-item to {_vieux::*}
+    loop {_vieux::*}:
+        set {_n} to uncolored name of loop-value
+        set {_k} to subtext of {_n} from characters 1 to ((index of " — jour " in {_n}) - 1)
+        set {_it} to loop-value
+        remove {_it} from inventory of block at {_l}
+        set name of {_it} to "&5%{_k}% — jour %{_j}%"
+        add {_it} to inventory of block at {_l}
+
+function za_frigo_gater(l: location) :: number:
+    set {_n} to 0
+    loop items in inventory of block at {_l}:
+        set {_nm} to uncolored name of loop-item ? ""
+        if {_nm} is "Serum" or "Antibiotique" or "Antidote":
+            add loop-item to {_perime::*}
+        else if {_nm} starts with "Échantillon" or "Poche de sang":
+            add loop-item to {_perdu::*}
+        else if loop-item is cooked beef or cooked porkchop or cooked chicken or cooked mutton or beef or porkchop or chicken or mutton:
+            add loop-item to {_pourri::*}
+    loop {_perime::*}:
+        set {_a} to item amount of loop-value
+        remove loop-value from inventory of block at {_l}
+        add za_item("glass bottle", "Médicament périmé", "&8", {_a}) to inventory of block at {_l}
+        add 1 to {_n}
+    loop {_perdu::*}:
+        remove loop-value from inventory of block at {_l}
+        add 1 to {_n}
+    loop {_pourri::*}:
+        set {_a} to item amount of loop-value
+        remove loop-value from inventory of block at {_l}
+        add {_a} of rotten flesh to inventory of block at {_l}
+        add 1 to {_n}
+    return {_n}
+
+# ---------------------------------------------------------------- péages (109)
+
+function za_peage_creer(l: location, type: text, prix: number, u: text, fac: text) :: number:
+    add 1 to {za::peage::n}
+    set {_i} to {za::peage::n}
+    set {za::peage::%{_i}%::loc} to {_l}
+    set {za::peage::%{_i}%::type} to {_type}
+    set {za::peage::%{_i}%::prix} to {_prix}
+    set {za::peage::%{_i}%::u} to {_u}
+    set {za::peage::%{_i}%::fac} to {_fac}
+    add {_i} to {za::peage::liste::*}
+    return {_i}
+
+function za_peage_retirer(i: number):
+    set {_l} to {za::peage::%{_i}%::loc}
+    if {_l} is set:
+        if chunk at {_l} is loaded:
+            loop all villagers in radius 6 around {_l}:
+                if za_surv_a_tag(loop-entity, "za_peage_%{_i}%") is true:
+                    delete loop-entity
+    remove {_i} from {za::peage::liste::*}
+    delete {za::peage::%{_i}%::*}
+
+# un barrage NORDA sur la route (zaevt norda_barrage x z) : trois jours
+function za_peage_norda(x: number, z: number):
+    set {_w} to world "world"
+    if {_w} is not set:
+        stop
+    set {_l} to location({_x}, 64, {_z}, {_w})
+    set {_i} to za_peage_creer({_l}, "norda", 0, "", "norda")
+    set {za::peage::%{_i}%::fin} to (unix timestamp of now) + 259200
+
+function za_peage_nom(i: number) :: text:
+    if {za::peage::%{_i}%::type} is "norda":
+        return "&4Barrage NORDA"
+    return "&6Péage (%za_terr_fnom({za::peage::%{_i}%::fac})%&6)"
+
+every 5 seconds:
+    loop {za::peage::liste::*}:
+        if {za::peage::%loop-value%::fin} is set:
+            if {za::peage::%loop-value%::fin} < unix timestamp of now:
+                add loop-value to {_fini::*}
+    loop {_fini::*}:
+        za_peage_retirer(loop-value)
+    loop za_monde_joueurs():
+        if za_pro(loop-value) is false:
+            za_peage_tick(loop-value)
+
+function za_peage_tick(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_now} to unix timestamp of now
+    loop {za::peage::liste::*}:
+        set {_i} to loop-value
+        set {_l} to {za::peage::%{_i}%::loc}
+        if {_l} is set:
+            if world of {_l} is world of {_p}:
+                set {_d} to sqrt(((x-coordinate of {_p}) - (x-coordinate of {_l})) ^ 2 + ((z-coordinate of {_p}) - (z-coordinate of {_l})) ^ 2)
+                if {_d} < 10:
+                    if {za::peage::%{_i}%::u} is not {_u}:
+                        if ({za::peage::%{_i}%::ok::%{_u}%} ? 0) < {_now}:
+                            za_peage_halte({_p}, {_i}, {_d})
+                            stop
+
+function za_peage_halte(p: player, i: number, d: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {_now} to unix timestamp of now
+    set {_vu} to {za::peage::attente::%{_u}%::t} ? 0
+    if any:
+        ({za::peage::attente::%{_u}%} ? 0) is not {_i}
+        {_now} - {_vu} > 120
+    then:
+        set {za::peage::attente::%{_u}%} to {_i}
+        set {za::peage::attente::%{_u}%::t} to {_now}
+        if {za::peage::%{_i}%::type} is "norda":
+            send "%za_peage_nom({_i})% &8» &f« Halte. Contrôle sanitaire. Fouille. » &7(/peage payer : te soumettre au contrôle · ou fais demi-tour)" to {_p}
+            za_peage_gardes({_i})
+        else:
+            send "%za_peage_nom({_i})% &8» &f« Péage : %{za::peage::%{_i}%::prix}% jetons. Et on fouille. » &7(/peage payer · ou fais demi-tour)" to {_p}
+        stop
+    # il a été prévenu il y a plus de 20 s et il passe quand même : il force
+    if {_now} - {_vu} > 20:
+        if {_d} < 3:
+            za_peage_force({_p}, {_i})
+
+# les soldats NORDA du barrage (une fois toutes les 10 minutes)
+function za_peage_gardes(i: number):
+    if ({za::peage::%{_i}%::gardes} ? 0) > (unix timestamp of now) - 600:
+        stop
+    set {za::peage::%{_i}%::gardes} to unix timestamp of now
+    set {_l} to {za::peage::%{_i}%::loc}
+    set {_b} to highest block at {_l}
+    set {_y} to (y-coordinate of (location of {_b})) + 1
+    loop 2 times:
+        execute console command "mm mobs spawn ZA_Agent_NORDA 1 %world of {_l}%,%floor(x-coordinate of {_l}) + (random integer between -3 and 3)%,%{_y}%,%floor(z-coordinate of {_l})%"
+
+function za_peage_force(p: player, i: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::peage::%{_i}%::ok::%{_u}%} to (unix timestamp of now) + 600
+    delete {za::peage::attente::%{_u}%}
+    if {za::peage::%{_i}%::type} is "norda":
+        send "&4« ARRÊTEZ-VOUS ! » &cTu forces le barrage. Des radios grésillent derrière toi." to {_p}
+        za_mot("preuve %{_u}% barrage_force 15 %floor(x-coordinate of {_p})% %floor(z-coordinate of {_p})%")
+        za_mot_norda_patrouille({_u}, x-coordinate of {_p}, z-coordinate of {_p})
+    else:
+        set {_f} to {za::peage::%{_i}%::fac}
+        send "&c« Hé ! » &7Le garde crie ton nom. %za_terr_fnom({_f})% &7s'en souviendra." to {_p}
+        za_terr_rep({_p}, {_f}, -10)
+        za_surv_avis({za::peage::%{_i}%::u}, "&6[Péage] &c%{_p}% a forcé ton péage.")
+
+# fouille : contrebande confisquée ; de bons faux papiers évitent la fouille NORDA
+function za_peage_fouille(p: player, i: number):
+    set {_u} to "%{_p}'s uuid%"
+    if {za::peage::%{_i}%::type} is "norda":
+        if any:
+            {za::mot::papiers::%{_u}%} is set
+            za_count_named({_p}, "Faux papiers") > 0
+        then:
+            if chance of 75%:
+                send "&7Le soldat regarde tes papiers... &a« Circulez. »" to {_p}
+                stop
+            send "&cIl plisse les yeux. « Ces papiers... » &7Fouille complète." to {_p}
+        add "Brouilleur de drone", "Grenade EMP", "Explosif artisanal" and "Fragment de plan" to {_cb::*}
+    else:
+        add "Explosif artisanal" and "Grenade EMP" to {_cb::*}
+    set {_n} to 0
+    set {_fac} to {za::peage::%{_i}%::fac} ? "norda"
+    loop items in inventory of {_p}:
+        set {_nm} to uncolored name of loop-item ? ""
+        loop {_cb::*}:
+            if {_nm} starts with loop-value-2:
+                add loop-item to {_saisie::*}
+        # arsenal (49) : armes de niveau 3-4 interdites aux barrages NORDA et aux péages de la Milice ;
+        # le numéro de série est fiché (une preuve... ou une fausse piste)
+        if za_arme_est_arme(loop-item) is true:
+            set {_s} to za_arme_serie_de(loop-item)
+            if {_s} is not "":
+                if ({za::arme::niv::%{_s}%} ? 0) >= 3:
+                    if {_fac} is "norda" or "milice":
+                        add loop-item to {_saisie::*}
+                        set {za::arme::fiche::%{_s}%} to {_fac}
+    loop {_saisie::*}:
+        add item amount of loop-value to {_n}
+        remove loop-value from inventory of {_p}
+    if {_n} > 0:
+        send "&cFouille : %{_n}% objet(s) de contrebande confisqué(s)." to {_p}
+        if {za::peage::%{_i}%::type} is "norda":
+            za_mot("preuve %{_u}% contrebande 8 %floor(x-coordinate of {_p})% %floor(z-coordinate of {_p})%")
+    else:
+        send "&7Fouille : rien à signaler." to {_p}
+
+command /peage [<text>] [<number>]:
+    aliases: /péage
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        set {_a} to arg-1 ? ""
+        if {_a} is "payer":
+            set {_i} to {za::peage::attente::%{_u}%}
+            if {_i} is not set:
+                send "&7Aucun péage à payer ici." to player
+                stop
+            if {za::peage::%{_i}%::loc} is not set:
+                delete {za::peage::attente::%{_u}%}
+                stop
+            set {_prix} to {za::peage::%{_i}%::prix} ? 0
+            if za_jetons(player) < {_prix}:
+                send "&cIl faut %{_prix}% jetons. &7Fais demi-tour, ou trouve une autre route (plus dangereuse)." to player
+                stop
+            if {_prix} > 0:
+                za_jetons_ajouter(player, 0 - {_prix})
+                add {_prix} to {za::peage::caisse::%{za::peage::%{_i}%::u}%}
+            set {za::peage::%{_i}%::ok::%{_u}%} to (unix timestamp of now) + 1800
+            delete {za::peage::attente::%{_u}%}
+            za_peage_fouille(player, {_i})
+            if {za::peage::%{_i}%::type} is "norda":
+                if chance of 50%:
+                    give player za_item("honey bottle", "Vaccin NORDA", "&f", 1)
+                    send "&7« Vaccin gratuit. Pour votre sécurité. » &8(On te le met dans la main.)" to player
+            send "&aTu passes." to player
+        else if {_a} is "poser":
+            set {_prix} to arg-2 ? 5
+            set {_prix} to max(0, min(50, floor({_prix})))
+            set {_f} to za_terr_faction_a(location of player)
+            if {_f} is "":
+                send "&7Un péage se pose sur le territoire d'une faction (/zone)." to player
+                stop
+            if za_terr_repval(player, {_f}) < 50:
+                send "&7%za_terr_fnom({_f})% &7ne te connaît pas assez (réputation 50 requise)." to player
+                stop
+            set {_k} to 0
+            loop {za::peage::liste::*}:
+                if {za::peage::%loop-value%::u} is {_u}:
+                    add 1 to {_k}
+            if {_k} >= 2:
+                send "&7Tu tiens déjà deux péages." to player
+                stop
+            set {_i} to za_peage_creer(location of player, "joueur", {_prix}, {_u}, {_f})
+            set {_l} to location of player
+            execute console command "execute in %za_dim(world of {_l})% run summon villager %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% {NoAI:1b,Invulnerable:1b,PersistenceRequired:1b,CustomNameVisible:1b,CustomName:'""Garde du péage""',VillagerData:{profession:""minecraft:weaponsmith"",level:2,type:""minecraft:plains""},Tags:[""za_peage"",""za_peage_%{_i}%""]}"
+            send "&6[Péage] &7Péage posé (%{_prix}% jetons). Un garde fouille ceux qui passent. &8(/peage caisse · /peage retirer)" to player
+        else if {_a} is "retirer":
+            loop {za::peage::liste::*}:
+                if {za::peage::%loop-value%::u} is {_u}:
+                    if world of player is world of {za::peage::%loop-value%::loc}:
+                        if distance between player and {za::peage::%loop-value%::loc} < 10:
+                            set {_i} to loop-value
+            if {_i} is not set:
+                send "&7Aucun de tes péages à moins de 10 blocs." to player
+                stop
+            za_peage_retirer({_i})
+            send "&7Péage retiré." to player
+        else if {_a} is "caisse":
+            set {_c} to {za::peage::caisse::%{_u}%} ? 0
+            if {_c} > 0:
+                za_jetons_ajouter(player, {_c})
+                delete {za::peage::caisse::%{_u}%}
+            send "&6[Péage] &7Caisse : +%{_c}% jetons." to player
+        else:
+            send "&6&l━━ PÉAGES ━━" to player
+            set {_n} to 0
+            loop {za::peage::liste::*}:
+                set {_l} to {za::peage::%loop-value%::loc}
+                if {_l} is set:
+                    if world of {_l} is world of player:
+                        if distance between {_l} and player < 600:
+                            add 1 to {_n}
+                            send "%za_peage_nom(loop-value)% &7vers X %floor(x-coordinate of {_l})% Z %floor(z-coordinate of {_l})%" to player
+            if {_n} is 0:
+                send "&7Aucun péage connu dans les environs." to player
+            send "&8/peage payer · /peage poser <prix> (réputation 50 auprès de la faction du coin) · /peage caisse · /peage retirer" to player

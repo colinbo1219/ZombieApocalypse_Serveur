@@ -19,22 +19,33 @@ function za_base_cout(u: text) :: number:
 command /base <text>:
     trigger:
         set {_u} to "%player's uuid%"
+        if za_pro(player) is true:
+            send "&7Pas ici : ce monde est un souvenir, pas un endroit où vivre." to player
+            stop
         if arg-1 is "definir":
+            if "%world of player%" is not "world":
+                send "&cUne base se pose dans le monde principal." to player
+                stop
             if {za::base::%{_u}%} is set:
                 send "&cTu as deja une base. /base supprimer d'abord." to player
             else:
+                za_rec_reprendre(player)
                 set {za::base::%{_u}%} to location of player
                 set {za::base::taille::%{_u}%} to 0
                 set {za::base::entretien::%{_u}%} to now
                 add 3 days to {za::base::entretien::%{_u}%}
                 add {_u} to {za::base::liste::*}
+                za_mot_base_sync({_u})
                 send "&aBase definie ici. Entretien a payer tous les 3 jours (/base entretien). Plus elle grandit, plus les morts l'attaquent." to player
         else if arg-1 is "supprimer":
             remove {_u} from {za::base::liste::*}
             delete {za::base::%{_u}%}
             delete {za::base::taille::%{_u}%}
             delete {za::base::entretien::%{_u}%}
+            za_mot_base_sync({_u})
             send "&7Base supprimee." to player
+        else if arg-1 is "abandonner":
+            za_rec_abandonner(player)
         else if arg-1 is "info":
             if {za::base::%{_u}%} is not set:
                 send "&cAucune base. /base definir" to player
@@ -53,7 +64,7 @@ command /base <text>:
                     add 3 days to {za::base::entretien::%{_u}%}
                     send "&aBase entretenue (-%{_c}% jetons). Prochain entretien dans 3 jours." to player
         else:
-            send "&cUsage: /base <definir|supprimer|info|entretien>" to player
+            send "&cUsage: /base <definir|supprimer|abandonner|info|entretien>" to player
 
 # taille de la base = blocs poses pres du centre (torches et lanternes comptent triple : la lumiere attire)
 on place:
@@ -117,16 +128,16 @@ function za_traces_horde(l: location, ampleur: number):
         set {za::contam::%{_ck}%} to 0
     add min(60, {_ampleur} * 3) to {za::contam::%{_ck}%}
     wait 15 minutes
+    # les ossements ne vont que dans l'air (keep) ; on retient OÙ ils sont pour les retirer, eux et rien d'autre (audit C3)
     loop min(4, floor({_ampleur} / 5)) times:
-        set {_ox} to random integer between -6 and 6
-        set {_oz} to random integer between -6 and 6
-        execute console command "execute in %{_wd}% run setblock %{_bx} + {_ox}% %{_by}% %{_bz} + {_oz}% minecraft:bone_block"
+        set {_ox} to {_bx} + (random integer between -6 and 6)
+        set {_oz} to {_bz} + (random integer between -6 and 6)
+        add "%{_ox}% %{_by}% %{_oz}%" to {_pos::*}
+        execute console command "execute in %{_wd}% run setblock %{_ox}% %{_by}% %{_oz}% minecraft:bone_block keep"
     execute console command "execute in %{_wd}% run particle minecraft:ash %{_bx}% %{_by} + 1% %{_bz}% 4 1 4 0 40 force"
     wait 20 minutes
-    loop min(4, floor({_ampleur} / 5)) times:
-        set {_ox} to random integer between -6 and 6
-        set {_oz} to random integer between -6 and 6
-        execute console command "execute in %{_wd}% run setblock %{_bx} + {_ox}% %{_by}% %{_bz} + {_oz}% air destroy"
+    loop {_pos::*}:
+        execute console command "execute in %{_wd}% if block %loop-value% minecraft:bone_block run setblock %loop-value% minecraft:air"
 
 function za_siege_tous():
     loop {za::base::liste::*}:
@@ -140,6 +151,14 @@ every {@intervalle_siege}:
 # ---------- avant-poste temporaire : un feu de camp qui attire les hordes pendant 5 minutes ----------
 command /avantposte:
     trigger:
+        if za_pro(player) is true:
+            stop
+        if "%world of player%" is not "world":
+            send "&cPas ici." to player
+            stop
+        if block at player is not air:
+            send "&cIl faut un endroit dégagé à tes pieds." to player
+            stop
         if za_jetons(player) < 3:
             send "&cUn avant-poste coute 3 jetons." to player
         else:
@@ -151,7 +170,9 @@ command /avantposte:
                 loop 5 times:
                     za_spawn_at({_l}, "ZA_Shambler", 15, 30)
                 wait 20 seconds
-            set block at {_l} to air
+            # on n'éteint que notre feu de camp (audit C5)
+            if "%block at {_l}%" contains "campfire":
+                set block at {_l} to air
 
 # ---------- pieges artisanaux : plaques de pression nommees (vendues par le Trafiquant et le Mecano) ----------
 #   "Piege" (plaque de pierre) : explosion       | "Piege a lames" (plaque en bois) : degats + lenteur
@@ -184,36 +205,54 @@ function za_mine_explose(loc: location):
         if loop-entity is a zombie:
             damage loop-entity by 20
 
+# un piège cassé quitte le registre (audit C4)
+on break:
+    if "%event-block%" contains "pressure plate":
+        set {_k} to za_lkey(location of event-block)
+        if {za::piege::type::%{_k}%} is set:
+            remove location of event-block from {za::pieges::*}
+            delete {za::piege::type::%{_k}%}
+
 every 2 seconds:
     loop {za::pieges::*}:
-        set {_loc} to loop-value
-        set {_k} to za_lkey({_loc})
-        set {_type} to {za::piege::type::%{_k}%}
-        if {_type} is not set:
-            set {_type} to "explosif"
-        set {_hit} to false
-        loop all entities in radius 1.5 around {_loc}:
+        za_piege_tick(loop-value)
+
+# un piège : vérifié avant d'agir (la plaque est-elle toujours là ?), puis déclenché par un zombie (audit C4)
+function za_piege_tick(loc: location):
+    # chunk non chargé : on ne le charge pas toutes les 2 secondes pour rien
+    if chunk at {_loc} is not loaded:
+        stop
+    set {_k} to za_lkey({_loc})
+    if "%block at {_loc}%" does not contain "pressure plate":
+        remove {_loc} from {za::pieges::*}
+        delete {za::piege::type::%{_k}%}
+        stop
+    set {_type} to {za::piege::type::%{_k}%} ? "explosif"
+    set {_hit} to false
+    loop all entities in radius 1.5 around {_loc}:
+        if loop-entity is a zombie:
+            set {_hit} to true
+    if {_hit} is false:
+        stop
+    set {_wd} to za_dim(world of {_loc})
+    if {_type} is "explosif":
+        execute console command "execute in %{_wd}% run particle minecraft:explosion %floor(x-coordinate of {_loc})% %floor(y-coordinate of {_loc})% %floor(z-coordinate of {_loc})% 1 1 1 0 20 force"
+        loop all entities in radius 3 around {_loc}:
             if loop-entity is a zombie:
-                set {_hit} to true
-        if {_hit} is true:
-            set {_wd} to za_dim(world of {_loc})
-            if {_type} is "explosif":
-                execute console command "execute in %{_wd}% run particle minecraft:explosion %floor(x-coordinate of {_loc})% %floor(y-coordinate of {_loc})% %floor(z-coordinate of {_loc})% 1 1 1 0 20 force"
-                loop all entities in radius 3 around {_loc}:
-                    if loop-entity is a zombie:
-                        damage loop-entity by 15
-            else if {_type} is "lames":
-                execute console command "execute in %{_wd}% run particle minecraft:crit %floor(x-coordinate of {_loc})% %floor(y-coordinate of {_loc})% %floor(z-coordinate of {_loc})% 1 0.5 1 0.2 30 force"
-                loop all entities in radius 2 around {_loc}:
-                    if loop-entity is a zombie:
-                        damage loop-entity by 8
-                        execute console command "effect give %uuid of loop-entity% minecraft:slowness 10 1 true"
-            else if {_type} is "feu":
-                loop all entities in radius 3 around {_loc}:
-                    if loop-entity is a zombie:
-                        ignite loop-entity for 10 seconds
-            else if {_type} is "mine":
-                za_mine_explose({_loc})
-            set block at {_loc} to air
-            remove {_loc} from {za::pieges::*}
-            delete {za::piege::type::%{_k}%}
+                damage loop-entity by 15
+    else if {_type} is "lames":
+        execute console command "execute in %{_wd}% run particle minecraft:crit %floor(x-coordinate of {_loc})% %floor(y-coordinate of {_loc})% %floor(z-coordinate of {_loc})% 1 0.5 1 0.2 30 force"
+        loop all entities in radius 2 around {_loc}:
+            if loop-entity is a zombie:
+                damage loop-entity by 8
+                execute console command "effect give %uuid of loop-entity% minecraft:slowness 10 1 true"
+    else if {_type} is "feu":
+        loop all entities in radius 3 around {_loc}:
+            if loop-entity is a zombie:
+                ignite loop-entity for 10 seconds
+    else if {_type} is "mine":
+        za_mine_explose({_loc})
+    # le piège a servi : on retire la plaque (c'est bien la nôtre, vérifiée plus haut) et le registre
+    set block at {_loc} to air
+    remove {_loc} from {za::pieges::*}
+    delete {za::piege::type::%{_k}%}

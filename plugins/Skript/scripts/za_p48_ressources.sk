@@ -346,7 +346,7 @@ function za_ress_labo_proche(l: location) :: boolean:
     loop {za::labo::liste::*}:
         set {_id} to loop-value
         if "%world of {_l}%" is {za::labo::%{_id}%::monde}:
-            set {_c} to location({za::labo::%{_id}%::bx} + 8, {za::labo::%{_id}%::gy} + 1, {za::labo::%{_id}%::bz} + 8, world of {_l})
+            set {_c} to location(({za::labo::%{_id}%::bx} + 8), ({za::labo::%{_id}%::gy} + 1), ({za::labo::%{_id}%::bz} + 8), (world of {_l}))
             if distance between {_c} and {_l} < 16:
                 return true
     return false

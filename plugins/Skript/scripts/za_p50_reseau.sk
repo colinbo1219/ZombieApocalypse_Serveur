@@ -159,6 +159,9 @@ function za_reseau_appliquer(silence: boolean):
         if {_on} is true:
             if {za::reseau::actifs::*} contains loop-value:
                 set {_veut} to true
+        # sous-stations Create / CCA / IE (za_p61_electricite)
+        if {za::elec2::alim::%loop-value%} is true:
+            set {_veut} to true
         set {_avant} to za_reseau_actif(loop-value)
         if {_veut} is not {_avant}:
             set {za::reseau::%loop-value%} to {_veut}

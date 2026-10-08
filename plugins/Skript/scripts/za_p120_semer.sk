@@ -1,0 +1,60 @@
+# za_p120_semer.sk — semer ses poursuivants (bible v2, points 104, 26)
+#  Le moteur fait déjà fouiller aux morts ta dernière position connue, puis abandonner ; l'eau coupe ta piste ; le sang
+#  de zombie te camoufle (IA-2, IA-3). Ici, l'outil qui manquait :
+#  * FUMIGÈNE : clic droit. Un nuage épais pendant 20 secondes : les morts ne te voient plus et ne te sentent plus
+#    (tag za_fumee lu par le moteur ; les cibles en cours sont lâchées). Charognard, ou /fumigene fabriquer
+#    (2 poudre à canon, 1 papier, 1 charbon).
+#  * BANDAGE : un saignement arrêté efface la piste de sang (le moteur suit la vie basse ; un bandage rend 2 cœurs).
+
+on right click:
+    if za_pro(player) is true:
+        stop
+    set {_n} to uncolored name of player's tool ? ""
+    if {_n} is not "Fumigene":
+        stop
+    cancel event
+    if ({za::fumee::%player's uuid%} ? 0) > (unix timestamp of now) - 25:
+        stop
+    set {za::fumee::%player's uuid%} to unix timestamp of now
+    remove 1 of player's tool from player's inventory
+    za_fumee(player)
+
+function za_fumee(p: player):
+    set {_l} to location of {_p}
+    add "za_fumee" to scoreboard tags of {_p}
+    send "&7Un sifflement, puis un mur gris. &8(20 secondes : ils ne te voient plus. Bouge.)" to {_p}
+    play sound "block.fire.extinguish" with volume 1.5 and pitch 0.6 at {_l}
+    loop 10 times:
+        execute console command "execute in %za_dim(world of {_l})% run particle minecraft:campfire_signal_smoke %x-coordinate of {_l}% %(y-coordinate of {_l}) + 1% %z-coordinate of {_l}% 2.5 1.5 2.5 0.01 60 force"
+        wait 2 seconds
+        if {_p} is not online:
+            stop
+    remove "za_fumee" from scoreboard tags of {_p}
+
+# les cibles en cours sont lâchées dans la fumée
+on target:
+    if target is not a player:
+        stop
+    if za_surv_a_tag(target, "za_fumee") is false:
+        stop
+    cancel event
+
+command /fumigene [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        if arg-1 is not "fabriquer":
+            send "&7/fumigene fabriquer &8: 2 poudre à canon, 1 papier, 1 charbon. Clic droit pour s'en servir." to player
+            stop
+        if any:
+            player does not have 2 gunpowder
+            player does not have paper
+            player does not have coal
+        then:
+            send "&7Il faut 2 poudre à canon, 1 papier et 1 charbon." to player
+            stop
+        remove 2 gunpowder from player
+        remove 1 paper from player
+        remove 1 coal from player
+        give player za_item("gray dye", "Fumigene", "&7", 1)
+        send "&aUn fumigène artisanal. &8Ça pue, ça fume, ça sauve." to player

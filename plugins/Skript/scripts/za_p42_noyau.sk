@@ -38,18 +38,20 @@ function za_stat(u: text, k: text) :: number:
 function za_menu(p: player, mod: text, titre: text, texte: text, opts: texts):
     set {_u} to "%{_p}'s uuid%"
     delete {za::menu::opt::%{_u}%::*}
+    delete {za::menu::slot::%{_u}%::*}
     set {za::menu::mod::%{_u}%} to {_mod}
     open chest inventory with 3 rows named "&8» %{_titre}%" to {_p}
     set {_it} to za_item("paper", {_titre}, "&e", 1)
     set lore of {_it} to za_wrap({_texte})
     set slot 4 of (current inventory of {_p}) to {_it}
     set {_n} to size of {_opts::*}
+    # rangée du milieu : 9 cases au plus (slots 9 à 17)
     set {_s} to 13 - floor({_n} / 2)
-    if {_s} < 10:
-        set {_s} to 10
+    if {_s} < 9:
+        set {_s} to 9
     set {_i} to 0
     loop {_opts::*}:
-        if {_i} < 7:
+        if {_i} < 9:
             set {_e::*} to split loop-value at "|"
             set {_lib} to {_e::1}
             if {_lib} starts with "!":
@@ -60,26 +62,34 @@ function za_menu(p: player, mod: text, titre: text, texte: text, opts: texts):
                 set {_o} to za_item("book", {_lib}, "&a", 1)
                 set lore of {_o} to "&8Clique pour choisir"
                 add "%uncolored {_lib}%|%{_e::2}%" to {za::menu::opt::%{_u}%::*}
+                set {_case} to {_s} + {_i}
+                set {za::menu::slot::%{_u}%::%{_case}%} to {_e::2}
             set slot ({_s} + {_i}) of (current inventory of {_p}) to {_o}
             add 1 to {_i}
 
 on inventory click:
     if uncolored name of (player's current inventory) starts with "» ":
         cancel the event
-        if event-item is not air:
-            set {_u} to "%player's uuid%"
-            set {_nom} to uncolored name of event-item
-            loop {za::menu::opt::%{_u}%::*}:
-                set {_e::*} to split loop-value at "|"
-                if {_e::1} is {_nom}:
-                    set {_node} to {_e::2}
-                    exit loop
-            if {_node} is set:
-                set {_mod} to {za::menu::mod::%{_u}%}
-                close player's inventory
-                delete {za::menu::opt::%{_u}%::*}
-                if {_node} is not "quit":
-                    execute console command "%{_mod}% %player% %{_node}%"
+        # seule une case du menu compte (pas l'inventaire du joueur, ni maj-clic, ni touche numérique)
+        if event-inventory is not player's current inventory:
+            stop
+        set {_u} to "%player's uuid%"
+        set {_node} to {za::menu::slot::%{_u}%::%index of event-slot%}
+        if {_node} is set:
+            set {_mod} to {za::menu::mod::%{_u}%}
+            close player's inventory
+            delete {za::menu::opt::%{_u}%::*}
+            delete {za::menu::slot::%{_u}%::*}
+            if {_node} is not "quit":
+                execute console command "%{_mod}% %player% %{_node}%"
+
+# glisser des objets dans un menu ne fait rien
+on inventory drag:
+    set {_t} to uncolored name of (player's current inventory)
+    if {_t} starts with "» " or "Dialogue - " or "Marchand: ":
+        cancel the event
+    else if {_t} is "Aide":
+        cancel the event
 
 # ---------------------------------------------------------------- bâtiments spéciaux (générés par za_p35)
 #  types : hopital, police, super, station, labo2, caserne, ecole, centrale
@@ -159,12 +169,24 @@ function za_bat_proche(l: location, r: number) :: text:
 function za_radio(qui: text, texte: text):
     loop all players:
         if za_pro(loop-player) is false:
-            za_zm("son %loop-player% za_modeles:sfx.radio_statique 0.5 1")
-            send "&8[Radio] %{_qui}% &8» &7%{_texte}%" to loop-player
+            # silence radio (za_p85) : le message est perdu, on le compte pour la sortie
+            if za_sans_signal(loop-player) is true:
+                add 1 to {za::silence::manques::%loop-player's uuid%}
+            else:
+                za_zm("son %loop-player% za_modeles:sfx.radio_statique 0.5 1")
+                send "&8[Radio] %{_qui}% &8» &7%{_texte}%" to loop-player
     za_journal("Radio (%uncolored {_qui}%) : %uncolored {_texte}%")
+
+# message radio + voix (za_modeles:voix.<cle>, pack joueurs 1.6.0 ; muet sans lui)
+function za_radio_voix(qui: text, texte: text, cle: text):
+    za_radio({_qui}, {_texte})
+    loop all players:
+        if za_pro(loop-player) is false:
+            if za_sans_signal(loop-player) is false:
+                za_zm("son %loop-player% za_modeles:voix.%{_cle}% 0.9 1")
 
 # ---------------------------------------------------------------- lieu sûr au sol autour d'un point
 
 function za_sol(l: location) :: location:
     set {_b} to highest block at {_l}
-    return location(x-coordinate of {_l}, (y-coordinate of (location of {_b})) + 1, z-coordinate of {_l}, world of {_l})
+    return location((x-coordinate of {_l}), ((y-coordinate of (location of {_b})) + 1), (z-coordinate of {_l}), (world of {_l}))

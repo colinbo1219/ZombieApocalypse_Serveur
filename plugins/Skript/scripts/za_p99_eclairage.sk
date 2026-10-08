@@ -1,0 +1,161 @@
+# =====================================================================
+#  ZombieApocalypse - ÉCLAIRAGE : le courant se voit
+#  Réseau électrique (za_p61) -> lampadaires (za_p66) -> vitrines, enseignes, bureaux, hôpital, postes de sécurité.
+#  * Saint-Aurèle : quand un quartier a du courant, ses lampadaires ET l'intérieur de ses bâtiments s'allument
+#    (accueil et pharmacie de l'hôpital, comptoir du poste de police et checkpoint, dépanneur, café, station,
+#    abribus, hall de l'immeuble, école, kiosque du parc). Courant PARTIEL : ça grésille, des lampes clignotent.
+#    Quartier INFESTÉ ou en ZONE MORTE (za_p97) : les câbles sont rongés, tout reste noir même avec du courant.
+#  * Tes propres lampes : /lumiere lier (en regardant une lanterne de mer, une pierre lumineuse, une champilampe ou
+#    une grenoblante) — liée à ta base (courant de ta base, za_p61) ou au quartier de Saint-Aurèle où elle se trouve.
+#    Sans courant : elle s'éteint (verre noir) ; le courant revient : elle se rallume. /lumiere delier
+#  Le changement se voit en quelques secondes (vérification toutes les 10 s, joueurs à proximité).
+# =====================================================================
+
+# un quartier de Saint-Aurèle doit-il être éclairé ?
+function za_lum_quartier_on(q: text) :: boolean:
+    if za_reseau_actif({_q}) is false:
+        return false
+    set {_e} to {za::qz::sa_%{_q}%::etat} ? "calme"
+    if {_e} is "infestation" or "zone_morte":
+        return false
+    return true
+
+function za_lum_partiel(q: text) :: boolean:
+    if za_elec_etat({_q}) is "PARTIEL":
+        return true
+    return false
+
+# lumières intérieures (blocs de lumière invisibles) aux points du prologue transposés dans les ruines
+function za_lum_points(q: text) :: texts:
+    if {_q} is "hopital":
+        return "hopital_entree", "hopital_accueil", "hopital_pharmacie" and "ambulance_baie"
+    if {_q} is "police":
+        return "police_entree", "police_comptoir" and "checkpoint_vega"
+    if {_q} is "commerce":
+        return "depanneur_porte", "depanneur_comptoir", "cafe_comptoir", "station_service" and "abribus"
+    return "entree_immeuble", "ecole_entree" and "parc_kiosque"
+
+function za_lum_interieur(q: text, on: boolean):
+    loop za_lum_points({_q}):
+        set {_l} to za_ruines_poi(loop-value)
+        if {_l} is set:
+            add 2 to y-coordinate of {_l}
+            if chunk at {_l} is loaded:
+                if {_on} is true:
+                    if block at {_l} is air:
+                        execute console command "execute in %za_dim(world of {_l})% run setblock %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% minecraft:light[level=14]"
+                else:
+                    if "%type of block at {_l}%" contains "light":
+                        if "%type of block at {_l}%" does not contain "lightning":
+                            set block at {_l} to air
+
+every 10 seconds:
+    if za_ruines_ok() is false:
+        stop
+    set {_present} to false
+    loop za_monde_joueurs():
+        if za_ruines_dans(location of loop-value, 48) is true:
+            set {_present} to true
+    if {_present} is false:
+        stop
+    loop za_reseau_quartiers():
+        set {_q} to loop-value
+        set {_on} to za_lum_quartier_on({_q})
+        if {za::lum::int::%{_q}%} is not {_on}:
+            set {za::lum::int::%{_q}%} to {_on}
+            za_lum_interieur({_q}, {_on})
+        # courant partiel : ça grésille
+        if {_on} is true:
+            if za_lum_partiel({_q}) is true:
+                if chance of 40%:
+                    za_ruines_lampes_appliquer({_q}, false, false)
+                    loop za_monde_joueurs():
+                        if za_ruines_dans(location of loop-value-2, 32) is true:
+                            za_zm("son %loop-value-2% za_modeles:sfx.bourdon_electrique 0.4 0.6")
+                    wait 15 ticks
+                    za_ruines_lampes_appliquer({_q}, true, false)
+
+# ---------------------------------------------------------------- les lampes des joueurs
+
+function za_lum_bloc_ok(t: text) :: boolean:
+    if {_t} contains "sea lantern" or "glowstone" or "shroomlight" or "froglight":
+        return true
+    return false
+
+command /lumiere [<text>]:
+    aliases: /lumière
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        set {_b} to target block of player
+        if arg-1 is "lier":
+            if {_b} is not set:
+                send "&7Regarde la lampe." to player
+                stop
+            if za_lum_bloc_ok("%type of {_b}%") is false:
+                send "&cIl faut une lanterne de mer, une pierre lumineuse, une champilampe ou une grenoblante (allumée)." to player
+                stop
+            set {_l} to location of {_b}
+            set {_k} to za_lkey({_l})
+            set {_lien} to ""
+            if {za::base::%{_u}%} is set:
+                if world of {za::base::%{_u}%} is world of {_l}:
+                    if distance between {za::base::%{_u}%} and {_l} < 48:
+                        set {_lien} to "base:%{_u}%"
+            if {_lien} is "":
+                set {_q} to za_ruines_quartier({_l})
+                if {_q} is not "":
+                    set {_lien} to "q:%{_q}%"
+            if {_lien} is "":
+                send "&cCette lampe n'est ni dans ta base (48 blocs) ni dans un quartier de Saint-Aurèle." to player
+                stop
+            set {za::lum::p::%{_k}%} to {_lien}
+            set {za::lum::t::%{_k}%} to type of {_b}
+            set {za::lum::l::%{_k}%} to {_l}
+            set {za::lum::on::%{_k}%} to true
+            send "&aLampe branchée sur %{_lien}%. &7Sans courant, elle s'éteindra." to player
+        else if arg-1 is "delier":
+            if {_b} is not set:
+                stop
+            set {_k} to za_lkey(location of {_b})
+            if {za::lum::p::%{_k}%} is not set:
+                send "&7Cette lampe n'est pas branchée." to player
+                stop
+            if {za::lum::on::%{_k}%} is false:
+                set block at {_b} to {za::lum::t::%{_k}%}
+            delete {za::lum::p::%{_k}%}
+            delete {za::lum::t::%{_k}%}
+            delete {za::lum::l::%{_k}%}
+            delete {za::lum::on::%{_k}%}
+            send "&7Lampe débranchée." to player
+        else:
+            send "&7/lumiere lier | delier &8(en regardant la lampe)" to player
+
+every 10 seconds:
+    loop {za::lum::l::*}:
+        set {_k} to loop-index
+        set {_l} to loop-value
+        if chunk at {_l} is loaded:
+            if za_eq_joueur_pres({_l}, 96) is true:
+                set {_c::*} to split {za::lum::p::%{_k}%} at ":"
+                set {_on} to false
+                if {_c::1} is "base":
+                    set {_on} to za_elec_base({_c::2})
+                else:
+                    set {_on} to za_lum_quartier_on({_c::2})
+                if {za::lum::on::%{_k}%} is not {_on}:
+                    if {_on} is true:
+                        set block at {_l} to {za::lum::t::%{_k}%}
+                    else:
+                        set block at {_l} to black stained glass
+                    set {za::lum::on::%{_k}%} to {_on}
+
+# lampe cassée par un joueur : on l'oublie
+on break:
+    set {_k} to za_lkey(location of event-block)
+    if {za::lum::p::%{_k}%} is set:
+        delete {za::lum::p::%{_k}%}
+        delete {za::lum::t::%{_k}%}
+        delete {za::lum::l::%{_k}%}
+        delete {za::lum::on::%{_k}%}

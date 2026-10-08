@@ -1,0 +1,117 @@
+# =====================================================================
+#  ZombieApocalypse - L'HIVER QUÉBÉCOIS (par-dessus Serene Seasons)
+#  Serene Seasons (config/sereneseasons) fait les saisons : couleurs, neige qui tombe, eau qui gèle. Ici :
+#  * CALENDRIER : 12 sous-saisons de 8 jours serveur (comme Serene Seasons) ; Skript le recale chaque jour
+#    (« season set ») pour que les deux restent d'accord. Hiver = début, cœur et fin de l'hiver.
+#  * NEIGE QUI S'ACCUMULE : en hiver, la neige monte jusqu'à 3 couches (cœur de l'hiver : 5) ; 1 le reste de l'année.
+#  * RIVIÈRE GELÉE : au cœur et à la fin de l'hiver, l'eau à ciel ouvert gèle autour des joueurs (la rivière
+#    Blanche se traverse à pied). Au dégel, Serene Seasons fait fondre la glace.
+#  * FROID : les morts dehors sont ralentis (cœur de l'hiver : très ralentis, givre) ; la température corporelle
+#    (za_p15) vise plus bas ({za::hiver::froid}) : feux de camp et vêtements chauds deviennent vitaux.
+#  * Léa annonce la première neige, le grand froid et le dégel.
+#  Admin : /zahiver etat | decaler <jours> (recaler le calendrier) | forcer <0-11>
+# =====================================================================
+
+options:
+    duree: 8
+
+function za_hiver_nom(i: number) :: text:
+    set {_n::*} to "early_spring", "mid_spring", "late_spring", "early_summer", "mid_summer", "late_summer", "early_autumn", "mid_autumn", "late_autumn", "early_winter", "mid_winter" and "late_winter"
+    return {_n::%{_i} + 1%}
+
+function za_hiver_nom_fr(i: number) :: text:
+    set {_n::*} to "début du printemps", "cœur du printemps", "fin du printemps", "début de l'été", "cœur de l'été", "fin de l'été", "début de l'automne", "cœur de l'automne", "fin de l'automne", "début de l'hiver", "cœur de l'hiver" and "fin de l'hiver"
+    return {_n::%{_i} + 1%}
+
+# sous-saison courante (0 = début du printemps ... 11 = fin de l'hiver)
+function za_hiver_index() :: number:
+    if {za::hiver::force} is set:
+        return {za::hiver::force}
+    set {_j} to ({za::serveur::jours} ? 0) + ({za::hiver::decalage} ? 0)
+    return mod(floor({_j} / {@duree}), 12)
+
+function za_hiver() :: boolean:
+    if za_hiver_index() >= 9:
+        return true
+    return false
+
+function za_hiver_appliquer():
+    set {_i} to za_hiver_index()
+    execute console command "season set %za_hiver_nom({_i})%"
+    set {_h} to 1
+    set {za::hiver::froid} to 0
+    if {_i} is 9:
+        set {_h} to 3
+        set {za::hiver::froid} to 12
+    else if {_i} is 10:
+        set {_h} to 5
+        set {za::hiver::froid} to 22
+    else if {_i} is 11:
+        set {_h} to 3
+        set {za::hiver::froid} to 14
+    else if {_i} is 8:
+        set {za::hiver::froid} to 6
+    execute console command "execute in minecraft:overworld run gamerule snowAccumulationHeight %{_h}%"
+    if {za::hiver::dernier} is not {_i}:
+        set {za::hiver::dernier} to {_i}
+        if {_i} is 9:
+            za_radio_voix("&bLéa", "Première neige sur Saint-Aurèle. Rentrez du bois. Les morts ralentissent dans le froid... nous aussi.", "lea_premiere_neige")
+            za_journal("Première neige.")
+        else if {_i} is 10:
+            za_radio_voix("&bLéa", "Moins trente cette nuit. La rivière Blanche est prise : on peut la traverser à pied. Eux aussi.", "lea_grand_froid")
+        else if {_i} is 0:
+            za_radio_voix("&bLéa", "Le dégel. L'eau reprend la rivière, et les morts reprennent leur pas. Profitez des derniers jours calmes.", "lea_degel")
+            za_journal("Le dégel.")
+
+on load:
+    za_hiver_appliquer()
+
+every 20 minutes:
+    za_hiver_appliquer()
+
+# la glace prend sur l'eau à ciel ouvert autour d'un joueur (quelques colonnes à chaque passage)
+function za_hiver_geler(p: player):
+    set {_l} to location of {_p}
+    loop 30 times:
+        set {_x} to x-coordinate of {_l} + (random integer between -16 and 16)
+        set {_z} to z-coordinate of {_l} + (random integer between -16 and 16)
+        set {_b} to highest block at location({_x}, 100, {_z}, world of {_l})
+        if {_b} is water:
+            set block at {_b} to ice
+
+every 10 seconds:
+    set {_i} to za_hiver_index()
+    if {_i} < 9:
+        stop
+    loop za_monde_joueurs():
+        set {_p} to loop-value-1
+        if za_pro({_p}) is false:
+            if "%world of {_p}%" is "world":
+                if {_i} >= 10:
+                    za_hiver_geler({_p})
+                # les morts dehors gèlent
+                loop all zombies in radius 40 around {_p}:
+                    set {_zl} to location of loop-value-2
+                    if y-coordinate of {_zl} + 1 >= y-coordinate of (location of (highest block at {_zl})):
+                        if {_i} is 10:
+                            apply potion of slowness of tier 2 to loop-value-2 for 12 seconds
+                            if chance of 10%:
+                                execute console command "execute at %uuid of loop-value-2% run particle minecraft:snowflake ~ ~1.2 ~ 0.3 0.5 0.3 0.01 8"
+                        else:
+                            apply potion of slowness of tier 1 to loop-value-2 for 12 seconds
+
+command /zahiver [<text>] [<number>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "decaler":
+            set {za::hiver::decalage} to arg-2 ? 0
+            za_hiver_appliquer()
+        else if arg-1 is "forcer":
+            if arg-2 is set:
+                set {za::hiver::force} to mod(arg-2, 12)
+            else:
+                delete {za::hiver::force}
+            za_hiver_appliquer()
+        set {_i} to za_hiver_index()
+        send "&b[Hiver] &7Sous-saison : &f%za_hiver_nom_fr({_i})% &8(%{_i}%) &7— froid %{za::hiver::froid} ? 0%, décalage %{za::hiver::decalage} ? 0% jours" to sender
+        send "&7/zahiver etat | decaler <jours> | forcer <0-11> (sans nombre : annule)" to sender

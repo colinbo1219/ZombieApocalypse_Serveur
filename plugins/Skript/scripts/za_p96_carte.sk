@@ -1,0 +1,362 @@
+# =====================================================================
+#  ZombieApocalypse - MA CARTE : la région se découvre en marchant
+#  Personne ne connaît Saint-Aurèle et la région au départ. Ce que TU as vu s'inscrit sur TA carte :
+#    terres parcourues (cases de 64 blocs), quartiers de Saint-Aurèle, lieux (villages, fermes, chalets...), refuges,
+#    nids, territoires des factions, laboratoires, souterrains, zones dangereuses (zones mortes, territoires d'Alpha).
+#  Aussi : ce que tes survivants ont repéré en reconnaissance (za_p92), les caches qu'on t'a confiées (za_p93)...
+#  /macarte          — la carte autour de toi (une case = 64 blocs) ; /macarte large (une case = 256 blocs)
+#  /macarte liste    — tout ce que tu connais, par catégorie, avec les coordonnées
+#  /macarte livre    — ta carte en livre : un souvenir de ton aventure (« Carte de <toi>, jour N »)
+#  Données : {za::carte::<uuid>::<clé>} = jour de la découverte (clés site:, nid:, terr:, labo:, tmort:, zm:, quartier:)
+#            {za::carte::<uuid>::c::<gx>_<gz>} = case parcourue
+# =====================================================================
+
+options:
+    case: 64
+
+function za_carte_connu(u: text, k: text) :: boolean:
+    if {za::carte::%{_u}%::%{_k}%} is set:
+        return true
+    return false
+
+function za_carte_ajouter(p: player, k: text, nom: text):
+    set {_u} to "%{_p}'s uuid%"
+    if {za::carte::%{_u}%::%{_k}%} is set:
+        stop
+    set {za::carte::%{_u}%::%{_k}%} to {za::serveur::jours} ? 0
+    if {_nom} is not "":
+        send action bar "&6🗺 &7Ajouté à ta carte : &f%{_nom}%" to {_p}
+
+# ---------------------------------------------------------------- découvertes (toutes les 5 s)
+
+every 5 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if za_pro({_p}) is false:
+            za_carte_tick({_p})
+
+function za_carte_tick(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_l} to location of {_p}
+    if "%world of {_p}%" is not "world":
+        stop
+    set {_gx} to floor((x-coordinate of {_l}) / {@case})
+    set {_gz} to floor((z-coordinate of {_l}) / {@case})
+    if {za::carte::%{_u}%::c::%{_gx}%_%{_gz}%} is not set:
+        set {za::carte::%{_u}%::c::%{_gx}%_%{_gz}%} to true
+        add 1 to {za::carte::%{_u}%::ncases}
+    # une fois sur deux seulement pour le reste (moins de calculs)
+    add 1 to {za::carte::%{_u}%::tour}
+    if mod({za::carte::%{_u}%::tour}, 2) is 1:
+        stop
+    # lieux du monde généré (à 80 blocs)
+    loop {za::site::g::%floor((x-coordinate of {_l}) / 256)%_%floor((z-coordinate of {_l}) / 256)%::*}:
+        set {_k} to loop-value
+        if {za::carte::%{_u}%::site:%{_k}%} is not set:
+            set {_dx} to abs((x-coordinate of {_l}) - {za::site::d::%{_k}%::x})
+            set {_dz} to abs((z-coordinate of {_l}) - {za::site::d::%{_k}%::z})
+            if {_dx} < ({za::site::d::%{_k}%::dx} + 80):
+                if {_dz} < ({za::site::d::%{_k}%::dz} + 80):
+                    if {za::site::d::%{_k}%::type} starts with "sous_":
+                        if abs((y-coordinate of {_l}) - {za::site::d::%{_k}%::y}) < 12:
+                            za_carte_ajouter({_p}, "site:%{_k}%", {za::site::d::%{_k}%::nom})
+                    else:
+                        za_carte_ajouter({_p}, "site:%{_k}%", {za::site::d::%{_k}%::nom})
+    # quartier de Saint-Aurèle
+    set {_q} to za_ruines_quartier({_l})
+    if {_q} is not "":
+        za_carte_ajouter({_p}, "quartier:%{_q}%", "Saint-Aurèle — %za_reseau_nom({_q})%")
+    # nids
+    loop {za::nid::liste::*}:
+        set {_c} to {za::nid::%loop-value%::loc}
+        if {_c} is set:
+            if world of {_c} is world of {_l}:
+                if distance between {_c} and {_l} < 64:
+                    za_carte_ajouter({_p}, "nid:%loop-value%", "un nid")
+    # territoires de factions
+    loop za_terr_cles():
+        set {_c} to za_terr_loc(loop-value)
+        if {_c} is set:
+            if world of {_c} is world of {_l}:
+                if distance between {_c} and {_l} < 60:
+                    za_carte_ajouter({_p}, "terr:%loop-value%", "%za_terr_nom(loop-value)% (%za_terr_fac(loop-value)%)")
+    # laboratoires
+    loop {za::labo::liste::*}:
+        set {_i} to loop-value
+        if {za::labo::%{_i}%::monde} is "%world of {_l}%":
+            set {_dx} to (x-coordinate of {_l}) - {za::labo::%{_i}%::bx}
+            set {_dz} to (z-coordinate of {_l}) - {za::labo::%{_i}%::bz}
+            if sqrt(({_dx} * {_dx}) + ({_dz} * {_dz})) < 48:
+                za_carte_ajouter({_p}, "labo:%{_i}%", "un laboratoire scellé")
+    # territoires d'Alpha
+    loop {za::tmort::liste::*}:
+        set {_c} to {za::tmort::%loop-value%::loc}
+        if {_c} is set:
+            if world of {_c} is world of {_l}:
+                if distance between {_c} and {_l} < 110:
+                    za_carte_ajouter({_p}, "tmort:%loop-value%", "&cterritoire d'un Alpha")
+    # zones mortes
+    loop {za::zm::liste::*}:
+        set {_c} to {za::zm::%loop-value%::loc}
+        if {_c} is set:
+            if world of {_c} is world of {_l}:
+                if distance between {_c} and {_l} < ({za::zm::%loop-value%::rayon} ? 30) + 30:
+                    za_carte_ajouter({_p}, "zm:%loop-value%", "&4zone morte")
+
+# ---------------------------------------------------------------- position d'une découverte
+
+function za_carte_loc(k: text) :: location:
+    set {_c::*} to split {_k} at ":"
+    set {_t} to {_c::1}
+    set {_v} to {_c::2}
+    if {_t} is "site":
+        if {za::site::d::%{_v}%::x} is set:
+            return location({za::site::d::%{_v}%::x}, 64, {za::site::d::%{_v}%::z}, world("world"))
+    else if {_t} is "nid":
+        return {za::nid::%{_v}%::loc}
+    else if {_t} is "terr":
+        return za_terr_loc({_v})
+    else if {_t} is "labo":
+        if {za::labo::%{_v}%::bx} is set:
+            return location({za::labo::%{_v}%::bx}, 64, {za::labo::%{_v}%::bz}, world("world"))
+    else if {_t} is "tmort":
+        return {za::tmort::%{_v}%::loc}
+    else if {_t} is "zm":
+        return {za::zm::%{_v}%::loc}
+    else if {_t} is "quartier":
+        if {_v} is "hopital":
+            return za_ruines_poi("hopital_entree")
+        if {_v} is "police":
+            return za_ruines_poi("police_entree")
+        if {_v} is "commerce":
+            return za_ruines_poi("depanneur_porte")
+        return za_ruines_poi("entree_immeuble")
+
+# catégorie et couleur d'une découverte
+function za_carte_cat(k: text) :: text:
+    set {_c::*} to split {_k} at ":"
+    if {_c::1} is "site":
+        set {_ty} to {za::site::d::%{_c::2}%::type} ? ""
+        if {_ty} is "refuge":
+            return "refuges"
+        if {_ty} starts with "sous_":
+            return "souterrains"
+        if {_ty} is "norda":
+            return "laboratoires"
+        return "lieux"
+    if {_c::1} is "nid":
+        return "nids"
+    if {_c::1} is "terr":
+        return "factions"
+    if {_c::1} is "labo":
+        return "laboratoires"
+    if {_c::1} is "tmort" or "zm":
+        return "dangers"
+    if {_c::1} is "quartier":
+        return "quartiers"
+    return "autres"
+
+function za_carte_couleur(cat: text) :: text:
+    if {_cat} is "refuges":
+        return "&a"
+    if {_cat} is "souterrains":
+        return "&5"
+    if {_cat} is "laboratoires":
+        return "&b"
+    if {_cat} is "nids":
+        return "&c"
+    if {_cat} is "factions":
+        return "&9"
+    if {_cat} is "dangers":
+        return "&4"
+    if {_cat} is "quartiers":
+        return "&7"
+    return "&e"
+
+function za_carte_cat_nom(cat: text) :: text:
+    if {_cat} is "refuges":
+        return "Refuges"
+    if {_cat} is "souterrains":
+        return "Souterrains"
+    if {_cat} is "laboratoires":
+        return "Laboratoires"
+    if {_cat} is "nids":
+        return "Nids"
+    if {_cat} is "factions":
+        return "Factions"
+    if {_cat} is "dangers":
+        return "Zones dangereuses"
+    if {_cat} is "quartiers":
+        return "Quartiers de Saint-Aurèle"
+    return "Lieux"
+
+function za_carte_nom(k: text) :: text:
+    set {_c::*} to split {_k} at ":"
+    if {_c::1} is "site":
+        return {za::site::d::%{_c::2}%::nom} ? {_c::2}
+    if {_c::1} is "nid":
+        return "Nid n°%{_c::2}%"
+    if {_c::1} is "terr":
+        return "%za_terr_nom({_c::2})% (%za_terr_fac({_c::2})%)"
+    if {_c::1} is "labo":
+        return "Laboratoire scellé n°%{_c::2}%"
+    if {_c::1} is "tmort":
+        return "Territoire d'un Alpha"
+    if {_c::1} is "zm":
+        return "Zone morte"
+    if {_c::1} is "quartier":
+        return "Saint-Aurèle — %za_reseau_nom({_c::2})%"
+    return {_k}
+
+# ---------------------------------------------------------------- affichage
+
+function za_carte_grille(p: player, taille: number, livre: boolean) :: texts:
+    set {_u} to "%{_p}'s uuid%"
+    set {_l} to location of {_p}
+    set {_cx} to floor((x-coordinate of {_l}) / {_taille})
+    set {_cz} to floor((z-coordinate of {_l}) / {_taille})
+    set {_lg} to 12
+    set {_ht} to 7
+    if {_livre} is true:
+        set {_lg} to 6
+        set {_ht} to 6
+    # découvertes -> cases
+    loop indices of {za::carte::%{_u}%::*}:
+        if loop-value contains ":":
+            set {_k} to loop-value
+            set {_kl} to za_carte_loc({_k})
+            if {_kl} is set:
+                set {_gx} to floor((x-coordinate of {_kl}) / {_taille})
+                set {_gz} to floor((z-coordinate of {_kl}) / {_taille})
+                if abs({_gx} - {_cx}) <= {_lg}:
+                    if abs({_gz} - {_cz}) <= {_ht}:
+                        set {_cell::%{_gx}%_%{_gz}%} to za_carte_couleur(za_carte_cat({_k}))
+    set {_rapport} to {_taille} / {@case}
+    set {_z} to {_cz} - {_ht}
+    while {_z} <= {_cz} + {_ht}:
+        set {_ligne} to ""
+        set {_x} to {_cx} - {_lg}
+        while {_x} <= {_cx} + {_lg}:
+            set {_col} to "&0"
+            if {_x} is {_cx}:
+                if {_z} is {_cz}:
+                    set {_col} to "&f"
+            if {_col} is "&0":
+                if {_cell::%{_x}%_%{_z}%} is set:
+                    set {_col} to {_cell::%{_x}%_%{_z}%}
+                else if {_rapport} is 1:
+                    if {za::carte::%{_u}%::c::%{_x}%_%{_z}%} is set:
+                        set {_col} to "&8"
+                else:
+                    # grande échelle : la case est parcourue si l'une de ses sous-cases l'est
+                    set {_vu} to false
+                    set {_sx} to 0
+                    while {_sx} < {_rapport}:
+                        set {_sz} to 0
+                        while {_sz} < {_rapport}:
+                            if {za::carte::%{_u}%::c::%({_x} * {_rapport}) + {_sx}%_%({_z} * {_rapport}) + {_sz}%} is set:
+                                set {_vu} to true
+                            add 1 to {_sz}
+                        add 1 to {_sx}
+                    if {_vu} is true:
+                        set {_col} to "&8"
+            if {_livre} is true:
+                replace all "&" with "§" in {_col}
+            set {_ligne} to "%{_ligne}%%{_col}%■"
+            add 1 to {_x}
+        add {_ligne} to {_r::*}
+        add 1 to {_z}
+    return {_r::*}
+
+function za_carte_afficher(p: player, taille: number):
+    set {_u} to "%{_p}'s uuid%"
+    send "&6&l🗺 MA CARTE &8(une case = %{_taille}% blocs, le nord en haut)" to {_p}
+    loop za_carte_grille({_p}, {_taille}, false):
+        send loop-value to {_p}
+    send "&f■ toi &8■ parcouru &e■ lieu &a■ refuge &c■ nid &9■ faction &b■ labo &5■ souterrain &4■ danger &7■ ville" to {_p}
+    set {_pc} to round((({za::carte::%{_u}%::ncases} ? 0) / 24414) * 1000) / 10
+    send "&7Région explorée : &f%{_pc}% %% &8· /macarte liste · /macarte livre · /macarte large" to {_p}
+
+function za_carte_liste(p: player, cat: text):
+    set {_u} to "%{_p}'s uuid%"
+    loop indices of {za::carte::%{_u}%::*}:
+        if loop-value contains ":":
+            set {_c} to za_carte_cat(loop-value)
+            add 1 to {_n::%{_c}%}
+            if {_cat} is "" or {_c}:
+                add loop-value to {_k::%{_c}%::*}
+    send "&6&l🗺 CE QUE TU CONNAIS" to {_p}
+    loop "quartiers", "lieux", "refuges", "nids", "factions", "laboratoires", "souterrains" and "dangers":
+        set {_c} to loop-value-1
+        send "%za_carte_couleur({_c})%%za_carte_cat_nom({_c})% &8(%{_n::%{_c}%} ? 0%)" to {_p}
+        if {_cat} is {_c}:
+            loop {_k::%{_c}%::*}:
+                set {_kl} to za_carte_loc(loop-value-2)
+                set {_pos} to "?"
+                if {_kl} is set:
+                    set {_pos} to "X %floor(x-coordinate of {_kl})%, Z %floor(z-coordinate of {_kl})%"
+                send "&8  · &f%za_carte_nom(loop-value-2)% &7(%{_pos}%)" to {_p}
+    if {_cat} is "":
+        send "&8/macarte liste <quartiers|lieux|refuges|nids|factions|laboratoires|souterrains|dangers>" to {_p}
+
+function za_carte_livre(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_j} to {za::serveur::jours} ? 0
+    set {_pc} to round((({za::carte::%{_u}%::ncases} ? 0) / 24414) * 1000) / 10
+    loop indices of {za::carte::%{_u}%::*}:
+        if loop-value contains ":":
+            set {_c} to za_carte_cat(loop-value)
+            add 1 to {_n::%{_c}%}
+            add loop-value to {_k::%{_c}%::*}
+    set {_p1} to "§6§lCARTE DE %{_p}%§r\\n§8jour %{_j}%\\n\\n§0Région explorée : %{_pc}% %%\\n"
+    loop "quartiers", "lieux", "refuges", "nids", "factions", "laboratoires", "souterrains" and "dangers":
+        set {_p1} to "%{_p1}%\\n§0%za_carte_cat_nom(loop-value)% : %{_n::%loop-value%} ? 0%"
+    add {_p1} to {_pages::*}
+    # la carte autour de toi
+    set {_g} to "§0Autour de toi :\\n"
+    loop za_carte_grille({_p}, 256, true):
+        set {_g} to "%{_g}%%loop-value%\\n"
+    set {_g} to "%{_g}%§0(une case = 256 blocs)"
+    add {_g} to {_pages::*}
+    # les listes
+    loop "quartiers", "lieux", "refuges", "nids", "factions", "laboratoires", "souterrains" and "dangers":
+        set {_c} to loop-value-1
+        set {_pg} to "§l%za_carte_cat_nom({_c})%§r"
+        set {_i} to 0
+        loop {_k::%{_c}%::*}:
+            set {_kl} to za_carte_loc(loop-value-2)
+            set {_pos} to ""
+            if {_kl} is set:
+                set {_pos} to " §8%floor(x-coordinate of {_kl})% %floor(z-coordinate of {_kl})%§0"
+            set {_pg} to "%{_pg}%\\n%za_carte_nom(loop-value-2)%%{_pos}%"
+            add 1 to {_i}
+            if {_i} >= 7:
+                add {_pg} to {_pages::*}
+                set {_pg} to "§l%za_carte_cat_nom({_c})% (suite)§r"
+                set {_i} to 0
+        if {_i} > 0:
+            add {_pg} to {_pages::*}
+    set {_all} to ""
+    loop {_pages::*}:
+        set {_t} to loop-value
+        replace all "'" with "’" in {_t}
+        replace all """" with "’" in {_t}
+        if {_all} is not "":
+            set {_all} to "%{_all}%,"
+        set {_all} to "%{_all}%'{""text"":""%{_t}%""}'"
+    execute console command "give %{_p}% written_book{title:""Carte de %{_p}%"",author:""%{_p}%, jour %{_j}%"",pages:[%{_all}%]}"
+    send "&6Ta carte, recopiée au crayon dans un carnet. &7Un jour, quelqu'un la trouvera peut-être." to {_p}
+
+command /macarte [<text>] [<text>]:
+    aliases: /ma-carte
+    trigger:
+        if za_pro(player) is true:
+            stop
+        if arg-1 is "large":
+            za_carte_afficher(player, 256)
+        else if arg-1 is "liste":
+            za_carte_liste(player, arg-2 ? "")
+        else if arg-1 is "livre":
+            za_carte_livre(player)
+        else:
+            za_carte_afficher(player, {@case})

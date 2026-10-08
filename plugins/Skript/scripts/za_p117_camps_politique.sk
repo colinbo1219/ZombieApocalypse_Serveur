@@ -1,0 +1,228 @@
+# za_p117_camps_politique.sk — conflits et quarantaine dans les camps (bible v2, points 90, 95)
+#  * CONFLITS (90) : chaque jour, un camp qui va mal (faim, peur, maladie) peut se déchirer : vol de nourriture,
+#    infecté soupçonné, chef contesté, quelqu'un qui veut partir, carburant gardé pour la radio. Le chef appelle les
+#    joueurs proches ; « Arbitrer une dispute » dans son menu. Chaque choix a un prix (moral, confiance, population).
+#    Laissé sans réponse deux jours : scission, départs ou violence. Chef contesté : une élection (nouveau chef).
+#  * QUARANTAINE (95) : à l'entrée d'un camp, on teste les arrivants avec un kit qui peut se tromper. Infecté (ou faux
+#    positif) : refusé, isolé 10 minutes. Un « Certificat de sante » (Trafiquant) fait passer... si le chien ne
+#    grogne pas. Un faux certificat découvert coûte cher en confiance.
+#  Variables : {za::cpol::<camp>::*}, {za::cpol::q::<camp>::<uuid>}
+
+# ---------------------------------------------------------------- conflits (90)
+
+function za_cpol_texte(t: text) :: text:
+    if {_t} is "vol":
+        return "Quelqu'un vole dans la réserve de nourriture. On a un suspect : le jeune Mathis. Il jure que non."
+    if {_t} is "soupcon":
+        return "Madame Roy tousse depuis trois jours. La moitié du camp veut l'enfermer. L'autre moitié veut me pendre si on le fait."
+    if {_t} is "chef":
+        return "Ils disent que je mène le camp à sa perte. Ils veulent un vote. Peut-être qu'ils ont raison."
+    if {_t} is "depart":
+        return "Le groupe de Gilles veut partir avec une part des vivres. Seuls, dehors, ils ne tiendront pas une semaine."
+    return "Il reste un bidon d'essence. La génératrice de la radio, ou le chauffage de l'infirmerie. On ne peut pas avoir les deux."
+
+function za_cpol_jour():
+    loop {za::camp::liste::*}:
+        set {_id} to loop-value
+        if {za::camp::%{_id}%::etat} is "vivant":
+            if {za::cpol::%{_id}%::conflit} is set:
+                if ({za::serveur::jours} ? 0) - ({za::cpol::%{_id}%::depuis} ? 0) >= 2:
+                    za_cpol_pourrit({_id})
+            else:
+                set {_ch} to 8
+                if {za::camp::%{_id}%::moral} < 40:
+                    add 15 to {_ch}
+                if {za::camp::%{_id}%::nourriture} < 25:
+                    add 10 to {_ch}
+                if {za::camp::%{_id}%::contam} > 40:
+                    add 10 to {_ch}
+                if chance of {_ch}%:
+                    set {_t} to random element out of "vol", "soupcon", "chef", "depart" and "radio"
+                    set {za::cpol::%{_id}%::conflit} to {_t}
+                    set {za::cpol::%{_id}%::depuis} to {za::serveur::jours} ? 0
+                    za_journal("Dispute au %{za::camp::%{_id}%::nom}%.")
+                    loop za_monde_joueurs():
+                        if world of loop-value-2 is world of {za::camp::%{_id}%::loc}:
+                            if distance between loop-value-2 and {za::camp::%{_id}%::loc} < 120:
+                                send "&e%{za::camp::%{_id}%::chef}% &8» &f« On a un problème, au camp. Viens me voir. » &8(Arbitrer une dispute)" to loop-value-2
+
+every 1 minute:
+    if {za::cpol::jour} is not ({za::serveur::jours} ? 0):
+        set {za::cpol::jour} to {za::serveur::jours} ? 0
+        za_cpol_jour()
+
+# laissé sans réponse : la dispute pourrit
+function za_cpol_pourrit(id: number):
+    set {_t} to {za::cpol::%{_id}%::conflit}
+    set {_nom} to {za::camp::%{_id}%::nom}
+    delete {za::cpol::%{_id}%::*}
+    if {_t} is "depart" or "chef":
+        set {_n} to random integer between 2 and 4
+        za_cmp_pop_ajouter({_id}, 0 - {_n})
+        za_cmp_champ({_id}, "moral", -10)
+        za_journal("Scission au %{_nom}% : %{_n}% personnes sont parties dans la nuit.")
+        za_radio("&bLéa", "On me dit qu'au %{_nom}%, un groupe est parti. Personne n'a voulu trancher. C'est comme ça que les camps meurent.")
+    else if {_t} is "vol" or "soupcon":
+        za_cmp_pop_ajouter({_id}, -1)
+        za_cmp_champ({_id}, "securite", -10)
+        za_cmp_champ({_id}, "moral", -8)
+        za_journal("Violence au %{_nom}% : la dispute a mal fini.")
+    else:
+        za_cmp_champ({_id}, "moral", -6)
+        za_cmp_champ({_id}, "contam", 5)
+    za_cmp_panneau({_id})
+
+# dans le menu du chef (za_p44) : la dispute du jour
+function za_cpol_menu(p: player, id: number):
+    set {_t} to {za::cpol::%{_id}%::conflit}
+    if {_t} is not set:
+        send "&7Pas de dispute en ce moment. Pour une fois." to {_p}
+        stop
+    if {_t} is "vol":
+        set {_o::*} to "Le chasser du camp|arb_chasser", "Lui donner une seconde chance|arb_pardon" and "Enquêter d'abord (10 jetons)|arb_enquete"
+    else if {_t} is "soupcon":
+        set {_o::*} to "L'isoler en quarantaine|arb_isoler", "La tester (Kit de depistage)|arb_tester" and "La laisser tranquille|arb_laisser"
+    else if {_t} is "chef":
+        set {_o::*} to "Soutenir le chef|arb_soutenir" and "Organiser une élection|arb_election"
+    else if {_t} is "depart":
+        set {_o::*} to "Les laisser partir avec des vivres|arb_partir", "Les convaincre de rester|arb_rester" and "Leur interdire de partir|arb_interdire"
+    else:
+        set {_o::*} to "La radio : on garde le contact|arb_radio" and "L'infirmerie : on garde les malades au chaud|arb_infirmerie"
+    za_menu({_p}, "zacampclic", "Une dispute", za_cpol_texte({_t}), {_o::*})
+
+function za_cpol_arbitrer(p: player, id: number, n: text):
+    set {_u} to "%{_p}'s uuid%"
+    set {_t} to {za::cpol::%{_id}%::conflit}
+    if {_t} is not set:
+        stop
+    set {_chef} to {za::camp::%{_id}%::chef}
+    set {_fin} to true
+    if {_n} is "arb_chasser":
+        za_cmp_pop_ajouter({_id}, -1)
+        za_cmp_champ({_id}, "nourriture", 5)
+        za_cmp_champ({_id}, "moral", -3)
+        send "&7Mathis part, sans un mot. &8Les vols s'arrêtent. Ou pas : on ne saura jamais si c'était lui." to {_p}
+    else if {_n} is "arb_pardon":
+        za_cmp_champ({_id}, "moral", 3)
+        if chance of 50%:
+            za_cmp_champ({_id}, "nourriture", -8)
+            send "&7Tu lui laisses une chance. &cDeux nuits plus tard, la réserve est encore plus légère." to {_p}
+        else:
+            za_cmp_conf_ajouter({_u}, {_id}, 5)
+            send "&7Tu lui laisses une chance. &aIl la saisit. Il est de garde chaque nuit depuis." to {_p}
+    else if {_n} is "arb_enquete":
+        if za_jetons({_p}) < 10:
+            send "&cIl faut 10 jetons (pour délier les langues)." to {_p}
+            stop
+        za_jetons_ajouter({_p}, -10)
+        za_cmp_conf_ajouter({_u}, {_id}, 8)
+        za_cmp_champ({_id}, "moral", 5)
+        send "&7Tu poses des questions, tu paies des cafés. &aCe n'était pas Mathis : un rat dans la réserve. On bouche le trou." to {_p}
+    else if {_n} is "arb_isoler":
+        za_cmp_champ({_id}, "contam", -8)
+        za_cmp_champ({_id}, "moral", -4)
+        send "&7Madame Roy dort dans la cabane du fond, seule. &8Le camp respire mieux. Elle, beaucoup moins." to {_p}
+    else if {_n} is "arb_tester":
+        if za_take_named({_p}, "Kit de depistage", 1) is false:
+            send "&7Il te faut un Kit de depistage (médecin)." to {_p}
+            stop
+        if chance of 40%:
+            za_cmp_champ({_id}, "contam", -10)
+            send "&cPositif. &7Elle le savait. Elle demande seulement qu'on reste avec elle jusqu'au bout." to {_p}
+        else:
+            za_cmp_champ({_id}, "moral", 6)
+            za_cmp_conf_ajouter({_u}, {_id}, 6)
+            send "&aNégatif. &7Une bronchite. Le camp a honte, un peu. Madame Roy te serre la main longtemps." to {_p}
+    else if {_n} is "arb_laisser":
+        za_cmp_champ({_id}, "moral", 2)
+        if chance of 40%:
+            za_cmp_champ({_id}, "contam", 15)
+            send "&7Tu laisses faire. &cUne semaine plus tard, trois autres toussent." to {_p}
+        else:
+            send "&7Tu laisses faire. &8Ce n'était rien, cette fois." to {_p}
+    else if {_n} is "arb_soutenir":
+        za_cmp_champ({_id}, "moral", -3)
+        za_cmp_champ({_id}, "securite", 3)
+        za_cmp_conf_ajouter({_u}, {_id}, 4)
+        send "&e%{_chef}% &8» &f« Merci. Je ne l'oublierai pas. » &7Les mécontents se taisent. Pour l'instant." to {_p}
+    else if {_n} is "arb_election":
+        set {_nouv} to "Chef %za_surv_famille()%"
+        set {za::camp::%{_id}%::chef} to {_nouv}
+        za_cmp_champ({_id}, "moral", 8)
+        za_cmp_conf_ajouter({_u}, {_id}, 6)
+        za_cmp_purge_pnj({_id})
+        za_cmp_npcs({_id})
+        za_journal("Élection au %{za::camp::%{_id}%::nom}% : %{_nouv}% mène le camp.")
+        send "&aOn vote à main levée, autour du feu. &f%{_nouv}% &7mène le camp désormais. &8(L'ancien chef reste. Il garde ses rancunes.)" to {_p}
+    else if {_n} is "arb_partir":
+        za_cmp_pop_ajouter({_id}, -3)
+        za_cmp_champ({_id}, "nourriture", -10)
+        za_cmp_champ({_id}, "moral", 4)
+        send "&7Ils partent à l'aube, avec des sacs pleins. &8On ne se dit pas adieu." to {_p}
+    else if {_n} is "arb_rester":
+        if chance of 60%:
+            za_cmp_champ({_id}, "moral", 5)
+            za_cmp_conf_ajouter({_u}, {_id}, 5)
+            send "&aTu parles longtemps. &7Gilles reste. Les autres aussi." to {_p}
+        else:
+            set {_fin} to false
+            send "&7Ils t'écoutent poliment. &8Ils n'ont pas changé d'avis. (Il faudra trancher.)" to {_p}
+    else if {_n} is "arb_interdire":
+        za_cmp_champ({_id}, "moral", -8)
+        za_cmp_champ({_id}, "securite", 4)
+        send "&7Les portes restent fermées. &cOn te regarde autrement, maintenant." to {_p}
+    else if {_n} is "arb_radio":
+        za_cmp_champ({_id}, "securite", 4)
+        za_cmp_champ({_id}, "contam", 4)
+        send "&7La radio grésille toute la nuit. &8Léa répond. Dans l'infirmerie, on a froid." to {_p}
+    else if {_n} is "arb_infirmerie":
+        za_cmp_champ({_id}, "contam", -6)
+        za_cmp_champ({_id}, "securite", -3)
+        send "&7Le poêle de l'infirmerie ronronne. &8La radio se tait. On n'entend plus le monde." to {_p}
+    if {_fin} is true:
+        delete {za::cpol::%{_id}%::*}
+        za_cmp_panneau({_id})
+
+# ---------------------------------------------------------------- quarantaine à l'entrée (95)
+
+# appelée au début du menu du chef : true = le joueur est refusé
+function za_cpol_refuse(p: player, id: number) :: boolean:
+    set {_u} to "%{_p}'s uuid%"
+    set {_now} to unix timestamp of now
+    if ({za::cpol::q::%{_id}%::%{_u}%} ? 0) > {_now}:
+        send "&c« Reste derrière la ligne. Tu es en quarantaine. » &8(encore %ceil(({za::cpol::q::%{_id}%::%{_u}%} - {_now}) / 60)% min)" to {_p}
+        return true
+    # un test toutes les 30 minutes
+    if ({za::cpol::t::%{_id}%::%{_u}%} ? 0) > {_now} - 1800:
+        return false
+    set {za::cpol::t::%{_id}%::%{_u}%} to {_now}
+    set {_inf} to false
+    if {za::infection::%{_u}%} is set:
+        set {_inf} to true
+    set {_pos} to false
+    if {_inf} is true:
+        if chance of 80%:
+            set {_pos} to true
+    else if chance of 8%:
+        set {_pos} to true
+    # le certificat : un papier remplace le test... sauf si le chien grogne
+    if za_count_named({_p}, "Certificat de sante") > 0:
+        if {_inf} is true:
+            if chance of 50%:
+                send "&8Le chien du camp grogne en te fixant. Le garde reprend ton certificat, le regarde à la lumière. &c« C'est un faux. »" to {_p}
+                za_take_named({_p}, "Certificat de sante", 1)
+                za_cmp_conf_ajouter({_u}, {_id}, -15)
+                set {za::cpol::q::%{_id}%::%{_u}%} to {_now} + 600
+                return true
+        send "&7Tu montres ton certificat. Le garde hoche la tête. &8« Entre. »" to {_p}
+        return false
+    send "&8Un garde te tend un coton-tige. « Contrôle. Tout le monde y passe. »" to {_p}
+    if {_pos} is true:
+        set {za::cpol::q::%{_id}%::%{_u}%} to {_now} + 600
+        if {_inf} is true:
+            send "&cLe test vire au rouge. &7« Désolé. Pas ici. » &8(Quarantaine 10 min. Soigne-toi : Antidote, Sérum.)" to {_p}
+        else:
+            send "&cLe test vire au rouge. &7Tu n'as rien, tu le sais. Eux ne le savent pas. &8(Faux positif : quarantaine 10 min.)" to {_p}
+        return true
+    send "&aNégatif. &7« Bienvenue. »" to {_p}
+    return false

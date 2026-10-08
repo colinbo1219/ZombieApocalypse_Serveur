@@ -306,23 +306,7 @@ function za_bless_attelle(cible: player) :: text:
         return "grave"
     return "rien"
 
-on right click with paper with priority lowest:
-    if za_pro(player) is true:
-        stop
-    if uncolored name of player's tool is not "Bandage":
-        stop
-    set {_p} to player
-    if za_bless_niveau({_p}'s uuid, "torse") <= 0:
-        stop
-    set {_avant} to item amount of {_p}'s tool
-    wait 2 ticks
-    set {_apres} to 0
-    if uncolored name of {_p}'s tool is "Bandage":
-        set {_apres} to item amount of {_p}'s tool
-    if {_apres} >= {_avant}:
-        # l'autre gestionnaire n'a rien consommé (vie pleine) : on prend le bandage nous-mêmes
-        remove 1 of {_p}'s tool from {_p}'s inventory
-    set {_ok} to za_bless_bandage({_p})
+# le bandage du torse est traité par le gestionnaire unique de za_infection.sk (audit M2)
 
 on right click with stick:
     if za_pro(player) is true:

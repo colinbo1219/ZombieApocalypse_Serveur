@@ -1,0 +1,163 @@
+# =====================================================================
+#  ZombieApocalypse - COURS DU MARCHÉ : les prix bougent avec le monde (MISSION §37)
+#  Aucune nouvelle monnaie : ce sont les jetons. Chaque catégorie a un cours (0,70 à 1,80) qui multiplie le prix des
+#  marchands nomades (za_p7, via za_prix_marchand : affichage ET achat).
+#    catégories : vivres, medicaments, munitions, armes, carburant, materiaux
+#  Ce qui fait bouger les cours (recalculés chaque jour de serveur, et toutes les 5 min pour les événements) :
+#    * les stocks des factions (za_p67) : pénurie globale = hausse, abondance = baisse
+#    * une horde en cours ou une lune de sang : munitions et armes flambent
+#    * une catastrophe (za_p55) : vivres et carburant montent
+#    * pas de courant nulle part (centrale arrêtée, aucun quartier alimenté) : carburant +25 %%
+#    * pénurie des marchands (za_p7) : tout monte déjà via {za::eco::mult}, on n'y touche pas
+#    * pénurie régionale : un camp qui a faim (vivres < 20) fait monter les vivres
+#  Joueur : /cours · Admin : /zacours <etat|calculer|set <catégorie> <facteur>>
+# =====================================================================
+
+function za_cours_cats() :: texts:
+    return "vivres", "medicaments", "munitions", "armes", "carburant" and "materiaux"
+
+function za_cours_nom(c: text) :: text:
+    if {_c} is "medicaments":
+        return "Médicaments"
+    if {_c} is "materiaux":
+        return "Matériaux"
+    if {_c} is "vivres":
+        return "Vivres"
+    if {_c} is "munitions":
+        return "Munitions"
+    if {_c} is "armes":
+        return "Armes"
+    return "Carburant"
+
+# catégorie d'une offre de marchand d'après son nom ("" = hors cours)
+function za_cours_categorie(nom: text) :: text:
+    set {_n} to {_nom} in lowercase
+    if {_n} contains "munition" or "cartouche" or "fleche":
+        return "munitions"
+    if {_n} contains "bandage" or "antidote" or "serum" or "antibio" or "masque" or "attelle":
+        return "medicaments"
+    if {_n} contains "pain" or "viande" or "pomme" or "eau " or "eau purifi" or "gourde" or "conserve" or "ration":
+        return "vivres"
+    if {_n} contains "essence" or "carburant" or "generateur" or "briquet":
+        return "carburant"
+    if {_n} contains "glock" or "eagle" or "uzi" or "fusil" or "ak-47" or "arc " or "arbalete" or "epee" or "hache" or "explosif" or "silencieux" or "lunette" or "chargeur" or "bouclier":
+        return "armes"
+    if {_n} contains "composant" or "piege" or "mine" or "tourelle" or "plaque" or "purificateur" or "thermometre" or "boussole":
+        return "materiaux"
+    return ""
+
+function za_cours(c: text) :: number:
+    return {za::cours::%{_c}%} ? 1
+
+function za_cours_facteur(nom: text) :: number:
+    set {_c} to za_cours_categorie({_nom})
+    if {_c} is "":
+        return 1
+    return za_cours({_c})
+
+# ressource des factions correspondant à une catégorie
+function za_cours_ressource(c: text) :: text:
+    if {_c} is "armes":
+        return "munitions"
+    if {_c} is "materiaux":
+        return "energie"
+    return {_c}
+
+function za_cours_cible(c: text) :: number:
+    set {_t} to 1
+    # stocks des factions
+    set {_r} to za_cours_ressource({_c})
+    set {_s} to 0
+    loop za_diplo_facs():
+        add ({za::facres::%loop-value%::%{_r}%} ? 0) to {_s}
+    if {_s} < 20:
+        add 0.25 to {_t}
+    else if {_s} > 120:
+        remove 0.15 from {_t}
+    # événements
+    if {za::horde::actif} is true:
+        if {_c} is "munitions":
+            add 0.3 to {_t}
+        else if {_c} is "armes":
+            add 0.15 to {_t}
+    if {za::evt::bloodmoon} is true:
+        if {_c} is "munitions" or "armes":
+            add 0.2 to {_t}
+    if {za::cata::type} is set:
+        if {_c} is "vivres" or "carburant":
+            add 0.2 to {_t}
+    # blocus d'une faction sur la route (ZAMoteur, IA-10) : la ressource se fait rare
+    if {za::mot::blocus::%{_r}%} is "1":
+        add 0.3 to {_t}
+    if {_c} is "carburant":
+        if za_courant() is false:
+            set {_q} to false
+            loop za_reseau_quartiers():
+                if za_reseau_actif(loop-value) is true:
+                    set {_q} to true
+            if {_q} is false:
+                add 0.25 to {_t}
+    # pénurie régionale : camps affamés
+    if {_c} is "vivres":
+        loop {za::camp::liste::*}:
+            if {za::camp::%loop-value%::etat} is "vivant":
+                if ({za::camp::%loop-value%::nourriture} ? 50) < 20:
+                    add 0.08 to {_t}
+    return max(0.7, min(1.8, {_t}))
+
+function za_cours_calculer(jour: boolean):
+    loop za_cours_cats():
+        set {_c} to loop-value
+        set {_old} to za_cours({_c})
+        set {_cible} to za_cours_cible({_c})
+        if {_jour} is true:
+            add (random number between -0.08 and 0.08) to {_cible}
+            set {_new} to {_old} + (({_cible} - {_old}) * 0.5)
+        else:
+            set {_new} to {_old} + (({_cible} - {_old}) * 0.2)
+        set {_new} to max(0.7, min(1.8, round({_new} * 100) / 100))
+        set {za::cours::%{_c}%} to {_new}
+        if {_old} < 1.3:
+            if {_new} >= 1.3:
+                za_radio("&6CKZA", "%za_cours_nom({_c})% : les prix s'envolent chez les marchands (x%{_new}%). Si vous en avez, c'est le moment de vendre au Marché.")
+                za_journal("Hausse des prix : %za_cours_nom({_c})% x%{_new}%.")
+        if {_old} > 0.85:
+            if {_new} <= 0.85:
+                za_radio("&6CKZA", "%za_cours_nom({_c})% : les marchands en ont plein leurs caisses. Les prix baissent (x%{_new}%).")
+
+every 60 seconds:
+    if {za::cours::jour} is not {za::serveur::jours}:
+        set {za::cours::jour} to {za::serveur::jours}
+        za_cours_calculer(true)
+
+every 5 minutes:
+    za_cours_calculer(false)
+
+command /cours:
+    trigger:
+        send "&6&lCOURS DU MARCHÉ &8— &7prix des marchands nomades (1,00 = normal)" to sender
+        loop za_cours_cats():
+            set {_v} to za_cours(loop-value)
+            set {_col} to "&f"
+            if {_v} >= 1.3:
+                set {_col} to "&c"
+            else if {_v} > 1.05:
+                set {_col} to "&e"
+            else if {_v} < 0.95:
+                set {_col} to "&a"
+            send "&7%za_cours_nom(loop-value)% : %{_col}%x%{_v}%" to sender
+        send "&8Les hordes, les catastrophes, le courant et les stocks des factions font bouger les prix. Le Marché entre joueurs (/marche) suit ses propres ventes." to sender
+
+command /zacours [<text>] [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "calculer":
+            za_cours_calculer(true)
+            send "Cours recalculés." to sender
+        else if arg-1 is "set":
+            set {za::cours::%arg-2%} to arg-3 parsed as number
+            send "Cours %arg-2% = %arg-3%" to sender
+        else:
+            loop za_cours_cats():
+                send "%loop-value% : %za_cours(loop-value)% (cible %za_cours_cible(loop-value)%)" to sender
+            send "/zacours etat | calculer | set <catégorie> <facteur>" to sender

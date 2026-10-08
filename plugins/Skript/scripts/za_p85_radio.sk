@@ -1,0 +1,199 @@
+# =====================================================================
+#  ZombieApocalypse - LES FRÉQUENCES CACHÉES et LE SILENCE RADIO
+#  FRÉQUENCES : 98.5 CKZA (Léa) est connue de tous. Les autres se trouvent : gravées sous la radio des refuges
+#  (za_p84), dans les souterrains (bunker Bravo : 104.2, NORDA -2 : 88.3, tunnels : 73.6). /frequence <valeur> pour
+#  écouter (une à la fois) ; toutes les 3 minutes, la fréquence écoutée transmet :
+#    104.2 Milice       — vraie information : un convoi ou un carambolage à fouiller (coordonnées exactes)
+#    88.3 Scientifiques — fragments du programme Z-01 (vrai ? faux ? personne ne sait)
+#    101.1 « Zone sûre » — MENSONGE : les coordonnées mènent à un guet-apens de pillards
+#    73.6 Inconnue      — PIÈGE : « des survivants demandent de l'aide » ; là-bas, il n'y a que des morts
+#    91.7 Musique       — de vieilles chansons ; ça calme (stress, za_p86)
+#  SILENCE RADIO : dans les souterrains, les zones mortes et le campus de NORDA, plus rien ne passe (radio, téléphone,
+#  alertes). En sortant : « 📶 Signal retrouvé — N messages reçus ».
+#  API : za_sans_signal(joueur) :: boolean · za_radio_decouvrir(joueur, fréquence) · za_radio_freqs_cachees() :: texts
+#  Joueur : /frequence [valeur|off|liste]   Admin : /zafreq <joueur> tout | reset
+# =====================================================================
+
+options:
+    periode: 3 minutes
+
+function za_radio_freqs_cachees() :: texts:
+    return "104.2", "88.3", "101.1", "73.6" and "91.7"
+
+function za_radio_nom(f: text) :: text:
+    if {_f} is "98.5":
+        return "CKZA — Léa"
+    if {_f} is "104.2":
+        return "Milice"
+    if {_f} is "88.3":
+        return "Scientifiques"
+    if {_f} is "101.1":
+        return "« Zone sûre »"
+    if {_f} is "73.6":
+        return "Fréquence inconnue"
+    if {_f} is "91.7":
+        return "Musique"
+    # stations des joueurs (za_p107)
+    if {za::station::%{_f}%::nom} is set:
+        return {za::station::%{_f}%::nom}
+    return "Souffle"
+
+# ---------------------------------------------------------------- silence radio
+
+function za_sans_signal(p: player) :: boolean:
+    if za_pro({_p}) is true:
+        return false
+    set {_l} to location of {_p}
+    if za_zone_morte({_l}) is true:
+        return true
+    set {_k} to za_site_ici({_l})
+    if {_k} is not "":
+        if {za::site::d::%{_k}%::type} starts with "sous_":
+            return true
+        if {_k} is "norda":
+            return true
+    return false
+
+function za_radio_decouvrir(p: player, f: text):
+    set {_u} to "%{_p}'s uuid%"
+    if {za::freq::connue::%{_u}%::%{_f}%} is set:
+        stop
+    set {za::freq::connue::%{_u}%::%{_f}%} to true
+    send "&3📻 Nouvelle fréquence notée : &b%{_f}% &8(%za_radio_nom({_f})%) &7— /frequence %{_f}%" to {_p}
+    za_souvenir_ajouter({_u}, "freq:%{_f}%", "decouverte", "Trouvé la fréquence %{_f}%.")
+
+every 5 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        set {_u} to "%{_p}'s uuid%"
+        set {_s} to za_sans_signal({_p})
+        if {_s} is true:
+            if {za::silence::dans::%{_u}%} is not set:
+                set {za::silence::dans::%{_u}%} to true
+                set {za::silence::manques::%{_u}%} to 0
+                send action bar "&8📻 SIGNAL PERDU" to {_p}
+                za_zm("son %{_p}% za_modeles:sfx.radio_statique 0.6 0.6")
+            # découvertes des souterrains
+            set {_k} to za_site_ici(location of {_p})
+            if {_k} is "bunker_bravo":
+                za_radio_decouvrir({_p}, "104.2")
+            else if {_k} is "norda_sous_sol":
+                za_radio_decouvrir({_p}, "88.3")
+            else if {_k} is "tunnels_sa":
+                za_radio_decouvrir({_p}, "73.6")
+        else if {za::silence::dans::%{_u}%} is set:
+            delete {za::silence::dans::%{_u}%}
+            set {_n} to ({za::silence::manques::%{_u}%} ? 0) + ({za::tel::nonlu::%{_u}%} ? 0)
+            if {_n} > 0:
+                send title "" with subtitle "&a📶 Signal retrouvé &7— %{_n}% message(s) reçu(s)" to {_p} for 3 seconds
+                za_zm("son %{_p}% za_modeles:sfx.texto 1 1")
+                if ({za::tel::nonlu::%{_u}%} ? 0) > 0:
+                    send "&8Ton cellulaire vibre sans arrêt. &7/telephone" to {_p}
+            else:
+                send action bar "&a📶 Signal retrouvé" to {_p}
+        # un piège radio atteint (73.6 / 101.1)
+        if {za::freq::piege::%{_u}%} is set:
+            set {_t} to {za::freq::piege::%{_u}%}
+            if world of {_t} is world of {_p}:
+                if distance between {_t} and {_p} < 14:
+                    delete {za::freq::piege::%{_u}%}
+                    if {za::freq::piege_type::%{_u}%} is "pillards":
+                        loop 3 times:
+                            za_spawn_at({_t}, "ZA_Pillard", 6, 14)
+                        send "&cDes silhouettes armées sortent des arbres. « Merci d'être venu. Pose ton sac. »" to {_p}
+                    else:
+                        loop 7 times:
+                            za_spawn_at({_t}, "ZA_Shambler", 4, 12)
+                        send "&8Il n'y avait personne. Juste eux. Et la radio, par terre, qui répète le même message en boucle." to {_p}
+                    za_zm("son %{_p}% za_modeles:sfx.horde_grondement 0.8 0.8")
+
+# ---------------------------------------------------------------- émissions
+
+function za_freq_emettre(p: player, f: text):
+    set {_u} to "%{_p}'s uuid%"
+    if za_sans_signal({_p}) is true:
+        stop
+    set {_l} to location of {_p}
+    if {_f} is "104.2":
+        # une vraie cible : épave ou convoi du monde généré
+        loop za_sites_donnees():
+            set {_c::*} to split loop-value at "|"
+            if {_c::2} is "convoi" or "carambolage" or "exode":
+                add "%{_c::3}%|%{_c::4}%|%{_c::6}%" to {_cibles::*}
+        if size of {_cibles::*} > 0:
+            set {_c::*} to split (random element out of {_cibles::*}) at "|"
+            send "&8[&2📻 104.2 Milice&8] &7« À toutes les patrouilles : %{_c::1}%, X %{_c::2}% Z %{_c::3}%. Caisses encore scellées. Premier arrivé. »" to {_p}
+        else:
+            send "&8[&2📻 104.2 Milice&8] &7« Ici la milice. Couvre-feu maintenu. Tirez sur tout ce qui ne répond pas. »" to {_p}
+    else if {_f} is "88.3":
+        set {_m} to random element out of "« ... échantillon Z-01, lot 7. Réplication stable à quatre degrés. Ne pas congeler... »", "« Le docteur Arel avait raison. Le virus ne tue pas. Il réécrit. »", "« Niveau moins deux : les sujets répondent aux sons. Coupez les alarmes. »", "« Il existe un vaccin. Il a fonctionné une fois. Une seule. »" and "« Si quelqu'un de NORDA m'entend : les données ne doivent pas sortir. »"
+        send "&8[&3📻 88.3 Scientifiques&8] &7%{_m}%" to {_p}
+    else if {_f} is "101.1":
+        set {_t} to za_point_loin({_p}, 120, 220)
+        if {_t} is set:
+            set {za::freq::piege::%{_u}%} to {_t}
+            set {za::freq::piege_type::%{_u}%} to "pillards"
+            send "&8[&e📻 101.1&8] &7« Zone sûre. Eau, nourriture, médecin. Venez en X %floor(x-coordinate of {_t})% Z %floor(z-coordinate of {_t})%. Venez seuls, c'est plus sûr. »" to {_p}
+    else if {_f} is "73.6":
+        set {_t} to za_point_loin({_p}, 100, 200)
+        if {_t} is set:
+            set {za::freq::piege::%{_u}%} to {_t}
+            set {za::freq::piege_type::%{_u}%} to "morts"
+            send "&8[&7📻 73.6&8] &7« ...trois... un... six... À l'aide. Nous sommes quatre. X %floor(x-coordinate of {_t})% Z %floor(z-coordinate of {_t})%. Un enfant blessé. Vite. »" to {_p}
+    else if {_f} is "91.7":
+        send "&8[&d📻 91.7&8] &7&o♪ Une vieille chanson française, grésillante. Quelqu'un laisse tourner les disques. ♪" to {_p}
+        execute console command "execute at %{_p}% run playsound minecraft:music_disc.far record %{_p}% ~ ~ ~ 0.5 1"
+        # la musique apaise (za_p86_stress)
+        set {za::freq::musique::%{_u}%} to now
+    else:
+        # une station tenue par un joueur (za_p107)
+        set {_ok} to za_station_emettre({_p}, {_f})
+
+every 3 minutes:
+    loop za_monde_joueurs():
+        set {_u} to "%loop-value's uuid%"
+        set {_f} to {za::freq::ecoute::%{_u}%}
+        if {_f} is set:
+            za_freq_emettre(loop-value, {_f})
+
+command /frequence [<text>]:
+    aliases: /freq
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        set {_a} to arg-1 ? "liste"
+        if {_a} is "liste":
+            send "&3&l━━ FRÉQUENCES ━━" to player
+            send "&b98.5 &7— CKZA, Léa &8(tout le monde)" to player
+            loop za_radio_freqs_cachees():
+                if {za::freq::connue::%{_u}%::%loop-value%} is set:
+                    send "&b%loop-value% &7— %za_radio_nom(loop-value)%" to player
+                else:
+                    send "&8??.? — fréquence inconnue (cherche dans les refuges et les souterrains)" to player
+            if {za::freq::ecoute::%{_u}%} is set:
+                send "&7Tu écoutes : &b%{za::freq::ecoute::%{_u}%}%&7. /frequence off pour couper." to player
+            stop
+        if arg-1 is "off":
+            delete {za::freq::ecoute::%{_u}%}
+            send "&7Radio coupée." to player
+            stop
+        if {za::freq::connue::%{_u}%::%arg-1%} is not set:
+            # CKZA 98.5 (Léa) est connue de tous
+            if arg-1 is not "98.5":
+                send "&8Rien que du souffle sur %arg-1%." to player
+                stop
+        set {za::freq::ecoute::%{_u}%} to arg-1
+        send "&3📻 Tu écoutes le &b%arg-1% &8(%za_radio_nom(arg-1)%)&7. Les émissions arrivent toutes les 3 minutes." to player
+        za_freq_emettre(player, arg-1)
+
+command /zafreq <player> [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-2 is "reset":
+            delete {za::freq::connue::%arg-1's uuid%::*}
+            delete {za::freq::ecoute::%arg-1's uuid%}
+        else:
+            loop za_radio_freqs_cachees():
+                za_radio_decouvrir(arg-1, loop-value)
+        send "&7Fait." to sender

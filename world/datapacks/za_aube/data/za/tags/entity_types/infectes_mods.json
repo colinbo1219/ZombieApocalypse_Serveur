@@ -1,0 +1,77 @@
+{
+ "replace": false,
+ "values": [
+  {
+   "id": "zombie_extreme:crawler",
+   "required": false
+  },
+  {
+   "id": "zombie_extreme:runner",
+   "required": false
+  },
+  {
+   "id": "zombie_extreme:infected",
+   "required": false
+  },
+  {
+   "id": "zombie_extreme:infected_police",
+   "required": false
+  },
+  {
+   "id": "zombie_extreme:infected_military",
+   "required": false
+  },
+  {
+   "id": "zombie_extreme:infected_hazmat",
+   "required": false
+  },
+  {
+   "id": "zombie_extreme:clicker",
+   "required": false
+  },
+  {
+   "id": "zombie_extreme:boomer",
+   "required": false
+  },
+  {
+   "id": "zombie_extreme:inflated",
+   "required": false
+  },
+  {
+   "id": "zombie_extreme:divided",
+   "required": false
+  },
+  {
+   "id": "zombie_extreme:devestated",
+   "required": false
+  },
+  {
+   "id": "zombie_extreme:revived",
+   "required": false
+  },
+  {
+   "id": "zombie_extreme:faceless",
+   "required": false
+  },
+  {
+   "id": "zombie_extreme:goon",
+   "required": false
+  },
+  {
+   "id": "zombie_extreme:parasite",
+   "required": false
+  },
+  {
+   "id": "zombie_extreme:fetus",
+   "required": false
+  },
+  {
+   "id": "zombie_extreme:explosive_infected",
+   "required": false
+  },
+  {
+   "id": "zombie_extreme:night_hunter",
+   "required": false
+  }
+ ]
+}

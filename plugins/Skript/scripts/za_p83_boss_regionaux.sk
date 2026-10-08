@@ -1,0 +1,180 @@
+# =====================================================================
+#  ZombieApocalypse - BOSS RÉGIONAUX : les lieutenants de l'Overlord
+#  Quatre morts qui règnent chacun sur un lieu, une fois par saison (ils reviennent la saison suivante) :
+#    Le Boucher     — parc industriel Laurentien (l'abattoir)       -> Couperet du Boucher
+#    La Matriarche  — hôpital de Saint-Aurèle (dans les ruines)     -> Médaillon de la Matriarche
+#    Le Gardien     — bunker de commandement Bravo (sous la base)   -> Plaque du Gardien
+#    Le Brûlé       — barrage de la Rivière-Blanche (la centrale)   -> Casque fondu du Brûlé
+#  Le boss se RÉVEILLE quand un joueur entre dans son antre (22 blocs) : titre, son, son histoire. Il ne quitte pas son
+#  antre (ramené à 40 blocs). Sa mort : objet légendaire (drop), titre « Tombeur de ... » pour ceux qui étaient là,
+#  souvenir, légende, chronique, radio. Les quatre tombés : Léa annonce que l'Overlord n'a plus de lieutenants.
+#  MythicMobs : Mobs/ZA_BossRegionaux.yml, Skills/ZA_BossRegionaux.yml, Items/ZA_Legendaires.yml. Modèles : za_modeles 1.7.0.
+#  Joueur : /lieutenants    Admin : /zaregboss etat | reveiller <id> | oublier <id>
+# =====================================================================
+
+function za_rb_liste() :: texts:
+    return "boucher", "matriarche", "gardien" and "brule"
+
+function za_rb_nom(id: text) :: text:
+    if {_id} is "boucher":
+        return "Le Boucher"
+    if {_id} is "matriarche":
+        return "La Matriarche"
+    if {_id} is "gardien":
+        return "Le Gardien"
+    return "Le Brûlé"
+
+function za_rb_mob(id: text) :: text:
+    if {_id} is "boucher":
+        return "ZA_Boucher"
+    if {_id} is "matriarche":
+        return "ZA_Matriarche"
+    if {_id} is "gardien":
+        return "ZA_Gardien"
+    return "ZA_Brule"
+
+function za_rb_lieu_nom(id: text) :: text:
+    if {_id} is "boucher":
+        return "l'abattoir du parc industriel"
+    if {_id} is "matriarche":
+        return "l'hôpital de Saint-Aurèle"
+    if {_id} is "gardien":
+        return "le bunker de commandement Bravo"
+    return "le barrage de la Rivière-Blanche"
+
+# antre : lieux du monde généré (za_p73) ou ruines (za_p66) ; rien si le monde n'est pas installé
+function za_rb_antre(id: text) :: location:
+    set {_w} to world("world")
+    if {_id} is "matriarche":
+        return za_ruines_poi("hopital_entree")
+    set {_k} to "parc_industriel"
+    if {_id} is "gardien":
+        set {_k} to "bunker_bravo"
+    else if {_id} is "brule":
+        set {_k} to "barrage"
+    if {za::site::d::%{_k}%::x} is not set:
+        stop
+    set {_x} to {za::site::d::%{_k}%::x}
+    if {_id} is "gardien":
+        # salle de commandement du bunker (souterrains.py : 20 blocs à l'ouest du couloir)
+        set {_x} to {_x} - 20
+    return location({_x} + 0.5, {za::site::d::%{_k}%::y}, {za::site::d::%{_k}%::z} + 0.5, {_w})
+
+function za_rb_histoire(id: text) :: text:
+    if {_id} is "boucher":
+        return "Avant, il découpait la viande pour les épiceries de la région. Au Jour 6, l'armée lui a amené des corps « à entreposer ». Il ne s'est jamais arrêté de travailler."
+    if {_id} is "matriarche":
+        return "Elle cherchait ses cinq enfants dans les couloirs de l'hôpital. Elle les a trouvés. Elle les garde encore."
+    if {_id} is "gardien":
+        return "Adjudant Tremblay, Bravo-1. Ordre reçu le Jour 8 à 4 h 10 : ne plus ouvrir. Il tient toujours la porte."
+    return "Le dernier ouvrier du barrage a voulu relancer les turbines pendant l'incendie. Les turbines ont redémarré. Lui aussi."
+
+function za_rb_vaincu(id: text) :: boolean:
+    if {za::rboss::%{_id}%::tue} is ({za::saison::num} ? 1):
+        return true
+    return false
+
+# un boss de ce type est-il déjà là, près de son antre ?
+function za_rb_present(id: text, l: location) :: boolean:
+    loop all zombies in radius 60 around {_l}:
+        if loop-zombie has scoreboard tag "za_rb_%{_id}%":
+            return true
+    return false
+
+function za_rb_reveiller(id: text, p: player):
+    set {_l} to za_rb_antre({_id})
+    if {_l} is not set:
+        stop
+    execute console command "mm mobs spawn %za_rb_mob({_id})% 1 %world of {_l}%,%x-coordinate of {_l}%,%y-coordinate of {_l}%,%z-coordinate of {_l}%"
+    loop all players in radius 48 around {_l}:
+        if za_pro(loop-player) is false:
+            send title "&4%za_rb_nom({_id})%" with subtitle "&7Tu es entré dans son domaine." to loop-player for 4 seconds
+            za_zm("son %loop-player% za_modeles:sfx.horde_grondement 0.8 0.5")
+            send "&8&o%za_rb_histoire({_id})%" to loop-player
+    za_journal("%za_rb_nom({_id})% s'est réveillé à %za_rb_lieu_nom({_id})%.")
+
+every 5 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value-1
+        if za_pro({_p}) is false:
+            if "%world of {_p}%" is "world":
+                loop za_rb_liste():
+                    set {_id} to loop-value-2
+                    if za_rb_vaincu({_id}) is false:
+                        set {_l} to za_rb_antre({_id})
+                        if {_l} is set:
+                            if distance between {_l} and {_p} < 22:
+                                if za_rb_present({_id}, {_l}) is false:
+                                    za_rb_reveiller({_id}, {_p})
+
+# il ne quitte pas son antre
+every 10 seconds:
+    loop za_rb_liste():
+        set {_l} to za_rb_antre(loop-value)
+        if {_l} is set:
+            if chunk at {_l} is loaded:
+                execute console command "execute in minecraft:overworld positioned %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% as @e[tag=za_rb_%loop-value%] unless entity @s[distance=..40] run tp @s ~ ~ ~"
+
+command /zaregboss <text> [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "mort":
+            set {_id} to arg-2
+            set {_n} to {za::saison::num} ? 1
+            set {za::rboss::%{_id}%::tue} to {_n}
+            add 1 to {za::rboss::%{_id}%::total}
+            set {_l} to za_rb_antre({_id})
+            set {_noms} to ""
+            if {_l} is set:
+                loop all players in radius 40 around {_l}:
+                    if za_pro(loop-player) is false:
+                        set {za::titres::%loop-player's uuid%::rb_%{_id}%} to "Tombeur de %za_rb_nom({_id})%"
+                        give za_plan_fragment() to loop-player
+                        za_souvenir_ajouter("%loop-player's uuid%", "rboss:%{_id}%", "legende", "J'étais là quand %za_rb_nom({_id})% est tombé.")
+                        send title "&6%za_rb_nom({_id})% est tombé" with subtitle "&7Titre : Tombeur de %za_rb_nom({_id})%" to loop-player for 4 seconds
+                        set {_noms} to "%{_noms}% %loop-player%"
+            za_journal("%za_rb_nom({_id})% est tombé à %za_rb_lieu_nom({_id})%. Par :%{_noms}%.")
+            if {_l} is set:
+                za_mot_evt("boss_tue", {_l}, 4, "-", uncolored za_rb_nom({_id}))
+                # une cassette sur le corps (za_p118)
+                drop za_cass_hasard() at {_l}
+            za_monde_legende("Saison %{_n}% : %za_rb_nom({_id})% est tombé à %za_rb_lieu_nom({_id})%.")
+            za_diffuser("&8[Radio] &bLéa &8» &7%za_rb_nom({_id})% ne rôde plus à %za_rb_lieu_nom({_id})%. Merci à ceux qui y sont allés.")
+            # les quatre lieutenants tombés
+            set {_tous} to true
+            loop za_rb_liste():
+                if za_rb_vaincu(loop-value) is false:
+                    set {_tous} to false
+            if {_tous} is true:
+                za_diffuser("&4[Radio] &bLéa &8» &7Les quatre sont tombés. Quelque part, quelque chose de plus grand a senti ses lieutenants mourir.")
+                za_journal("Les quatre lieutenants de l'Overlord sont tombés.")
+        else if arg-1 is "reveiller":
+            if sender is a player:
+                set {_id} to arg-2 ? "boucher"
+                za_rb_reveiller({_id}, player)
+        else if arg-1 is "oublier":
+            set {_id} to arg-2 ? "boucher"
+            delete {za::rboss::%{_id}%::tue}
+            send "&7%{_id}% : réapparaîtra cette saison." to sender
+        else:
+            loop za_rb_liste():
+                set {_l} to za_rb_antre(loop-value)
+                set {_e} to "en vie"
+                if za_rb_vaincu(loop-value) is true:
+                    set {_e} to "vaincu"
+                set {_a} to "(monde non installé)"
+                if {_l} is set:
+                    set {_a} to "%{_l}%"
+                send "&6%za_rb_nom(loop-value)% &7: %{_e}% — antre %{_a}%" to sender
+
+command /lieutenants:
+    aliases: /bossregionaux
+    trigger:
+        if za_pro(player) is true:
+            stop
+        send "&4&l━━ LES LIEUTENANTS DE L'OVERLORD ━━" to player
+        loop za_rb_liste():
+            if za_rb_vaincu(loop-value) is true:
+                send "&8✝ %za_rb_nom(loop-value)% &7— vaincu cette saison (%za_rb_lieu_nom(loop-value)%)" to player
+            else:
+                send "&c☠ %za_rb_nom(loop-value)% &7— rôde à %za_rb_lieu_nom(loop-value)%" to player

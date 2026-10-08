@@ -1,0 +1,103 @@
+# =====================================================================
+#  ZombieApocalypse - LE CIMETIÈRE DES SURVIVANTS (Cimetière de Saint-Aurèle, monde généré)
+#  Chaque mort de joueur grave une vraie tombe, à la rangée suivante (13 x 5 emplacements, moitié sud) :
+#     <Nom> / Saison N / Mort jour J / <épitaphe ou cause>
+#  (Les stèles sur les lieux de mort et la rue des disparus restent gérées par za_p58.)
+#  Clic droit sur la pierre : ce que le monde retient de lui (jours survécus, morts abattus, souvenirs, titres).
+#  /epitaphe <texte> : ce que tu veux qu'on lise sur ta tombe (15 caractères). /cimetiere : où il est, combien de tombes.
+#  Emplacements : generateur_monde/batisse.py (TOMBES_X, TOMBES_Z), relatifs au centre du lieu « cimetiere ».
+# =====================================================================
+
+function za_cim_place(n: number) :: location:
+    if {za::site::d::cimetiere::x} is not set:
+        stop
+    # 13 colonnes (x -18..18 pas 3), 5 rangées (z 3..19 pas 4)
+    set {_i} to mod({_n} - 1, 13)
+    set {_r} to floor(({_n} - 1) / 13)
+    if {_r} > 4:
+        stop
+    set {_x} to {za::site::d::cimetiere::x} - 18 + (3 * {_i})
+    set {_z} to {za::site::d::cimetiere::z} + 3 + (4 * {_r})
+    return location({_x}, {za::site::d::cimetiere::y}, {_z}, world("world"))
+
+function za_cim_graver(nom: text, u: text, cause: text):
+    set {_n} to ({za::cim::n} ? 0) + 1
+    set {_l} to za_cim_place({_n})
+    if {_l} is not set:
+        stop
+    set {za::cim::n} to {_n}
+    set {_ep} to {za::cim::epitaphe::%{_u}%} ? {_cause}
+    set {za::cim::tombe::%{_n}%::nom} to {_nom}
+    set {za::cim::tombe::%{_n}%::uuid} to {_u}
+    set {za::cim::tombe::%{_n}%::saison} to {za::saison::num} ? 1
+    set {za::cim::tombe::%{_n}%::jour} to {za::serveur::jours} ? 0
+    set {za::cim::tombe::%{_n}%::cause} to {_cause}
+    set {za::cim::loc::%za_lkey({_l})%} to {_n}
+    set block at {_l} to mossy stone bricks
+    set {_s} to block above {_l}
+    set block at {_s} to oak sign
+    set line 1 of {_s} to "%{_nom}%"
+    set line 2 of {_s} to "Saison %{za::cim::tombe::%{_n}%::saison}%"
+    set line 3 of {_s} to "Mort jour %{za::cim::tombe::%{_n}%::jour}%"
+    set line 4 of {_s} to "%{_ep}%"
+    set block at location((x-coordinate of {_l}), (y-coordinate of {_l}), (z-coordinate of {_l} + 1), (world of {_l})) to poppy
+
+on death of player:
+    if za_pro(victim) is true:
+        stop
+    if {za::site::installe} is not set:
+        stop
+    set {_c} to "%damage cause%"
+    set {_cause} to "Tombé"
+    if {_c} contains "entity":
+        set {_cause} to "Emporté par eux"
+    else if {_c} contains "fall":
+        set {_cause} to "Une chute"
+    else if {_c} contains "starv":
+        set {_cause} to "La faim"
+    else if {_c} contains "fire" or "lava":
+        set {_cause} to "Le feu"
+    else if {_c} contains "drown":
+        set {_cause} to "L'eau froide"
+    else if {_c} contains "freez":
+        set {_cause} to "Le froid"
+    za_cim_graver("%victim%", "%victim's uuid%", {_cause})
+
+on right click on mossy stone bricks:
+    if za_pro(player) is true:
+        stop
+    set {_n} to {za::cim::loc::%za_lkey(location of event-block)%}
+    if {_n} is not set:
+        stop
+    set {_u} to {za::cim::tombe::%{_n}%::uuid}
+    send "&8&m                              " to player
+    send "&7Ici repose &f%{za::cim::tombe::%{_n}%::nom}%&7, tombé au jour %{za::cim::tombe::%{_n}%::jour}% de la saison %{za::cim::tombe::%{_n}%::saison}%." to player
+    send "&8%{za::cim::tombe::%{_n}%::cause}%." to player
+    send "&7Jours survécus : &f%{za::jours::%{_u}%} ? 0% &8· &7morts abattus : &f%{za::kills::%{_u}%} ? 0% &8· &7souvenirs : &f%size of {za::souv::%{_u}%::*}%" to player
+    set {_t::*} to {za::titres::%{_u}%::*}
+    if size of {_t::*} > 0:
+        send "&7Titres : &f%{_t::*}%" to player
+
+command /epitaphe [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        if arg-1 is not set:
+            set {_e} to {za::cim::epitaphe::%player's uuid%} ? "(aucune)"
+            send "&7Ton épitaphe : &f%{_e}%" to player
+            stop
+        set {_t} to arg-1
+        if length of {_t} > 15:
+            set {_t} to first 15 characters of {_t}
+        set {za::cim::epitaphe::%player's uuid%} to {_t}
+        send "&7Si tu tombes, on lira : &f%{_t}%" to player
+
+command /cimetiere:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        if {za::site::d::cimetiere::x} is not set:
+            send "&7Pas de cimetière sur ce monde." to player
+            stop
+        send "&7Cimetière de Saint-Aurèle : X %{za::site::d::cimetiere::x}% Z %{za::site::d::cimetiere::z}% &8(au nord-est de la ville)" to player
+        send "&7Tombes gravées : &f%{za::cim::n} ? 0%&7/65" to player

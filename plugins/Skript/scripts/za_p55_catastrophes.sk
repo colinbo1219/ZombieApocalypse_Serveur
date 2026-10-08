@@ -208,6 +208,18 @@ function za_cata_planifier():
     set {za::cata::retards} to 0
     delete {za::cata::avert}
 
+# ---------------------------------------------------------------- propriétaire de la météo
+# Un seul système commande la météo à la fois : la catastrophe prime sur les événements de p3.
+
+function za_meteo_prendre(qui: text, cmd: text):
+    set {za::meteo::proprio} to {_qui}
+    execute console command "weather %{_cmd}%"
+
+function za_meteo_rendre(qui: text):
+    if "%{za::meteo::proprio}%" is {_qui}:
+        delete {za::meteo::proprio}
+        execute console command "weather clear"
+
 # ---------------------------------------------------------------- démarrage / fin
 
 function za_cata_lancer(k: text):
@@ -220,9 +232,9 @@ function za_cata_lancer(k: text):
     delete {-cata::froid::*}
     za_journal("Catastrophe : %za_cata_nom({_k})%.")
     if {_k} is "toxique":
-        execute console command "weather rain 14000"
+        za_meteo_prendre("cata", "rain 14000")
     else if {_k} is "tempete":
-        execute console command "weather thunder 14000"
+        za_meteo_prendre("cata", "thunder 14000")
     else if {_k} is "nuit":
         set time of world("{@monde}") to 0:00
     loop za_monde_joueurs():
@@ -238,7 +250,7 @@ function za_cata_terminer():
     delete {za::cata::fin}
     delete {-cata::froid::*}
     if {_k} is "toxique" or "tempete":
-        execute console command "weather clear"
+        za_meteo_rendre("cata")
     else if {_k} is "nuit":
         set time of world("{@monde}") to 4:30
     za_cata_fin_msg({_k})
@@ -253,6 +265,8 @@ on load:
         delete {za::cata::fin}
         if {_k} is "toxique" or "tempete":
             execute console command "weather clear"
+    # aucun système ne tient la météo au démarrage
+    delete {za::meteo::proprio}
     if {za::cata::prochain} is not set:
         za_cata_planifier()
     delete {-cata::*}

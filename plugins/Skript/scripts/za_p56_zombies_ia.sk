@@ -216,6 +216,13 @@ function za_ia_zone_toxique(l: location):
 # ---------------------------------------------------------------- mort d'un zombie : Alpha, Bloater, fragment de carte, statistiques d'adaptation
 
 on death of zombie:
+    # caches par zombie : rien ne doit survivre au corps
+    set {_vu} to "%uuid of victim%"
+    delete {-ia::cri::%{_vu}%}
+    delete {-ia::disperse::%{_vu}%}
+    delete {-ia::stare::%{_vu}%}
+    delete {-ia::tp::%{_vu}%}
+    delete {-ia::repas::%{_vu}%}
     if za_pro(victim) is true:
         stop
     set {_n} to uncolored name of victim
@@ -238,7 +245,7 @@ function za_ia_derriere(p: player) :: location:
     set {_l0} to location of {_p}
     loop 3 times:
         set {_d} to 5 - loop-number
-        set {_l} to location((x-coordinate of {_l0}) + ({_d} * sin({_yaw})), y-coordinate of {_l0}, (z-coordinate of {_l0}) - ({_d} * cos({_yaw})), world of {_l0})
+        set {_l} to location(((x-coordinate of {_l0}) + ({_d} * sin({_yaw}))), (y-coordinate of {_l0}), ((z-coordinate of {_l0}) - ({_d} * cos({_yaw}))), (world of {_l0}))
         set {_b1} to block at {_l}
         set {_l2} to {_l}
         add 1 to y-coordinate of {_l2}
@@ -272,7 +279,7 @@ function za_ia_stalker(s: entity, p: player):
                 teleport {_s} to {_l}
                 set target of {_s} to {_p}
                 za_ia_effet({_s}, "speed", 3, 1)
-                za_zm("son %{_p}% za_modeles:sfx.porte_grince 0.9 0.8")
+                za_zm("son %{_p}% minecraft:block.wooden_door.open 0.9 0.5")
                 send action bar "&8&oQuelque chose vient de passer derrière toi..." to {_p}
     else:
         # dos tourné : il s'approche
@@ -382,6 +389,27 @@ function za_ia_manger(c: entity, k: text):
     loop all players in radius 40 around {_l}:
         if za_pro(loop-player) is false:
             send action bar "&6Un Charognard dévore un cadavre... il en ressort plus gros." to loop-player
+
+# purge des délais expirés (zombies déchargés ou disparus sans mourir)
+every 10 minutes:
+    loop indices of {-ia::cri::*}:
+        if {-ia::cri::%loop-value%} is less than now:
+            delete {-ia::cri::%loop-value%}
+    loop indices of {-ia::cri_j::*}:
+        if {-ia::cri_j::%loop-value%} is less than now:
+            delete {-ia::cri_j::%loop-value%}
+    loop indices of {-ia::disperse::*}:
+        if {-ia::disperse::%loop-value%} is less than now:
+            delete {-ia::disperse::%loop-value%}
+    loop indices of {-ia::tp::*}:
+        if {-ia::tp::%loop-value%} is less than now:
+            delete {-ia::tp::%loop-value%}
+            delete {-ia::stare::%loop-value%}
+    # les compteurs sans date repartent de zéro au-delà d'une taille raisonnable
+    if size of {-ia::stare::*} is greater than 500:
+        delete {-ia::stare::*}
+    if size of {-ia::repas::*} is greater than 500:
+        delete {-ia::repas::*}
 
 # nettoyage des appâts dont le corps a disparu
 every 60 seconds:
@@ -554,6 +582,11 @@ on explosion:
         if "%event-entity%" contains "zombie":
             stop
         za_adapt_note("explosions", 1)
+        # une explosion (canon Create Big Cannons, TNT, creeper...) s'entend de loin : les morts convergent
+        za_activite_ajouter(event-location, 12)
+        loop all players in radius 60 around event-location:
+            if za_pro(loop-player) is false:
+                za_bruit_ajouter(loop-player, 15)
 
 # ---- collecte : nuits passées dans la base (minutes-joueur)
 every 30 seconds:

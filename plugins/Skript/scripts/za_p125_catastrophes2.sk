@@ -1,0 +1,68 @@
+# za_p125_catastrophes2.sk — effondrements et dépôt de carburant (bible v2, point 32)
+#  (Incendies : p98 · barrage : p119 · tempêtes, pluie toxique : p55.)
+#  * EFFONDREMENT : une explosion dans un quartier ou un village (zones de p97) peut faire céder un pan de bâtiment
+#    (30 %%) : jusqu'à 5 x 6 x 5 blocs tombent (au plus 150), de la poussière, un passage s'ouvre.
+#    JAMAIS à moins de 80 blocs d'une base enregistrée ; une fois toutes les 10 minutes au plus.
+#  * DÉPÔT DE CARBURANT (aéroport) : une explosion à 25 blocs ou moins déclenche une réaction en chaîne (trois
+#    explosions de plus, du feu). Une fois par saison : ensuite, il n'y a plus de carburant à faire sauter.
+#  Variables : {za::catas2::*}
+
+function za_catas2_base_proche(l: location) :: boolean:
+    loop {za::base::liste::*}:
+        set {_b} to {za::base::%loop-value%}
+        if {_b} is set:
+            if world of {_b} is world of {_l}:
+                if distance between {_b} and {_l} < 80:
+                    return true
+    return false
+
+on explosion:
+    set {_l} to event-location
+    if "%world of {_l}%" is not "world":
+        stop
+    # le dépôt de carburant
+    set {_k} to "aeroport_depot_carburant3"
+    if {za::site::d::%{_k}%::x} is set:
+        if ({za::catas2::depot} ? 0) is not ({za::saison::num} ? 1):
+            set {_d} to location({za::site::d::%{_k}%::x}, {za::site::d::%{_k}%::y}, {za::site::d::%{_k}%::z}, world("world"))
+            if distance between {_d} and {_l} < 25:
+                set {za::catas2::depot} to {za::saison::num} ? 1
+                za_catas2_depot({_d})
+                stop
+    # un pan de bâtiment qui cède
+    if ({za::catas2::eff} ? 0) > (unix timestamp of now) - 600:
+        stop
+    if za_qz_ici({_l}) is "":
+        stop
+    if za_catas2_base_proche({_l}) is true:
+        stop
+    if chance of 70%:
+        stop
+    set {za::catas2::eff} to unix timestamp of now
+    za_catas2_effondrer({_l})
+
+function za_catas2_effondrer(l: location):
+    wait 2 seconds
+    set {_x} to floor(x-coordinate of {_l})
+    set {_y} to floor(y-coordinate of {_l})
+    set {_z} to floor(z-coordinate of {_l})
+    # ce qui est au-dessus tombe : 5 x 6 x 5 au plus (150 blocs)
+    execute console command "execute in minecraft:overworld run fill %{_x} - 2% %{_y} + 1% %{_z} - 2% %{_x} + 2% %{_y} + 6% %{_z} + 2% minecraft:air destroy"
+    execute console command "execute in minecraft:overworld run particle minecraft:campfire_cosy_smoke %{_x}% %{_y} + 3% %{_z}% 3 3 3 0.02 120 force"
+    execute console command "execute in minecraft:overworld run playsound minecraft:block.stone.break master @a %{_x}% %{_y}% %{_z}% 4 0.4"
+    loop all players in radius 60 around {_l}:
+        send "&8Un craquement, un grondement : un pan de mur s'effondre dans un nuage de poussière. &7Un nouveau passage s'est ouvert." to loop-player
+    za_monde_evt("Un bâtiment s'est en partie effondré.", {_l}, 2, "catastrophe")
+    za_activite_ajouter({_l}, 10)
+
+function za_catas2_depot(d: location):
+    set {_n} to "Dépôt de carburant de l'aéroport"
+    loop 3 times:
+        wait 2 seconds
+        set {_e} to location(((x-coordinate of {_d}) + (random number between -8 and 8)), (y-coordinate of {_d}), ((z-coordinate of {_d}) + (random number between -4 and 4)), (world of {_d}))
+        create an explosion of force 4 at {_e}
+        execute console command "execute in minecraft:overworld run fill %floor(x-coordinate of {_e}) - 1% %floor(y-coordinate of {_e})% %floor(z-coordinate of {_e}) - 1% %floor(x-coordinate of {_e}) + 1% %floor(y-coordinate of {_e})% %floor(z-coordinate of {_e}) + 1% minecraft:fire replace minecraft:air"
+    za_diffuser("&6&l🔥 &cUne série d'explosions à l'aéroport. &7Le dépôt de carburant a sauté. On voit la fumée à des kilomètres.")
+    za_monde_evt("Le dépôt de carburant de l'aéroport a explosé en chaîne.", {_d}, 4, "catastrophe")
+    za_mot_evt("explosion_depot", {_d}, 4, "-", {_n})
+    za_radio("&bLéa", "Le dépôt de l'aéroport a sauté. Tout le carburant de la région, ou presque. Les prix vont grimper. Et toutes les hordes à vingt kilomètres ont entendu.")

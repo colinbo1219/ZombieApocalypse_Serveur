@@ -79,7 +79,7 @@ function za_niv_cmds(n: number) :: texts:
     if {_n} >= 7:
         return "/saison|ce qui manque au serveur pour la finale", "/chroniques|l'histoire des saisons" and "/hall|le Hall des survivants"
     if {_n} is 6:
-        return "/labo|les laboratoires NORDA", "/enquete|les enquêtes et les dossiers" and "/reseau|le réseau radio des camps"
+        return "/labo|les laboratoires NORDA", "/enquete|les enquêtes et les dossiers", "/reseau|les quartiers alimentés par la centrale" and "/electricite|les sous-stations Create et la réparation du réseau"
     if {_n} is 5:
         return "/territoires|qui tient quel bâtiment", "/survivants|tes recrues" and "/squad|ton escouade"
     if {_n} is 4:
@@ -952,6 +952,7 @@ function za_campagne(p: player):
         else:
             send "&8·  ???" to {_p}
         add 1 to {_i}
+    za_cmpg_afficher({_p})
     send "&8Ce que le monde a retenu de toi : &7/souvenirs" to {_p}
     send "&8&m                                              " to {_p}
 

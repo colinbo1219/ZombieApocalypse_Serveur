@@ -1,0 +1,174 @@
+# =====================================================================
+#  ZombieApocalypse - DÉFENSE DES BASES : soldats de la milice
+#  Des soldats (restes de l'escouade Bravo, miliciens de la région) acceptent de tenir ta base contre des jetons.
+#  * /garde recruter [arbalete|hache] : près de ta base (40 blocs), 40 ou 30 jetons. 3 soldats maximum par joueur.
+#  * Ils tiennent leur POSTE (là où tu les as recrutés, ou /garde poste) : s'ils s'éloignent à plus de 18 blocs, ils y
+#    reviennent. Ils tirent / frappent tous les monstres (zombies MythicMobs, vanilla, zombie_extreme), jamais les joueurs.
+#  * Ils se soignent lentement ; s'ils tombent, tu es prévenu (souvenir, journal).
+#  * /garde liste | poste | renvoyer <n°> | aide
+#  MythicMobs : Mobs/ZA_Defense.yml (ZA_Garde_Arbalete, ZA_Garde_Hache ; faction ZA_Milice)
+#  Tourelles améliorées : za_p16_tourelles.sk (niveaux, courant).
+# =====================================================================
+
+options:
+    max_gardes: 3
+    prix_arbalete: 40
+    prix_hache: 30
+    rayon_base: 40
+    laisse: 18
+
+function za_garde_nom() :: text:
+    return random element out of "Tremblay", "Gagnon", "Roy", "Côté", "Bouchard", "Gauthier", "Morin", "Lavoie", "Fortin", "Pelletier", "Bélanger", "Lévesque", "Bergeron", "Leblanc", "Paquette", "Girard", "Simard" and "Boucher"
+
+# joueur en ligne d'après son UUID (rien s'il est hors ligne)
+function za_garde_joueur(u: text) :: player:
+    loop all players:
+        if "%loop-player's uuid%" is {_u}:
+            return loop-player
+
+function za_garde_n(u: text) :: number:
+    return size of {za::garde::de::%{_u}%::*}
+
+# le soldat vient d'apparaître (appelé par MythicMobs ~onSpawn) : on le relie au joueur qui l'a recruté
+function za_garde_ne(uid: text, l: location):
+    set {_best} to ""
+    loop {za::garde::attente::*}:
+        set {_a} to loop-value
+        if world of {_a} is world of {_l}:
+            if distance between {_a} and {_l} < 5:
+                set {_best} to loop-index
+    if {_best} is "":
+        stop
+    delete {za::garde::attente::%{_best}%}
+    add 1 to {za::garde::next}
+    set {_id} to {za::garde::next}
+    set {_nom} to "Soldat %za_garde_nom()%"
+    set {za::garde::%{_id}%::proprio} to {_best}
+    set {za::garde::%{_id}%::uuid} to {_uid}
+    set {za::garde::%{_id}%::nom} to {_nom}
+    set {za::garde::%{_id}%::poste} to {_l}
+    set {za::garde::%{_id}%::jour} to {za::serveur::jours} ? 0
+    set {za::garde::uuid::%{_uid}%} to {_id}
+    add {_id} to {za::garde::liste::*}
+    add {_id} to {za::garde::de::%{_best}%::*}
+    execute console command "tag %{_uid}% add za_garde"
+    execute console command "data merge entity %{_uid}% {CustomName:'{""text"":""%{_nom}%"",""color"":""green""}',PersistenceRequired:1b}"
+    set {_p} to za_garde_joueur({_best})
+    if {_p} is set:
+        send "&a[Base] &f%{_nom}% &7prend son poste. « Allez-y. Je tiens ici. »" to {_p}
+
+function za_garde_retirer(id: number):
+    set {_u} to {za::garde::%{_id}%::proprio}
+    remove {_id} from {za::garde::de::%{_u}%::*}
+    remove {_id} from {za::garde::liste::*}
+    delete {za::garde::uuid::%{za::garde::%{_id}%::uuid}%}
+    delete {za::garde::%{_id}%::*}
+
+command /zagarde <text> [<text>] [<text>] [<number>] [<number>] [<number>]:
+    executable by: console
+    trigger:
+        if arg-1 is "ne":
+            set {_w} to world(arg-3)
+            if {_w} is set:
+                za_garde_ne(arg-2, location(arg-4, arg-5, arg-6, {_w}))
+        else if arg-1 is "mort":
+            set {_id} to {za::garde::uuid::%arg-2%}
+            if {_id} is set:
+                set {_u} to {za::garde::%{_id}%::proprio}
+                set {_nom} to {za::garde::%{_id}%::nom}
+                set {_p} to za_garde_joueur({_u})
+                if {za::garde::%{_id}%::renvoi} is set:
+                    if {_p} is set:
+                        send "&7%{_nom}% rassemble ses affaires et s'en va sans se retourner." to {_p}
+                else:
+                    if {_p} is set:
+                        send "&c[Base] &f%{_nom}% &cest tombé en défendant ta base." to {_p}
+                        za_zm("son %{_p}% za_modeles:zombie.cou 0.6 0.8")
+                    za_souvenir_ajouter({_u}, "garde:%{_id}%", "defense", "%{_nom}% est tombé en tenant notre base.")
+                    za_journal("%{_nom}% est mort en défendant une base.")
+                za_garde_retirer({_id})
+
+# ---------------------------------------------------------------- joueur
+
+command /garde [<text>] [<text>]:
+    aliases: /gardes, /milice
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        if arg-1 is "recruter":
+            if {za::base::%{_u}%} is not set:
+                send "&cIl te faut une base pour loger des soldats : &e/base definir" to player
+                stop
+            set {_b} to {za::base::%{_u}%}
+            if world of {_b} is not world of player:
+                send "&cTu dois être à ta base." to player
+                stop
+            if distance between {_b} and player > {@rayon_base}:
+                send "&cTu dois être à ta base (moins de {@rayon_base} blocs)." to player
+                stop
+            if za_garde_n({_u}) >= {@max_gardes}:
+                send "&cTa base loge déjà {@max_gardes} soldats." to player
+                stop
+            set {_type} to "ZA_Garde_Arbalete"
+            set {_prix} to {@prix_arbalete}
+            if arg-2 is "hache":
+                set {_type} to "ZA_Garde_Hache"
+                set {_prix} to {@prix_hache}
+            if za_jetons(player) < {_prix}:
+                send "&cIl faut %{_prix}% jetons pour convaincre un soldat de rester (tu en as %za_jetons(player)%)." to player
+                stop
+            za_jetons_ajouter(player, 0 - {_prix})
+            set {_l} to location of player
+            set {za::garde::attente::%{_u}%} to {_l}
+            execute console command "mm mobs spawn %{_type}% 1 %world of {_l}%,%floor(x-coordinate of {_l})%,%floor(y-coordinate of {_l})%,%floor(z-coordinate of {_l})%"
+            send "&7Un soldat accepte ton marché : un toit, de quoi manger, et une raison de se battre. &8(-%{_prix}% jetons)" to player
+        else if arg-1 is "poste":
+            if za_garde_n({_u}) is 0:
+                send "&7Tu n'as aucun soldat." to player
+                stop
+            if {za::base::%{_u}%} is set:
+                if world of {za::base::%{_u}%} is world of player:
+                    if distance between {za::base::%{_u}%} and player <= {@rayon_base}:
+                        loop {za::garde::de::%{_u}%::*}:
+                            set {za::garde::%loop-value%::poste} to location of player
+                        send "&aTes soldats prennent position ici." to player
+                        stop
+            send "&cLe poste doit être dans ta base (moins de {@rayon_base} blocs)." to player
+        else if arg-1 is "renvoyer":
+            set {_ids::*} to {za::garde::de::%{_u}%::*}
+            set {_id} to {_ids::%(arg-2 parsed as number) ? 0%}
+            if {_id} is not set:
+                send "&c/garde renvoyer <n°> (voir /garde liste)" to player
+                stop
+            set {za::garde::%{_id}%::renvoi} to true
+            execute console command "kill %{za::garde::%{_id}%::uuid}%"
+        else if arg-1 is "suivre" or "patrouille" or "replier" or "solde":
+            za_garde_ordre(player, arg-1, (arg-2 parsed as number) ? 0)
+        else if arg-1 is "liste":
+            send "&6&l━━ TES SOLDATS &7(%za_garde_n({_u})%/{@max_gardes}) ━━" to player
+            set {_i} to 0
+            loop {za::garde::de::%{_u}%::*}:
+                add 1 to {_i}
+                set {_pl} to {za::garde::%loop-value%::poste}
+                send "&7%{_i}%. &f%{za::garde::%loop-value%::nom}% &8— %za_garde_moral_txt(loop-value)% &8— %{za::garde::%loop-value%::tues} ? 0% morts abattus — poste %floor(x-coordinate of {_pl})% %floor(y-coordinate of {_pl})% %floor(z-coordinate of {_pl})%, depuis le jour %{za::garde::%loop-value%::jour}%" to player
+        else:
+            send "&6&l━━ SOLDATS DE LA MILICE ━━" to player
+            send "&e/garde recruter &7[arbalete|hache] : à ta base, {@prix_arbalete} ou {@prix_hache} jetons ({@max_gardes} max)" to player
+            send "&e/garde poste &7: tes soldats se postent là où tu es" to player
+            send "&e/garde liste &7| &e/garde renvoyer <n°>" to player
+            send "&e/garde suivre <n°> &7| &e/garde patrouille &7(entre le poste et ici) | &e/garde replier &7| &e/garde solde &7(5 jetons chacun)" to player
+            send "&8Mal payés, mal nourris ou envoyés à la mort, ils finissent par désobéir, puis par déserter." to player
+            send "&8Ils tirent sur tous les morts et tiennent leur poste. Des tourelles au courant les aident (/tourelle)." to player
+
+# ---------------------------------------------------------------- poste de garde (retour s'ils s'éloignent)
+
+every 10 seconds:
+    loop {za::garde::liste::*}:
+        set {_id} to loop-value
+        # le point à tenir dépend de l'ordre (za_p106 : poste, suivre, patrouille)
+        set {_pl} to za_garde_cible({_id})
+        set {_uid} to {za::garde::%{_id}%::uuid}
+        if {_pl} is set:
+            if chunk at {_pl} is loaded:
+                execute console command "execute in %za_dim(world of {_pl})% positioned %x-coordinate of {_pl}% %y-coordinate of {_pl}% %z-coordinate of {_pl}% as %{_uid}% unless entity @s[distance=..{@laisse}] run tp @s ~ ~ ~"

@@ -1,0 +1,485 @@
+# =====================================================================
+#  ZombieApocalypse - QUARTIERS VIVANTS : ils changent, et ça se voit
+#  Zones : les 4 quartiers de Saint-Aurèle (hôpital, police, commerce, résidentiel) et les villages du monde généré.
+#  États :  CALME -> QUARANTAINE -> ABANDON -> FACTION -> INFESTATION -> ZONE MORTE (et retour, si on se bat)
+#  Chaque jour serveur, la PRESSION des morts (0-100) de chaque zone bouge :
+#    + un nid à proximité, + le niveau d'évolution du virus (za_p82), + un incendie (za_p98), + pas de courant
+#    - les morts abattus dans la zone, - le courant (za_p61), - une faction installée tout près (za_p45)
+#    pression < 20 : calme (ou FACTION si une faction tient le coin) · 20-40 : quarantaine (Milice) ou abandon
+#    40-65 : abandon · 65-85 : infestation (un nid s'installe) · 85+ : zone morte (za_p25)
+#  Chaque état change : DÉCOR (barricades, sacs de sable, panneaux, toiles, gravats, bannières, sang, mycélium),
+#    PNJ (gardes de quarantaine, gardes de faction, survivants), LUMIÈRE (projecteurs ; lampes coupées en
+#    infestation, za_p99), SONS (ambiance 3D autour du joueur), FOUILLE (butin des coffres selon l'état),
+#    MORTS (plus nombreux en infestation et en zone morte), DANGER.
+#  Le décor se pose quand un joueur approche (les tronçons doivent être chargés) ; l'ancien décor est retiré.
+#  Joueur : /quartiers   Admin : /zaquartier etat | set <zone> <état> | pression <zone> <n> | jour
+# =====================================================================
+
+options:
+    rayon_sa: 55
+
+# ---------------------------------------------------------------- les zones
+
+function za_qz_liste() :: texts:
+    if za_ruines_ok() is true:
+        add "sa_hopital", "sa_police", "sa_commerce" and "sa_residentiel" to {_r::*}
+    loop za_sites_donnees():
+        set {_c::*} to split loop-value at "|"
+        if {_c::2} is "village" or "quartier":
+            add "v_%{_c::1}%" to {_r::*}
+    return {_r::*}
+
+function za_qz_centre(z: text) :: location:
+    if {_z} starts with "sa_":
+        set {_q} to subtext of {_z} from characters 4 to length of {_z}
+        if {_q} is "hopital":
+            return za_ruines_poi("hopital_entree")
+        if {_q} is "police":
+            return za_ruines_poi("police_entree")
+        if {_q} is "commerce":
+            return za_ruines_poi("depanneur_porte")
+        return za_ruines_poi("entree_immeuble")
+    set {_k} to subtext of {_z} from characters 3 to length of {_z}
+    if {za::site::d::%{_k}%::x} is set:
+        return location({za::site::d::%{_k}%::x}, {za::site::d::%{_k}%::y}, {za::site::d::%{_k}%::z}, world("world"))
+
+function za_qz_rayon(z: text) :: number:
+    if {_z} starts with "sa_":
+        return {@rayon_sa}
+    set {_k} to subtext of {_z} from characters 3 to length of {_z}
+    return max(50, max({za::site::d::%{_k}%::dx} ? 50, {za::site::d::%{_k}%::dz} ? 50))
+
+function za_qz_nom(z: text) :: text:
+    if {_z} starts with "sa_":
+        return "Saint-Aurèle — %za_reseau_nom(subtext of {_z} from characters 4 to length of {_z})%"
+    set {_k} to subtext of {_z} from characters 3 to length of {_z}
+    return {za::site::d::%{_k}%::nom} ? {_k}
+
+function za_qz_etat(z: text) :: text:
+    return {za::qz::%{_z}%::etat} ? "calme"
+
+function za_qz_etat_nom(e: text) :: text:
+    if {_e} is "calme":
+        return "&aCalme"
+    if {_e} is "quarantaine":
+        return "&eQuarantaine"
+    if {_e} is "abandon":
+        return "&7Abandonné"
+    if {_e} is "faction":
+        return "&9Tenu par une faction"
+    if {_e} is "infestation":
+        return "&cInfesté"
+    if {_e} is "zone_morte":
+        return "&4Zone morte"
+    return {_e}
+
+# zone qui contient un lieu ("" sinon)
+function za_qz_ici(l: location) :: text:
+    if "%world of {_l}%" is not "world":
+        return ""
+    loop za_qz_liste():
+        set {_c} to za_qz_centre(loop-value)
+        if {_c} is set:
+            if distance between {_c} and {_l} < za_qz_rayon(loop-value):
+                return loop-value
+    return ""
+
+# premier état : Saint-Aurèle porte encore les marques du Jour 8
+function za_qz_init(z: text):
+    if {za::qz::%{_z}%::etat} is set:
+        stop
+    set {_p} to random integer between 10 and 45
+    set {_e} to "calme"
+    if {_z} is "sa_hopital":
+        set {_p} to 70
+    else if {_z} is "sa_police":
+        set {_p} to 30
+        set {za::qz::%{_z}%::presence} to 30
+    else if {_z} is "sa_commerce":
+        set {_p} to 50
+    else if {_z} is "sa_residentiel":
+        set {_p} to 45
+    # quartiers des villes : le sort que le générateur leur a jeté (za_p128_villes_donnees.sk)
+    else if {_z} starts with "v_":
+        set {_d} to za_villes_debut({_z})
+        if {_d} is not "":
+            set {_v::*} to split {_d} at ";"
+            set {_p} to {_v::1} parsed as number
+            set {_pr} to {_v::2} parsed as number
+            if {_pr} > 0:
+                set {za::qz::%{_z}%::presence} to {_pr}
+    set {za::qz::%{_z}%::pression} to {_p}
+    set {za::qz::%{_z}%::etat} to za_qz_calcul({_z})
+
+# état qui correspond à la pression et à la présence d'une faction
+function za_qz_calcul(z: text) :: text:
+    set {_p} to {za::qz::%{_z}%::pression} ? 30
+    set {_pr} to {za::qz::%{_z}%::presence} ? 0
+    if {_p} >= 85:
+        return "zone_morte"
+    if {_p} >= 65:
+        return "infestation"
+    if {_p} >= 40:
+        return "abandon"
+    if {_p} >= 20:
+        if {_pr} >= 20:
+            return "quarantaine"
+        return "abandon"
+    if {_pr} >= 40:
+        return "faction"
+    return "calme"
+
+# faction qui tient le coin (territoire réel le plus fort à 220 blocs)
+function za_qz_faction(z: text) :: text:
+    set {_c} to za_qz_centre({_z})
+    set {_best} to ""
+    set {_bv} to 0
+    if {_c} is not set:
+        return ""
+    loop za_terr_cles():
+        set {_t} to za_terr_loc(loop-value)
+        if {_t} is set:
+            if world of {_t} is world of {_c}:
+                if distance between {_t} and {_c} < 220:
+                    set {_f} to za_terr_fac(loop-value)
+                    if za_terr_reelle({_f}) is true:
+                        if za_terr_ctrl(loop-value) > {_bv}:
+                            set {_bv} to za_terr_ctrl(loop-value)
+                            set {_best} to {_f}
+    set {za::qz::%{_z}%::presence} to {_bv}
+    return {_best}
+
+# ---------------------------------------------------------------- le jour passe
+
+function za_qz_jour():
+    loop za_qz_liste():
+        set {_z} to loop-value
+        za_qz_init({_z})
+        set {_c} to za_qz_centre({_z})
+        if {_c} is set:
+            set {_p} to {za::qz::%{_z}%::pression} ? 30
+            if za_nid_proche({_c}, za_qz_rayon({_z}) + 80) is not 0:
+                add 8 to {_p}
+            add 2 * (za_evo_niveau() - 1) to {_p}
+            if {_z} starts with "sa_":
+                if za_reseau_actif(subtext of {_z} from characters 4 to length of {_z}) is true:
+                    remove 6 from {_p}
+                else:
+                    add 4 to {_p}
+            remove (({za::qz::%{_z}%::kills} ? 0) / 4) from {_p}
+            add 15 * ({za::qz::%{_z}%::feux} ? 0) to {_p}
+            set {_f} to za_qz_faction({_z})
+            if {_f} is not "":
+                if ({za::qz::%{_z}%::presence} ? 0) >= 50:
+                    remove 8 from {_p}
+            add (random integer between -3 and 5) to {_p}
+            set {za::qz::%{_z}%::pression} to min(100, max(0, {_p}))
+            delete {za::qz::%{_z}%::kills}
+            delete {za::qz::%{_z}%::feux}
+            set {_avant} to za_qz_etat({_z})
+            set {_apres} to za_qz_calcul({_z})
+            if {_apres} is not {_avant}:
+                za_qz_changer({_z}, {_apres})
+
+every 1 minute:
+    if {za::qz::jour} is not ({za::serveur::jours} ? 0):
+        set {za::qz::jour} to {za::serveur::jours} ? 0
+        za_qz_jour()
+
+function za_qz_changer(z: text, e: text):
+    set {_avant} to za_qz_etat({_z})
+    set {za::qz::%{_z}%::etat} to {_e}
+    # l'hôpital tombe ou rouvre : les médicaments suivent (za_p126)
+    za_lien_quartier({_z}, {_e})
+    set {za::qz::%{_z}%::a_poser} to true
+    set {_c} to za_qz_centre({_z})
+    set {_nom} to za_qz_nom({_z})
+    # zone morte : enregistrée auprès de za_p25 (effets), retirée en sortant de cet état
+    if {_e} is "zone_morte":
+        if {za::qz::%{_z}%::zm} is not set:
+            za_zone_morte_creer({_c}, za_qz_rayon({_z}))
+            set {za::qz::%{_z}%::zm} to {za::zm::next}
+    else if {za::qz::%{_z}%::zm} is set:
+        set {_id} to {za::qz::%{_z}%::zm}
+        remove {_id} from {za::zm::liste::*}
+        delete {za::zm::%{_id}%::*}
+        delete {za::qz::%{_z}%::zm}
+    if {_e} is "infestation":
+        if za_nid_proche({_c}, za_qz_rayon({_z}) + 40) is 0:
+            za_nid_creer({_c})
+        za_activite_ajouter({_c}, 60)
+    if {_e} is "faction":
+        set {za::qz::%{_z}%::fac} to za_qz_faction({_z})
+    set {_t} to ""
+    if {_e} is "quarantaine":
+        set {_t} to "La Milice a bouclé %{_nom}%. Quarantaine. N'essayez pas de passer les barrages."
+    else if {_e} is "abandon":
+        set {_t} to "Plus personne à %{_nom}%. Les derniers sont partis cette nuit, en laissant les portes ouvertes."
+    else if {_e} is "faction":
+        set {_t} to "%{_nom}% a de nouveaux occupants. Des bannières aux fenêtres. Approchez les mains en vue."
+    else if {_e} is "infestation":
+        set {_t} to "%{_nom}% est tombé. Ils sont partout dans les rues. Il y a un nid, quelque part."
+    else if {_e} is "zone_morte":
+        set {_t} to "%{_nom}%... n'y allez plus. L'air y est mauvais. Les plantes meurent. Même eux changent."
+    else:
+        set {_t} to "Ça s'est calmé à %{_nom}%. Pour l'instant. Des gens recommencent à sortir le jour."
+    za_radio("&bLéa", {_t})
+    if {_c} is set:
+        za_monde_evt("%{_nom}% : %uncolored za_qz_etat_nom({_avant})% -> %uncolored za_qz_etat_nom({_e})%.", {_c}, 2, "quartier")
+    za_journal("%{_nom}% : %uncolored za_qz_etat_nom({_e})%.")
+
+# ---------------------------------------------------------------- décor, PNJ, lumière
+
+function za_qz_point(c: location, r: number) :: location:
+    set {_a} to random number between 0 and 360
+    set {_d} to random number between 4 and {_r}
+    set {_l} to location(((x-coordinate of {_c}) + ({_d} * cos({_a}))), ((y-coordinate of {_c}) + 4), ((z-coordinate of {_c}) + ({_d} * sin({_a}))), (world of {_c}))
+    return za_eq_sol({_l})
+
+# pose un bloc de décor dans l'air (retiré au prochain changement d'état)
+function za_qz_poser(z: text, l: location, b: text):
+    if block at {_l} is not air:
+        stop
+    execute console command "execute in minecraft:overworld run setblock %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% %{_b}%"
+    add {_l} to {za::qz::%{_z}%::deco::*}
+
+function za_qz_pnj(z: text, l: location, nom: text):
+    execute console command "execute in minecraft:overworld run summon villager %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% {NoAI:1b,Invulnerable:1b,Silent:1b,PersistenceRequired:1b,CustomNameVisible:1b,CustomName:'""%{_nom}%""',VillagerData:{profession:""minecraft:nitwit"",level:1,type:""minecraft:plains""},Tags:[""za_qz"",""za_qz_%{_z}%""]}"
+
+function za_qz_nettoyer(z: text):
+    loop {za::qz::%{_z}%::deco::*}:
+        set {_l} to loop-value
+        if chunk at {_l} is loaded:
+            set block at {_l} to air
+    delete {za::qz::%{_z}%::deco::*}
+    execute console command "kill @e[type=villager,tag=za_qz_%{_z}%]"
+
+function za_qz_decor(z: text):
+    set {_c} to za_qz_centre({_z})
+    if {_c} is not set:
+        stop
+    if chunk at {_c} is not loaded:
+        stop
+    za_qz_nettoyer({_z})
+    delete {za::qz::%{_z}%::a_poser}
+    set {_e} to za_qz_etat({_z})
+    set {_r} to za_qz_rayon({_z}) - 8
+    set {_wd} to "minecraft:overworld"
+    if {_e} is "quarantaine":
+        loop 10 times:
+            za_qz_poser({_z}, za_qz_point({_c}, {_r}), "minecraft:iron_bars")
+        loop 8 times:
+            za_qz_poser({_z}, za_qz_point({_c}, {_r}), "minecraft:packed_mud")
+        loop 3 times:
+            set {_l} to za_qz_point({_c}, {_r})
+            za_qz_poser({_z}, {_l}, "minecraft:oak_sign[rotation=%random integer between 0 and 15%]{front_text:{messages:['""QUARANTAINE""','""Ordre de la""','""Milice""','""Accès interdit""']}}")
+        loop 3 times:
+            set {_l} to za_qz_point({_c}, {_r})
+            add 2 to y-coordinate of {_l}
+            za_qz_poser({_z}, {_l}, "minecraft:light[level=15]")
+        loop 2 times:
+            za_qz_pnj({_z}, za_qz_point({_c}, 10), "Garde de quarantaine")
+    else if {_e} is "abandon":
+        loop 12 times:
+            za_qz_poser({_z}, za_qz_point({_c}, {_r}), "minecraft:cobweb")
+        loop 8 times:
+            set {_b} to random element out of "minecraft:gravel", "minecraft:cobblestone", "minecraft:cracked_stone_bricks" and "minecraft:oak_trapdoor[open=true]"
+            za_qz_poser({_z}, za_qz_point({_c}, {_r}), {_b})
+        za_decay({_wd}, ((x-coordinate of {_c}) - {_r}), ((y-coordinate of {_c}) - 1), ((z-coordinate of {_c}) - {_r}), ((x-coordinate of {_c}) + {_r}), ((y-coordinate of {_c}) + 4), ((z-coordinate of {_c}) + {_r}), 20)
+    else if {_e} is "faction":
+        set {_f} to {za::qz::%{_z}%::fac} ? "survivants"
+        set {_col} to za_terr_bcol({_f})
+        loop 4 times:
+            za_qz_poser({_z}, za_qz_point({_c}, {_r}), "minecraft:%{_col}%_banner[rotation=%random integer between 0 and 15%]")
+        loop 2 times:
+            za_qz_poser({_z}, za_qz_point({_c}, 12), "minecraft:campfire")
+        loop 3 times:
+            za_qz_poser({_z}, za_qz_point({_c}, 14), "minecraft:barrel")
+        loop 2 times:
+            set {_l} to za_qz_point({_c}, 12)
+            add 2 to y-coordinate of {_l}
+            za_qz_poser({_z}, {_l}, "minecraft:light[level=13]")
+        loop 2 times:
+            za_qz_pnj({_z}, za_qz_point({_c}, 10), za_terr_nom_garde({_f}))
+    else if {_e} is "infestation":
+        loop 12 times:
+            za_qz_poser({_z}, za_qz_point({_c}, {_r}), "minecraft:cobweb")
+        loop 8 times:
+            za_qz_poser({_z}, za_qz_point({_c}, {_r}), "minecraft:sculk_vein[down=true]")
+        loop 20 times:
+            set {_l} to za_qz_point({_c}, {_r})
+            remove 1 from y-coordinate of {_l}
+            if "%type of block at {_l}%" contains "grass" or "dirt" or "stone" or "gravel":
+                set block at {_l} to red terracotta
+    else if {_e} is "zone_morte":
+        loop 30 times:
+            set {_l} to za_qz_point({_c}, {_r})
+            remove 1 from y-coordinate of {_l}
+            if "%type of block at {_l}%" contains "grass" or "dirt" or "moss":
+                set block at {_l} to mycelium
+        loop 12 times:
+            za_qz_poser({_z}, za_qz_point({_c}, {_r}), "minecraft:dead_bush")
+        loop 6 times:
+            za_qz_poser({_z}, za_qz_point({_c}, {_r}), "minecraft:cobweb")
+    else:
+        loop 2 times:
+            za_qz_poser({_z}, za_qz_point({_c}, 12), "minecraft:barrel")
+        za_qz_poser({_z}, za_qz_point({_c}, 10), "minecraft:campfire")
+        set {_g} to random element out of "f" and "m"
+        za_qz_pnj({_z}, za_qz_point({_c}, 10), "%za_surv_prenom({_g})% %za_surv_famille()%")
+
+# ---------------------------------------------------------------- vie de la zone autour des joueurs (toutes les 20 s)
+
+every 20 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        if za_pro({_p}) is false:
+            set {_z} to za_qz_ici(location of {_p})
+            set {_u} to "%{_p}'s uuid%"
+            set {_avant} to {za::qz::ou::%{_u}%} ? ""
+            if {_z} is not {_avant}:
+                set {za::qz::ou::%{_u}%} to {_z}
+                if {_z} is not "":
+                    za_qz_init({_z})
+                    send action bar "%za_qz_etat_nom(za_qz_etat({_z}))% &8— &7%za_qz_nom({_z})%" to {_p}
+            if {_z} is not "":
+                if {za::qz::%{_z}%::a_poser} is true:
+                    za_qz_decor({_z})
+                else if {za::qz::%{_z}%::pose_init} is not set:
+                    set {za::qz::%{_z}%::pose_init} to true
+                    za_qz_decor({_z})
+                za_qz_ambiance({_p}, {_z})
+
+function za_qz_son(p: player, s: text, v: number, h: number):
+    set {_l} to location of {_p}
+    set {_a} to random number between 0 and 360
+    set {_x} to (x-coordinate of {_l}) + (10 * cos({_a}))
+    set {_z2} to (z-coordinate of {_l}) + (10 * sin({_a}))
+    execute console command "execute in minecraft:overworld run playsound %{_s}% ambient %{_p}% %{_x}% %y-coordinate of {_l}% %{_z2}% %{_v}% %{_h}%"
+
+function za_qz_ambiance(p: player, z: text):
+    set {_e} to za_qz_etat({_z})
+    if {_e} is "quarantaine":
+        if chance of 50%:
+            za_qz_son({_p}, "minecraft:block.bell.use", 0.4, 0.7)
+        if chance of 25%:
+            send "&8&o(Un haut-parleur grésille : « ...restez chez vous... la Milice contrôle le secteur... »)" to {_p}
+    else if {_e} is "abandon":
+        set {_s} to random element out of "minecraft:block.wooden_door.close", "minecraft:block.chain.step" and "minecraft:entity.phantom.flap"
+        za_qz_son({_p}, {_s}, 0.5, 0.6)
+        if chance of 30%:
+            za_spawn_near({_p}, "ZA_Shambler", 18, 28)
+    else if {_e} is "faction":
+        set {_s} to random element out of "minecraft:block.anvil.use", "minecraft:block.fire.ambient" and "minecraft:entity.villager.ambient"
+        za_qz_son({_p}, {_s}, 0.4, 0.9)
+    else if {_e} is "infestation":
+        set {_s} to random element out of "minecraft:entity.zombie.ambient", "minecraft:entity.zombie.attack_wooden_door" and "minecraft:entity.husk.ambient"
+        za_qz_son({_p}, {_s}, 0.8, 0.7)
+        if chance of 60%:
+            set {_t} to za_ruines_type(location of {_p})
+            if {_t} is "":
+                set {_t} to za_site_zombie(location of {_p})
+            if {_t} is "":
+                set {_t} to "ZA_Shambler"
+            za_spawn_near({_p}, {_t}, 18, 28)
+    else if {_e} is "zone_morte":
+        za_qz_son({_p}, "minecraft:ambient.soul_sand_valley.mood", 0.9, 0.6)
+        execute console command "execute in minecraft:overworld run particle minecraft:spore_blossom_air %x-coordinate of {_p}% %y-coordinate of {_p} + 2% %z-coordinate of {_p}% 8 3 8 0 40 normal %{_p}%"
+        set {_t} to random element out of "ZA_Spitter", "ZA_Stalker", "ZA_Shambler" and "ZA_Crawler"
+        za_spawn_near({_p}, {_t}, 18, 28)
+    else:
+        if chance of 30%:
+            za_qz_son({_p}, "minecraft:entity.parrot.ambient", 0.3, 1.2)
+
+# morts abattus dans une zone : la pression baisse le lendemain
+on death of zombie:
+    if attacker is not a player:
+        stop
+    set {_z} to za_qz_ici(location of victim)
+    if {_z} is not "":
+        add 1 to {za::qz::%{_z}%::kills}
+
+# fouille : une fois par jour, chaque coffre d'une zone donne selon l'état
+on right click on chest:
+    if za_pro(player) is true:
+        stop
+    za_qz_fouille(player, event-block)
+
+on right click on barrel:
+    if za_pro(player) is true:
+        stop
+    za_qz_fouille(player, event-block)
+
+function za_qz_fouille(p: player, b: block):
+    set {_z} to za_qz_ici(location of {_b})
+    if {_z} is "":
+        stop
+    set {_k} to za_lkey(location of {_b})
+    if {za::qz::fouille::%{_k}%} is ({za::serveur::jours} ? 0):
+        stop
+    set {za::qz::fouille::%{_k}%} to {za::serveur::jours} ? 0
+    set {_inv} to inventory of {_b}
+    set {_e} to za_qz_etat({_z})
+    if {_e} is "calme":
+        add 3 of bread to {_inv}
+        add 2 of torch to {_inv}
+    else if {_e} is "quarantaine":
+        add za_item("paper", "Bandage", "&f", 2) to {_inv}
+        add za_item("paper", "Avis de quarantaine", "&e", 1) to {_inv}
+    else if {_e} is "abandon":
+        add 1 of string to {_inv}
+        if chance of 40%:
+            add za_item("bread", "Conserve", "&f", 1) to {_inv}
+    else if {_e} is "faction":
+        add 2 of iron ingot to {_inv}
+        add za_item("gold nugget", "Jeton de Survie", "&6", 2) to {_inv}
+    else if {_e} is "infestation":
+        add za_item("honey bottle", "Antibiotique", "&b", 1) to {_inv}
+        add za_item("paper", "Bandage", "&f", 3) to {_inv}
+        add 8 of arrow to {_inv}
+    else if {_e} is "zone_morte":
+        add za_item("redstone", "Composant electronique", "&f", 2) to {_inv}
+        if chance of 30%:
+            add za_item("paper", "Note NORDA", "&5", 1) to {_inv}
+
+# zones mises à jour par les incendies (za_p98)
+function za_qz_feu(l: location):
+    set {_z} to za_qz_ici({_l})
+    if {_z} is not "":
+        add 1 to {za::qz::%{_z}%::feux}
+
+# ---------------------------------------------------------------- commandes
+
+command /quartiers:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        send "&6&l━━ QUARTIERS ━━" to player
+        loop za_qz_liste():
+            za_qz_init(loop-value)
+            set {_c} to za_qz_centre(loop-value)
+            set {_pos} to ""
+            if {_c} is set:
+                set {_pos} to "&8(X %floor(x-coordinate of {_c})%, Z %floor(z-coordinate of {_c})%)"
+            send "%za_qz_etat_nom(za_qz_etat(loop-value))% &7— %za_qz_nom(loop-value)% %{_pos}%" to player
+        send "&8Les quartiers changent chaque jour : abats les morts, ramène le courant, éteins les feux." to player
+
+command /zaquartier [<text>] [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "set":
+            if za_qz_liste() does not contain arg-2:
+                send "&7Zones : %za_qz_liste()%" to sender
+                stop
+            za_qz_changer(arg-2, arg-3 ? "calme")
+            send "&7%arg-2% -> %arg-3%" to sender
+        else if arg-1 is "pression":
+            set {za::qz::%arg-2%::pression} to (arg-3 parsed as number) ? 30
+            send "&7Pression de %arg-2% : %{za::qz::%arg-2%::pression}%" to sender
+        else if arg-1 is "jour":
+            za_qz_jour()
+            send "&7Jour des quartiers simulé." to sender
+        else:
+            loop za_qz_liste():
+                set {_pr} to {za::qz::%loop-value%::pression} ? -1
+                send "&7%loop-value% : %za_qz_etat(loop-value)% (pression %{_pr}%, présence %{za::qz::%loop-value%::presence} ? 0%)" to sender

@@ -18,6 +18,39 @@ function za_point_loin(p: player, dmin: number, dmax: number) :: location:
     add ({_d} * sin({_a})) to z-coordinate of {_l}
     return location of (highest block at {_l})
 
+# point où CONSTRUIRE (audit C6) : jusqu'à 12 essais, emprise vérifiée ; rien si aucune place sûre
+function za_point_construire(p: player, dmin: number, dmax: number) :: location:
+    loop 12 times:
+        set {_g} to za_point_loin({_p}, {_dmin}, {_dmax})
+        if za_emprise_ok({_g}, 20) is true:
+            return {_g}
+
+# emprise libre : monde principal, loin des bases, hors des lieux générés, terrain naturel et assez plat,
+# aucun conteneur ni bloc construit sur un quadrillage de l'emprise (côté +x / +z, comme les bâtisseurs)
+function za_emprise_ok(g: location, n: number) :: boolean:
+    if "%world of {_g}%" is not "world":
+        return false
+    if za_catas2_base_proche({_g}) is true:
+        return false
+    if za_site_ici({_g}) is not "":
+        return false
+    set {_y0} to y-coordinate of {_g}
+    set {_dx} to -2
+    while {_dx} <= {_n}:
+        set {_dz} to -2
+        while {_dz} <= {_n}:
+            set {_c} to location((x-coordinate of {_g}) + {_dx}, {_y0}, (z-coordinate of {_g}) + {_dz}, world of {_g})
+            set {_hb} to highest block at {_c}
+            if abs((y-coordinate of (location of {_hb})) - {_y0}) > 5:
+                return false
+            set {_t} to "%type of {_hb}%"
+            loop "chest", "barrel", "shulker", "planks", "glass", "wool", "concrete", "brick", "door", "bed", "fence", "slab", "stairs", "wall", "furnace", "crafting", "torch", "lantern", "water", "lava", "sign", "carpet", "rail", "hopper", "campfire":
+                if {_t} contains loop-value:
+                    return false
+            add 4 to {_dz}
+        add 4 to {_dx}
+    return true
+
 # ===================== ZONES MORTES =====================
 function za_zone_morte(l: location) :: boolean:
     loop {za::zm::liste::*}:
@@ -79,7 +112,9 @@ function za_labo_generer():
     if size of za_monde_joueurs() is 0:
         stop
     set {_p} to random element out of za_monde_joueurs()
-    set {_g} to za_point_loin({_p}, 70, 100)
+    set {_g} to za_point_construire({_p}, 70, 100)
+    if {_g} is not set:
+        stop
     set {_bx} to floor(x-coordinate of {_g})
     set {_gy} to floor(y-coordinate of {_g})
     set {_bz} to floor(z-coordinate of {_g})
@@ -98,7 +133,7 @@ function za_labo_generer():
     execute console command "execute in %{_wd}% run setblock %{_bx} + 3% %{_gy}% %{_bz} - 1% minecraft:stone_bricks"
     execute console command "execute in %{_wd}% run setblock %{_bx} + 3% %{_gy} + 1% %{_bz} - 1% minecraft:lectern[facing=south]"
     execute console command "execute in %{_wd}% run setblock %{_bx} + 7% %{_gy} + 1% %{_bz} - 1% minecraft:oak_sign[rotation=8]"
-    set {_sw} to block at location({_bx} + 7, {_gy} + 1, {_bz} - 1, {_w})
+    set {_sw} to block at location(({_bx} + 7), ({_gy} + 1), ({_bz} - 1), {_w})
     set line 1 of {_sw} to "&e&lDANGER"
     set line 2 of {_sw} to "&eConfinement"
     set line 3 of {_sw} to "&eNiveau 4"
@@ -113,7 +148,7 @@ function za_labo_generer():
     execute console command "execute in %{_wd}% run setblock %{_bx} + 2% %{_gy} + 2% %{_bz} + 3% minecraft:cobweb"
     execute console command "execute in %{_wd}% run setblock %{_bx} + 1% %{_gy}% %{_bz} + 1% minecraft:bone_block"
     # butin
-    set {_c1} to block at location({_bx} + 2, {_gy} + 1, {_bz} + 8, {_w})
+    set {_c1} to block at location(({_bx} + 2), ({_gy} + 1), ({_bz} + 8), {_w})
     set {_c2} to block at location({_bx} + 8, {_gy} + 1, {_bz} + 8, {_w})
     add za_item("gold nugget", "Jeton de Survie", "&6", random integer between 10 and 20) to inventory of {_c1}
     add za_item("honey bottle", "Serum", "&d", 2) to inventory of {_c1}
@@ -202,7 +237,9 @@ function za_camp_generer():
     if size of za_monde_joueurs() is 0:
         stop
     set {_p} to random element out of za_monde_joueurs()
-    set {_g} to za_point_loin({_p}, 60, 110)
+    set {_g} to za_point_construire({_p}, 60, 110)
+    if {_g} is not set:
+        stop
     set {_bx} to floor(x-coordinate of {_g})
     set {_gy} to floor(y-coordinate of {_g})
     set {_bz} to floor(z-coordinate of {_g})

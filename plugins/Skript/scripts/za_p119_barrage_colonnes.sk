@@ -1,0 +1,395 @@
+# za_p119_barrage_colonnes.sk — le barrage de la Rivière-Blanche, les colonnes de réfugiés (bible v2, points 87, 89)
+#  * BARRAGE (87) : il s'use chaque jour (plus vite avec un nid tout près). /barrage sur place : colmater les fissures
+#    (16 pierres, une fois par jour), réparer une turbine (6 lingots de fer, 4 de cuivre, 2 redstone ; trois turbines).
+#    Trois turbines : du courant pour toute la vallée (1 200 blocs, za_elec_pres de p61), mais NORDA voit la signature.
+#    À 0 : il CÈDE. La vallée en aval (vers l'est) est noyée : camps détruits, noyés dans l'eau, Léa. Irréversible pour
+#    la saison ; il se reconstruit à la saison suivante. Chaîne 6 du moteur (barrage_fissure, barrage_cede).
+#  * COLONNES (89) : un groupe de réfugiés croise parfois un joueur, loin des bases. Clic droit sur le guide :
+#    les escorter jusqu'au camp le plus proche (une colonne fait du bruit : les morts suivent), les nourrir, les
+#    examiner (Kit de depistage : un mordu caché ? un agent NORDA ?). À l'arrivée : population, confiance, réputation.
+#    Un mordu non trouvé contamine le camp ; un agent NORDA le signale.
+#  Variables : {za::digue::*} ({za::barr::*} est aux barricades p110), {za::col::*}
+
+options:
+    bx: -2600
+    by: 73
+    bz: 542
+
+# ---------------------------------------------------------------- barrage (87)
+
+function za_digue_loc() :: location:
+    return location({@bx}, {@by}, {@bz}, world("world"))
+
+function za_digue_integ() :: number:
+    return {za::digue::integ} ? 70
+
+function za_digue_cede() :: boolean:
+    if {za::digue::cede} is set:
+        if {za::digue::cede} is ({za::saison::num} ? 1):
+            return true
+    return false
+
+# appelée par za_elec_pres (p61) : la vallée est sous tension
+function za_digue_alimente(l: location) :: boolean:
+    if ({za::digue::turb} ? 0) < 3:
+        return false
+    if za_digue_cede() is true:
+        return false
+    if world of {_l} is not world("world"):
+        return false
+    if sqrt(((x-coordinate of {_l}) - {@bx}) ^ 2 + ((z-coordinate of {_l}) - {@bz}) ^ 2) < 1200:
+        return true
+    return false
+
+function za_digue_pres(p: player) :: boolean:
+    if world of {_p} is not world("world"):
+        return false
+    if sqrt(((x-coordinate of {_p}) - {@bx}) ^ 2 + ((z-coordinate of {_p}) - {@bz}) ^ 2) < 90:
+        return true
+    return false
+
+function za_digue_jour():
+    # nouvelle saison : la vallée s'est remise, le barrage a été rebâti tant bien que mal
+    if {za::digue::cede} is set:
+        if za_digue_cede() is false:
+            delete {za::digue::cede}
+            set {za::digue::integ} to 60
+            set {za::digue::turb} to 0
+    if za_digue_cede() is true:
+        stop
+    set {_i} to za_digue_integ() - 2
+    if za_nid_proche(za_digue_loc(), 220) is not 0:
+        remove 3 from {_i}
+    set {za::digue::integ} to max(0, {_i})
+    if ({za::digue::turb} ? 0) >= 3:
+        za_mot("habitude {@bx} {@bz} courant 1")
+    if {_i} <= 0:
+        za_digue_ceder()
+    else if {_i} < 35:
+        if ({za::digue::alerte} ? -1) is not ({za::serveur::jours} ? 0):
+            set {za::digue::alerte} to {za::serveur::jours} ? 0
+            za_mot_evt("barrage_fissure", za_digue_loc(), 3, "-", "Les fissures du barrage de la Rivière-Blanche grandissent")
+            za_radio("&bLéa", "L'ingénieur du barrage m'a encore appelée. Il dit que ça craque, la nuit. Il faut des bras, des pierres. Vite.")
+
+every 1 minute:
+    if {za::digue::jour} is not ({za::serveur::jours} ? 0):
+        set {za::digue::jour} to {za::serveur::jours} ? 0
+        za_digue_jour()
+
+function za_digue_ceder():
+    set {za::digue::cede} to {za::saison::num} ? 1
+    set {za::digue::integ} to 0
+    set {_l} to za_digue_loc()
+    za_mot_evt("barrage_cede", {_l}, 5, "-", "Le barrage de la Rivière-Blanche a cédé")
+    za_monde_legende("Saison %{za::saison::num} ? 1% : le barrage de la Rivière-Blanche a cédé. La vallée a bu.")
+    za_journal("Le barrage de la Rivière-Blanche a cédé.")
+    za_diffuser("&4&l⚠ &cUn grondement immense, à l'ouest. &7Le barrage de la Rivière-Blanche a cédé.")
+    # la vallée en aval (vers l'est) : camps emportés
+    loop {za::camp::liste::*}:
+        if {za::camp::%loop-value%::etat} is "vivant":
+            set {_c} to {za::camp::%loop-value%::loc}
+            if za_digue_aval({_c}) is true:
+                za_cmp_tomber(loop-value, "la crue du barrage")
+    loop za_monde_joueurs():
+        if za_digue_aval(location of loop-value) is true:
+            send "&9L'eau arrive. Un mur d'eau brune, des arbres, des voitures. &7Monte. MONTE." to loop-value
+            za_effet(loop-value, "slowness", 30, 1)
+            za_spawn_near(loop-value, "ZA_Noye", 8, 14)
+            za_spawn_near(loop-value, "ZA_Noye", 8, 14)
+
+function za_digue_aval(l: location) :: boolean:
+    if {_l} is not set:
+        return false
+    if world of {_l} is not world("world"):
+        return false
+    set {_dx} to (x-coordinate of {_l}) - {@bx}
+    if {_dx} < 0:
+        return false
+    if {_dx} > 1500:
+        return false
+    if abs((z-coordinate of {_l}) - {@bz}) > 350:
+        return false
+    return true
+
+command /barrage [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        set {_a} to arg-1 ? ""
+        if za_digue_cede() is true:
+            send "&7Le barrage de la Rivière-Blanche n'existe plus. Un trou de béton, une vallée de boue. &8(Il sera rebâti la saison prochaine.)" to player
+            stop
+        if {_a} is "colmater":
+            if za_digue_pres(player) is false:
+                send "&7Il faut être au barrage (X {@bx} Z {@bz})." to player
+                stop
+            if ({za::digue::fait::%{_u}%} ? -1) is ({za::serveur::jours} ? 0):
+                send "&7Tu as déjà colmaté aujourd'hui. Tes bras le savent." to player
+                stop
+            if player does not have 16 cobblestone:
+                send "&7Il faut 16 pierres (cobblestone)." to player
+                stop
+            remove 16 cobblestone from player
+            set {za::digue::fait::%{_u}%} to {za::serveur::jours} ? 0
+            set {za::digue::integ} to min(100, za_digue_integ() + 8)
+            za_faction_ajouter(player, "survivants", 2)
+            send "&aTu bouches une fissure. &7Le béton pleure moins. &8(intégrité %za_digue_integ()%/100)" to player
+            stop
+        if {_a} is "reparer":
+            if za_digue_pres(player) is false:
+                send "&7Il faut être au barrage (X {@bx} Z {@bz})." to player
+                stop
+            if ({za::digue::turb} ? 0) >= 3:
+                send "&7Les trois turbines tournent déjà." to player
+                stop
+            if any:
+                player does not have 6 iron ingot
+                player does not have 4 copper ingot
+                player does not have 2 redstone
+            then:
+                send "&7Une turbine : 6 lingots de fer, 4 lingots de cuivre, 2 redstone." to player
+                stop
+            remove 6 iron ingot from player
+            remove 4 copper ingot from player
+            remove 2 redstone from player
+            add 1 to {za::digue::turb}
+            za_faction_ajouter(player, "survivants", 4)
+            play sound "block.anvil.use" with volume 1 at player
+            if {za::digue::turb} >= 3:
+                za_diffuser("&e&l⚡ &7Les trois turbines du barrage tournent. &fToute la vallée a du courant.")
+                za_radio("&bLéa", "Le barrage produit ! De la lumière dans toute la vallée de la Rivière-Blanche. Ceux qui ont fait ça... merci. Et attention : ça se voit de loin.")
+                za_mot("courant {@bx} {@bz} on")
+                za_cmpg_decision({_u}, "Tu as remis en marche le barrage de la Rivière-Blanche.")
+            else:
+                send "&aUne turbine de plus (%{za::digue::turb}%/3)." to player
+            stop
+        send "&3&l━━ BARRAGE DE LA RIVIÈRE-BLANCHE ━━ &8(X {@bx} Z {@bz})" to player
+        send "&7Intégrité : &f%za_digue_integ()%/100 &8· &7turbines : &f%{za::digue::turb} ? 0%/3" to player
+        if ({za::digue::turb} ? 0) >= 3:
+            send "&aLa vallée a du courant &7(1 200 blocs autour). &8NORDA aussi le sait." to player
+        if za_digue_integ() < 35:
+            send "&cIl craque. S'il cède, la vallée en aval sera noyée." to player
+        send "&8/barrage colmater (16 pierres, 1 fois par jour) · /barrage reparer (une turbine)" to player
+
+# ---------------------------------------------------------------- colonnes de réfugiés (89)
+
+every 2 minutes:
+    if ({za::col::actif} ? 0) > 0:
+        stop
+    loop za_monde_joueurs():
+        if za_pro(loop-value) is false:
+            if world of loop-value is world("world"):
+                if chance of 3%:
+                    if za_col_loin_base(loop-value) is true:
+                        za_col_creer(loop-value)
+                        stop
+
+function za_col_loin_base(p: player) :: boolean:
+    set {_b} to {za::base::%{_p}'s uuid%}
+    if {_b} is not set:
+        return true
+    if world of {_b} is not world of {_p}:
+        return true
+    if distance between {_b} and {_p} > 150:
+        return true
+    return false
+
+# camp vivant le plus proche
+function za_col_dest(l: location) :: number:
+    set {_best} to 0
+    set {_bd} to 999999
+    loop {za::camp::liste::*}:
+        if {za::camp::%loop-value%::etat} is "vivant":
+            set {_c} to {za::camp::%loop-value%::loc}
+            if world of {_c} is world of {_l}:
+                set {_d} to distance between {_c} and {_l}
+                if {_d} < {_bd}:
+                    set {_bd} to {_d}
+                    set {_best} to loop-value
+    return {_best}
+
+function za_col_creer(p: player):
+    set {_dest} to za_col_dest(location of {_p})
+    if {_dest} is 0:
+        stop
+    add 1 to {za::col::n}
+    set {_i} to {za::col::n}
+    set {_l} to za_qz_point(location of {_p}, 30)
+    if {_l} is not set:
+        stop
+    set {za::col::actif} to {_i}
+    set {za::col::%{_i}%::loc} to {_l}
+    set {za::col::%{_i}%::dest} to {_dest}
+    set {za::col::%{_i}%::n} to random integer between 6 and 14
+    set {za::col::%{_i}%::fin} to (unix timestamp of now) + 1200
+    if chance of 30%:
+        set {za::col::%{_i}%::infecte} to true
+    if chance of 10%:
+        set {za::col::%{_i}%::agent} to true
+    za_col_pnj({_i}, {_l}, "Guide de la colonne", true)
+    loop 4 times:
+        set {_f} to za_qz_point({_l}, 4)
+        if {_f} is set:
+            set {_nm} to random element out of "Réfugiée", "Réfugié", "Mère et enfant", "Vieil homme" and "Adolescent"
+            za_col_pnj({_i}, {_f}, {_nm}, false)
+    send "&7Des silhouettes sur la route, au loin. &fUne colonne de réfugiés. &8(Clic droit sur le guide.)" to {_p}
+    za_mot_evt("colonne_refugies", {_l}, 2, "-", "%{za::col::%{_i}%::n}% civils vers %{za::camp::%{_dest}%::nom}%")
+
+function za_col_pnj(i: number, l: location, nom: text, guide: boolean):
+    set {_t} to ""
+    if {_guide} is true:
+        set {_t} to ",""za_col_guide"""
+    execute console command "execute in minecraft:overworld run summon villager %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% {CustomName:'""%{_nom}%""',CustomNameVisible:1b,PersistenceRequired:1b,Silent:1b,NoAI:1b,VillagerData:{profession:""minecraft:nitwit"",level:1,type:""minecraft:plains""},Tags:[""za_col"",""za_col_%{_i}%""%{_t}%]}"
+
+function za_col_entites(i: number) :: entities:
+    set {_l} to {za::col::%{_i}%::loc}
+    if {_l} is not set:
+        stop
+    if chunk at {_l} is not loaded:
+        stop
+    loop all villagers in radius 24 around {_l}:
+        if za_surv_a_tag(loop-entity, "za_col_%{_i}%") is true:
+            add loop-entity to {_r::*}
+    return {_r::*}
+
+function za_col_fin(i: number):
+    # les données d'abord : la mort des PNJ ne doit plus rien compter
+    delete {za::col::%{_i}%::*}
+    delete {za::col::actif}
+    execute console command "execute in minecraft:overworld run kill @e[type=villager,tag=za_col_%{_i}%]"
+
+on right click on villager:
+    if za_pro(player) is true:
+        stop
+    if za_surv_a_tag(clicked entity, "za_col_guide") is false:
+        stop
+    cancel event
+    set {_i} to {za::col::actif}
+    if {_i} is not set:
+        stop
+    set {za::col::ctx::%player's uuid%} to {_i}
+    set {_dn} to {za::camp::%{za::col::%{_i}%::dest}%::nom} ? "un camp"
+    set {_o::*} to "Les escorter jusqu'au camp|escorter", "Partager de la nourriture|nourrir", "Examiner les réfugiés (Kit de depistage)|examiner" and "Partir|quit"
+    za_menu(player, "zacolclic", "Une colonne de réfugiés", "%{za::col::%{_i}%::n}% personnes, des sacs, des poussettes vides. Le guide : « On va vers %{_dn}%. On a entendu dire que c'était sûr. Vous venez avec nous ? »", {_o::*})
+
+command /zacolclic <player> <text>:
+    executable by: console
+    trigger:
+        wait 2 ticks
+        za_col_noeud(arg-1, arg-2)
+
+function za_col_noeud(p: player, n: text):
+    set {_u} to "%{_p}'s uuid%"
+    set {_i} to {za::col::ctx::%{_u}%}
+    if {_i} is not set:
+        stop
+    if {_i} is not ({za::col::actif} ? 0):
+        stop
+    if {_n} is "escorter":
+        set {za::col::%{_i}%::escorte} to {_u}
+        set {za::col::%{_i}%::fin} to (unix timestamp of now) + 2400
+        send "&7« Merci. On vous suit. » &8(Reste à moins de 30 blocs du guide : la colonne avance avec toi. Elle fait du bruit.)" to {_p}
+    else if {_n} is "nourrir":
+        set {_ok} to false
+        loop "bread", "cooked beef", "baked potato", "cooked porkchop" and "cooked chicken":
+            set {_ty} to loop-value parsed as itemtype
+            if {_ok} is false:
+                if {_p} has 3 of {_ty}:
+                    remove 3 of {_ty} from {_p}
+                    set {_ok} to true
+        if {_ok} is false:
+            send "&7Il faut 3 portions (pain, viande cuite, patates)." to {_p}
+            stop
+        za_faction_ajouter({_p}, "survivants", 3)
+        add 1 to {za::col::%{_i}%::n}
+        send "&7Les enfants mangent d'abord. &8Quelqu'un qui voulait rester derrière se relève et suit." to {_p}
+    else if {_n} is "examiner":
+        if za_take_named({_p}, "Kit de depistage", 1) is false:
+            send "&7Il te faut un Kit de depistage (médecin)." to {_p}
+            stop
+        set {_vu} to false
+        if {za::col::%{_i}%::infecte} is true:
+            if chance of 80%:
+                delete {za::col::%{_i}%::infecte}
+                remove 1 from {za::col::%{_i}%::n}
+                set {_vu} to true
+                send "&cUn homme cache une morsure sous sa manche. &7Il ne supplie pas. Il s'éloigne de la route, seul." to {_p}
+        if {za::col::%{_i}%::agent} is true:
+            if chance of 40%:
+                delete {za::col::%{_i}%::agent}
+                set {_vu} to true
+                send "&cUne femme pose trop de questions. &7Dans son sac : un badge NORDA et une radio. Elle s'enfuit." to {_p}
+        if {_vu} is false:
+            send "&aTout le monde est négatif. &8(Le kit peut se tromper.)" to {_p}
+
+# l'escorte : la colonne avance quand son escorte est là (toutes les 5 s)
+every 5 seconds:
+    set {_i} to {za::col::actif}
+    if {_i} is not set:
+        stop
+    if ({za::col::%{_i}%::fin} ? 0) < unix timestamp of now:
+        za_col_fin({_i})
+        stop
+    set {_e} to za_mot_joueur({za::col::%{_i}%::escorte} ? "")
+    if {_e} is not set:
+        stop
+    set {_l} to {za::col::%{_i}%::loc}
+    if world of {_e} is not world of {_l}:
+        stop
+    if distance between {_e} and {_l} > 30:
+        stop
+    set {_c} to {za::camp::%{za::col::%{_i}%::dest}%::loc}
+    if {_c} is not set:
+        za_col_fin({_i})
+        stop
+    if distance between {_l} and {_c} < 20:
+        za_col_arrivee({_e}, {_i})
+        stop
+    # quatre blocs vers le camp
+    set {_d} to distance between {_l} and {_c}
+    set {_nx} to (x-coordinate of {_l}) + 4 * ((x-coordinate of {_c}) - (x-coordinate of {_l})) / {_d}
+    set {_nz} to (z-coordinate of {_l}) + 4 * ((z-coordinate of {_c}) - (z-coordinate of {_l})) / {_d}
+    set {_nl} to za_eq_sol(location({_nx}, (y-coordinate of {_l}) + 6, {_nz}, world of {_l}))
+    if {_nl} is not set:
+        stop
+    loop za_col_entites({_i}):
+        set {_dl} to location(({_nx} + (random number between -2 and 2)), (y-coordinate of {_nl}), ({_nz} + (random number between -2 and 2)), (world of {_nl}))
+        teleport loop-value to {_dl}
+    set {za::col::%{_i}%::loc} to {_nl}
+    za_activite_ajouter({_nl}, 2)
+    if chance of 6%:
+        send "&8Des pas traînants derrière la colonne. Ils ont senti." to {_e}
+        za_spawn_near({_e}, "ZA_Shambler", 14, 22)
+        za_spawn_near({_e}, "ZA_Runner", 18, 24)
+
+on death of villager:
+    if za_surv_a_tag(victim, "za_col") is false:
+        stop
+    set {_i} to {za::col::actif}
+    if {_i} is set:
+        remove 2 from {za::col::%{_i}%::n}
+        if za_surv_a_tag(victim, "za_col_guide") is true:
+            set {_e} to za_mot_joueur({za::col::%{_i}%::escorte} ? "")
+            if {_e} is set:
+                send "&cLe guide est tombé. &7La colonne se disperse dans les bois." to {_e}
+            za_col_fin({_i})
+
+function za_col_arrivee(p: player, i: number):
+    set {_c} to {za::col::%{_i}%::dest}
+    set {_n} to max(1, ({za::col::%{_i}%::n} ? 1))
+    set {_nom} to {za::camp::%{_c}%::nom}
+    za_cmp_pop_ajouter({_c}, {_n})
+    za_cmp_champ({_c}, "moral", 6)
+    za_cmp_conf_ajouter("%{_p}'s uuid%", {_c}, 10)
+    za_faction_ajouter({_p}, "survivants", 8)
+    send "&a%{_n}% réfugiés arrivent au %{_nom}%. &7On leur ouvre les portes. Quelqu'un pleure. Quelqu'un rit." to {_p}
+    za_radio("&bLéa", "Une colonne est arrivée au %{_nom}%. %{_n}% personnes. Quelqu'un les a escortées jusqu'au bout. Il reste des gens bien.")
+    za_cmpg_decision("%{_p}'s uuid%", "Tu as escorté %{_n}% réfugiés jusqu'au %{_nom}%.")
+    if {za::col::%{_i}%::infecte} is true:
+        za_cmp_champ({_c}, "contam", 15)
+        send "&8(Trois jours plus tard, au %{_nom}%, quelqu'un se met à tousser.)" to {_p}
+    if {za::col::%{_i}%::agent} is true:
+        za_cmp_champ({_c}, "securite", -10)
+        za_mot("preuve %{_p}'s uuid% colonne 5 %floor(x-coordinate of {_p})% %floor(z-coordinate of {_p})%")
+    za_col_fin({_i})

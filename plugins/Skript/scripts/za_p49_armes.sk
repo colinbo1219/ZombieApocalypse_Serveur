@@ -619,6 +619,8 @@ function za_arme_info(p: player):
     if {_jam} is not "":
         send "&4Arme enrayée : &7répare-la près du Mécano (&e/arme reparer&7)." to {_p}
     send "&7Zombies abattus : &f%{za::arme::kills::%{_s}%}% &8· &7Origine : &f%{za::arme::orig::%{_s}%}%" to {_p}
+    if {za::arme::fiche::%{_s}%} is set:
+        send "&c⚠ Numéro de série fiché par %{za::arme::fiche::%{_s}%}% &8(saisie à un barrage : elle peut te trahir)" to {_p}
     send "&7N° de série : &f%{_s}%" to {_p}
     if {za::arme::hist::%{_s}%} is set:
         send "&7Ayant appartenu à : &f%{za::arme::hist::%{_s}%}%" to {_p}

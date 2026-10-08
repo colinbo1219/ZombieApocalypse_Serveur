@@ -1,0 +1,167 @@
+# =====================================================================
+#  ZombieApocalypse - FAMILLES DE SURVIVANTS et MON HISTOIRE
+#  FAMILLES : un survivant installé dans une base (za_p43) peut, un jour, parler de quelqu'un qu'il a perdu :
+#    « Ma sœur Julie était au Refuge 23 quand tout a commencé... » (un refuge, za_p84, ou un village).
+#    Le joueur y va : elle est VIVANTE (un survivant apparaît, za_p43) ou MORTE (ses effets personnels).
+#    De retour à la base : retrouvailles (moral du survivant +40, stress du joueur -30) ou deuil (moral -30 ; un sur
+#    trois s'en va). Le monde s'en souvient (souvenir, chronique). Une quête à la fois par survivant.
+#  MON HISTOIRE : /monhistoire [page] — ce que TOI tu as vécu : choix du prologue, lieux découverts, boss tombés,
+#    fréquences, refuges, proches retrouvés, titres, et tes souvenirs les plus récents.
+#  Admin : /zafamille <id survivant> (lancer une quête)
+# =====================================================================
+
+function za_fam_lien(g: text) :: text:
+    if {_g} is "f":
+        return random element out of "sa sœur", "sa fille", "sa mère" and "sa femme"
+    return random element out of "son frère", "son fils", "son père" and "son mari"
+
+# lieu où chercher : un refuge ou un bâtiment de village (monde généré)
+function za_fam_lieu() :: text:
+    loop za_sites_donnees():
+        set {_c::*} to split loop-value at "|"
+        if {_c::2} is "refuge" or "ecole" or "clinique" or "eglise":
+            add {_c::1} to {_l::*}
+    if size of {_l::*} is 0:
+        return ""
+    return random element out of {_l::*}
+
+function za_fam_lancer(id: number):
+    if {za::fam::%{_id}%::etat} is set:
+        stop
+    set {_u} to {za::surv::%{_id}%::base}
+    if {_u} is not set:
+        stop
+    set {_k} to za_fam_lieu()
+    if {_k} is "":
+        stop
+    set {_g} to random element out of "f" and "m"
+    set {_fam::*} to split {za::surv::%{_id}%::nom} at " "
+    set {_proche} to "%za_surv_prenom({_g})% %last element of {_fam::*}%"
+    set {za::fam::%{_id}%::proche} to {_proche}
+    set {za::fam::%{_id}%::lien} to za_fam_lien({_g})
+    set {za::fam::%{_id}%::lieu} to {_k}
+    set {za::fam::%{_id}%::vivant} to false
+    if chance of 55%:
+        set {za::fam::%{_id}%::vivant} to true
+    set {za::fam::%{_id}%::etat} to "cherche"
+    add {_id} to {za::fam::liste::*}
+    set {_nom} to {za::site::d::%{_k}%::nom}
+    set {_txt} to "« %{_proche}%, %{za::fam::%{_id}%::lien}%... était à %{_nom}% quand tout a commencé. Si vous passez par là... dites-moi. »"
+    set {_p} to za_surv_joueur({_u})
+    if {_p} is set:
+        send "&6[%{za::surv::%{_id}%::nom}%] &7%{_txt}%" to {_p}
+        send "&8Lieu : %{_nom}% (X %{za::site::d::%{_k}%::x}%, Z %{za::site::d::%{_k}%::z}%)" to {_p}
+    else:
+        za_tel_sms({_u}, "%{za::surv::%{_id}%::nom}%", {_txt})
+
+# un survivant de base, de temps en temps, se confie
+every 20 minutes:
+    loop {za::surv::liste::*}:
+        set {_id} to loop-value
+        if {za::surv::%{_id}%::base} is set:
+            if {za::fam::%{_id}%::etat} is not set:
+                if chance of 12%:
+                    za_fam_lancer({_id})
+
+every 5 seconds:
+    if size of {za::fam::liste::*} is 0:
+        stop
+    loop {za::fam::liste::*}:
+        set {_id} to loop-value-1
+        set {_u} to {za::surv::%{_id}%::base}
+        set {_u2} to {_u} ? ""
+        set {_p} to za_surv_joueur({_u2})
+        if {_p} is set:
+            if za_pro({_p}) is false:
+                set {_k} to {za::fam::%{_id}%::lieu}
+                set {_proche} to {za::fam::%{_id}%::proche}
+                # sur place
+                if {za::fam::%{_id}%::etat} is "cherche":
+                    if za_site_ici(location of {_p}) is {_k}:
+                        if {za::fam::%{_id}%::vivant} is true:
+                            set {za::fam::%{_id}%::etat} to "trouve_vivant"
+                            execute console command "zasurv creer %floor(x-coordinate of {_p}) + 2% %floor(y-coordinate of {_p})% %floor(z-coordinate of {_p})% world"
+                            send "&aQuelqu'un sort de sa cachette. « %{za::surv::%{_id}%::nom}% ? Il est vivant ? » C'est &f%{_proche}%&a." to {_p}
+                            send "&7Rentre à ta base : %{za::surv::%{_id}%::nom}% doit savoir." to {_p}
+                        else:
+                            set {za::fam::%{_id}%::etat} to "trouve_mort"
+                            give {_p} 1 paper named "&7Effets personnels de %{_proche}%" with lore "&8Une photo, un bracelet d'hôpital, une clé." and "&8À rapporter à %{za::surv::%{_id}%::nom}%."
+                            send "&8Tu trouves ce qui reste de %{_proche}%. Une photo dans la poche. Sur la photo, %{za::surv::%{_id}%::nom}% sourit." to {_p}
+                # retour à la base
+                else if {za::base::%{_u}%} is set:
+                    if world of {za::base::%{_u}%} is world of {_p}:
+                        if distance between {za::base::%{_u}%} and {_p} < 25:
+                            set {_nom} to {za::surv::%{_id}%::nom}
+                            if {za::fam::%{_id}%::etat} is "trouve_vivant":
+                                set {za::fam::%{_id}%::etat} to "fini"
+                                za_surv_moral_ajouter({_id}, 40)
+                                za_stress_ajouter({_p}, -30)
+                                send "&a%{_nom}% ne dit rien. Puis il pleure, longtemps. « Merci. Merci. »" to {_p}
+                                za_souvenir_ajouter({_u}, "fam:%{_id}%", "retrouvailles", "J'ai retrouvé %{_proche}%, %{za::fam::%{_id}%::lien}% de %{_nom}%.")
+                                za_journal("%{_nom}% a retrouvé %{_proche}%.")
+                            else if {za::fam::%{_id}%::etat} is "trouve_mort":
+                                if za_count_named({_p}, "Effets personnels de %{_proche}%") >= 1:
+                                    za_take_named({_p}, "Effets personnels de %{_proche}%", 1)
+                                    set {za::fam::%{_id}%::etat} to "fini"
+                                    za_surv_moral_ajouter({_id}, -30)
+                                    send "&7Tu tends la photo à %{_nom}%. Il la regarde longtemps. Il ne dit rien." to {_p}
+                                    za_souvenir_ajouter({_u}, "fam:%{_id}%", "chute", "J'ai rapporté à %{_nom}% ce qui restait de %{_proche}%.")
+                                    if chance of 33%:
+                                        send "&8Le lendemain, la couchette de %{_nom}% est vide. Il est parti la rejoindre, d'une façon ou d'une autre." to {_p}
+                                        execute console command "zasurv tuer %{_id}%"
+
+command /zafamille <number>:
+    permission: za.admin
+    trigger:
+        delete {za::fam::%arg-1%::etat}
+        za_fam_lancer(arg-1)
+        set {_pr} to {za::fam::%arg-1%::proche} ? "(aucune : survivant sans base ?)"
+        send "&7Quête familiale : %{_pr}%" to sender
+
+# ---------------------------------------------------------------- MON HISTOIRE
+
+command /monhistoire [<number>]:
+    aliases: /mon-histoire
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        set {_pg} to arg-1 ? 1
+        send "&6&l━━ MON HISTOIRE &7— %player% (page %{_pg}%/2) ━━" to player
+        if {_pg} is 1:
+            send "&7Saint-Aurèle, avant :" to player
+            loop {za::choix::%{_u}%::*}:
+                send "&8 • %loop-index% : &f%loop-value%" to player
+            set {_vus} to 0
+            loop za_sites_donnees():
+                set {_c::*} to split loop-value at "|"
+                if {za::site::vu::%{_c::1}%::%{_u}%} is set:
+                    add 1 to {_vus}
+            send "&7Lieux découverts : &f%{_vus}% &8· &7jours survécus : &f%{za::jours::%{_u}%} ? 0% &8· &7morts abattus : &f%{za::kills::%{_u}%} ? 0%" to player
+            set {_f} to 0
+            loop za_radio_freqs_cachees():
+                if {za::freq::connue::%{_u}%::%loop-value%} is set:
+                    add 1 to {_f}
+            send "&7Fréquences trouvées : &f%{_f}%&7/5 &8· &7stress : &f%za_stress({_u})% &8· &7santé mentale : &f%{za::sanite::%{_u}%} ? 100%" to player
+            set {_t::*} to {za::titres::%{_u}%::*}
+            if size of {_t::*} > 0:
+                send "&7Titres : &e%{_t::*}%" to player
+            send "&7Ce qu'on dit de toi : &f%za_dest_reputation({_u})%" to player
+            set {_pc} to round((({za::carte::%{_u}%::ncases} ? 0) / 24414) * 1000) / 10
+            send "&7Région explorée : &f%{_pc}% %% &8(/macarte)" to player
+            set {_ms} to za_stat({_u}, "missions_survivants")
+            set {_mk} to za_stat({_u}, "morts_par_survivants")
+            send "&7Missions de ton équipe : &f%{_ms}% &8· &7morts abattus par tes survivants : &f%{_mk}%" to player
+            send "&8/monhistoire 2 : tes souvenirs" to player
+        else:
+            set {_s::*} to {za::souv::%{_u}%::*}
+            set {_n} to size of {_s::*}
+            if {_n} is 0:
+                send "&8Rien encore. Le monde ne t'a pas encore marqué." to player
+                stop
+            set {_de} to max(1, {_n} - 11)
+            set {_i} to {_de}
+            while {_i} <= {_n}:
+                set {_c::*} to split {_s::%{_i}%} at "|"
+                send "&8Jour %{_c::1}% &7— %{_c::4}%" to player
+                add 1 to {_i}

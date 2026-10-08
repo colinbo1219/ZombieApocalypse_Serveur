@@ -109,6 +109,8 @@ every 11 minutes:
 
 # ---------- l'Echo : tes messages sont repetes par une voix inconnue ----------
 on chat:
+    if za_pro(player) is true:
+        stop
     if chance of 8%:
         set {_m} to message
         wait 15 seconds

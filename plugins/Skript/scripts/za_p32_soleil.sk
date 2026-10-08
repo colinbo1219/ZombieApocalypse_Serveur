@@ -1,5 +1,5 @@
 # =====================================================================
-#  ZombieApocalypse - LES ZOMBIES NE BRULENT PAS AU SOLEIL (vanilla compris)
+#  ZombieApocalypse - AUCUN MONSTRE NE BRULE AU SOLEIL (zombies vanilla, noyes, squelettes compris)
 #  Les zombies MythicMobs ont deja PreventSunburn. Ici on couvre aussi les zombies vanilla (noyes, zombies-villageois, etc.) :
 #  quand l'evenement de combustion arrive en plein jour, a ciel ouvert, sans lave ni feu sous les pieds, on l'annule.
 #  Le feu venu d'ailleurs (lave, feu de camp, pieges incendiaires) fonctionne comme avant.
@@ -11,15 +11,18 @@ options:
     zombies_sans_brulure: true
 
 function za_jour(w: world) :: boolean:
-    set {_t} to time in {_w}
-    if {_t} is greater than 18:30:
-        if {_t} is less than 5:00:
-            return false
+    # la nuit va de 18 h 30 à 5 h : c'est un OU, pas un ET (audit M3)
+    set {_t} to time of {_w}
+    if any:
+        {_t} is greater than 18:30
+        {_t} is less than 5:00
+    then:
+        return false
     return true
 
 on combust:
     if {@zombies_sans_brulure} is true:
-        if event-entity is a zombie:
+        if event-entity is a monster:
             if za_jour(world of event-entity) is true:
                 set {_l} to location of event-entity
                 set {_b} to "%block at {_l}%"

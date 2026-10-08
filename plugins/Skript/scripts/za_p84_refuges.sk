@@ -1,0 +1,129 @@
+# =====================================================================
+#  ZombieApocalypse - LES REFUGES ABANDONNÉS : vingt petites caches dans la forêt (monde généré)
+#  Chaque refuge a une histoire (le mot laissé sur le mur), une radio qui grésille (elle donne une FRÉQUENCE cachée,
+#  za_p85_radio) et un ÉTAT qui change avec le temps :
+#     refuge (vide, intact) -> occupé (un survivant s'y cache) -> abandonné (il est parti) -> détruit (brûlé)
+#  Chaque jour serveur : vide -> occupé 5 %%, occupé -> abandonné 15 %%, abandonné -> détruit 10 %%.
+#  Occupé : le survivant (za_p43) apparaît quand un joueur approche. Détruit : le refuge est carbonisé à la prochaine
+#  visite (commandes « fill » quand le chunk est chargé).
+#  Joueur : /refuges (ceux que tu as trouvés)   Admin : /zarefuge etat | etat <id> <refuge|occupe|abandonne|detruit>
+# =====================================================================
+
+function za_ref_histoire(n: number) :: text:
+    set {_h::*} to "« On est restés quatre jours. Julien toussait. Le cinquième matin, il ne toussait plus. On est partis. »", "« Si tu lis ça, la porte ne ferme plus à clé. Pousse la commode. Et ne réponds pas quand ça frappe. »", "« Maman, je suis allé vers le barrage comme on avait dit. Je t'attends là-bas. — Félix »", "« Rationnement : une conserve par jour pour deux. Pas de feu la nuit. Ils voient la fumée. »", "« Le soldat disait qu'un convoi passerait sur la 40. On a attendu trois jours. Personne. »", "« J'ai fermé les yeux de Claire. Je l'ai enterrée derrière. Pardonnez-moi pour la suite. »", "« Il y a une fréquence où quelqu'un répond encore. Je l'ai notée sous la radio. »", "« Ne va pas au parc industriel. Il y a quelqu'un là-bas qui accroche les corps. »", "« Les enfants chantaient à l'hôpital. Il n'y a plus d'enfants à l'hôpital. »" and "« Refuge sûr. Frappez trois fois. Si personne ne répond, c'est qu'on n'est plus là. »"
+    return {_h::%mod({_n}, 10) + 1%}
+
+function za_ref_etat(id: text) :: text:
+    return {za::refuge::%{_id}%::etat} ? "refuge"
+
+# fréquence de la radio du refuge (za_p85_radio) : toutes les fréquences cachées sont réparties sur les refuges
+function za_ref_frequence(n: number) :: text:
+    set {_f::*} to za_radio_freqs_cachees()
+    return {_f::%mod({_n}, size of {_f::*}) + 1%}
+
+function za_ref_init():
+    loop za_sites_donnees():
+        set {_c::*} to split loop-value at "|"
+        if {_c::2} is "refuge":
+            if {za::refuge::%{_c::1}%::etat} is not set:
+                set {_r} to random number between 0 and 1
+                set {za::refuge::%{_c::1}%::etat} to "refuge"
+                if {_r} < 0.25:
+                    set {za::refuge::%{_c::1}%::etat} to "occupe"
+                else if {_r} > 0.85:
+                    set {za::refuge::%{_c::1}%::etat} to "abandonne"
+                add {_c::1} to {za::refuge::liste::*}
+
+on load:
+    za_ref_init()
+
+function za_ref_bruler(id: text):
+    set {_x} to {za::site::d::%{_id}%::x}
+    set {_y} to {za::site::d::%{_id}%::y}
+    set {_z} to {za::site::d::%{_id}%::z}
+    execute console command "execute in minecraft:overworld run fill %{_x} - 3% %{_y}% %{_z} - 3% %{_x} + 3% %{_y} + 4% %{_z} + 3% minecraft:black_concrete replace minecraft:spruce_planks"
+    execute console command "execute in minecraft:overworld run fill %{_x} - 3% %{_y}% %{_z} - 3% %{_x} + 3% %{_y} + 4% %{_z} + 3% minecraft:air replace minecraft:spruce_slab"
+    execute console command "execute in minecraft:overworld run fill %{_x} - 3% %{_y}% %{_z} - 3% %{_x} + 3% %{_y} + 4% %{_z} + 3% minecraft:air replace minecraft:glass_pane"
+    execute console command "execute in minecraft:overworld run setblock %{_x}% %{_y}% %{_z}% minecraft:campfire[lit=false]"
+    set {za::refuge::%{_id}%::brule} to true
+
+function za_ref_visite(p: player, id: text):
+    set {_u} to "%{_p}'s uuid%"
+    set {_e} to za_ref_etat({_id})
+    set {_t} to {_id}
+    replace all "refuge_" with "" in {_t}
+    set {_n} to ({_t} parsed as number) ? 1
+    if {_e} is "detruit":
+        if {za::refuge::%{_id}%::brule} is not set:
+            za_ref_bruler({_id})
+    if {za::refuge::%{_id}%::vu::%{_u}%} is {_e}:
+        stop
+    set {za::refuge::%{_id}%::vu::%{_u}%} to {_e}
+    set {_nom} to {za::site::d::%{_id}%::nom}
+    if {_e} is "refuge":
+        send "&7Sur le mur de %{_nom}%, un mot : &f&o%za_ref_histoire({_n})%" to {_p}
+        set {_f} to za_ref_frequence({_n})
+        send "&8La radio grésille. Sous l'appareil, quelqu'un a gravé : &7%{_f}%" to {_p}
+        za_radio_decouvrir({_p}, {_f})
+    else if {_e} is "occupe":
+        send "&7Quelqu'un a allumé une bougie dans %{_nom}%. « Qui est là ? Je ne veux pas d'ennuis. »" to {_p}
+        if {za::refuge::%{_id}%::survivant} is not set:
+            set {za::refuge::%{_id}%::survivant} to true
+            execute console command "zasurv creer %{za::site::d::%{_id}%::x}% %{za::site::d::%{_id}%::y}% %{za::site::d::%{_id}%::z}% world"
+    else if {_e} is "abandonne":
+        send "&7%{_nom}% est vide. Une couverture encore tiède, une boîte de conserve ouverte. Sur la porte : &f&o« Partis vers le nord. Ne nous suivez pas. »" to {_p}
+    else:
+        send "&7%{_nom}% a brûlé. Les murs sont noirs. Il reste une odeur que tu n'oublieras pas." to {_p}
+        za_souvenir_ajouter({_u}, "site:%{_id}%", "chute", "Trouvé %{_nom}% en cendres.")
+
+every 5 seconds:
+    if size of {za::refuge::liste::*} is 0:
+        stop
+    loop za_monde_joueurs():
+        if za_pro(loop-value) is false:
+            set {_k} to za_site_ici(location of loop-value)
+            if {_k} starts with "refuge_":
+                za_ref_visite(loop-value, {_k})
+
+# le temps passe sur les refuges (un jour serveur)
+every 20 minutes:
+    loop {za::refuge::liste::*}:
+        set {_id} to loop-value
+        set {_e} to za_ref_etat({_id})
+        if {_e} is "refuge":
+            if chance of 5%:
+                set {za::refuge::%{_id}%::etat} to "occupe"
+                delete {za::refuge::%{_id}%::survivant}
+        else if {_e} is "occupe":
+            if chance of 15%:
+                set {za::refuge::%{_id}%::etat} to "abandonne"
+        else if {_e} is "abandonne":
+            if chance of 10%:
+                set {za::refuge::%{_id}%::etat} to "detruit"
+                za_lieu_evt("site:%{_id}%", "%{za::site::d::%{_id}%::nom}% a brûlé. Personne ne sait qui a mis le feu.", 1, "chute")
+
+command /refuges:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        send "&6&l━━ REFUGES CONNUS ━━" to player
+        set {_k} to 0
+        loop {za::refuge::liste::*}:
+            if {za::refuge::%loop-value%::vu::%{_u}%} is set:
+                add 1 to {_k}
+                set {_e} to za_ref_etat(loop-value)
+                send "&7%{za::site::d::%loop-value%::nom}% &8(%{za::site::d::%loop-value%::x}%, %{za::site::d::%loop-value%::z}%) &7— %{_e}%" to player
+        if {_k} is 0:
+            send "&8Aucun. Ils sont cachés dans la forêt, loin des routes." to player
+
+command /zarefuge [<text>] [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "etat":
+            if arg-3 is set:
+                set {za::refuge::%arg-2%::etat} to arg-3
+                delete {za::refuge::%arg-2%::brule}
+                delete {za::refuge::%arg-2%::survivant}
+        loop {za::refuge::liste::*}:
+            send "&7%loop-value% (%{za::site::d::%loop-value%::nom}%) : %za_ref_etat(loop-value)%" to sender

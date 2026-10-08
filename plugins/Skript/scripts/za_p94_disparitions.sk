@@ -1,0 +1,683 @@
+# =====================================================================
+#  ZombieApocalypse - DISPARITIONS : « Mon frère n'est pas revenu. »
+#  Une petite mission qui devient une enquête, en cinq temps, sur de vrais lieux du monde généré :
+#    1. INDICE   — là où on l'a vu la dernière fois : son sac (tonneau « Sac abandonné », clic droit)
+#    2. TÉMOIN   — quelqu'un a vu quelque chose (l'écouter, le payer, le menacer : un témoin menacé ment parfois)
+#    3. OBJET    — ce qu'il a laissé derrière lui (lettre, plaque, brassard, fiche NORDA, couteau...)
+#    4. DÉDUCTION — /disparition : trois explications possibles. /disparition conclure <1-3>
+#    5. RÉVÉLATION — le bon lieu, et ce qui s'est vraiment passé. Une mauvaise piste coûte du temps : là-bas, le
+#       pire a eu le temps d'arriver.
+#  Cinq vérités : il a FUI (vivant, il ne veut pas revenir) · il est MORT (et il marche encore) · ENLEVÉ par des
+#  pillards · pris par NORDA (« sujet ») · TRAHI par celui-là même qui le cherche (seulement si c'est un survivant
+#  de ta base). Retour auprès de celui qui l'a demandé : retrouvailles, deuil, ou confrontation.
+#  Joueur : /disparition [conclure <n>|abandonner]   Admin : /zadisp lancer <joueur> [fui|mort|enleve|norda|trahison] | etat
+# =====================================================================
+
+function za_disp_verites() :: texts:
+    return "fui", "mort", "enleve", "norda" and "trahison"
+
+function za_disp_titre(v: text) :: text:
+    if {_v} is "fui":
+        return "Il est parti de lui-même"
+    if {_v} is "mort":
+        return "Il est mort, et il s'est relevé"
+    if {_v} is "enleve":
+        return "Des pillards l'ont emmené"
+    if {_v} is "norda":
+        return "NORDA l'a pris"
+    if {_v} is "trahison":
+        return "Quelqu'un qu'il connaissait l'a tué"
+    return {_v}
+
+# textes des indices selon la vérité
+function za_disp_texte(v: text, etape: text) :: text:
+    if {_etape} is "indice":
+        if {_v} is "fui":
+            return "Son sac est là, bien rangé, à moitié vide. Pas une goutte de sang. Comme si on l'avait posé."
+        if {_v} is "mort":
+            return "Le sac est éventré. Du sang séché sur la sangle, des traces de doigts dans la boue."
+        if {_v} is "enleve":
+            return "Traces de lutte. Des sillons de talons dans la terre. Une douille de calibre 12."
+        if {_v} is "norda":
+            return "Une seringue vide, roulée sous le sac. Sur l'étiquette : NORDA BIOTECH — LOT Z."
+        return "Le sac contient encore tout : vivres, eau, couteau. Celui qui l'a tué n'avait pas faim."
+    if {_etape} is "temoin":
+        if {_v} is "fui":
+            return "Je l'ai vu passer, tranquille, vers le nord. Il avait l'air... soulagé. Comme quelqu'un qui pose un poids."
+        if {_v} is "mort":
+            return "J'ai entendu crier, la nuit. Puis plus rien. Puis des pas. Lents. Qui traînaient."
+        if {_v} is "enleve":
+            return "Des types en cuir. Trois. Ils l'ont traîné dans un pick-up. J'ai fait le mort."
+        if {_v} is "norda":
+            return "Des gens en combinaison blanche. Ils m'ont pas vu. Ils parlaient de « sujets », de « réponse positive »."
+        return "Il était pas seul. Il marchait avec quelqu'un. Quelqu'un qu'il connaissait : il riait."
+    if {_v} is "fui":
+        return "Une lettre jamais envoyée : « Je ne peux plus. Ne me cherchez pas. Pardonnez-moi. »"
+    if {_v} is "mort":
+        return "Sa plaque d'identité. La chaîne a été arrachée, pas détachée."
+    if {_v} is "enleve":
+        return "Un brassard des Pilleurs, déchiré. Il y a du sang sur l'accroc."
+    if {_v} is "norda":
+        return "Une fiche plastifiée : « Sujet 41 — exposition Z-01 — réponse : POSITIVE. Transfert : niveau -2. »"
+    return "Un couteau planté dans le bois. Sur le manche, des initiales gravées. Tu les reconnais."
+
+function za_disp_objet_nom(v: text) :: text:
+    if {_v} is "fui":
+        return "Lettre jamais envoyée"
+    if {_v} is "mort":
+        return "Plaque arrachée"
+    if {_v} is "enleve":
+        return "Brassard déchiré"
+    if {_v} is "norda":
+        return "Fiche NORDA — Sujet 41"
+    return "Couteau gravé"
+
+function za_disp_types() :: text:
+    return "village,ferme,chalet,camp_chasse,refuge,depanneur,station,garage,motel,checkpoint,ecole,clinique,eglise,caserne,carambolage,convoi,exode"
+
+function za_disp_site(c: location, dmin: number, dmax: number, sauf: text) :: text:
+    set {_k} to za_eq_site_proche({_c}, za_disp_types(), {_dmin}, {_dmax}, {_sauf})
+    if {_k} is "":
+        set {_k} to za_eq_site_proche({_c}, za_disp_types(), 20, {_dmax} * 3, {_sauf})
+    return {_k}
+
+function za_disp_sloc(k: text, w: world) :: location:
+    return location({za::site::d::%{_k}%::x}, {za::site::d::%{_k}%::y}, {za::site::d::%{_k}%::z}, {_w})
+
+# ---------------------------------------------------------------- lancement
+
+function za_disp_lancer(p: player, v: text) :: boolean:
+    set {_u} to "%{_p}'s uuid%"
+    if {za::disp::actif::%{_u}%} is set:
+        return false
+    # celui qui demande : un survivant de ta base, sinon quelqu'un d'un camp
+    set {_sid} to 0
+    loop {za::surv::liste::*}:
+        if {za::surv::%loop-value%::etat} is "base":
+            if {za::surv::%loop-value%::base} is {_u}:
+                if {za::eq::m::%loop-value%::type} is not set:
+                    add loop-value to {_s::*}
+    if size of {_s::*} > 0:
+        set {_sid} to random element out of {_s::*}
+    set {_ver} to {_v}
+    if {_ver} is "":
+        set {_ver} to random element out of "fui", "mort", "enleve" and "norda"
+        if {_sid} is not 0:
+            if chance of 20%:
+                set {_ver} to "trahison"
+    if {_ver} is "trahison":
+        if {_sid} is 0:
+            set {_ver} to "mort"
+    add 1 to {za::disp::n}
+    set {_d} to {za::disp::n}
+    set {za::disp::%{_d}%::u} to {_u}
+    set {za::disp::%{_d}%::verite} to {_ver}
+    set {za::disp::%{_d}%::sid} to {_sid}
+    set {_g} to random element out of "f" and "m"
+    if {_sid} is not 0:
+        set {_fam::*} to split {za::surv::%{_sid}%::nom} at " "
+        set {_famille} to last element of {_fam::*}
+        set {za::disp::%{_d}%::demandeur} to {za::surv::%{_sid}%::nom}
+    else:
+        set {_famille} to za_surv_famille()
+        set {_dg} to random element out of "f" and "m"
+        set {za::disp::%{_d}%::demandeur} to "%za_surv_prenom({_dg})% %{_famille}%"
+        set {_cp} to za_cmp_plus_proche(location of {_p})
+        set {za::disp::%{_d}%::camp} to {_cp}
+    set {za::disp::%{_d}%::nom} to "%za_surv_prenom({_g})% %{_famille}%"
+    set {za::disp::%{_d}%::genre} to {_g}
+    set {_lien} to za_fam_lien({_g})
+    set {za::disp::%{_d}%::lien} to {_lien}
+    # les lieux : indice -> témoin -> objet -> vérité (+ deux fausses pistes)
+    set {_sauf} to ""
+    set {_a} to za_disp_site(location of {_p}, 200, 900, {_sauf})
+    if {_a} is "":
+        return false
+    set {_sauf} to "/%{_a}%/"
+    set {_b} to za_disp_site(za_disp_sloc({_a}, world of {_p}), 150, 700, {_sauf})
+    set {_sauf} to "%{_sauf}%/%{_b}%/"
+    set {_c} to za_disp_site(za_disp_sloc({_b}, world of {_p}), 150, 700, {_sauf})
+    set {_sauf} to "%{_sauf}%/%{_c}%/"
+    set {_f1} to za_disp_site(za_disp_sloc({_c}, world of {_p}), 200, 900, {_sauf})
+    set {_sauf} to "%{_sauf}%/%{_f1}%/"
+    set {_f2} to za_disp_site(za_disp_sloc({_c}, world of {_p}), 200, 1200, {_sauf})
+    set {_sauf} to "%{_sauf}%/%{_f2}%/"
+    set {_f3} to za_disp_site(za_disp_sloc({_c}, world of {_p}), 200, 1500, {_sauf})
+    loop {_b}, {_c}, {_f1}, {_f2} and {_f3}:
+        if loop-value is "":
+            return false
+    set {za::disp::%{_d}%::site::indice} to {_a}
+    set {za::disp::%{_d}%::site::temoin} to {_b}
+    set {za::disp::%{_d}%::site::objet} to {_c}
+    # trois hypothèses, dans le désordre : la vérité + deux autres
+    set {_autres::*} to "fui", "mort", "enleve" and "norda"
+    remove {_ver} from {_autres::*}
+    set {_x1} to random element out of {_autres::*}
+    remove {_x1} from {_autres::*}
+    set {_x2} to random element out of {_autres::*}
+    set {_h::*} to {_ver}, {_x1} and {_x2}
+    set {_ordre::*} to shuffled {_h::*}
+    set {_i} to 0
+    loop {_ordre::*}:
+        add 1 to {_i}
+        set {za::disp::%{_d}%::hyp::%{_i}%} to loop-value
+    set {za::disp::%{_d}%::site::fin::%{_ver}%} to {_f1}
+    set {za::disp::%{_d}%::site::fin::%{_x1}%} to {_f2}
+    set {za::disp::%{_d}%::site::fin::%{_x2}%} to {_f3}
+    set {za::disp::%{_d}%::etape} to "indice"
+    set {za::disp::%{_d}%::jour} to {za::serveur::jours} ? 0
+    set {za::disp::actif::%{_u}%} to {_d}
+    set {_dem} to {za::disp::%{_d}%::demandeur}
+    set {_nom} to {za::disp::%{_d}%::nom}
+    set {_txt} to "Mon %{_lien}%... %{_nom}%... n'est pas revenu. Il devait passer par %{za::site::d::%{_a}%::nom}%. Ça fait deux jours. S'il te plaît."
+    if {_g} is "f":
+        set {_txt} to "%{_lien}%... %{_nom}%... n'est pas revenue. Elle devait passer par %{za::site::d::%{_a}%::nom}%. Ça fait deux jours. S'il te plaît."
+    if {_sid} is not 0:
+        send "&e%{_dem}% &8» &f« %{_txt}% »" to {_p}
+    else:
+        za_tel_sms({_u}, {_dem}, {_txt})
+        send "&8[Radio] &7%{_dem}% lance un appel : %{_nom}% a disparu près de %{za::site::d::%{_a}%::nom}%." to {_p}
+    send "&6&lDISPARITION &7— %{_nom}% &8· &7dernier lieu connu : &f%{za::site::d::%{_a}%::nom}% &7(X %{za::site::d::%{_a}%::x}%, Z %{za::site::d::%{_a}%::z}%) &8· /disparition" to {_p}
+    za_zm("son %{_p}% minecraft:block.note_block.bass 0.8 0.5")
+    return true
+
+# les accords « il / elle »
+function za_disp_il(d: number) :: text:
+    if {za::disp::%{_d}%::genre} is "f":
+        return "elle"
+    return "il"
+
+# ---------------------------------------------------------------- sur le terrain
+
+function za_disp_poser_sac(d: number, k: text, quoi: text):
+    set {_w} to world("world")
+    set {_l} to za_disp_sloc({_k}, {_w})
+    set {_l} to location(((x-coordinate of {_l}) + ({za::site::d::%{_k}%::dx} ? 6) + 3), ((y-coordinate of {_l}) + 2), ((z-coordinate of {_l}) + 2), {_w})
+    set {_l} to za_eq_sol({_l})
+    set {_nm} to "Sac abandonné"
+    if {_quoi} is "objet":
+        set {_nm} to "Affaires abandonnées"
+    execute console command "execute in minecraft:overworld run setblock %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% minecraft:barrel{CustomName:'""%{_nm}%""'}"
+    set {za::disp::bloc::%za_lkey({_l})%} to "%{_d}%|%{_quoi}%"
+    set {za::disp::%{_d}%::bloc} to {_l}
+    execute console command "execute in minecraft:overworld run particle minecraft:end_rod %x-coordinate of {_l} + 0.5% %y-coordinate of {_l} + 1.2% %z-coordinate of {_l} + 0.5% 0.1 0.4 0.1 0.01 12 force"
+
+function za_disp_pres_site(p: player, k: text, r: number) :: boolean:
+    if "%world of {_p}%" is not "world":
+        return false
+    set {_dx} to (x-coordinate of {_p}) - {za::site::d::%{_k}%::x}
+    set {_dz} to (z-coordinate of {_p}) - {za::site::d::%{_k}%::z}
+    if sqrt(({_dx} * {_dx}) + ({_dz} * {_dz})) < {_r}:
+        return true
+    return false
+
+every 5 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        set {_u} to "%{_p}'s uuid%"
+        set {_d} to {za::disp::actif::%{_u}%}
+        if {_d} is set:
+            if za_pro({_p}) is false:
+                za_disp_tick({_p}, {_d})
+
+function za_disp_tick(p: player, d: number):
+    set {_e} to {za::disp::%{_d}%::etape}
+    if {_e} is "indice" or "objet":
+        set {_k} to {za::disp::%{_d}%::site::%{_e}%}
+        if {za::disp::%{_d}%::pose::%{_e}%} is not set:
+            if za_disp_pres_site({_p}, {_k}, 45) is true:
+                set {za::disp::%{_d}%::pose::%{_e}%} to true
+                za_disp_poser_sac({_d}, {_k}, {_e})
+                send "&7Quelque chose attire ton regard, près de %{za::site::d::%{_k}%::nom}%. &8(un tonneau, clic droit)" to {_p}
+        else:
+            set {_l} to {za::disp::%{_d}%::bloc}
+            if {_l} is set:
+                if distance between {_p} and {_l} < 30:
+                    execute console command "execute in minecraft:overworld run particle minecraft:end_rod %x-coordinate of {_l} + 0.5% %y-coordinate of {_l} + 1.2% %z-coordinate of {_l} + 0.5% 0.1 0.4 0.1 0.01 4 normal %{_p}%"
+    else if {_e} is "temoin":
+        set {_k} to {za::disp::%{_d}%::site::temoin}
+        if {za::disp::%{_d}%::pose::temoin} is not set:
+            if za_disp_pres_site({_p}, {_k}, 35) is true:
+                set {za::disp::%{_d}%::pose::temoin} to true
+                set {_l} to za_dest_pres({_p}, 6)
+                set {_g} to random element out of "f" and "m"
+                set {_tn} to "%za_surv_prenom({_g})% %za_surv_famille()%"
+                set {za::disp::%{_d}%::temoin_nom} to {_tn}
+                execute console command "execute in minecraft:overworld run summon villager %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% {NoAI:1b,Invulnerable:1b,Silent:1b,PersistenceRequired:1b,CustomNameVisible:1b,CustomName:'""%{_tn}%""',VillagerData:{profession:""minecraft:nitwit"",level:1,type:""minecraft:plains""},Tags:[""za_disp"",""za_disp_%{_d}%""]}"
+                send "&7Un survivant te surveille depuis l'entrée de %{za::site::d::%{_k}%::nom}%. Il a peut-être vu quelque chose. &8(clic droit)" to {_p}
+    else if {_e} is "final":
+        set {_h} to {za::disp::%{_d}%::choix}
+        set {_k} to {za::disp::%{_d}%::site::fin::%{_h}%}
+        if za_disp_pres_site({_p}, {_k}, 30) is true:
+            za_disp_revelation({_p}, {_d})
+    else if {_e} is "liberer":
+        # les ravisseurs sont-ils tombés ?
+        set {_l} to {za::disp::%{_d}%::scene}
+        if distance between {_p} and {_l} < 40:
+            set {_n} to 0
+            loop all entities in radius 20 around {_l}:
+                if za_surv_hostile(loop-entity) is true:
+                    add 1 to {_n}
+            if {_n} is 0:
+                if {za::disp::%{_d}%::libre} is not set:
+                    set {za::disp::%{_d}%::libre} to true
+                    send "&aLes ravisseurs sont tombés. &7Détache %{za::disp::%{_d}%::nom}% (clic droit)." to {_p}
+    else if {_e} is "retour":
+        za_disp_retour_tick({_p}, {_d})
+
+on right click on barrel:
+    if za_pro(player) is true:
+        stop
+    set {_k} to za_lkey(location of event-block)
+    set {_v} to {za::disp::bloc::%{_k}%}
+    if {_v} is not set:
+        stop
+    cancel the event
+    set {_c::*} to split {_v} at "|"
+    set {_d} to {_c::1} parsed as number
+    if {za::disp::%{_d}%::u} is not "%player's uuid%":
+        send "&8&o(Ce sac n'est pas pour toi. Quelqu'un d'autre cherche son propriétaire.)" to player
+        stop
+    delete {za::disp::bloc::%{_k}%}
+    set block at event-block to air
+    set {_ver} to {za::disp::%{_d}%::verite}
+    if {_c::2} is "indice":
+        set {_t} to za_disp_texte({_ver}, "indice")
+        add "Indice : %{_t}%" to {za::disp::%{_d}%::notes::*}
+        send "&6Indice &8» &f%{_t}%" to player
+        set {_b} to {za::disp::%{_d}%::site::temoin}
+        send "&7Dans la poche du sac : un reçu froissé de &f%{za::site::d::%{_b}%::nom}% &7(X %{za::site::d::%{_b}%::x}%, Z %{za::site::d::%{_b}%::z}%). Quelqu'un, là-bas, l'a peut-être vu." to player
+        set {za::disp::%{_d}%::etape} to "temoin"
+    else:
+        set {_t} to za_disp_texte({_ver}, "objet")
+        add "Objet : %{_t}%" to {za::disp::%{_d}%::notes::*}
+        give za_item("paper", za_disp_objet_nom({_ver}), "&e", 1) to player
+        send "&6Objet &8» &f%{_t}%" to player
+        set {za::disp::%{_d}%::etape} to "deduction"
+        send "&eTu as assez d'éléments. &7Réfléchis : &f/disparition &7puis &f/disparition conclure <1-3>" to player
+    za_zm("son %player% minecraft:item.book.page_turn 1 0.9")
+
+on right click on villager:
+    if za_pro(player) is true:
+        stop
+    if za_surv_a_tag(clicked entity, "za_disp") is false:
+        stop
+    cancel the event
+    set {_d} to 0
+    loop scoreboard tags of clicked entity:
+        if loop-value starts with "za_disp_":
+            set {_d} to (subtext of loop-value from characters 9 to length of loop-value) parsed as number
+    if {za::disp::%{_d}%::u} is not "%player's uuid%":
+        stop
+    set {za::disp::ctx::%player's uuid%} to {_d}
+    set {_e} to {za::disp::%{_d}%::etape}
+    set {_nom} to {za::disp::%{_d}%::nom}
+    if {_e} is "temoin":
+        set {_o::*} to "L'écouter|ecouter", "Lui offrir 10 jetons|payer" and "Le menacer|menacer"
+        za_menu(player, "zadispclic", {za::disp::%{_d}%::temoin_nom}, "« %{_nom}% ? Peut-être. Pourquoi je te le dirais ? »", {_o::*})
+    else if {_e} is "fui_trouve":
+        set {_o::*} to "Le convaincre de revenir|convaincre", "Le laisser partir|laisser" and "Le ramener de force|force"
+        za_menu(player, "zadispclic", {_nom}, "« Ils t'ont envoyé, hein ? Je pouvais plus. Chaque jour, quelqu'un mourait, et c'était toujours de ma faute. Ici, personne me connaît. »", {_o::*})
+    else if {_e} is "liberer":
+        if {za::disp::%{_d}%::libre} is not set:
+            send "&cIls sont encore là. Occupe-toi d'eux d'abord." to player
+            stop
+        za_disp_retrouve(player, {_d}, "vivant")
+
+command /zadispclic <player> <text>:
+    executable by: console
+    trigger:
+        wait 2 ticks
+        set {_p} to arg-1
+        set {_u} to "%{_p}'s uuid%"
+        set {_d} to {za::disp::ctx::%{_u}%}
+        if {_d} is not set:
+            stop
+        set {_e} to {za::disp::%{_d}%::etape}
+        set {_ver} to {za::disp::%{_d}%::verite}
+        if {_e} is "temoin":
+            set {_t} to za_disp_texte({_ver}, "temoin")
+            set {_tn} to {za::disp::%{_d}%::temoin_nom}
+            if arg-2 is "payer":
+                if za_jetons({_p}) < 10:
+                    send "&cTu n'as pas 10 jetons." to {_p}
+                    stop
+                za_jetons_ajouter({_p}, -10)
+            else if arg-2 is "menacer":
+                za_stress_ajouter({_p}, 5)
+                if chance of 35%:
+                    # un témoin qui a peur dit ce qu'on veut entendre
+                    set {_faux::*} to "fui", "mort", "enleve" and "norda"
+                    remove {_ver} from {_faux::*}
+                    set {_t} to za_disp_texte(random element out of {_faux::*}, "temoin")
+            send "&e%{_tn}% &8» &f« %{_t}% »" to {_p}
+            add "Témoin (%{_tn}%, %arg-2%) : %{_t}%" to {za::disp::%{_d}%::notes::*}
+            set {_c} to {za::disp::%{_d}%::site::objet}
+            send "&7« ...il est reparti vers &f%{za::site::d::%{_c}%::nom}%&7. » &8(X %{za::site::d::%{_c}%::x}%, Z %{za::site::d::%{_c}%::z}%)" to {_p}
+            if arg-2 is "payer":
+                send "&8(Il ajoute, en empochant les jetons : « Cherche à l'arrière. Près de la clôture. »)" to {_p}
+            execute console command "kill @e[type=villager,tag=za_disp_%{_d}%]"
+            set {za::disp::%{_d}%::etape} to "objet"
+        else if {_e} is "fui_trouve":
+            za_disp_fui_choix({_p}, {_d}, arg-2)
+
+# ---------------------------------------------------------------- déduction et révélation
+
+function za_disp_carnet(p: player, d: number):
+    set {_nom} to {za::disp::%{_d}%::nom}
+    send "&6&l━━ DISPARITION : %{_nom}% ━━" to {_p}
+    send "&7Demandé par : &f%{za::disp::%{_d}%::demandeur}% &8(%{za::disp::%{_d}%::lien}%)" to {_p}
+    loop {za::disp::%{_d}%::notes::*}:
+        send "&8 • &7%loop-value%" to {_p}
+    set {_e} to {za::disp::%{_d}%::etape}
+    if {_e} is "indice" or "temoin" or "objet":
+        set {_k} to {za::disp::%{_d}%::site::%{_e}%}
+        send "&ePiste : &f%{za::site::d::%{_k}%::nom}% &7(X %{za::site::d::%{_k}%::x}%, Z %{za::site::d::%{_k}%::z}%)" to {_p}
+    else if {_e} is "deduction":
+        send "&eQue s'est-il passé ? &7(/disparition conclure <n>)" to {_p}
+        loop 3 times:
+            set {_h} to {za::disp::%{_d}%::hyp::%loop-value%}
+            send "&f%loop-value%. &7%za_disp_titre({_h})%" to {_p}
+    else if {_e} is "final":
+        set {_k} to {za::disp::%{_d}%::site::fin::%{za::disp::%{_d}%::choix}%}
+        send "&eTa conclusion : &f%za_disp_titre({za::disp::%{_d}%::choix})% &7— va voir à &f%{za::site::d::%{_k}%::nom}% &7(X %{za::site::d::%{_k}%::x}%, Z %{za::site::d::%{_k}%::z}%)" to {_p}
+    else if {_e} is "retour":
+        send "&eRetourne voir %{za::disp::%{_d}%::demandeur}%." to {_p}
+
+function za_disp_conclure(p: player, d: number, n: number):
+    set {_h} to {za::disp::%{_d}%::hyp::%{_n}%}
+    if {_h} is not set:
+        send "&cChoisis 1, 2 ou 3." to {_p}
+        stop
+    set {za::disp::%{_d}%::choix} to {_h}
+    if {_h} is {za::disp::%{_d}%::verite}:
+        set {za::disp::%{_d}%::bon} to true
+    set {za::disp::%{_d}%::etape} to "final"
+    set {_k} to {za::disp::%{_d}%::site::fin::%{_h}%}
+    send "&7Tu relis tes notes une dernière fois. &f%za_disp_titre({_h})%. &7Si c'est vrai, ça mène à &f%{za::site::d::%{_k}%::nom}% &7(X %{za::site::d::%{_k}%::x}%, Z %{za::site::d::%{_k}%::z}%)." to {_p}
+
+function za_disp_revelation(p: player, d: number):
+    set {_ver} to {za::disp::%{_d}%::verite}
+    set {_nom} to {za::disp::%{_d}%::nom}
+    set {_l} to za_eq_sol(location of {_p})
+    set {_a} to random number between 0 and 360
+    set {_c} to za_eq_sol(location(((x-coordinate of {_l}) + (7 * cos({_a}))), ((y-coordinate of {_l}) + 1), ((z-coordinate of {_l}) + (7 * sin({_a}))), (world of {_l})))
+    set {za::disp::%{_d}%::scene} to {_c}
+    if {za::disp::%{_d}%::bon} is not true:
+        if {za::disp::%{_d}%::tard} is not set:
+            # mauvaise piste : rien ici, et le temps a passé
+            set {za::disp::%{_d}%::tard} to true
+            send "&8Rien. Personne n'est passé par ici depuis des semaines. Tu t'es trompé." to {_p}
+            set {_k} to {za::disp::%{_d}%::site::fin::%{_ver}%}
+            set {za::disp::%{_d}%::choix} to {_ver}
+            send "&7Sur le chemin du retour, une rumeur : on aurait vu quelque chose vers &f%{za::site::d::%{_k}%::nom}% &7(X %{za::site::d::%{_k}%::x}%, Z %{za::site::d::%{_k}%::z}%). Il est peut-être trop tard." to {_p}
+            stop
+    set {_tard} to false
+    if {za::disp::%{_d}%::tard} is true:
+        set {_tard} to true
+    set {za::disp::%{_d}%::etape} to "scene"
+    if {_ver} is "fui":
+        if {_tard} is true:
+            send "&8Un feu de camp éteint. Une couverture pliée. Il est reparti, plus loin. Cette fois, personne ne le retrouvera." to {_p}
+            za_disp_retrouve({_p}, {_d}, "parti")
+            stop
+        execute console command "execute in minecraft:overworld run summon villager %x-coordinate of {_c}% %y-coordinate of {_c}% %z-coordinate of {_c}% {NoAI:1b,Invulnerable:1b,Silent:1b,PersistenceRequired:1b,CustomNameVisible:1b,CustomName:'""%{_nom}%""',VillagerData:{profession:""minecraft:nitwit"",level:1,type:""minecraft:plains""},Tags:[""za_disp"",""za_disp_%{_d}%""]}"
+        set {za::disp::%{_d}%::etape} to "fui_trouve"
+        send "&7Près d'un petit feu, quelqu'un se retourne d'un coup. C'est &f%{_nom}%&7. Vivant. &8(clic droit)" to {_p}
+    else if {_ver} is "mort" or "trahison":
+        if {_ver} is "mort":
+            za_dest_zombie({_c}, {_nom}, false)
+            send "&4Il est là. Debout. La tête penchée. Il te reconnaît pas. &7(Libère-le.)" to {_p}
+            set {za::disp::%{_d}%::zombie} to {_nom}
+            set {za::disp::%{_d}%::etape} to "abattre"
+        else:
+            send "&8Sous des branches, le corps. Un couteau dans le dos. Pas de morsure. Pas de vol. Juste ça." to {_p}
+            give za_item("iron nugget", "Plaque d'identité — %{_nom}%", "&7", 1) to {_p}
+            za_disp_retrouve({_p}, {_d}, "trahi")
+    else if {_ver} is "enleve":
+        if {_tard} is true:
+            send "&8Un camp de pillards abandonné. Des cordes coupées. Une tache sombre sur le sol. Ils n'avaient plus besoin de lui." to {_p}
+            give za_item("iron nugget", "Plaque d'identité — %{_nom}%", "&7", 1) to {_p}
+            za_disp_retrouve({_p}, {_d}, "mort")
+            stop
+        execute console command "execute in minecraft:overworld run summon villager %x-coordinate of {_c}% %y-coordinate of {_c}% %z-coordinate of {_c}% {NoAI:1b,Invulnerable:1b,Silent:1b,PersistenceRequired:1b,CustomNameVisible:1b,CustomName:'""%{_nom}% (attaché)""',VillagerData:{profession:""minecraft:nitwit"",level:1,type:""minecraft:plains""},Tags:[""za_disp"",""za_disp_%{_d}%""]}"
+        loop 4 times:
+            za_spawn_at({_c}, "ZA_Pillard", 6, 12)
+        set {za::disp::%{_d}%::etape} to "liberer"
+        send "&cUn camp de pillards. Au milieu, attaché à un poteau : &f%{_nom}%&c." to {_p}
+    else if {_ver} is "norda":
+        set {_b} to "0b"
+        execute console command "execute in minecraft:overworld run summon zombie %x-coordinate of {_c}% %y-coordinate of {_c}% %z-coordinate of {_c}% {CustomName:'""Sujet 41""',CustomNameVisible:1b,PersistenceRequired:1b,Glowing:1b,Attributes:[{Name:""generic.max_health"",Base:50},{Name:""generic.movement_speed"",Base:0.32},{Name:""generic.attack_damage"",Base:7}],Health:50f}"
+        send "&5Une silhouette sort du bâtiment. Une blouse d'hôpital. Un bracelet : « SUJET 41 ». Le visage de %{_nom}%... presque." to {_p}
+        set {za::disp::%{_d}%::zombie} to "Sujet 41"
+        set {za::disp::%{_d}%::etape} to "abattre"
+
+on death of zombie:
+    if attacker is not a player:
+        stop
+    set {_a} to attacker
+    if za_pro({_a}) is true:
+        stop
+    set {_u} to "%{_a}'s uuid%"
+    set {_d} to {za::disp::actif::%{_u}%}
+    if {_d} is not set:
+        stop
+    if {za::disp::%{_d}%::etape} is not "abattre":
+        stop
+    if uncolored name of victim is not {za::disp::%{_d}%::zombie}:
+        stop
+    set {_nom} to {za::disp::%{_d}%::nom}
+    give za_item("iron nugget", "Plaque d'identité — %{_nom}%", "&7", 1) to {_a}
+    if {za::disp::%{_d}%::verite} is "norda":
+        give za_item("paper", "Dossier Z-01 : Sujet 41", "&5", 1) to {_a}
+        send "&5Dans la poche de la blouse : un dossier. « Sujet 41. Ancien nom : %{_nom}%. Réponse au Z-01 : positive. » NORDA continue." to {_a}
+        za_disp_retrouve({_a}, {_d}, "norda")
+    else:
+        send "&7Tu ramasses sa plaque. Il est libre, maintenant." to {_a}
+        za_disp_retrouve({_a}, {_d}, "mort")
+
+function za_disp_fui_choix(p: player, d: number, c: text):
+    set {_nom} to {za::disp::%{_d}%::nom}
+    execute console command "kill @e[type=villager,tag=za_disp_%{_d}%]"
+    if {_c} is "convaincre":
+        if chance of 60%:
+            send "&e%{_nom}% &8» &f« ... D'accord. Pour %{za::disp::%{_d}%::demandeur}%. Pas pour moi. »" to {_p}
+            za_disp_retrouve({_p}, {_d}, "vivant")
+        else:
+            send "&e%{_nom}% &8» &f« Non. Dis-leur que tu m'as pas trouvé. Dis-leur ce que tu veux. »" to {_p}
+            za_disp_retrouve({_p}, {_d}, "parti")
+    else if {_c} is "laisser":
+        give za_item("paper", "Mot de %{_nom}%", "&f", 1) to {_p}
+        send "&e%{_nom}% &8» &f« Merci. Donne-lui ça. Il comprendra. Ou pas. »" to {_p}
+        za_disp_retrouve({_p}, {_d}, "parti")
+    else:
+        send "&8Tu le traînes. Il ne se débat même pas. Il ne parle plus." to {_p}
+        set {za::disp::%{_d}%::force} to true
+        za_disp_retrouve({_p}, {_d}, "vivant")
+
+# l'enquête est résolue sur le terrain : il reste à rentrer
+function za_disp_retrouve(p: player, d: number, issue: text):
+    set {za::disp::%{_d}%::issue} to {_issue}
+    set {za::disp::%{_d}%::etape} to "retour"
+    execute console command "kill @e[type=villager,tag=za_disp_%{_d}%]"
+    za_stat_ajouter("%{_p}'s uuid%", "disparitions", 1)
+    send "&eRetourne voir &f%{za::disp::%{_d}%::demandeur}%&e. &8(/disparition)" to {_p}
+
+function za_disp_retour_tick(p: player, d: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {_sid} to {za::disp::%{_d}%::sid}
+    set {_l} to {_none}
+    if {_sid} is not 0:
+        set {_l} to {za::base::%{_u}%}
+        if {za::surv::%{_sid}%::etat} is not "base":
+            set {_l} to {_none}
+    else if ({za::disp::%{_d}%::camp} ? 0) is not 0:
+        set {_l} to {za::camp::%{za::disp::%{_d}%::camp}%::loc}
+    if {_l} is not set:
+        # le demandeur n'est plus là : l'histoire se termine en silence
+        za_disp_conclusion({_p}, {_d}, false)
+        stop
+    if world of {_l} is world of {_p}:
+        if distance between {_l} and {_p} < 25:
+            za_disp_conclusion({_p}, {_d}, true)
+
+function za_disp_conclusion(p: player, d: number, present: boolean):
+    set {_u} to "%{_p}'s uuid%"
+    set {_dem} to {za::disp::%{_d}%::demandeur}
+    set {_nom} to {za::disp::%{_d}%::nom}
+    set {_is} to {za::disp::%{_d}%::issue}
+    set {_sid} to {za::disp::%{_d}%::sid}
+    delete {za::disp::actif::%{_u}%}
+    set {za::disp::%{_d}%::etape} to "fini"
+    if {_present} is false:
+        send "&8%{_dem}% n'est plus là pour entendre ce que tu as trouvé." to {_p}
+        stop
+    if {_is} is "vivant":
+        send "&a%{_dem}% voit %{_nom}% arriver derrière toi. Ils ne disent rien. Ils se serrent, longtemps." to {_p}
+        za_stress_ajouter({_p}, -30)
+        za_jetons_ajouter({_p}, 20)
+        if {_sid} is not 0:
+            za_surv_moral_ajouter({_sid}, 40)
+            if {za::base::%{_u}%} is set:
+                if ({za::surv::n::%{_u}%} ? 0) < 8:
+                    set {_m::*} to za_surv_metiers()
+                    set {_id} to za_surv_creer_rec(random element out of {_m::*}, {za::disp::%{_d}%::genre}, location of {_p}, "cache")
+                    set {za::surv::%{_id}%::nom} to {_nom}
+                    set {za::surv::%{_id}%::titre} to {_nom}
+                    set {za::surv::%{_id}%::vnom} to {_nom}
+                    za_surv_arriver_base({_id}, {_u}, {_p})
+                    if {za::disp::%{_d}%::force} is true:
+                        za_surv_moral_ajouter({_id}, -40)
+        else if ({za::disp::%{_d}%::camp} ? 0) is not 0:
+            za_cmp_pop_ajouter({za::disp::%{_d}%::camp}, 1)
+            za_cmp_conf_ajouter({_u}, {za::disp::%{_d}%::camp}, 20)
+        za_souvenir_ajouter({_u}, "disp:%{_d}%", "aide", "J'ai retrouvé %{_nom}% et je l'ai ramené à %{_dem}%.")
+    else if {_is} is "parti":
+        send "&7Tu racontes à %{_dem}%. Vivant, mais il ne reviendra pas. %{_dem}% hoche la tête, longtemps, sans rien dire." to {_p}
+        if {_sid} is not 0:
+            za_surv_moral_ajouter({_sid}, -10)
+        za_souvenir_ajouter({_u}, "disp:%{_d}%", "decouverte", "%{_nom}% est vivant, quelque part. Il ne voulait pas qu'on le retrouve.")
+    else if {_is} is "trahi":
+        za_disp_confrontation({_p}, {_d})
+        stop
+    else:
+        send "&7Tu tends la plaque à %{_dem}%. Ses doigts tremblent. « Au moins, je sais. »" to {_p}
+        za_take_named({_p}, "Plaque d'identité — %{_nom}%", 1)
+        if {_sid} is not 0:
+            za_surv_moral_ajouter({_sid}, -25)
+        za_jetons_ajouter({_p}, 10)
+        if {_is} is "norda":
+            za_radio("&bLéa", "Quelqu'un a trouvé un « sujet » de NORDA, loin du campus. Ils continuent. Même maintenant. Je vous jure que je vais trouver qui.")
+        za_souvenir_ajouter({_u}, "disp:%{_d}%", "chute", "J'ai rapporté à %{_dem}% la plaque de %{_nom}%.")
+    za_journal("La disparition de %{_nom}% est élucidée.")
+
+# trahison : le demandeur est le coupable
+function za_disp_confrontation(p: player, d: number):
+    set {_u} to "%{_p}'s uuid%"
+    set {_sid} to {za::disp::%{_d}%::sid}
+    set {_dem} to {za::disp::%{_d}%::demandeur}
+    set {za::disp::ctx::%{_u}%} to {_d}
+    set {za::disp::%{_d}%::etape} to "confrontation"
+    set {za::disp::actif::%{_u}%} to {_d}
+    set {_o::*} to "Le chasser de la base|chasser", "Le livrer à la Milice|milice" and "Te taire|taire"
+    za_menu({_p}, "zadispconf", {_dem}, "Tu poses le couteau sur la table. Les initiales. %{_dem}% blêmit. « Il... il voulait partir avec nos réserves. J'ai pas réfléchi. »", {_o::*})
+
+command /zadispconf <player> <text>:
+    executable by: console
+    trigger:
+        wait 2 ticks
+        set {_p} to arg-1
+        set {_u} to "%{_p}'s uuid%"
+        set {_d} to {za::disp::ctx::%{_u}%}
+        if {za::disp::%{_d}%::etape} is not "confrontation":
+            stop
+        set {_sid} to {za::disp::%{_d}%::sid}
+        set {_dem} to {za::disp::%{_d}%::demandeur}
+        delete {za::disp::actif::%{_u}%}
+        set {za::disp::%{_d}%::etape} to "fini"
+        if arg-2 is "chasser":
+            send "&7%{_dem}% ramasse ses affaires. Personne ne lui dit au revoir." to {_p}
+            za_surv_partir({_sid}, "renvoi")
+            za_souvenir_ajouter({_u}, "disp:%{_d}%", "chute", "J'ai découvert que %{_dem}% avait tué son propre %{za::disp::%{_d}%::lien}%. Je l'ai chassé.")
+        else if arg-2 is "milice":
+            za_faction_ajouter({_p}, "milice", 10)
+            send "&9La Milice emmène %{_dem}%. Le sergent te serre la main sans un mot." to {_p}
+            za_surv_clore({_sid}, "parti")
+            za_souvenir_ajouter({_u}, "disp:%{_d}%", "chute", "J'ai livré %{_dem}% à la Milice.")
+        else:
+            send "&8Tu ranges le couteau. %{_dem}% te regarde. Vous savez tous les deux." to {_p}
+            za_dest_profil({_u}, "mensonge", 1)
+            set {za::disp::secret::%{_u}%} to {_sid}
+            set {za::disp::secret_jour::%{_u}%} to ({za::serveur::jours} ? 0) + 4
+
+# le secret gardé a un prix : quatre jours plus tard, il recommence peut-être
+every 1 minute:
+    loop {za::disp::secret::*}:
+        set {_u} to loop-index
+        set {_sid} to loop-value
+        if ({za::serveur::jours} ? 0) >= ({za::disp::secret_jour::%{_u}%} ? 0):
+            delete {za::disp::secret::%{_u}%}
+            delete {za::disp::secret_jour::%{_u}%}
+            if {za::surv::%{_sid}%::etat} is "base":
+                if chance of 35%:
+                    loop {za::surv::liste::*}:
+                        if {za::surv::%loop-value-2%::etat} is "base":
+                            if {za::surv::%loop-value-2%::base} is {_u}:
+                                if loop-value-2 is not {_sid}:
+                                    add loop-value-2 to {_v::*}
+                    if size of {_v::*} > 0:
+                        set {_vic} to random element out of {_v::*}
+                        za_surv_avis({_u}, "&4On a retrouvé %{za::surv::%{_vic}%::nom}% derrière la base. Un couteau. Tu connais ce couteau.")
+                        za_surv_mourir({_vic}, "meurtre")
+                    delete {_v::*}
+
+# ---------------------------------------------------------------- offres et commandes
+
+every 20 minutes:
+    loop za_monde_joueurs():
+        set {_p} to loop-value
+        set {_u} to "%{_p}'s uuid%"
+        if za_pro({_p}) is false:
+            if {za::disp::actif::%{_u}%} is not set:
+                if {za::site::installe} is set:
+                    if ({za::serveur::jours} ? 0) >= ({za::disp::dernier::%{_u}%} ? -5) + 2:
+                        if chance of 15%:
+                            if za_disp_lancer({_p}, "") is true:
+                                set {za::disp::dernier::%{_u}%} to {za::serveur::jours} ? 0
+
+command /disparition [<text>] [<number>]:
+    aliases: /disparitions
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        set {_d} to {za::disp::actif::%{_u}%}
+        if {_d} is not set:
+            send "&7Aucune disparition en cours. &8(Quand quelqu'un ne revient pas, on viendra te le dire.)" to player
+            stop
+        if arg-1 is "conclure":
+            if {za::disp::%{_d}%::etape} is not "deduction":
+                send "&7Pas encore : il te faut l'indice, le témoin et l'objet." to player
+                stop
+            za_disp_conclure(player, {_d}, arg-2 ? 0)
+        else if arg-1 is "abandonner":
+            delete {za::disp::actif::%{_u}%}
+            set {za::disp::%{_d}%::etape} to "fini"
+            execute console command "kill @e[type=villager,tag=za_disp_%{_d}%]"
+            send "&8Tu ranges le carnet. %{za::disp::%{_d}%::nom}% restera un nom sur une liste." to player
+        else:
+            za_disp_carnet(player, {_d})
+
+command /zadisp [<text>] [<player>] [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "lancer":
+            set {_p} to arg-2 ? player
+            delete {za::disp::actif::%{_p}'s uuid%}
+            if za_disp_lancer({_p}, arg-3 ? "") is true:
+                send "&7Disparition lancée pour %{_p}% (vérité : %{za::disp::%{za::disp::n}%::verite}%)." to sender
+            else:
+                send "&cImpossible (pas assez de lieux générés ? /zasites installer)." to sender
+        else:
+            loop {za::disp::actif::*}:
+                send "&7%loop-index% : #%loop-value% %{za::disp::%loop-value%::nom}% — %{za::disp::%loop-value%::verite}% — %{za::disp::%loop-value%::etape}%" to sender

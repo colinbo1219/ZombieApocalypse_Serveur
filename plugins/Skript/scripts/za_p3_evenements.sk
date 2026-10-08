@@ -24,11 +24,14 @@ function za_boost_zombies(p: player, r: number, e: text, s: number, l: number):
 function za_bloodmoon():
     if {za::evt::bloodmoon} is true:
         stop
+    # une catastrophe tient déjà le ciel : la Blood Moon attend
+    if za_cata_actuelle() is not "":
+        stop
     set {za::evt::bloodmoon} to true
     za_journal("La Blood Moon se leve.")
     set {_v} to random element out of "fureur", "meute", "brume"
     execute console command "time set 13000"
-    execute console command "weather thunder 14000"
+    za_meteo_prendre("bloodmoon", "thunder 14000")
     execute console command "worldborder warning distance 59999968"
     za_diffuser("&4&lBLOOD MOON ! &7Le ciel saigne. Variante: &c%{_v}%")
     loop 40 times:
@@ -45,7 +48,7 @@ function za_bloodmoon():
                         za_effet(loop-player, "darkness", 20, 0)
         wait 15 seconds
     execute console command "worldborder warning distance 5"
-    execute console command "weather clear"
+    za_meteo_rendre("bloodmoon")
     set {za::evt::bloodmoon} to false
     za_diffuser("&6L'aube se leve... la Blood Moon est terminee.")
 
@@ -145,8 +148,10 @@ function za_jourinverse():
 
 # ---------- PLUIE ACIDE ----------
 function za_acide():
+    if za_cata_actuelle() is not "":
+        stop
     za_diffuser("&2&lPLUIE ACIDE &7Mettez-vous a l'abri, la pluie brule !")
-    execute console command "weather rain 7000"
+    za_meteo_prendre("acide", "rain 7000")
     loop 60 times:
         loop all players:
             if za_pro(loop-player) is false:
@@ -158,7 +163,7 @@ function za_acide():
                         za_effet(loop-player, "poison", 4, 0)
                         send action bar "&2La pluie acide te brule ! Cherche un abri." to loop-player
         wait 5 seconds
-    execute console command "weather clear"
+    za_meteo_rendre("acide")
     za_diffuser("&7La pluie acide s'arrete.")
 
 # ---------- PLUIE DE CENDRES ----------
@@ -294,6 +299,9 @@ every {@intervalle_evt}:
         set {_c} to {za::evt::chance}
         if {_c} is not set:
             set {_c} to 60
+        # pas d'événement aléatoire par-dessus une catastrophe
+        if za_cata_actuelle() is not "":
+            stop
         if chance of {_c}%:
             set {_evts::*} to "marche", "mur", "cielouvert", "traitres", "jourinverse", "acide", "cendres", "silence", "cargaison", "eclipse", "nuitblanche", "siege", "noirmarche", "penurie", "noms"
             za_lancer_evenement(random element out of {_evts::*})
@@ -305,3 +313,7 @@ every {@intervalle_bloodmoon}:
 # une journee Minecraft = 20 minutes reelles
 every 20 minutes:
     add 1 to {za::serveur::jours}
+
+on load:
+    # redémarrage pendant une Blood Moon : le drapeau ne doit pas rester bloqué
+    set {za::evt::bloodmoon} to false

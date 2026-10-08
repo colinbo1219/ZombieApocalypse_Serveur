@@ -1,0 +1,133 @@
+# =====================================================================
+#  ZombieApocalypse - LA CHRONIQUE : ce que le monde et les personnages retiennent (MISSION §46-47)
+#  Complète la mémoire des lieux (za_p62), des morts (za_p58) et les légendes (za_p64) :
+#  * MONDE : hordes (za_horde), chute de l'Undead Overlord hors finale (za_boss), relance de la centrale (za_p39),
+#    avec témoins, souvenirs et journal. Les « survivants de Saint-Aurèle » (prologue terminé) sont inscrits pour
+#    toujours : {za::memoire::sa::<uuid>} = "nom|jour|choix" (lu par l'après-saison, za_p59 / phase 15).
+#  * PERSONNAGES : Lefort, Vega et Léa se souviennent aussi des personnes que tu as sauvées, du dossier Arel, du courant
+#    que tu as rendu, de tes fréquentations (factions), des gens de Saint-Aurèle que tu as retrouvés.
+#    Chaque phrase n'est dite qu'une fois, via za_souvenir_ligne (za_p62) -> za_pnj_memoire.
+#  Admin : /zachronique etat
+# =====================================================================
+
+# ---------------------------------------------------------------- lieu représentatif (un joueur du monde, sinon le spawn)
+
+function za_chron_lieu() :: location:
+    loop za_monde_joueurs():
+        return location of loop-value
+    return spawn of world("world")
+
+# ---------------------------------------------------------------- crochets appelés par les modules existants
+
+# za_horde : fin de horde
+function za_chronique_horde(gagnee: boolean):
+    set {_k} to {za::horde::kills} ? 0
+    if {_gagnee} is true:
+        za_monde_evt("Une horde a déferlé. Les survivants l'ont repoussée (%{_k}% morts abattus).", za_chron_lieu(), 2, "defense")
+        if {_k} >= 150:
+            za_monde_legende("La horde des %{_k}% morts. Les survivants ont tenu.")
+    else:
+        za_monde_evt("Une horde a traversé le secteur. Elle est passée.", za_chron_lieu(), 1, "raid")
+
+# za_boss : l'Undead Overlord tombe (hors finale de saison, qui a sa propre légende)
+function za_chronique_boss():
+    if {za::saison::finale::actif} is true:
+        stop
+    za_monde_evt("L'Undead Overlord est tombé. Pour cette fois.", za_chron_lieu(), 3, "legende")
+    set {_j} to {za::serveur::jours} ? 0
+    za_monde_legende("Un Undead Overlord est tombé au jour %{_j}%.")
+
+# ---------------------------------------------------------------- observateurs
+
+every 60 seconds:
+    # centrale relancée (za_p39)
+    if za_courant() is true:
+        if {za::chron::elec_fin} is not {za::elec::fin}:
+            set {za::chron::elec_fin} to {za::elec::fin}
+            loop {za::bat::centrale::pos::*}:
+                za_monde_evt("La centrale est relancée. Pour trois jours, la région retrouve du courant.", loop-value, 2, "reseau")
+                exit loop
+    # survivants de Saint-Aurèle : ceux qui ont vécu la chute
+    loop za_monde_joueurs():
+        set {_u} to "%loop-value's uuid%"
+        if {za::memoire::sa::%{_u}%} is not set:
+            if {za::pro::etat::%{_u}%} is "fini":
+                if {za::choix::%{_u}%::vega} is set:
+                    set {_c1} to za_choix({_u}, "hopital")
+                    set {_c2} to za_choix({_u}, "leblanc")
+                    set {_c3} to za_choix({_u}, "theo")
+                    set {_c4} to za_choix({_u}, "vega")
+                    set {_c} to "%{_c1}%/%{_c2}%/%{_c3}%/%{_c4}%"
+                    set {_j} to {za::serveur::jours} ? 0
+                    set {za::memoire::sa::%{_u}%} to "%loop-value%|%{_j}%|%{_c}%"
+                    add {_u} to {za::memoire::sa::liste::*}
+                    za_souvenir_ajouter({_u}, "monde", "legende", "Tu étais à Saint-Aurèle quand elle est tombée.")
+
+# ---------------------------------------------------------------- mémoire des personnages
+
+function za_pnj_dit(u: text, npc: text, k: text) :: boolean:
+    if {za::souv::dit::%{_npc}%::%{_u}%::m_%{_k}%} is set:
+        return false
+    set {za::souv::dit::%{_npc}%::%{_u}%::m_%{_k}%} to true
+    return true
+
+function za_pnj_memoire(p: player, npc: text) :: text:
+    set {_u} to "%{_p}'s uuid%"
+    # le dossier Arel (za_p69)
+    if {za::expl::sa::%{_u}%::fini} is true:
+        if za_pnj_dit({_u}, {_npc}, "arel") is true:
+            if {_npc} is "lefort":
+                return "Le casier 0731... Tu as fait ce que je n'ai jamais eu le courage de faire. Maintenant, on sait."
+            if {_npc} is "vega":
+                return "Paraît que tu fouilles dans les affaires de NORDA. Fais attention : ces gens-là ont encore des amis armés."
+            return "Le dossier Arel. Je l'ai lu en ondes trois fois. Tu sais combien de gens m'ont écrit après? Moi non plus. Beaucoup."
+    # les personnes sauvées (statistique partagée)
+    set {_s} to za_stat({_u}, "survivants_sauves")
+    if {_s} >= 3:
+        if za_pnj_dit({_u}, {_npc}, "sauves_%floor({_s} / 3)%") is true:
+            if {_npc} is "lefort":
+                return "On me parle de toi, au dispensaire. %{_s}% personnes sorties de l'enfer. Continue. S'il te plaît."
+            if {_npc} is "vega":
+                return "%{_s}% civils ramenés vivants. Dans mon escouade, ça valait une médaille. Ici, ça vaut plus."
+            return "J'ai compté : %{_s}% personnes que tu as ramenées. Je dis leurs prénoms en ondes, parfois."
+    # le courant rendu (za_p61)
+    if za_stat({_u}, "reparations_reseau") >= 1:
+        if za_pnj_dit({_u}, {_npc}, "reseau") is true:
+            if {_npc} is "lea":
+                return "C'est toi qui as remis du courant? Hier soir, j'ai vu des lumières au loin. Ça faisait longtemps."
+            if {_npc} is "lefort":
+                return "Grâce à toi, j'ai pu faire tourner un réfrigérateur. Tu n'imagines pas ce que ça change pour les vaccins."
+            return "Un secteur éclairé, c'est un secteur qu'on défend. Et qui attire. Garde un œil sur tes lampes."
+    # les gens de Saint-Aurèle retrouvés (za_p63)
+    loop za_echo_ids():
+        if {za::echo::salue::%loop-value%::%{_u}%} is set:
+            if za_pnj_dit({_u}, {_npc}, "echo_%loop-value%") is true:
+                set {_n} to za_echo_vnom(loop-value)
+                if {_npc} is "lea":
+                    return "Tu as retrouvé %{_n}%? Une voix de plus sur mes ondes. De Saint-Aurèle, en plus."
+                if {_npc} is "lefort":
+                    return "%{_n}%, vivant(e)... Il reste donc des gens de chez nous. Merci de me l'avoir appris."
+                return "%{_n}%. Je me souviens de ce nom. Saint-Aurèle n'est pas tout à fait morte."
+    # fréquentations
+    if ({za::fac::pilleurs::%{_u}%} ? 0) >= 50:
+        if {_npc} is "vega":
+            if za_pnj_dit({_u}, {_npc}, "pilleurs") is true:
+                return "On m'a dit que tu traînes avec les Pilleurs. Un jour il faudra choisir ton camp, et je serai de l'autre côté."
+    if ({za::fac::scientifiques::%{_u}%} ? 0) >= 50:
+        if {_npc} is "lefort":
+            if za_pnj_dit({_u}, {_npc}, "sci") is true:
+                return "Les Scientifiques te font confiance. Moi aussi, mais méfie-toi : certains d'entre eux travaillaient pour NORDA."
+    if ({za::fac::milice::%{_u}%} ? 0) >= 50:
+        if {_npc} is "lea":
+            if za_pnj_dit({_u}, {_npc}, "milice") is true:
+                return "La Milice parle de toi comme d'un des leurs. Moi, je préfère les gens qui ne portent pas d'uniforme."
+    return ""
+
+# ---------------------------------------------------------------- admin
+
+command /zachronique [<text>]:
+    permission: za.admin
+    trigger:
+        send "Survivants de Saint-Aurèle inscrits : %size of {za::memoire::sa::liste::*}%" to sender
+        loop {za::memoire::sa::liste::*}:
+            send " %{za::memoire::sa::%loop-value%}%" to sender

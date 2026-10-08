@@ -163,6 +163,8 @@ function za_saison_ceremonie(heros: text):
     za_succes_finale_saison({_n})
     za_diffuser("&7La chronique de la saison est consignee : &e/chroniques")
     za_journal("Saison %{_n}% terminee. Heros : %{_heros}%.")
+    # l'arc NORDA se referme : cinématique et choix collectif (za_p80)
+    za_fin_norda()
 
 # qui a joué cette saison (pour le Hall)
 on join:
@@ -225,7 +227,7 @@ function za_hall_graver(n: number, heros: text, j: number):
         set {_pi} to {za::hall::plaque::next}
         if {za::hall::plaque::%{_pi}%} is set:
             set {_q::*} to split {za::hall::plaque::%{_pi}%} at ";"
-            set {_pl} to location(floor(x-coordinate of {_b}) + ({_q::1} parsed as number), floor(y-coordinate of {_b}) + ({_q::2} parsed as number), floor(z-coordinate of {_b}) + ({_q::3} parsed as number), world of {_b})
+            set {_pl} to location((floor(x-coordinate of {_b}) + ({_q::1} parsed as number)), (floor(y-coordinate of {_b}) + ({_q::2} parsed as number)), (floor(z-coordinate of {_b}) + ({_q::3} parsed as number)), (world of {_b}))
             set {_bl} to block at {_pl}
             if "%type of {_bl}%" contains "sign":
                 set line 1 of {_bl} to "&8Saison %{_n}%"

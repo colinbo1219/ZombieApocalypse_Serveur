@@ -16,7 +16,9 @@ function za_batiment_hopital():
     if size of za_monde_joueurs() is 0:
         stop
     set {_p} to random element out of za_monde_joueurs()
-    set {_g} to za_point_loin({_p}, 50, 90)
+    set {_g} to za_point_construire({_p}, 50, 90)
+    if {_g} is not set:
+        stop
     set {_bx} to floor(x-coordinate of {_g})
     set {_gy} to floor(y-coordinate of {_g})
     set {_bz} to floor(z-coordinate of {_g})
@@ -62,7 +64,7 @@ function za_batiment_hopital():
     set line 2 of {_s} to "&8Reserve fermee"
     za_decay({_wd}, {_bx}, {_gy}, {_bz}, {_bx} + 12, {_gy} + 4, {_bz} + 8, 30)
     set {_c1} to block at location({_bx} + 10, {_gy} + 1, {_bz} + 6, {_w})
-    set {_c2} to block at location({_bx} + 11, {_gy} + 1, {_bz} + 6, {_w})
+    set {_c2} to block at location(({_bx} + 11), ({_gy} + 1), ({_bz} + 6), {_w})
     add za_item("honey bottle", "Antibiotique", "&b", random integer between 2 and 4) to inventory of {_c1}
     add za_item("honey bottle", "Serum", "&d", random integer between 1 and 2) to inventory of {_c1}
     add za_item("paper", "Bandage", "&f", random integer between 4 and 8) to inventory of {_c1}
@@ -88,7 +90,9 @@ function za_batiment_police():
     if size of za_monde_joueurs() is 0:
         stop
     set {_p} to random element out of za_monde_joueurs()
-    set {_g} to za_point_loin({_p}, 50, 90)
+    set {_g} to za_point_construire({_p}, 50, 90)
+    if {_g} is not set:
+        stop
     set {_bx} to floor(x-coordinate of {_g})
     set {_gy} to floor(y-coordinate of {_g})
     set {_bz} to floor(z-coordinate of {_g})
@@ -141,7 +145,9 @@ function za_batiment_supermarche():
     if size of za_monde_joueurs() is 0:
         stop
     set {_p} to random element out of za_monde_joueurs()
-    set {_g} to za_point_loin({_p}, 40, 80)
+    set {_g} to za_point_construire({_p}, 40, 80)
+    if {_g} is not set:
+        stop
     set {_bx} to floor(x-coordinate of {_g})
     set {_gy} to floor(y-coordinate of {_g})
     set {_bz} to floor(z-coordinate of {_g})
@@ -169,7 +175,7 @@ function za_batiment_supermarche():
     execute console command "execute in %{_wd}% run setblock %{_bx} + 14% %{_gy} + 1% %{_bz} + 5% minecraft:barrel[facing=up]"
     za_decay({_wd}, {_bx}, {_gy}, {_bz}, {_bx} + 14, {_gy} + 3, {_bz} + 8, 26)
     set {_c1} to block at location({_bx} + 14, {_gy} + 1, {_bz} + 6, {_w})
-    set {_c2} to block at location({_bx} + 14, {_gy} + 1, {_bz} + 5, {_w})
+    set {_c2} to block at location(({_bx} + 14), ({_gy} + 1), ({_bz} + 5), {_w})
     add za_item("bread", "Conserve", "&f", random integer between 4 and 8) to inventory of {_c1}
     add za_item("apple", "Pomme", "&a", random integer between 2 and 5) to inventory of {_c1}
     add za_item("glass bottle", "Eau en bouteille", "&b", random integer between 2 and 4) to inventory of {_c2}
@@ -192,7 +198,9 @@ function za_batiment_station():
     if size of za_monde_joueurs() is 0:
         stop
     set {_p} to random element out of za_monde_joueurs()
-    set {_g} to za_point_loin({_p}, 40, 80)
+    set {_g} to za_point_construire({_p}, 40, 80)
+    if {_g} is not set:
+        stop
     set {_bx} to floor(x-coordinate of {_g})
     set {_gy} to floor(y-coordinate of {_g})
     set {_bz} to floor(z-coordinate of {_g})
@@ -240,7 +248,9 @@ function za_batiment_laboratoire():
     if size of za_monde_joueurs() is 0:
         stop
     set {_p} to random element out of za_monde_joueurs()
-    set {_g} to za_point_loin({_p}, 50, 90)
+    set {_g} to za_point_construire({_p}, 50, 90)
+    if {_g} is not set:
+        stop
     set {_bx} to floor(x-coordinate of {_g})
     set {_gy} to floor(y-coordinate of {_g})
     set {_bz} to floor(z-coordinate of {_g})
@@ -289,7 +299,9 @@ function za_batiment_caserne():
     if size of za_monde_joueurs() is 0:
         stop
     set {_p} to random element out of za_monde_joueurs()
-    set {_g} to za_point_loin({_p}, 60, 100)
+    set {_g} to za_point_construire({_p}, 60, 100)
+    if {_g} is not set:
+        stop
     set {_bx} to floor(x-coordinate of {_g})
     set {_gy} to floor(y-coordinate of {_g})
     set {_bz} to floor(z-coordinate of {_g})
@@ -345,7 +357,9 @@ function za_batiment_ecole():
     if size of za_monde_joueurs() is 0:
         stop
     set {_p} to random element out of za_monde_joueurs()
-    set {_g} to za_point_loin({_p}, 40, 80)
+    set {_g} to za_point_construire({_p}, 40, 80)
+    if {_g} is not set:
+        stop
     set {_bx} to floor(x-coordinate of {_g})
     set {_gy} to floor(y-coordinate of {_g})
     set {_bz} to floor(z-coordinate of {_g})
@@ -388,7 +402,9 @@ function za_batiment_centrale():
     if size of za_monde_joueurs() is 0:
         stop
     set {_p} to random element out of za_monde_joueurs()
-    set {_g} to za_point_loin({_p}, 50, 90)
+    set {_g} to za_point_construire({_p}, 50, 90)
+    if {_g} is not set:
+        stop
     set {_bx} to floor(x-coordinate of {_g})
     set {_gy} to floor(y-coordinate of {_g})
     set {_bz} to floor(z-coordinate of {_g})
@@ -433,9 +449,11 @@ every 60 seconds:
         set {_i} to loop-index
         set {_l} to {za::bat::centrale::pos::%{_i}%}
         if {_l} is set:
-            if block at {_l} is not air:
-                if chance of 35%:
-                    za_spawn_at({_l}, "ZA_Shambler", 20, 35)
+            # chunk déchargé : on attend (ne pas le charger à chaque passage)
+            if chunk at {_l} is loaded:
+                if block at {_l} is not air:
+                    if chance of 35%:
+                        za_spawn_at({_l}, "ZA_Shambler", 20, 35)
 
 # =====================================================================
 #  DECLENCHEURS PERIODIQUES (l'admin peut forcer chaque type avec /evenement <nom>)

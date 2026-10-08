@@ -1,0 +1,111 @@
+# ZombieApocalypse - capacités « horreur » (za_modeles 1.4.0) : mêmes mécaniques que ZombieApocalypse.yml
+# (potion, lunge, throw, damage, sons, swingarm = animation spéciale des modèles EMF)
+# Sons za_modeles:zombie.agrippe / cou / charge / chuchote : pack joueurs 1.4.0 (muets sans lui, pas de plantage).
+
+# des mains t'agrippent : ralenti fort, très court (civils, patients, shamblers)
+ZA_Agrippe:
+  Cooldown: 6
+  Skills:
+  - effect:sound{s=za_modeles:zombie.agrippe;v=1;p=1} @target
+  - potion{type=SLOW;duration=30;level=2} @target
+  - potion{type=SLOW_DIGGING;duration=40;level=0} @target
+# rampant : il attrape la cheville et ne lâche pas
+ZA_Cheville:
+  Cooldown: 8
+  Skills:
+  - effect:sound{s=za_modeles:zombie.agrippe;v=1;p=0.8} @target
+  - potion{type=SLOW;duration=50;level=4} @target
+  - potion{type=JUMP;duration=50;level=128} @target
+# le cou craque, la tête part sur le côté (l'animation EMF le fait tout seul de temps en temps)
+ZA_Craque:
+  Skills:
+  - effect:sound{s=za_modeles:zombie.cou;v=0.8;p=1} @self
+# blessé à mort : frénésie (une fois toutes les 30 s)
+ZA_Frenesie:
+  Cooldown: 30
+  Skills:
+  - swingarm @self
+  - effect:sound{s=entity.zombie.converted_to_drowned;v=1.2;p=0.6} @self
+  - potion{type=SPEED;duration=100;level=1} @self
+  - potion{type=INCREASE_DAMAGE;duration=100;level=0} @self
+  - effect:particles{p=damage_indicator;a=6;hS=0.3;vS=0.5;s=0.05} @self
+# charge : soldats, brutes (swingarm = tête baissée dans le modèle)
+ZA_Charge:
+  Cooldown: 10
+  Conditions:
+  - playerwithin{d=12} true
+  Skills:
+  - swingarm @self
+  - effect:sound{s=za_modeles:zombie.charge;v=1.4;p=1} @self
+  - delay 8
+  - lunge{velocity=1.3;velocityY=0.25} @Target
+# bond du prisonnier : court, rapide, sans prévenir
+ZA_Bond:
+  Cooldown: 7
+  Conditions:
+  - playerwithin{d=9} true
+  Skills:
+  - effect:sound{s=za_modeles:zombie.runner.cri;v=1;p=0.8} @self
+  - lunge{velocity=1.1;velocityY=0.35} @Target
+# le runner accélère quand il te voit
+ZA_Sprint:
+  Cooldown: 12
+  Conditions:
+  - playerwithin{d=20} true
+  Skills:
+  - effect:sound{s=za_modeles:zombie.runner.cri;v=1.2;p=1} @self
+  - potion{type=SPEED;duration=50;level=1} @self
+# stalker : un murmure juste à côté de toi, puis rien
+ZA_Chuchote:
+  Cooldown: 20
+  Conditions:
+  - playerwithin{d=12} true
+  Skills:
+  - effect:sound{s=za_modeles:zombie.chuchote;v=0.7;p=1} @PIR{r=12}
+  - potion{type=DARKNESS;duration=60;level=0} @PIR{r=8}
+# policier : coup de matraque (sonné)
+ZA_Matraque:
+  Cooldown: 8
+  Skills:
+  - effect:sound{s=entity.zombie.attack_iron_door;v=0.8;p=1.3} @target
+  - potion{type=CONFUSION;duration=60;level=0} @target
+  - potion{type=WEAKNESS;duration=80;level=0} @target
+# médecin : la seringue qu'il tient encore
+ZA_Seringue:
+  Cooldown: 10
+  Skills:
+  - effect:sound{s=entity.bee.sting;v=1;p=0.6} @target
+  - potion{type=POISON;duration=60;level=0} @target
+  - potion{type=CONFUSION;duration=100;level=0} @target
+  - command{c="zainfect <target.name> 20";sync=true} @target
+# ouvrier : clé à molette, te projette
+ZA_Molette:
+  Cooldown: 8
+  Skills:
+  - effect:sound{s=block.anvil.land;v=0.6;p=1.4} @target
+  - throw{velocity=2;velocityY=1} @target
+# pompier : hache, gros dégâts
+ZA_Hache:
+  Cooldown: 9
+  Skills:
+  - swingarm @self
+  - effect:sound{s=item.axe.strip;v=1;p=0.6} @target
+  - damage{a=3} @target
+# évolution du virus (za_p82) : sang acide à la mort (nuage empoisonné), frappe au sol du Colosse
+ZA_Sang_Acide:
+  Skills:
+  - effect:particles{p=happyVillager;a=30;hS=1.2;vS=0.6;s=0.02} @self
+  - effect:sound{s=block.lava.extinguish;v=1;p=0.7} @self
+  - potion{type=POISON;duration=80;level=0} @PIR{r=3}
+ZA_Frappe_Sol:
+  Cooldown: 8
+  Conditions:
+  - playerwithin{d=6} true
+  Skills:
+  - swingarm @self
+  - delay 12
+  - effect:sound{s=entity.generic.explode;v=1.5;p=0.5} @self
+  - effect:particles{p=explosion;a=4;hS=2;vS=0.2;s=0} @self
+  - damage{a=8} @PIR{r=5}
+  - throw{velocity=3;velocityY=4} @PIR{r=5}
+  - potion{type=SLOW;duration=60;level=1} @PIR{r=5}

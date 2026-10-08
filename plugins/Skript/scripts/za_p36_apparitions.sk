@@ -17,11 +17,62 @@ function za_nuit(p: player) :: boolean:
         return true
     return false
 
-# un essai d'apparition pres du joueur (priorites : Bloater > Runner/Spitter/Leaper > Shambler)
+# zombies du lieu (MISSION §25) : près d'un bâtiment spécial (za_p35), les morts ressemblent à ceux qui y vivaient
+function za_type_lieu(l: location) :: text:
+    # Saint-Aurèle en ruines (za_p66) : patients à l'hôpital, policiers au poste, citoyens dans les rues
+    set {_r} to za_ruines_type({_l})
+    if {_r} is not "":
+        return {_r}
+    set {_k} to za_bat_proche({_l}, 45)
+    if {_k} is "":
+        # lieux du monde généré (za_p73) : base Bravo, NORDA, villages, chalets...
+        set {_s} to za_site_zombie({_l})
+        if {_s} is not "":
+            return {_s}
+        # zone très contaminée (za_p5) : mutations avancées
+        if ({za::contam::%za_ckey({_l})%} ? 0) >= 150:
+            return random element out of "ZA_Brute", "ZA_Screamer", "ZA_Spitter" and "ZA_Bloater"
+        return ""
+    set {_t::*} to split {_k} at ";"
+    set {_t} to {_t::1}
+    if {_t} is "hopital":
+        return random element out of "ZA_Patient_Infecte", "ZA_Patient_Infecte" and "ZA_Medecin_Infecte"
+    if {_t} is "labo2":
+        return random element out of "ZA_Medecin_Infecte", "ZA_Patient_Infecte" and "ZA_Spitter"
+    if {_t} is "police":
+        return random element out of "ZA_Policier_Infecte", "ZA_Policier_Infecte", "ZA_Prisonnier_Infecte" and "ZA_Armored"
+    if {_t} is "caserne":
+        return random element out of "ZA_Soldat_Infecte", "ZA_Soldat_Infecte" and "ZA_Armored"
+    if {_t} is "centrale":
+        return random element out of "ZA_Ouvrier_Infecte", "ZA_Ouvrier_Infecte" and "ZA_Ouvrier_Brule"
+    if {_t} is "station":
+        return random element out of "ZA_Pompier_Infecte", "ZA_Citoyen_Infecte" and "ZA_Ouvrier_Brule"
+    if {_t} is "ecole":
+        return random element out of "ZA_Child", "ZA_Citoyen_Infecte" and "ZA_Citoyen_Infecte"
+    return random element out of "ZA_Citoyen_Infecte", "ZA_Citoyen_Infecte" and "ZA_Policier_Infecte"
+
+# un essai d'apparition pres du joueur (priorites : lieu > Bloater > Runner/Spitter/Leaper > Shambler)
 function za_apparition(p: player):
+    if ({za::mot::relache::%{_p}'s uuid%} ? 0) > unix timestamp of now:
+        stop
     set {_b} to "%biome at {_p}%"
     if {_b} contains "ocean":
         stop
+    set {_env} to za_type_lieu(location of {_p})
+    if {_env} is not "":
+        set {_ch} to 40
+        if za_nuit({_p}) is false:
+            set {_ch} to 12
+        if chance of {_ch}%:
+            za_spawn_near({_p}, {_env}, 22, 40)
+            stop
+    # forêt la nuit : rôdeurs sales, stalkers et crawlers
+    if {_b} contains "forest", "taiga" or "jungle":
+        if za_nuit({_p}) is true:
+            if chance of 12%:
+                set {_ft} to random element out of "ZA_Stalker", "ZA_Crawler" and "ZA_Crawler"
+                za_spawn_near({_p}, {_ft}, 24, 44)
+                stop
     if za_nuit({_p}) is false:
         if chance of 15%:
             za_spawn_near({_p}, "ZA_Shambler", 24, 44)

@@ -1,0 +1,165 @@
+# =====================================================================
+#  ZombieApocalypse - LE DOSSIER AREL : exploration en couches dans Saint-Aurèle en ruines (MISSION §40-41, §45)
+#  extérieur -> bâtiment -> zone sécurisée -> pièce secrète -> énigme -> récompense
+#    1. EXTÉRIEUR   Café du Coin, le menu (clic droit) : le reçu de Samuel Arel, payé avec sa carte d'employé NORDA.
+#    2. BÂTIMENT    Hôpital, porte de la chambre 104 : la fiche du patient transféré « au laboratoire, par ordre de NORDA ».
+#    3. SÉCURISÉ    Étage, bureau du Dr Lefort : son agenda (calendrier des jours 0 à 3). Il faut avoir lu la fiche.
+#    4. SECRET      Le laboratoire : serrure magnétique -> il faut du COURANT dans le quartier hospitalier (za_p50/za_p61)
+#                   ou une Carte d'acces (consommée). Derrière : des casiers numérotés.
+#    5. ÉNIGME      Quel casier ? Rien n'est donné en clair : il faut relier le reçu (numéro d'employé) et l'agenda
+#                   (« chez NORDA, tout est rangé sous le numéro d'employé »). Mauvais casier = alarme et infectés.
+#    6. RÉCOMPENSE  Disque de données Z-01 (quête du Dr Lefort, za_p40), rapport NORDA, jetons, souvenir, mémoire du monde ;
+#                   le premier du serveur entre dans la légende.
+#  Documents au format za_doc_donner (n°, date, lieu, auteur). Admin : /zaexpl <joueur> etat|reset
+# =====================================================================
+
+options:
+    casier: 0731
+    penalite: 10
+
+# panneau de la ruine visé (clé de za_ruines_panneau) ou ""
+function za_expl_panneau(l: location) :: text:
+    if {za::ruines::base} is not set:
+        return ""
+    set {_b} to {za::ruines::base}
+    if world of {_l} is not world of {_b}:
+        return ""
+    set {_rel} to "%floor(x-coordinate of {_l} - x-coordinate of {_b})%;%floor(y-coordinate of {_l} - y-coordinate of {_b})%;%floor(z-coordinate of {_l} - z-coordinate of {_b})%"
+    loop "cafe", "chambre104", "lefort", "labo" and "norda":
+        if za_ruines_panneau(loop-value) is {_rel}:
+            return loop-value
+    return ""
+
+function za_expl_a(p: player, k: text) :: boolean:
+    if {za::expl::sa::%{_p}'s uuid%::%{_k}%} is true:
+        return true
+    return false
+
+function za_expl_noter(p: player, k: text, texte: text):
+    set {za::expl::sa::%{_p}'s uuid%::%{_k}%} to true
+    send "&8[Dossier Arel] &7%{_texte}%" to {_p}
+    za_zm("son %{_p}% za_modeles:sfx.sting_revelation 0.5 1")
+
+# ---------------------------------------------------------------- les étapes
+
+function za_expl_cafe(p: player):
+    if za_expl_a({_p}, "recu") is true:
+        send "&8&oLe menu est toujours là. Café 2,25 $. Le monde avait un prix, avant." to {_p}
+        stop
+    za_doc_donner({_p}, "CDC-0412", "Jour 0, 06 h 12", "Café du Coin, rue Principale, Saint-Aurèle", "Caisse n° 1", "Reçu de caisse", "Table 4||1 café noir ........ 2,25 $||Payé par carte d'employé NORDA Biotech n° 0731 — S. AREL||Au dos, au crayon, de la main de Rita : « Il toussait tellement que j'ai jeté la tasse. »")
+    za_expl_noter({_p}, "recu", "Samuel Arel, employé NORDA. Il est passé ici le matin du Jour 0. Où l'a-t-on emmené ensuite ?")
+
+function za_expl_chambre(p: player):
+    if za_expl_a({_p}, "fiche") is true:
+        send "&8&oLa chambre 104 est vide. Les sangles du lit ont été coupées de l'intérieur." to {_p}
+        stop
+    za_doc_donner({_p}, "HSA-104", "Jour 3, 21 h 55", "Hôpital de Saint-Aurèle, chambre 104", "Dr É. Lefort", "Fiche de patient", "Patient : homme, ~30 ans. Badge NORDA arraché.||Admis : Jour 3, 21 h 55, après l'incident de la cour.||Transfert : laboratoire (étage), PAR ORDRE DE NORDA. Personnel hospitalier non autorisé.||Note manuscrite : « Je n'ai pas signé ça. — É.L. »")
+    za_expl_noter({_p}, "fiche", "Le patient de la 104 a été transféré au laboratoire de l'étage. Lefort n'a pas signé. Son bureau est à l'étage.")
+
+function za_expl_bureau(p: player):
+    if za_expl_a({_p}, "fiche") is false:
+        send "&8&oLe bureau du Dr Lefort a été fouillé. Des papiers partout. Rien ne te parle encore... il faudrait savoir quoi chercher." to {_p}
+        stop
+    if za_expl_a({_p}, "agenda") is true:
+        send "&8&oL'agenda est resté ouvert sur le Jour 3." to {_p}
+        stop
+    za_doc_donner({_p}, "EL-AG", "Jours 0 à 3", "Hôpital de Saint-Aurèle, bureau du Dr Lefort (étage)", "Dr Émile Lefort", "Agenda", "JOUR 0 — 07 h : réunion avec NORDA. Ils parlent d'un « employé à surveiller ». Pas de nom.||JOUR 1 — 30 patients. Fièvre. NORDA veut les prélèvements. Refusé.||JOUR 2 — Ils ont installé leurs propres casiers au labo. Chez NORDA, tout est rangé sous le NUMÉRO D'EMPLOYÉ, jamais sous le nom. Même les morts.||JOUR 3 — L'homme de la 104 est l'un des leurs. Ils le savaient depuis le premier matin.")
+    za_expl_noter({_p}, "agenda", "Au labo, NORDA range tout sous le numéro d'employé. Le labo est protégé par une serrure magnétique.")
+
+function za_expl_labo(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    if za_expl_a({_p}, "fini") is true:
+        send "&8&oLe casier 0731 est ouvert, vide. Tu sais ce qu'il y avait dedans." to {_p}
+        stop
+    if {za::expl::sa::%{_u}%::bloque} is set:
+        if now < {za::expl::sa::%{_u}%::bloque}:
+            send "&c&oL'alarme a verrouillé les casiers. Reviens plus tard." to {_p}
+            stop
+    if za_expl_a({_p}, "agenda") is false:
+        send "&8&oUne porte blindée : LABORATOIRE — ACCÈS RESTREINT. Derrière la vitre, des rangées de casiers numérotés." to {_p}
+        stop
+    # serrure magnétique : courant du quartier hospitalier, ou carte d'accès
+    if za_expl_a({_p}, "ouvert") is false:
+        if za_reseau_actif("hopital") is true:
+            za_expl_noter({_p}, "ouvert", "Le quartier hospitalier a du courant : la serrure magnétique clignote au vert.")
+        else if za_count_named({_p}, "Carte d'acces") >= 1:
+            za_take_named({_p}, "Carte d'acces", 1)
+            za_expl_noter({_p}, "ouvert", "La Carte d'accès passe. Le lecteur la garde. La porte s'ouvre.")
+        else:
+            send "&c&oLa serrure magnétique est morte. Il faudrait du courant dans le quartier hospitalier (/electricite)... ou une Carte d'accès." to {_p}
+            stop
+    set {_o::*} to "Casier 0104|c0104", "Casier 0317|c0317", "Casier 0731|c0731", "Casier 1250|c1250", "Casier 0008|c0008", "Ne rien toucher|quit"
+    za_menu({_p}, "zaexplclic", "Casiers NORDA", "Des dizaines de casiers gris. Aucun nom, seulement des numéros à quatre chiffres. Lequel appartenait à l'homme de la 104 ?", {_o::*})
+
+command /zaexplclic <player> <text>:
+    executable by: console
+    trigger:
+        set {_p} to arg-1
+        set {_u} to "%{_p}'s uuid%"
+        if za_expl_a({_p}, "ouvert") is false:
+            stop
+        if za_expl_a({_p}, "fini") is true:
+            stop
+        if arg-2 is "c{@casier}":
+            za_expl_recompense({_p})
+        else:
+            set {za::expl::sa::%{_u}%::bloque} to now
+            add {@penalite} minutes to {za::expl::sa::%{_u}%::bloque}
+            send "&4&lALARME. &cMauvais casier. Les portes du labo se verrouillent... et quelque chose remue dans les chambres." to {_p}
+            za_zm("son %{_p}% za_modeles:sfx.alarme_labo 1 1")
+            za_bruit_ajouter({_p}, 40)
+            za_spawn_at(location of {_p}, "ZA_Patient_Infecte", 6, 12)
+            za_spawn_at(location of {_p}, "ZA_Medecin_Infecte", 6, 12)
+            za_spawn_at(location of {_p}, "ZA_Patient_Infecte", 8, 14)
+
+function za_expl_recompense(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {za::expl::sa::%{_u}%::fini} to true
+    send "&b&lCasier 0731. &7Un disque de données, une enveloppe scellée, et une photo d'identité : Samuel Arel, souriant." to {_p}
+    za_zm("son %{_p}% za_modeles:sfx.sting_revelation 1 1")
+    give {_p} za_item("paper", "Disque de données Z-01", "&b", 1)
+    za_doc_donner({_p}, "NORDA-SA-01", "Jour 0, 04 h 40", "NORDA Biotech, site de Saint-Aurèle", "Direction de la sécurité NORDA", "Rapport d'exposition (CONFIDENTIEL)", "Employé n° 0731 (S. Arel), quart de nuit, exposé à l'échantillon Z-01 à 02 h 15.||Consigne : NE PAS isoler. Laisser l'employé rentrer chez lui et observer la propagation en milieu civil.||Transfert discret vers l'hôpital de Saint-Aurèle prévu si symptômes. Casier au labo, sous son numéro.||Destinataire : Direction. Copie : aucune.")
+    za_jetons_ajouter({_p}, 25)
+    za_stat_ajouter({_u}, "enigmes", 1)
+    za_souvenir_ajouter({_u}, "sa:hopital", "labo", "Ouvert le casier 0731 : NORDA savait, dès le premier matin.")
+    za_monde_evt("%{_p}% ouvre le casier 0731 du laboratoire de Saint-Aurèle. NORDA savait.", location of {_p}, 2, "labo")
+    if {za::expl::sa::premier} is not set:
+        set {za::expl::sa::premier} to {_p}'s name
+        za_monde_legende("%{_p}% est le premier à percer le dossier Arel : NORDA a laissé l'infection sortir, exprès.")
+        za_radio("&bLéa", "Quelqu'un a ouvert le casier 0731 à l'hôpital. Si c'est vrai... ils l'ont laissé rentrer chez lui. Ils voulaient voir.")
+    send "&7&o(Le Dr Lefort voudra voir ce disque.)" to {_p}
+
+# ---------------------------------------------------------------- clic sur les panneaux des ruines
+
+on right click on sign:
+    if za_pro(player) is true:
+        stop
+    if za_ruines_ok() is false:
+        stop
+    set {_k} to za_expl_panneau(location of event-block)
+    if {_k} is "":
+        stop
+    # pas d'éditeur de panneau : c'est un indice
+    cancel the event
+    if {_k} is "cafe":
+        za_expl_cafe(player)
+    else if {_k} is "chambre104":
+        za_expl_chambre(player)
+    else if {_k} is "lefort":
+        za_expl_bureau(player)
+    else if {_k} is "labo":
+        za_expl_labo(player)
+    else if {_k} is "norda":
+        send "&8&oNORDA BIOTECH. Quelqu'un a gratté « NE PAS OUVRIR » au couteau pour écrire « OUVERT ». Le laboratoire est un peu plus loin dans le couloir." to player
+
+# ---------------------------------------------------------------- admin
+
+command /zaexpl <player> [<text>]:
+    permission: za.admin
+    trigger:
+        set {_u} to "%arg-1's uuid%"
+        if arg-2 is "reset":
+            delete {za::expl::sa::%{_u}%::*}
+            send "Dossier Arel réinitialisé pour %arg-1%." to sender
+        else:
+            send "Dossier Arel de %arg-1% : reçu=%{za::expl::sa::%{_u}%::recu}% fiche=%{za::expl::sa::%{_u}%::fiche}% agenda=%{za::expl::sa::%{_u}%::agenda}% ouvert=%{za::expl::sa::%{_u}%::ouvert}% fini=%{za::expl::sa::%{_u}%::fini}% | premier : %{za::expl::sa::premier}%" to sender

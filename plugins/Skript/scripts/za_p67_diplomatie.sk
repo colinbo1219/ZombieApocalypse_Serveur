@@ -1,0 +1,319 @@
+# =====================================================================
+#  ZombieApocalypse - DIPLOMATIE ET RESSOURCES DES FACTIONS (MISSION §35)
+#  Complète les factions (za_p40) et leurs territoires (za_p45) sans rien remplacer :
+#  * RELATIONS entre factions {za::diplo::<a>::<b>} (-100..100) : ≥ 40 alliées, ≤ -40 ennemies. Chaque territoire pris
+#    à une faction (za_terr_change) creuse la haine entre les deux ; les contrats livrés rapprochent.
+#  * RESSOURCES : chaque territoire produit chaque jour selon le bâtiment (hôpital -> médicaments, police/caserne ->
+#    munitions, supermarché -> vivres, station -> carburant, centrale -> énergie, labo -> médicaments, école -> vivres).
+#    Chaque faction consomme 1 unité de chaque ressource par territoire et par jour.
+#    Pénurie (0) : l'emprise de ses territoires baisse (-3/jour) ; abondance (≥ 20) : elle monte (+2/jour).
+#    Un territoire dans un quartier sous tension (za_p50/za_p61) produit +1 énergie.
+#  * CONTRATS : une faction en pénurie publie un contrat. /faction contrats · /faction livrer <faction>
+#    Livraison = réputation, jetons, stock de la faction, et +5 de relation avec ses alliés.
+#  Ressources livrables : vivres = pain / viandes cuites / patates cuites ; médicaments = Bandage, Antibiotique ;
+#  munitions = lingots de fer ; carburant = Essence (carburant) ; énergie = Composant electronique.
+#  Admin : /zadiplo etat | jour | set <a> <b> <n> | stock <faction> <ressource> <n>
+# =====================================================================
+
+# ---------------------------------------------------------------- base
+
+function za_diplo_facs() :: texts:
+    return "milice", "scientifiques", "marchands", "pilleurs", "survivants" and "culte"
+
+function za_diplo_ress() :: texts:
+    return "vivres", "medicaments", "munitions", "carburant" and "energie"
+
+function za_diplo_rnom(r: text) :: text:
+    if {_r} is "medicaments":
+        return "médicaments"
+    if {_r} is "energie":
+        return "énergie"
+    return {_r}
+
+# rang d'une faction dans la liste (pour ranger les paires)
+function za_diplo_rang(f: text) :: number:
+    set {_i} to 0
+    loop za_diplo_facs():
+        add 1 to {_i}
+        if loop-value is {_f}:
+            return {_i}
+    return 99
+
+# relation symétrique : la paire est rangée dans l'ordre de la liste
+function za_diplo_cle(a: text, b: text) :: text:
+    if za_diplo_rang({_a}) < za_diplo_rang({_b}):
+        return "%{_a}%::%{_b}%"
+    return "%{_b}%::%{_a}%"
+
+function za_diplo_init():
+    if {za::diplo::init} is set:
+        stop
+    set {za::diplo::init} to true
+    loop za_diplo_facs():
+        loop za_diplo_facs():
+            if loop-value-1 is not loop-value-2:
+                set {za::diplo::%za_diplo_cle(loop-value-1, loop-value-2)%} to 0
+    set {za::diplo::%za_diplo_cle("milice", "pilleurs")%} to -60
+    set {za::diplo::%za_diplo_cle("scientifiques", "culte")%} to -60
+    set {za::diplo::%za_diplo_cle("milice", "survivants")%} to 35
+    set {za::diplo::%za_diplo_cle("scientifiques", "survivants")%} to 30
+    set {za::diplo::%za_diplo_cle("marchands", "survivants")%} to 25
+    set {za::diplo::%za_diplo_cle("marchands", "milice")%} to 15
+    set {za::diplo::%za_diplo_cle("marchands", "pilleurs")%} to 10
+    set {za::diplo::%za_diplo_cle("culte", "survivants")%} to -35
+    set {za::diplo::%za_diplo_cle("culte", "milice")%} to -30
+    loop za_diplo_facs():
+        loop za_diplo_ress():
+            set {za::facres::%loop-value-1%::%loop-value-2%} to 12
+
+function za_diplo(a: text, b: text) :: number:
+    if {_a} is {_b}:
+        return 100
+    return {za::diplo::%za_diplo_cle({_a}, {_b})%} ? 0
+
+function za_diplo_ajouter(a: text, b: text, n: number):
+    if {_a} is {_b}:
+        stop
+    if za_terr_reelle({_a}) is false:
+        stop
+    if za_terr_reelle({_b}) is false:
+        stop
+    set {_k} to za_diplo_cle({_a}, {_b})
+    set {_v} to ({za::diplo::%{_k}%} ? 0) + {_n}
+    set {za::diplo::%{_k}%} to max(-100, min(100, {_v}))
+
+function za_diplo_mot(n: number) :: text:
+    if {_n} >= 40:
+        return "&aAlliés"
+    if {_n} <= -40:
+        return "&cEnnemis"
+    if {_n} < 0:
+        return "&6Méfiance"
+    return "&7Neutres"
+
+# ---------------------------------------------------------------- crochet : un territoire change de mains (za_p45)
+
+function za_diplo_changement(ancienne: text, nouvelle: text):
+    if za_terr_reelle({_ancienne}) is false:
+        stop
+    if za_terr_reelle({_nouvelle}) is false:
+        stop
+    set {_avant} to za_diplo({_ancienne}, {_nouvelle})
+    za_diplo_ajouter({_ancienne}, {_nouvelle}, -20)
+    set {_apres} to za_diplo({_ancienne}, {_nouvelle})
+    if {_avant} > -40:
+        if {_apres} <= -40:
+            za_radio("&bLéa", "Ça y est. %uncolored za_faction_nom({_ancienne})% et %uncolored za_faction_nom({_nouvelle})% sont en guerre ouverte. Restez hors de leur chemin.")
+            za_journal("%uncolored za_faction_nom({_ancienne})% et %uncolored za_faction_nom({_nouvelle})% deviennent ennemies.")
+
+# ---------------------------------------------------------------- production quotidienne
+
+function za_diplo_produit(t: text) :: text:
+    if {_t} is "hopital" or "labo2":
+        return "medicaments"
+    if {_t} is "police" or "caserne":
+        return "munitions"
+    if {_t} is "super" or "ecole":
+        return "vivres"
+    if {_t} is "station":
+        return "carburant"
+    if {_t} is "centrale":
+        return "energie"
+    return ""
+
+function za_diplo_jour():
+    # production
+    loop za_terr_cles():
+        set {_k} to loop-value
+        set {_f} to za_terr_fac({_k})
+        if za_terr_reelle({_f}) is true:
+            add 1 to {_nb::%{_f}%}
+            set {_r} to za_diplo_produit(za_terr_type({_k}))
+            if {_r} is not "":
+                add 3 to {za::facres::%{_f}%::%{_r}%}
+            if za_reseau_actif(za_reseau_quartier_de(za_terr_type({_k}))) is true:
+                add 1 to {za::facres::%{_f}%::energie}
+    # consommation, pénurie, abondance
+    loop za_diplo_facs():
+        set {_f} to loop-value-1
+        set {_n} to {_nb::%{_f}%} ? 0
+        set {_manque} to ""
+        set {_riche} to 0
+        loop za_diplo_ress():
+            set {_r} to loop-value-2
+            set {_s} to ({za::facres::%{_f}%::%{_r}%} ? 0) - {_n}
+            set {_s} to max(0, min(200, {_s}))
+            set {za::facres::%{_f}%::%{_r}%} to {_s}
+            if {_s} <= 0:
+                if {_n} > 0:
+                    set {_manque} to {_r}
+            else if {_s} >= 20:
+                add 1 to {_riche}
+        if {_n} > 0:
+            set {_d} to 0
+            if {_manque} is not "":
+                set {_d} to -3
+                if {za::diplo::contrat::%{_f}%} is not set:
+                    set {za::diplo::contrat::%{_f}%} to {_manque}
+                    za_radio("&bLéa", "%uncolored za_faction_nom({_f})% manque de %za_diplo_rnom({_manque})%. Ils paient bien ceux qui les dépannent. (/faction contrats)")
+            else if {_riche} >= 3:
+                set {_d} to 2
+            if {_d} is not 0:
+                loop za_terr_cles():
+                    if za_terr_fac(loop-value-2) is {_f}:
+                        set {_c} to ({za::terr::%loop-value-2%::ctrl} ? 50) + {_d}
+                        set {za::terr::%loop-value-2%::ctrl} to max(1, min(100, {_c}))
+    # les relations dérivent lentement vers la neutralité, sauf les haines historiques
+    loop za_diplo_facs():
+        loop za_diplo_facs():
+            if za_diplo_rang(loop-value-1) < za_diplo_rang(loop-value-2):
+                set {_v} to za_diplo(loop-value-1, loop-value-2)
+                if {_v} > 5:
+                    za_diplo_ajouter(loop-value-1, loop-value-2, -1)
+                else if {_v} < -5:
+                    if za_terr_rival(loop-value-1) is not loop-value-2:
+                        za_diplo_ajouter(loop-value-1, loop-value-2, 1)
+
+on load:
+    za_diplo_init()
+
+every 60 seconds:
+    if {za::diplo::jour} is not {za::serveur::jours}:
+        set {za::diplo::jour} to {za::serveur::jours}
+        za_diplo_jour()
+
+# ---------------------------------------------------------------- contrats
+
+function za_diplo_objet(r: text) :: text:
+    if {_r} is "vivres":
+        return "8 vivres (pain, viande ou patates cuites)"
+    if {_r} is "medicaments":
+        return "4 Bandages ou 1 Antibiotique"
+    if {_r} is "munitions":
+        return "8 lingots de fer"
+    if {_r} is "carburant":
+        return "2 Essence (carburant)"
+    return "2 Composants électroniques"
+
+# retire les objets du contrat (vrai si livré)
+function za_diplo_prendre(p: player, r: text) :: boolean:
+    if {_r} is "vivres":
+        set {_n} to 0
+        loop "bread", "cooked beef", "cooked porkchop", "cooked chicken", "cooked mutton", "baked potato" and "cooked cod":
+            set {_it} to loop-value parsed as itemtype
+            if {_it} is set:
+                add (amount of {_it} in {_p}'s inventory) to {_n}
+        if {_n} < 8:
+            return false
+        set {_reste} to 8
+        loop "bread", "cooked beef", "cooked porkchop", "cooked chicken", "cooked mutton", "baked potato" and "cooked cod":
+            set {_it} to loop-value parsed as itemtype
+            if {_it} is set:
+                if {_reste} > 0:
+                    set {_a} to min({_reste}, amount of {_it} in {_p}'s inventory)
+                    if {_a} > 0:
+                        remove {_a} of {_it} from {_p}'s inventory
+                        remove {_a} from {_reste}
+        return true
+    if {_r} is "medicaments":
+        if za_count_named({_p}, "Antibiotique") >= 1:
+            return za_take_named({_p}, "Antibiotique", 1)
+        return za_take_named({_p}, "Bandage", 4)
+    if {_r} is "munitions":
+        if {_p} has 8 iron ingot:
+            remove 8 iron ingot from {_p}'s inventory
+            return true
+        return false
+    if {_r} is "carburant":
+        return za_take_named({_p}, "Essence (carburant)", 2)
+    return za_take_named({_p}, "Composant electronique", 2)
+
+function za_diplo_livrer(p: player, f: text):
+    set {_r} to {za::diplo::contrat::%{_f}%}
+    if {_r} is not set:
+        send "&7%za_faction_nom({_f})% &7n'a pas de contrat ouvert." to {_p}
+        stop
+    if za_diplo_prendre({_p}, {_r}) is false:
+        send "&cIl te faut : %za_diplo_objet({_r})%." to {_p}
+        stop
+    delete {za::diplo::contrat::%{_f}%}
+    add 15 to {za::facres::%{_f}%::%{_r}%}
+    za_faction_ajouter({_p}, {_f}, 8)
+    za_jetons_ajouter({_p}, 6)
+    loop za_diplo_facs():
+        if loop-value is not {_f}:
+            if za_diplo({_f}, loop-value) >= 40:
+                za_faction_ajouter({_p}, loop-value, 2)
+            else if za_diplo({_f}, loop-value) <= -40:
+                za_faction_ajouter({_p}, loop-value, -4)
+    send "&6[Contrat] &aLivré à %za_faction_nom({_f})%&a : +8 réputation, +6 jetons. &7Leurs alliés t'apprécient, leurs ennemis beaucoup moins." to {_p}
+    za_zm("son %{_p}% minecraft:entity.villager.celebrate 0.8 1")
+    za_monde_evt("%{_p}% ravitaille %uncolored za_faction_nom({_f})% en %za_diplo_rnom({_r})%.", location of {_p}, 0, "faction")
+    za_stat_ajouter("%{_p}'s uuid%", "contrats_faction", 1)
+
+# ---------------------------------------------------------------- affichage (appelé par /faction, za_p40)
+
+function za_diplo_afficher(p: player):
+    send "&6&lDIPLOMATIE &8— &7qui tient quoi, qui manque de quoi, qui hait qui" to {_p}
+    loop za_diplo_facs():
+        set {_f} to loop-value-1
+        set {_t} to za_terr_compte({_f})
+        set {_s} to ""
+        loop za_diplo_ress():
+            set {_v} to floor({za::facres::%{_f}%::%loop-value-2%} ? 0)
+            set {_c} to "&a"
+            if {_v} <= 0:
+                set {_c} to "&c"
+            else if {_v} < 8:
+                set {_c} to "&e"
+            set {_s} to "%{_s}%%{_c}%%za_diplo_rnom(loop-value-2)% %{_v}%&8 · "
+        send "%za_faction_nom({_f})% &8(%{_t}% territoire(s)) &7: %{_s}%" to {_p}
+        set {_al} to ""
+        set {_en} to ""
+        loop za_diplo_facs():
+            if loop-value-2 is not {_f}:
+                set {_d} to za_diplo({_f}, loop-value-2)
+                if {_d} >= 40:
+                    set {_al} to "%{_al}% %uncolored za_faction_nom(loop-value-2)%"
+                else if {_d} <= -40:
+                    set {_en} to "%{_en}% %uncolored za_faction_nom(loop-value-2)%"
+        if {_al} is "":
+            set {_al} to " aucun"
+        if {_en} is "":
+            set {_en} to " aucun"
+        send "&8   alliés :&a%{_al}% &8| ennemis :&c%{_en}%" to {_p}
+    send "&8/faction contrats · /faction livrer <faction>" to {_p}
+
+function za_diplo_contrats(p: player):
+    send "&6&lCONTRATS DE FACTION" to {_p}
+    set {_n} to 0
+    loop za_diplo_facs():
+        set {_r} to {za::diplo::contrat::%loop-value%}
+        if {_r} is set:
+            add 1 to {_n}
+            send "%za_faction_nom(loop-value)% &7manque de &f%za_diplo_rnom({_r})% &7: apporte %za_diplo_objet({_r})% → &e/faction livrer %loop-value%" to {_p}
+    if {_n} is 0:
+        send "&7Aucune faction n'est en pénurie pour l'instant." to {_p}
+
+# ---------------------------------------------------------------- admin
+
+command /zadiplo [<text>] [<text>] [<text>] [<text>]:
+    permission: za.admin
+    trigger:
+        if arg-1 is "jour":
+            za_diplo_jour()
+            send "Journée diplomatique calculée." to sender
+        else if arg-1 is "set":
+            za_diplo_ajouter(arg-2, arg-3, (arg-4 parsed as number) - za_diplo(arg-2, arg-3))
+            send "%arg-2% / %arg-3% = %za_diplo(arg-2, arg-3)%" to sender
+        else if arg-1 is "stock":
+            set {za::facres::%arg-2%::%arg-3%} to arg-4 parsed as number
+            send "Stock %arg-2% %arg-3% = %arg-4%" to sender
+        else:
+            if sender is a player:
+                za_diplo_afficher(player)
+            loop za_diplo_facs():
+                loop za_diplo_facs():
+                    if za_diplo_rang(loop-value-1) < za_diplo_rang(loop-value-2):
+                        send "%loop-value-1% / %loop-value-2% : %za_diplo(loop-value-1, loop-value-2)%" to sender
+            send "/zadiplo etat | jour | set <a> <b> <n> | stock <faction> <ressource> <n>" to sender

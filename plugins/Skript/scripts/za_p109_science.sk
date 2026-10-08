@@ -1,0 +1,348 @@
+# =====================================================================
+#  ZombieApocalypse - LA SCIENCE, LE MARCHÉ NOIR, LES PLANS RARES (bible, points 19, 78, 91, 114)
+#  * ÉCHANTILLONS (19) : tissu (sur les morts abattus, rarement), eau et sang (/recherche prelever). Ils se gâtent :
+#    un échantillon de plus d'un jour ne vaut plus que la moitié.
+#  * RECHERCHE COLLECTIVE : /recherche donner, près d'un alambic (un labo) : tout le serveur avance ensemble.
+#    Deux scientifiques, deux théories : Dr Lefort (traitements) ou Dr Vasseur (détection). /recherche financer
+#    <lefort|vasseur> <jetons> : la voie la mieux financée décide de ce qui se débloque. NORDA veut cette recherche.
+#      Lefort : 40 sérum (/recherche serum) · 120 décontamination (/recherche decontaminer) · 250 vaccin expérimental
+#      Vasseur : 40 prévisions (/recherche prevoir) · 120 détecteur (/monde donne les chiffres) · 250 brouilleur de drone
+#  * AUTOPSIE : /recherche autopsie, la tête d'un vétéran en main : la faiblesse d'une Némésis entre au bestiaire.
+#  * RENSEIGNEMENT (91) : /infos vendre <joueur> <n°> <prix> : l'acheteur paie (/infos acheter), il reçoit la nouvelle.
+#  * MARCHÉ NOIR PERMANENT (78) : chaque jour il change de place ; la radio pirate donne un indice et le mot de passe.
+#    /marchenoir <mot> sur place ouvre le Trafiquant. Parfois, une descente.
+#  * PLANS RARES (114) : en morceaux (3), dans les crashs, les convois détruits, les boss. /plans pour voir,
+#    /plans assembler <brouilleur|filtre|emp>. Brouilleur de drone, filtre à eau, grenade EMP.
+#  Variables : {za::sci::points}, {za::sci::fonds::lefort|vasseur}, {za::sci::don::<uuid>}, {za::mn::*}
+# =====================================================================
+
+# ---------------------------------------------------------------- échantillons
+
+function za_sci_echantillon(t: text) :: itemtype:
+    set {_mat} to "rotten flesh"
+    if {_t} is "eau":
+        set {_mat} to "potion of water"
+    else if {_t} is "sang":
+        set {_mat} to "redstone"
+    set {_it} to za_item({_mat}, "Échantillon (%{_t}%) — jour %{za::serveur::jours} ? 0%", "&5", 1)
+    return {_it}
+
+on death:
+    if attacker is a player:
+        if victim is a monster:
+            if za_pro(attacker) is false:
+                if chance of 6%:
+                    drop za_sci_echantillon("tissu") at victim's location
+
+command /recherche [<text>] [<text>] [<number>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_u} to "%player's uuid%"
+        set {_a} to arg-1 ? "etat"
+        set {_voie} to za_sci_voie()
+        if {_a} is "prelever":
+            if player does not have glass bottle:
+                send "&7Il faut une bouteille vide." to player
+                stop
+            remove 1 glass bottle from player
+            if {za::infection::%{_u}%} is set:
+                give player za_sci_echantillon("sang")
+                send "&7Tu prélèves ton propre sang. Infecté. &8(Il vaut cher à la recherche.)" to player
+            else if block at player is water:
+                give player za_sci_echantillon("eau")
+                send "&7Un échantillon d'eau. Il faudra l'analyser vite." to player
+            else:
+                give player za_sci_echantillon("sang")
+                send "&7Un échantillon de sang. Sain, a priori." to player
+        else if {_a} is "donner":
+            if za_sci_labo(player) is false:
+                send "&7Il faut un labo : un alambic à moins de 6 blocs." to player
+                stop
+            set {_pts} to 0
+            loop items in player's inventory:
+                set {_n} to uncolored name of loop-item ? ""
+                if {_n} starts with "Échantillon":
+                    set {_v} to 2
+                    if {_n} contains "(sang)":
+                        set {_v} to 4
+                    else if {_n} contains "(eau)":
+                        set {_v} to 1
+                    set {_j} to subtext of {_n} from characters ((index of "jour " in {_n}) + 5) to length of {_n}
+                    if ({za::serveur::jours} ? 0) - ({_j} parsed as number ? 0) > 1:
+                        set {_v} to {_v} / 2
+                    add {_v} * item amount of loop-item to {_pts}
+                    remove loop-item from player's inventory
+            if {_pts} is 0:
+                send "&7Tu n'as aucun échantillon." to player
+                stop
+            set {_avant} to {za::sci::points} ? 0
+            add {_pts} to {za::sci::points}
+            add {_pts} to {za::sci::don::%{_u}%}
+            za_stat_ajouter({_u}, "recherche", {_pts})
+            send "&aRecherche : +%{_pts}% &7(%{za::sci::points}% au total, voie %{_voie}%)." to player
+            za_mot("preuve %{_u}% labo 2 %floor(x-coordinate of player)% %floor(z-coordinate of player)%")
+            loop 40, 120 and 250:
+                if {_avant} < loop-value:
+                    if {za::sci::points} >= loop-value:
+                        za_sci_palier(loop-value, {_voie})
+        else if {_a} is "financer":
+            if arg-2 is not "lefort" or "vasseur":
+                send "&7/recherche financer <lefort|vasseur> <jetons>" to player
+                stop
+            set {_m} to arg-3 ? 0
+            if {_m} < 1:
+                stop
+            if za_jetons(player) < {_m}:
+                send "&cPas assez de jetons." to player
+                stop
+            za_jetons_ajouter(player, 0 - {_m})
+            add {_m} to {za::sci::fonds::%arg-2%}
+            send "&7Tu finances la voie du Dr %arg-2%. &8(Lefort %{za::sci::fonds::lefort} ? 0% · Vasseur %{za::sci::fonds::vasseur} ? 0%)" to player
+        else if {_a} is "autopsie":
+            if (uncolored name of player's tool ? "") does not start with "Tête de":
+                send "&7Il faut la tête d'un vétéran en main." to player
+                stop
+            if za_sci_labo(player) is false:
+                send "&7Il faut un labo : un alambic à moins de 6 blocs." to player
+                stop
+            remove 1 of player's tool from player's tool
+            za_mot("autopsie %{_u}%")
+        else if {_a} is "prevoir":
+            if za_sci_debloque("prevoir") is false:
+                send "&7La recherche n'en est pas là (voie Vasseur, 40 points)." to player
+                stop
+            za_mot("prevoir %{_u}%")
+        else if {_a} is "decontaminer":
+            if za_sci_debloque("decontamination") is false:
+                send "&7La recherche n'en est pas là (voie Lefort, 120 points)." to player
+                stop
+            if za_count_named(player, "Composant electronique") < 1:
+                send "&7Il faut 1 Composant électronique pour le pulvérisateur." to player
+                stop
+            za_take_named(player, "Composant electronique", 1)
+            za_mot("decontaminer %floor(x-coordinate of player)% %floor(z-coordinate of player)% 15")
+            send "&aLe pulvérisateur siffle. Le secteur respire un peu mieux." to player
+        else if {_a} is "serum":
+            if za_sci_debloque("serum") is false:
+                send "&7La recherche n'en est pas là (voie Lefort, 40 points)." to player
+                stop
+            if za_count_named(player, "Antidote") < 2:
+                send "&7Il faut 2 Antidotes à raffiner." to player
+                stop
+            za_take_named(player, "Antidote", 2)
+            give player za_item("honey bottle", "Serum", "&d", 1)
+            send "&dUn Sérum. Il soigne à tout stade." to player
+        else if {_a} is "vaccin":
+            if za_sci_debloque("vaccin") is false:
+                send "&7La recherche n'en est pas là (voie Lefort, 250 points)." to player
+                stop
+            if {za::sci::vaccin::%{_u}%} is set:
+                send "&7Tu as déjà reçu le vaccin expérimental." to player
+                stop
+            set {za::sci::vaccin::%{_u}%} to true
+            add 25 to {za::resist::%{_u}%}
+            za_effet(player, "nausea", 30, 0)
+            za_effet(player, "weakness", 120, 0)
+            send "&dLe vaccin expérimental brûle dans tes veines. &7Résistance à l'infection +25. Des effets secondaires, pour quelques minutes." to player
+        else:
+            send "&3&l━━ LA RECHERCHE ━━ &7%{za::sci::points} ? 0% points · voie : &f%{_voie}%" to player
+            send "&7Lefort (traitements) : &f%{za::sci::fonds::lefort} ? 0% &7jetons · Vasseur (détection) : &f%{za::sci::fonds::vasseur} ? 0% &7jetons" to player
+            send "&7Ta contribution : &f%{za::sci::don::%{_u}%} ? 0% &7points" to player
+            send "&8/recherche prelever · donner · financer <lefort|vasseur> <jetons> · autopsie · prevoir · decontaminer · serum · vaccin" to player
+
+function za_sci_voie() :: text:
+    if ({za::sci::fonds::vasseur} ? 0) > ({za::sci::fonds::lefort} ? 0):
+        return "Vasseur"
+    return "Lefort"
+
+function za_sci_labo(p: player) :: boolean:
+    loop blocks in radius 6 around {_p}:
+        if loop-block is brewing stand:
+            return true
+    return false
+
+function za_sci_debloque(k: text) :: boolean:
+    if {za::sci::deb::%{_k}%} is set:
+        return true
+    return false
+
+function za_sci_palier(n: number, voie: text):
+    set {_k} to ""
+    if {_voie} is "Lefort":
+        if {_n} is 40:
+            set {_k} to "serum"
+        else if {_n} is 120:
+            set {_k} to "decontamination"
+        else:
+            set {_k} to "vaccin"
+    else:
+        if {_n} is 40:
+            set {_k} to "prevoir"
+        else if {_n} is 120:
+            set {_k} to "detecteur"
+        else:
+            set {_k} to "brouilleur"
+    set {za::sci::deb::%{_k}%} to {za::serveur::jours} ? 0
+    za_mot_radio("lea", "Une bonne nouvelle de la part des scientifiques : la recherche avance. Ils parlent de « %{_k}% ». Merci à tous ceux qui ont apporté des échantillons.")
+    za_mot_radio("norda", "Information officielle : toute recherche non autorisée sur l'agent pathogène est illégale. Les échantillons doivent être remis aux autorités.")
+    set {_w} to world "world"
+    if {_w} is set:
+        za_mot_evt("science_avancee", spawn of {_w}, 3, "-", "palier %{_n}% (%{_k}%)")
+    if {_k} is "brouilleur":
+        loop za_monde_joueurs():
+            give loop-value za_item("paper", "Fragment de plan : brouilleur (1/3)", "&b", 1)
+
+# /monde avec le détecteur (voie Vasseur, 120) : les chiffres exacts
+command /detecteur:
+    trigger:
+        if za_sci_debloque("detecteur") is false:
+            send "&7Le détecteur n'existe pas encore (voie Vasseur, 120 points de recherche)." to player
+            stop
+        send "&3Détecteur : &fcontamination %za_mot_reg(player, 4)% %% · eau saine %za_mot_reg(player, 5)% %% · danger %za_mot_reg(player, 6)% · attention des morts %za_mot_reg(player, 10)%" to player
+
+# ---------------------------------------------------------------- marché noir permanent (78)
+
+every 2 minutes:
+    set {_j} to {za::serveur::jours} ? 0
+    if {za::mn::jour} is {_j}:
+        stop
+    set {za::mn::jour} to {_j}
+    loop za_sites_donnees():
+        set {_c::*} to split loop-value at "|"
+        if {_c::2} is "motel" or "refuge" or "carambolage" or "station" or "camp_chasse":
+            add loop-value to {_l::*}
+    if size of {_l::*} is 0:
+        stop
+    set {_c::*} to split (random element out of {_l::*}) at "|"
+    set {_w} to world "world"
+    if {_w} is not set:
+        stop
+    set {za::mn::loc} to location({_c::4} parsed as number, {_c::5} parsed as number, {_c::6} parsed as number, {_w})
+    set {za::mn::lieu} to {_c::3}
+    set {_mots::*} to "corbeau", "lanterne", "hiver", "aiguille", "cendre", "marée", "silence" and "boussole"
+    set {za::mn::mot} to random element out of {_mots::*}
+    za_mot_radio("pirate", "Pour ceux qui savent : cette fois, c'est du côté de %{za::mn::lieu}%. Le mot, c'est « %{za::mn::mot}% ». Venez seuls, venez polis.")
+
+command /marchenoir [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        if {za::mn::loc} is not set:
+            send "&7Personne ne sait où il se tient aujourd'hui. Écoute la radio pirate." to player
+            stop
+        if world of player is not world of {za::mn::loc}:
+            stop
+        if distance between player and {za::mn::loc} > 40:
+            send "&7Il n'y a rien ici. Le marché bouge chaque jour (radio pirate)." to player
+            stop
+        if arg-1 is not {za::mn::mot}:
+            send "&8Un homme encapuchonné te dévisage. « Connais pas. Dégage. »" to player
+            stop
+        send "&8« Entre. Pas de questions, pas de noms. »" to player
+        za_ouvrir_marchand(player, "trafiquant")
+        za_mot("preuve %player's uuid% marche_noir 2 %floor(x-coordinate of player)% %floor(z-coordinate of player)%")
+        if chance of 10%:
+            wait 3 seconds
+            send "&c« DESCENTE ! » &7Des lampes blanches, des cris. Tout le monde court." to player
+            za_mot_norda_patrouille("%player's uuid%", x-coordinate of player, z-coordinate of player)
+
+# ---------------------------------------------------------------- renseignement à vendre (91)
+
+command /vendreinfo <player> <number> <number>:
+    aliases: /infovendre
+    trigger:
+        if arg-1 is player:
+            stop
+        if distance between arg-1 and player > 12:
+            send "&7Il faut être à côté de l'acheteur." to player
+            stop
+        set {za::infovente::%arg-1's uuid%} to "%player's uuid%|%arg-2%|%arg-3%"
+        send "&7Tu proposes ta nouvelle n°%arg-2% à %arg-1% pour %arg-3% jetons." to player
+        send "&e%player% te propose un renseignement pour %arg-3% jetons. &8(/acheterinfo — sans savoir ce que c'est, c'est le jeu)" to arg-1
+
+command /acheterinfo:
+    trigger:
+        set {_o} to {za::infovente::%player's uuid%}
+        if {_o} is not set:
+            send "&7Aucune offre." to player
+            stop
+        delete {za::infovente::%player's uuid%}
+        set {_c::*} to split {_o} at "|"
+        set {_prix} to {_c::3} parsed as number
+        if za_jetons(player) < {_prix}:
+            send "&cPas assez de jetons." to player
+            stop
+        set {_v} to za_mot_joueur({_c::1})
+        if {_v} is not set:
+            stop
+        za_jetons_ajouter(player, 0 - {_prix})
+        za_jetons_ajouter({_v}, {_prix})
+        za_mot("infodonner %{_c::1}% %player's uuid% %{_c::2}%")
+        send "&7Vendu. &8(+%{_prix}% jetons)" to {_v}
+
+# ---------------------------------------------------------------- plans rares (114)
+
+function za_plan_fragment() :: itemtype:
+    set {_p} to random element out of "brouilleur", "filtre" and "emp"
+    set {_k} to random integer between 1 and 3
+    return za_item("paper", "Fragment de plan : %{_p}% (%{_k}%/3)", "&b", 1)
+
+command /plans [<text>] [<text>]:
+    trigger:
+        if arg-1 is "assembler":
+            set {_p} to arg-2 ? ""
+            if {_p} is not "brouilleur" or "filtre" or "emp":
+                send "&7/plans assembler <brouilleur|filtre|emp>" to player
+                stop
+            loop 1, 2 and 3:
+                if za_count_named(player, "Fragment de plan : %{_p}% (%loop-value%/3)") < 1:
+                    send "&7Il te manque le morceau %loop-value%/3." to player
+                    stop
+            loop 1, 2 and 3:
+                za_take_named(player, "Fragment de plan : %{_p}% (%loop-value%/3)", 1)
+            if {_p} is "brouilleur":
+                give player za_item("lightning rod", "Brouilleur de drone", "&b", 1)
+            else if {_p} is "filtre":
+                give player za_item("hopper", "Filtre à eau", "&b", 1)
+            else:
+                give player za_item("snowball", "Grenade EMP", "&b", 2)
+            send "&aLe plan est complet. Tu sais maintenant le fabriquer. &8(une copie de plus dans le monde)" to player
+            stop
+        send "&3&l━━ PLANS ━━" to player
+        loop "brouilleur", "filtre" and "emp":
+            set {_l} to ""
+            loop 1, 2 and 3:
+                if za_count_named(player, "Fragment de plan : %loop-value-1% (%loop-value-2%/3)") > 0:
+                    set {_l} to "%{_l}% &a%loop-value-2%"
+                else:
+                    set {_l} to "%{_l}% &8%loop-value-2%"
+            send "&f%loop-value-1% :%{_l}%" to player
+        send "&8Les morceaux se trouvent dans les crashs, les convois détruits, sur les boss. /plans assembler <nom>" to player
+
+on right click:
+    if za_pro(player) is true:
+        stop
+    set {_n} to uncolored name of player's tool ? ""
+    if {_n} is "Brouilleur de drone":
+        cancel event
+        za_mot("brouiller %player's uuid%")
+        play sound "block.beacon.deactivate" with volume 1 at player
+    else if {_n} is "Grenade EMP":
+        cancel event
+        remove 1 of player's tool from player's tool
+        za_mot("brouiller %player's uuid%")
+        if za_emp_actif() is false:
+            za_emp()
+    else if {_n} is "Filtre à eau":
+        cancel event
+        set {_k} to 0
+        loop 8 times:
+            if player has water bottle:
+                remove 1 water bottle from player
+                add 1 to {_k}
+        if {_k} > 0:
+            give player za_item("potion of water", "Eau purifiee", "&b", {_k})
+            send "&bLe filtre goutte lentement : %{_k}% bouteille(s) d'eau purifiée." to player
+        else:
+            send "&7Il faut des bouteilles d'eau à filtrer." to player

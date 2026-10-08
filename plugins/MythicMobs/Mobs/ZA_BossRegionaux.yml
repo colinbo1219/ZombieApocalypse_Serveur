@@ -1,0 +1,123 @@
+# ZombieApocalypse - BOSS RÉGIONAUX (za_p83_boss_regionaux.sk) : un par région, une fois par saison ; l'Overlord reste
+# au-dessus d'eux. Apparence : za_modeles 1.7.0 (règles de nom « Le Boucher », « La Matriarche », « Le Gardien », « Le Brûlé »).
+# Récompense unique : Items/ZA_Legendaires.yml. La mort prévient Skript (zaregboss mort <id>).
+ZA_Boucher:
+  Type: ZOMBIE
+  Display: '&4&lLe Boucher'
+  Health: 420
+  Damage: 14
+  Armor: 8
+  Options:
+    MovementSpeed: 0.21
+    FollowRange: 40
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+    KnockbackResistance: 1.0
+    Despawn: false
+  Skills:
+  - addscoreboardtag{tag=za_rb_boucher} @self ~onSpawn
+  - skill{s=ZA_Boucher_Crochet} @Target ~onTimer:100
+  - skill{s=ZA_Boucher_Couperet} @Target ~onTimer:140
+  - skill{s=ZA_Boucher_Carcasses} @self ~onDamaged <50%
+  - potion{type=WITHER;duration=60;level=0} @target ~onAttack 0.5
+  - effect:sound{s=za_modeles:zombie.brute.souffle;v=1.5;p=0.5} @self ~onTimer:120 0.6
+  - effect:sound{s=entity.ravager.hurt;v=1.2;p=0.6} @self ~onDamaged
+  - effect:particles{p=reddust;color=#6a0000;a=6;hS=0.35;vS=0.9;s=0} @self ~onTimer:10
+  - command{c="zaregboss mort boucher";sync=true} @self ~onDeath
+  Drops:
+  - ZA_Couperet_Boucher 1 1
+  - ZA_Jeton 10to16 1
+  - ZA_Essence 3to5 1
+  - exp 120 1
+ZA_Matriarche:
+  Type: ZOMBIE
+  Display: '&5&lLa Matriarche'
+  Health: 360
+  Damage: 10
+  Options:
+    MovementSpeed: 0.19
+    FollowRange: 44
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+    KnockbackResistance: 0.6
+    Despawn: false
+  Skills:
+  - addscoreboardtag{tag=za_rb_matriarche} @self ~onSpawn
+  - skill{s=ZA_Matriarche_Enfants} @self ~onTimer:180
+  - skill{s=ZA_Matriarche_Berceuse} @self ~onTimer:260
+  - skill{s=ZA_Scream} @self ~onDamaged <40%
+  - heal{amount=15} @self ~onTimer:200
+  - effect:sound{s=entity.warden.nearby_close;v=1.2;p=1.4} @self ~onTimer:100 0.5
+  - effect:sound{s=entity.ghast.hurt;v=1;p=0.7} @self ~onDamaged 0.5
+  - effect:particles{p=spore_blossom_air;a=8;hS=1.2;vS=1.2;s=0} @self ~onTimer:10
+  - effect:particles{p=sculk_soul;a=1;hS=0.5;vS=0.8;s=0.01} @self ~onTimer:30
+  - command{c="zaregboss mort matriarche";sync=true} @self ~onDeath
+  Drops:
+  - ZA_Medaillon_Matriarche 1 1
+  - ZA_Jeton 10to16 1
+  - ZA_Antidote 1to2 1
+  - exp 120 1
+ZA_Gardien:
+  Type: ZOMBIE
+  Display: '&2&lLe Gardien'
+  Health: 520
+  Damage: 12
+  Armor: 16
+  Options:
+    MovementSpeed: 0.18
+    FollowRange: 48
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+    KnockbackResistance: 1.0
+    Despawn: false
+  Skills:
+  - addscoreboardtag{tag=za_rb_gardien} @self ~onSpawn
+  - skill{s=ZA_Gardien_Rafale} @Target ~onTimer:80
+  - skill{s=ZA_Charge} @Target ~onTimer:160
+  - skill{s=ZA_Dumas_Appel} @self ~onDamaged <50%
+  - effect:sound{s=za_modeles:zombie.armored.pas;v=1.2;p=0.7} @self ~onTimer:40 0.6
+  - effect:sound{s=entity.iron_golem.hurt;v=1;p=0.6} @self ~onDamaged
+  - effect:particles{p=electric_spark;a=4;hS=0.5;vS=1;s=0.05} @self ~onTimer:10
+  - effect:particles{p=ash;a=10;hS=1.5;vS=1.5;s=0} @self ~onTimer:20
+  - command{c="zaregboss mort gardien";sync=true} @self ~onDeath
+  Drops:
+  - ZA_Plaque_Gardien 1 1
+  - ZA_Jeton 12to18 1
+  - ZA_Composant 2to3 1
+  - exp 140 1
+ZA_Brule:
+  Type: ZOMBIE
+  Display: '&6&lLe Brûlé'
+  Health: 380
+  Damage: 11
+  Armor: 6
+  Options:
+    MovementSpeed: 0.22
+    FollowRange: 40
+    PreventSunburn: true
+    PreventOtherDrops: true
+    PreventConversion: true
+    Silent: true
+    KnockbackResistance: 0.8
+    Despawn: false
+  Skills:
+  - addscoreboardtag{tag=za_rb_brule} @self ~onSpawn
+  - potion{type=FIRE_RESISTANCE;duration=999999;level=0} @self ~onSpawn
+  - skill{s=ZA_Brule_Brasier} @self ~onTimer:120
+  - skill{s=ZA_Brule_Eruption} @self ~onDamaged <50%
+  - ignite{ticks=100} @target ~onAttack
+  - effect:particles{p=flame;a=4;hS=0.4;vS=0.8;s=0.02} @self ~onTimer:10
+  - effect:particles{p=large_smoke;a=2;hS=0.3;vS=0.8;s=0.01} @self ~onTimer:10
+  - effect:sound{s=block.fire.ambient;v=1.2;p=0.6} @self ~onTimer:60
+  - command{c="zaregboss mort brule";sync=true} @self ~onDeath
+  Drops:
+  - ZA_Casque_Brule 1 1
+  - ZA_Jeton 10to16 1
+  - ZA_Carburant 2to4 1
+  - exp 120 1

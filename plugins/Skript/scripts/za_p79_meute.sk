@@ -1,0 +1,124 @@
+# =====================================================================
+#  ZombieApocalypse - LA MEUTE : comportements de groupe des morts
+#  * PORTES : les morts qui poursuivent un joueur cognent sur la porte (bruit, éclats) jusqu'à ce qu'elle cède :
+#    bois 6 coups ; bois renforcée (za_p23) 12 coups par point de renfort ; blindée (fer) 30 ; électrique (fer sous
+#    tension d'une sous-station, za_p61) : infranchissable tant que le courant passe ; SecurityCraft : 60, et seules
+#    les brutes et les boss en viennent à bout. Une brute compte pour 5 coups.
+#  * PYRAMIDE : si tu es plus haut qu'eux (mur, toit, échafaudage) et qu'ils sont au moins 4 serrés au pied, les morts
+#    montent les uns sur les autres pour t'atteindre.
+#  * MEUTE : quand un mort te frappe, ceux qui errent à 16 blocs se tournent vers toi.
+#  Le bruit (za_p24) et Zombie Awareness attirent déjà les morts vers les sons.
+# =====================================================================
+
+options:
+    coups_porte: 6
+
+# portes adaptatives : chaque type de porte a sa résistance (coups nécessaires pour la faire céder)
+#   bois 6 · bois renforcée (za_p23) 12 par point de renfort · blindée (fer) 30 · électrique (fer sous tension,
+#   za_p61) : infranchissable tant que le courant passe · SecurityCraft (renforcée, à carte) : 60, brutes seulement
+function za_meute_resistance(b: block) :: number:
+    set {_t} to "%type of {_b}%"
+    if {_t} contains "securitycraft" or "reinforced" or "keycard" or "keypad":
+        return 60
+    if {_b} is iron door:
+        if za_elec_pres(location of {_b}, 48) is true:
+            return 0
+        return 30
+    if {_b} is wooden door:
+        return 6
+    return -1
+
+function za_meute_force(z: entity) :: number:
+    set {_n} to uncolored name of {_z}
+    if {_n} is "Brute" or "Colosse" or "Le Boucher" or "Le Gardien" or "Le Brûlé" or "La Matriarche":
+        return 5
+    return 1
+
+function za_meute_porte(z: entity, p: player):
+    # sans bras, il ne casse plus les portes (za_p124)
+    if za_surv_a_tag({_z}, "za_sansbras") is true:
+        stop
+    loop blocks in radius 1.8 around {_z}:
+        set {_r} to za_meute_resistance(loop-block)
+        if {_r} >= 0:
+            set {_l} to location of loop-block
+            if {_r} is 0:
+                # porte électrique sous tension : étincelles, elle tient
+                execute console command "execute in %za_dim(world of {_l})% run particle minecraft:electric_spark %x-coordinate of {_l} + 0.5% %y-coordinate of {_l} + 1% %z-coordinate of {_l} + 0.5% 0.3 0.5 0.3 0.1 8"
+                stop
+            if {_r} is 60:
+                if za_meute_force({_z}) < 5:
+                    stop
+            set {_k} to za_porte_cle(loop-block)
+            add za_meute_force({_z}) to {za::meute::coups::%{_k}%}
+            set {_son} to "minecraft:entity.zombie.attack_wooden_door"
+            if {_r} >= 30:
+                set {_son} to "minecraft:entity.zombie.attack_iron_door"
+            execute console command "execute in %za_dim(world of {_l})% run playsound %{_son}% hostile @a %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% 1.2 0.9"
+            execute console command "execute in %za_dim(world of {_l})% run particle minecraft:block oak_planks %x-coordinate of {_l} + 0.5% %y-coordinate of {_l} + 1% %z-coordinate of {_l} + 0.5% 0.3 0.5 0.3 0.1 12"
+            set {_seuil} to {_r}
+            if {_r} is 6:
+                if ({za::porte::%{_k}%} ? 0) > 0:
+                    set {_seuil} to 12
+            if {za::meute::coups::%{_k}%} >= {_seuil}:
+                delete {za::meute::coups::%{_k}%}
+                if {_r} is 6:
+                    if ({za::porte::%{_k}%} ? 0) > 0:
+                        remove 1 from {za::porte::%{_k}%}
+                        send action bar "&6La porte renforcée tremble... (%{za::porte::%{_k}%}%/15)" to {_p}
+                        stop
+                # la porte cède : les deux moitiés
+                set {_b} to loop-block
+                if "%type of block below {_b}%" is "%type of {_b}%":
+                    set {_b} to block below {_b}
+                set block above {_b} to air
+                set block at {_b} to air
+                execute console command "execute in %za_dim(world of {_l})% run playsound minecraft:entity.zombie.break_wooden_door hostile @a %x-coordinate of {_l}% %y-coordinate of {_l}% %z-coordinate of {_l}% 1.5 0.9"
+                send title "" with subtitle "&cLa porte a cédé." to {_p} for 2 seconds
+            else if {_r} >= 30:
+                send action bar "&7La porte blindée encaisse... &8(%{za::meute::coups::%{_k}%}%/%{_seuil}%)" to {_p}
+            stop
+
+function za_meute_pyramide(z: entity, p: player):
+    set {_u} to "%uuid of {_z}%"
+    if {za::meute::pyr::%{_u}%} is set:
+        if difference between {za::meute::pyr::%{_u}%} and now < 4 seconds:
+            stop
+    set {_dy} to (y-coordinate of {_p}) - (y-coordinate of {_z})
+    if {_dy} < 2:
+        stop
+    if {_dy} > 7:
+        stop
+    set {_dx} to (x-coordinate of {_p}) - (x-coordinate of {_z})
+    set {_dz} to (z-coordinate of {_p}) - (z-coordinate of {_z})
+    if sqrt(({_dx} * {_dx}) + ({_dz} * {_dz})) > 5:
+        stop
+    if size of (all zombies in radius 2.5 around {_z}) < 4:
+        stop
+    set {za::meute::pyr::%{_u}%} to now
+    push {_z} upwards at speed 0.62
+    set {_dd} to max(0.1, sqrt(({_dx} * {_dx}) + ({_dz} * {_dz})))
+    add vector(({_dx} / {_dd}) * 0.25, 0, ({_dz} / {_dd}) * 0.25) to velocity of {_z}
+    execute console command "execute at %{_u}% run particle minecraft:block rooted_dirt ~ ~ ~ 0.3 0.2 0.3 0.1 6"
+
+every 5 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value-1
+        if za_pro({_p}) is false:
+            loop all zombies in radius 20 around {_p}:
+                if target of loop-value-2 is {_p}:
+                    za_meute_porte(loop-value-2, {_p})
+                    za_meute_pyramide(loop-value-2, {_p})
+
+# les compteurs oubliés (portes jamais revisitées, zombies morts) : ménage
+every 10 minutes:
+    delete {za::meute::coups::*}
+    delete {za::meute::pyr::*}
+
+on damage of player:
+    if za_pro(victim) is true:
+        stop
+    if attacker is a zombie:
+        loop all zombies in radius 16 around victim:
+            if target of loop-zombie is not set:
+                set target of loop-zombie to victim

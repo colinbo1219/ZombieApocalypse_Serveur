@@ -1,0 +1,192 @@
+# =====================================================================
+#  ZombieApocalypse - STRESS (à court terme), ENCOMBREMENT et VISION
+#  STRESS 0-100, séparé de la santé mentale ({za::sanite}) : il monte vite et redescend vite.
+#    Monte : morts à moins de 8 blocs, être pris en chasse, le noir (lumière < 4), les souterrains, un coup reçu
+#    (un gros coup : davantage), voir un survivant mourir.
+#    Baisse : dormir (-40), manger, être près d'un feu, avec des survivants ou des coéquipiers, dans sa base sans mort
+#    autour, écouter la musique du 91.7 (za_p85) ; et tout seul, doucement, quand rien ne se passe.
+#    Effets : 40 : le cœur qui bat ; 60 : mains qui tremblent (nausée par moments), faim plus rapide ;
+#    80 : panique (obscurité par à-coups, murmures) et TRAUMA : chaque minute passée au-dessus de 80 enlève 1 point de
+#    santé mentale.
+#  ENCOMBREMENT : ce que tu portes pèse (armures, armes, munitions, blocs, sacs à dos...). Au-delà de 60 : lent ;
+#  au-delà de 90 : très lent et bruyant (za_p24) ; au-delà de 120 : tu t'essouffles (faim). Munitions ou nourriture ?
+#  VISION : un gros coup brouille la vue (nausée brève), la panique assombrit, le froid de l'hiver givre l'écran.
+#  (Tremblement d'écran, champ de vision, vignette : impossible sans code client ; ceci est l'équivalent côté serveur.)
+#  Joueur : /stress, /poids
+# =====================================================================
+
+options:
+    poids_lent: 60
+    poids_tres_lent: 90
+    poids_essouffle: 120
+
+function za_stress(u: text) :: number:
+    return {za::stress::%{_u}%} ? 0
+
+function za_stress_ajouter(p: player, n: number):
+    if za_pro({_p}) is true:
+        stop
+    set {_u} to "%{_p}'s uuid%"
+    set {_s} to za_stress({_u}) + {_n}
+    set {za::stress::%{_u}%} to max(0, min(100, {_s}))
+
+function za_stress_barre(s: number) :: text:
+    set {_n} to round({_s} / 20)
+    set {_b} to ""
+    loop 5 times:
+        if loop-number <= {_n}:
+            set {_b} to "%{_b}%▮"
+        else:
+            set {_b} to "%{_b}%▯"
+    return {_b}
+
+# ---------------------------------------------------------------- poids
+
+function za_poids_objet(i: item) :: number:
+    set {_t} to "%type of {_i}%"
+    set {_n} to item amount of {_i}
+    if {_t} contains "backpack":
+        return 10
+    if {_t} contains "netherite":
+        return 10
+    if {_t} contains "helmet" or "chestplate" or "leggings" or "boots":
+        if {_t} contains "leather":
+            return 2
+        return 6
+    if {_t} contains "gun" or "tacz":
+        return 6
+    if {_t} contains "ammo" or "arrow" or "bullet":
+        return {_n} * 0.05
+    if {_t} contains "sword" or "axe" or "pickaxe" or "shovel" or "hoe" or "crossbow" or "bow" or "shield":
+        return 3
+    if {_i} is a block:
+        return {_n} * 0.4
+    return {_n} * 0.12
+
+function za_poids(p: player) :: number:
+    set {_w} to 0
+    loop all items in {_p}'s inventory:
+        add za_poids_objet(loop-item) to {_w}
+    return round({_w})
+
+# ---------------------------------------------------------------- boucle principale (5 s)
+
+every 5 seconds:
+    loop za_monde_joueurs():
+        set {_p} to loop-value-1
+        if za_pro({_p}) is false:
+            if gamemode of {_p} is survival or adventure:
+                set {_u} to "%{_p}'s uuid%"
+                set {_d} to 0
+                delete {_chasse}
+                # ce qui fait monter
+                set {_z} to size of (all zombies in radius 8 around {_p})
+                add min(5, {_z}) to {_d}
+                loop all zombies in radius 16 around {_p}:
+                    if target of loop-value-2 is {_p}:
+                        set {_chasse} to true
+                if {_chasse} is true:
+                    add 1 to {_d}
+                if light level at (location of {_p}) < 4:
+                    add 2 to {_d}
+                set {_k} to za_site_ici(location of {_p})
+                if {_k} is not "":
+                    if {za::site::d::%{_k}%::type} starts with "sous_":
+                        add 2 to {_d}
+                # ce qui fait baisser
+                if {_z} is 0:
+                    if {_chasse} is not set:
+                        remove 1 from {_d}
+                        if za_pres_du_feu({_p}) is true:
+                            remove 2 from {_d}
+                        if size of (all villagers in radius 10 around {_p}) > 0:
+                            remove 2 from {_d}
+                        if {za::base::%{_u}%} is set:
+                            if world of {za::base::%{_u}%} is world of {_p}:
+                                if distance between {za::base::%{_u}%} and {_p} < 30:
+                                    remove 3 from {_d}
+                if {za::freq::musique::%{_u}%} is set:
+                    if difference between {za::freq::musique::%{_u}%} and now < 3 minutes:
+                        remove 3 from {_d}
+                za_stress_ajouter({_p}, {_d})
+                set {_s} to za_stress({_u})
+                # effets
+                if {_s} >= 40:
+                    za_zm("son %{_p}% minecraft:entity.warden.heartbeat 0.5 %1.2 + ({_s} / 100)%")
+                if {_s} >= 60:
+                    if chance of 20%:
+                        apply potion of nausea of tier 1 to {_p} for 4 seconds
+                    apply potion of hunger of tier 1 to {_p} for 6 seconds
+                if {_s} >= 80:
+                    if chance of 25%:
+                        apply potion of darkness of tier 1 to {_p} for 3 seconds
+                    if chance of 15%:
+                        za_zm("son %{_p}% za_modeles:zombie.chuchote 0.5 1")
+                    add 1 to {za::stress::trauma::%{_u}%}
+                    if {za::stress::trauma::%{_u}%} >= 12:
+                        set {za::stress::trauma::%{_u}%} to 0
+                        remove 1 from {za::sanite::%{_u}%}
+                # encombrement
+                set {_w} to za_poids({_p})
+                set {za::poids::%{_u}%} to {_w}
+                if {_w} > {@poids_essouffle}:
+                    apply potion of slowness of tier 2 to {_p} for 6 seconds
+                    apply potion of hunger of tier 1 to {_p} for 6 seconds
+                    za_bruit_ajouter({_p}, 3)
+                else if {_w} > {@poids_tres_lent}:
+                    apply potion of slowness of tier 2 to {_p} for 6 seconds
+                    za_bruit_ajouter({_p}, 2)
+                else if {_w} > {@poids_lent}:
+                    apply potion of slowness of tier 1 to {_p} for 6 seconds
+                if {_s} >= 40:
+                    send action bar "&cStress %za_stress_barre({_s})%&8 · &7charge %{_w}%" to {_p}
+                else if {_w} > {@poids_lent}:
+                    send action bar "&7Charge &e%{_w}%&7/{@poids_lent} — tu es encombré" to {_p}
+                # l'hiver givre l'écran (za_p78)
+                if za_hiver_index() is 10:
+                    if light level at (location of {_p}) >= 10:
+                        if za_pres_du_feu({_p}) is false:
+                            if y-coordinate of {_p} + 1 >= y-coordinate of (location of (highest block at {_p})):
+                                set freeze time of {_p} to 8 seconds
+
+# gros coup : la vue se brouille, le cœur s'emballe
+on damage of player:
+    if za_pro(victim) is true:
+        stop
+    if damage >= 6:
+        apply potion of nausea of tier 1 to victim for 2 seconds
+        za_stress_ajouter(victim, 10)
+    else if attacker is a zombie:
+        za_stress_ajouter(victim, 6)
+
+# voir mourir un survivant
+on death of villager:
+    loop all players in radius 16 around victim:
+        if za_pro(loop-player) is false:
+            za_stress_ajouter(loop-player, 15)
+            send action bar "&8Tu ne pourras plus l'oublier." to loop-player
+
+on bed enter:
+    if za_pro(player) is true:
+        stop
+    za_stress_ajouter(player, -40)
+
+on consume:
+    if za_pro(player) is true:
+        stop
+    za_stress_ajouter(player, -5)
+
+command /stress:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_s} to za_stress("%player's uuid%")
+        send "&cStress : %za_stress_barre({_s})% &7(%{_s}%/100) &8— santé mentale %{za::sanite::%player's uuid%} ? 100%/100" to player
+        send "&8Ça baisse : dormir, manger, un feu, des survivants, ta base, la musique du 91.7." to player
+
+command /poids:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_w} to za_poids(player)
+        send "&7Charge : &f%{_w}% &8(lent au-delà de {@poids_lent}, très lent au-delà de {@poids_tres_lent}, essoufflé au-delà de {@poids_essouffle})" to player

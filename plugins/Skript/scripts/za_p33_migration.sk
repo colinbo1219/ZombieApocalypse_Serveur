@@ -71,8 +71,8 @@ function za_migration():
     set {_sz} to floor(z-coordinate of {_s})
     set {_ex} to floor(x-coordinate of {_e})
     set {_ez} to floor(z-coordinate of {_e})
-    set {_from} to za_cardinal({_sx} - x-coordinate of {_c}, {_sz} - z-coordinate of {_c})
-    set {_to} to za_cardinal({_ex} - x-coordinate of {_c}, {_ez} - z-coordinate of {_c})
+    set {_from} to za_cardinal(({_sx} - x-coordinate of {_c}), ({_sz} - z-coordinate of {_c}))
+    set {_to} to za_cardinal(({_ex} - x-coordinate of {_c}), ({_ez} - z-coordinate of {_c}))
     set {_mx} to floor(({_sx} + {_ex}) / 100) * 50
     set {_mz} to floor(({_sz} + {_ez}) / 100) * 50
     set {_how} to "en coupant a travers champs"
@@ -104,7 +104,7 @@ function za_migration():
         set {_steps} to 240
     loop {_steps} times:
         set {_f} to loop-number / {_steps}
-        set {_pt} to location(x-coordinate of {_s} + ({_dx} * {_f}), 64, z-coordinate of {_s} + ({_dz} * {_f}), {_w})
+        set {_pt} to location((x-coordinate of {_s} + ({_dx} * {_f})), 64, (z-coordinate of {_s} + ({_dz} * {_f})), {_w})
         set {_g} to location of (highest block at {_pt})
         add 1 to y-coordinate of {_g}
         teleport {_lure} to {_g}

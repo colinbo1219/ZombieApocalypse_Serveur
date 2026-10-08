@@ -1,0 +1,398 @@
+# za_p112_reconquete.sk — reprendre une ville, constructions abandonnées (bible v2, points 8, 69, 70)
+#  * REPRENDRE UNE VILLE (8) : chaque zone de za_p97 (quartiers de Saint-Aurèle, villages) se reprend en six étapes :
+#    1 nettoyer (zone calme, pression < 20, aucun nid) → 2 sécuriser (20 barricades et 8 lumières posées dans la zone)
+#    → 3 rétablir (le courant revient : réseau p50/p61 ou génératrice) → 4 repeupler (des réfugiés arrivent, un ou
+#    plusieurs par jour) → 5 tenir (la nuit, la région contre-attaque une fois : une horde-test) → 6 fêter.
+#    La fête : moral des survivants, Léa, une plaque, une légende. Tous les 30 jours, la radio rappelle la reprise.
+#    Réversible : si la zone retombe (infestation, zone morte), tout est à refaire ; la plaque et l'histoire restent.
+#  * CONSTRUCTIONS ABANDONNÉES (70) : /base abandonner. La base devient un lieu du monde : une plaque « Ancienne base
+#    de X », les morts s'y installent quand quelqu'un approche, le butin reste. /base definir à côté la reprend.
+#    Admin : /zarec abandonner <joueur> (bases inactives en fin de saison).
+#  Joueur : /reprise   Variables : {za::reprise::<zone>::*}, {za::aband::*}
+
+options:
+    barr: 20
+    lum: 8
+    refugies: 6
+    kills: 12
+
+# ---------------------------------------------------------------- où est chacun (toutes les 10 s)
+
+every 10 seconds:
+    loop za_monde_joueurs():
+        if za_pro(loop-value) is false:
+            set {za::reprise::ici::%loop-value's uuid%} to za_qz_ici(location of loop-value)
+            za_aband_approche(loop-value)
+
+function za_rep_etape(z: text) :: number:
+    return {za::reprise::%{_z}%::etape} ? 0
+
+function za_rep_joueurs(z: text) :: players:
+    loop za_monde_joueurs():
+        if {za::reprise::ici::%loop-value's uuid%} is {_z}:
+            add loop-value to {_r::*}
+    return {_r::*}
+
+function za_rep_nom_etape(n: number) :: text:
+    if {_n} is 0:
+        return "nettoyer"
+    if {_n} is 1:
+        return "sécuriser"
+    if {_n} is 2:
+        return "rétablir le courant"
+    if {_n} is 3:
+        return "repeupler"
+    if {_n} is 4:
+        return "tenir"
+    if {_n} is 5:
+        return "fêter"
+    return "reprise"
+
+# ---------------------------------------------------------------- les étapes
+
+function za_rep_courant(z: text) :: boolean:
+    if {_z} starts with "sa_":
+        return za_reseau_actif(subtext of {_z} from characters 4 to length of {_z})
+    set {_c} to za_qz_centre({_z})
+    if {_c} is not set:
+        return false
+    if za_elec_pres({_c}, za_qz_rayon({_z}) + 40) is true:
+        return true
+    loop {za::gen::liste::*}:
+        set {_gl} to {za::gen::%loop-value%::loc}
+        if {_gl} is set:
+            if world of {_gl} is world of {_c}:
+                if distance between {_gl} and {_c} < za_qz_rayon({_z}):
+                    if {za::gen::%loop-value%::fin} is greater than now:
+                        return true
+    return false
+
+function za_rep_monter(z: text, n: number):
+    set {za::reprise::%{_z}%::etape} to {_n}
+    set {_nom} to za_qz_nom({_z})
+    set {_m} to ""
+    if {_n} is 1:
+        set {_m} to "&a%{_nom}% est nettoyé. &7Prochaine étape : sécuriser ({@barr} barricades, {@lum} lumières)."
+    else if {_n} is 2:
+        set {_m} to "&a%{_nom}% est sécurisé. &7Prochaine étape : rétablir le courant."
+    else if {_n} is 3:
+        set {_m} to "&a%{_nom}% a du courant. &7Des réfugiés vont arriver, s'ils entendent que c'est sûr."
+        za_radio("&bLéa", "Il paraît qu'il y a de la lumière à %{_nom}%. De la vraie lumière. Si vous cherchez un endroit, c'est peut-être là.")
+    else if {_n} is 4:
+        set {_m} to "&a%{_nom}% revit. &7Maintenant, il faut le tenir : la nuit, les morts viendront voir."
+    loop za_rep_joueurs({_z}):
+        send "&6[Reprise] %{_m}%" to loop-value
+        za_zm("son %loop-value% minecraft:ui.toast.challenge_complete 0.5 1")
+    za_journal("%{_nom}% : étape « %za_rep_nom_etape({_n} - 1)% » réussie.")
+
+function za_rep_eval(z: text):
+    set {_e} to za_rep_etape({_z})
+    set {_c} to za_qz_centre({_z})
+    if {_c} is not set:
+        stop
+    if {_e} is 0:
+        if za_qz_etat({_z}) is "calme" or "faction":
+            if ({za::qz::%{_z}%::pression} ? 30) < 20:
+                if za_nid_proche({_c}, za_qz_rayon({_z}) + 40) is 0:
+                    za_rep_monter({_z}, 1)
+    else if {_e} is 1:
+        if ({za::reprise::%{_z}%::barr} ? 0) >= {@barr}:
+            if ({za::reprise::%{_z}%::lum} ? 0) >= {@lum}:
+                za_rep_monter({_z}, 2)
+    else if {_e} is 2:
+        if za_rep_courant({_z}) is true:
+            za_rep_monter({_z}, 3)
+
+# ---------------------------------------------------------------- sécuriser : ce qu'on pose dans la zone
+
+on place:
+    if za_pro(player) is true:
+        stop
+    set {_z} to {za::reprise::ici::%player's uuid%} ? ""
+    if {_z} is "":
+        stop
+    if za_rep_etape({_z}) is not 1:
+        stop
+    set {_t} to "%type of event-block%"
+    if {_t} contains "planks" or "iron bars" or "cobweb" or "fence":
+        add 1 to {za::reprise::%{_z}%::barr}
+    else if {_t} contains "torch" or "lantern" or "glowstone" or "redstone lamp" or "shroomlight":
+        add 1 to {za::reprise::%{_z}%::lum}
+    else:
+        stop
+    if ({za::reprise::%{_z}%::barr} ? 0) >= {@barr}:
+        if ({za::reprise::%{_z}%::lum} ? 0) >= {@lum}:
+            za_rep_eval({_z})
+
+# ---------------------------------------------------------------- tenir : la horde-test
+
+every 30 seconds:
+    if za_nuit_serveur() is false:
+        stop
+    loop za_qz_liste():
+        if za_rep_etape(loop-value) is 4:
+            if {za::reprise::%loop-value%::horde} is not set:
+                if ({za::reprise::%loop-value%::essai} ? -1) is not ({za::serveur::jours} ? 0):
+                    if size of za_rep_joueurs(loop-value) > 0:
+                        za_rep_horde(loop-value)
+
+function za_rep_horde(z: text):
+    set {za::reprise::%{_z}%::horde} to unix timestamp of now
+    set {za::reprise::%{_z}%::essai} to {za::serveur::jours} ? 0
+    set {za::reprise::%{_z}%::hkills} to 0
+    set {_nom} to za_qz_nom({_z})
+    za_radio("&bLéa", "À %{_nom}%... j'entends des cris dans la radio. Ils arrivent de partout. Tenez bon.")
+    loop 3 times:
+        loop za_rep_joueurs({_z}):
+            send "&4[Reprise] &cUne vague arrive sur %{_nom}% !" to loop-value-2
+            loop 4 times:
+                set {_mob} to random element out of "ZA_Shambler", "ZA_Shambler", "ZA_Runner" and "ZA_Brute"
+                za_spawn_near(loop-value-2, {_mob}, 20, 30)
+        wait 60 seconds
+    wait 120 seconds
+    set {_k} to {za::reprise::%{_z}%::hkills} ? 0
+    delete {za::reprise::%{_z}%::horde}
+    if {_k} >= {@kills}:
+        if size of za_rep_joueurs({_z}) > 0:
+            za_rep_monter({_z}, 5)
+            za_rep_fete({_z})
+            stop
+    add 10 to {za::qz::%{_z}%::pression}
+    za_radio("&bLéa", "%{_nom}% n'a pas tenu cette nuit. Ce n'est pas fini. Rien n'est jamais fini.")
+    loop za_rep_joueurs({_z}):
+        send "&c[Reprise] La zone n'a pas tenu (%{_k}%/{@kills} morts abattus). &7Il faudra recommencer une autre nuit." to loop-value
+
+on death:
+    if attacker is not a player:
+        stop
+    if za_pro(attacker) is true:
+        stop
+    if victim is not a monster:
+        stop
+    set {_z} to {za::reprise::ici::%attacker's uuid%} ? ""
+    if {_z} is "":
+        stop
+    if {za::reprise::%{_z}%::horde} is set:
+        add 1 to {za::reprise::%{_z}%::hkills}
+
+# ---------------------------------------------------------------- fêter
+
+function za_rep_fete(z: text):
+    set {_nom} to za_qz_nom({_z})
+    set {_c} to za_qz_centre({_z})
+    set {_noms} to ""
+    loop za_rep_joueurs({_z}):
+        if {_noms} is "":
+            set {_noms} to "%loop-value%"
+        else:
+            set {_noms} to "%{_noms}%, %loop-value%"
+        send "&6&l✦ %{_nom}% EST REPRIS ✦" to loop-value
+        za_effet(loop-value, "regeneration", 60, 0)
+        za_zm("son %loop-value% minecraft:ui.toast.challenge_complete 1 0.8")
+        za_faction_ajouter(loop-value, "survivants", 10)
+        za_cmpg_decision("%loop-value's uuid%", "Tu as repris %{_nom}% aux morts.")
+        za_stat_ajouter("%loop-value's uuid%", "villes_reprises", 1)
+        # le moral remonte dans les bases de ceux qui étaient là
+        set {_u} to "%loop-value's uuid%"
+        loop {za::surv::liste::*}:
+            if {za::surv::%loop-value-2%::base} is {_u}:
+                za_surv_moral_ajouter(loop-value-2, 10)
+    set {za::reprise::%{_z}%::etape} to 6
+    set {za::reprise::%{_z}%::jour} to {za::serveur::jours} ? 0
+    add "Repris le jour %{za::serveur::jours} ? 0% par %{_noms}%" to {za::reprise::%{_z}%::histoire::*}
+    set {za::qz::%{_z}%::pression} to 0
+    if za_qz_etat({_z}) is not "calme" or "faction":
+        za_qz_changer({_z}, "calme")
+    za_monde_legende("%{_nom}% fut repris aux morts le jour %{za::serveur::jours} ? 0% par %{_noms}%.")
+    if {_c} is set:
+        # le moteur écoute region_reprise : fête (moral, calme), Léa, mémoire des PNJ, rumeurs
+        za_mot_evt("region_reprise", {_c}, 4, "-", {_nom})
+        set {_l} to za_qz_point({_c}, 6)
+        if {_l} is set:
+            if block at {_l} is air:
+                execute console command "execute in minecraft:overworld run setblock %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% minecraft:oak_sign[rotation=8]{front_text:{color:""yellow"",has_glowing_text:1b,messages:['""REPRIS""','""aux morts""','""jour %{za::serveur::jours} ? 0%""','""On se souvient""']}}"
+        # les animaux reviennent (IA-13)
+        loop 2 times:
+            set {_a} to za_qz_point({_c}, za_qz_rayon({_z}) / 2)
+            set {_bete} to random element out of "chicken", "sheep" and "rabbit"
+            if {_a} is set:
+                execute console command "execute in minecraft:overworld run summon %{_bete}% %x-coordinate of {_a}% %y-coordinate of {_a}% %z-coordinate of {_a}%"
+
+# ---------------------------------------------------------------- chaque jour : repeupler, entretenir, anniversaires
+
+every 1 minute:
+    if {za::reprise::jour} is not ({za::serveur::jours} ? 0):
+        set {za::reprise::jour} to {za::serveur::jours} ? 0
+        za_rep_jour()
+
+function za_rep_jour():
+    set {_j} to {za::serveur::jours} ? 0
+    loop za_qz_liste():
+        set {_z} to loop-value
+        set {_e} to za_rep_etape({_z})
+        if {_e} >= 1:
+            if za_qz_etat({_z}) is "infestation" or "zone_morte":
+                za_rep_retombe({_z})
+        set {_e} to za_rep_etape({_z})
+        if {_e} < 3:
+            za_rep_eval({_z})
+        else if {_e} is 3:
+            za_rep_refugies({_z})
+        else if {_e} is 6:
+            # le calme s'use si personne n'entretient (69) : le courant le garde
+            if za_rep_courant({_z}) is true:
+                remove 3 from {za::qz::%{_z}%::pression}
+                if {za::qz::%{_z}%::pression} < 0:
+                    set {za::qz::%{_z}%::pression} to 0
+            set {_d} to {_j} - ({za::reprise::%{_z}%::jour} ? {_j})
+            if {_d} > 0:
+                if mod({_d}, 30) is 0:
+                    za_radio("&bLéa", "Il y a %{_d}% jours, %za_qz_nom({_z})% était repris aux morts. On n'oublie pas. On n'oubliera jamais.")
+
+function za_rep_refugies(z: text):
+    set {_c} to za_qz_centre({_z})
+    if {_c} is not set:
+        stop
+    set {_n} to random integer between 1 and 3
+    add {_n} to {za::reprise::%{_z}%::refugies}
+    if chunk at {_c} is loaded:
+        loop {_n} times:
+            set {_l} to za_qz_point({_c}, za_qz_rayon({_z}) / 2)
+            if {_l} is set:
+                set {_nm} to random element out of "Réfugiée", "Réfugié", "Famille réfugiée" and "Vieil homme"
+                za_qz_pnj({_z}, {_l}, {_nm})
+    za_radio("&bLéa", "%{_n}% personne(s) de plus à %za_qz_nom({_z})%. Ils ont marché trois jours. Ils ont entendu dire que c'était sûr.")
+    if ({za::reprise::%{_z}%::refugies} ? 0) >= {@refugies}:
+        za_rep_monter({_z}, 4)
+
+function za_rep_retombe(z: text):
+    set {_nom} to za_qz_nom({_z})
+    if za_rep_etape({_z}) is 6:
+        add "Retombé le jour %{za::serveur::jours} ? 0%" to {za::reprise::%{_z}%::histoire::*}
+        za_radio("&bLéa", "%{_nom}% est retombé. Tout ce qu'on avait reconstruit... La plaque est toujours là, au moins.")
+    delete {za::reprise::%{_z}%::etape}
+    delete {za::reprise::%{_z}%::barr}
+    delete {za::reprise::%{_z}%::lum}
+    delete {za::reprise::%{_z}%::refugies}
+    delete {za::reprise::%{_z}%::horde}
+
+# ---------------------------------------------------------------- /reprise
+
+command /reprise [<text>]:
+    trigger:
+        if za_pro(player) is true:
+            stop
+        set {_z} to za_qz_ici(location of player)
+        if {_z} is "":
+            send "&6&l━━ VILLES REPRISES ━━" to player
+            set {_n} to 0
+            loop za_qz_liste():
+                if za_rep_etape(loop-value) > 0:
+                    add 1 to {_n}
+                    send "&f%za_qz_nom(loop-value)% &7: %za_rep_etape(loop-value)%/6 — %za_rep_nom_etape(za_rep_etape(loop-value))%" to player
+            if {_n} is 0:
+                send "&7Aucune. Va dans un quartier ou un village et tape /reprise pour voir ce qu'il faut faire." to player
+            stop
+        za_rep_eval({_z})
+        set {_e} to za_rep_etape({_z})
+        send "&6&l━━ REPRENDRE %za_qz_nom({_z})% ━━ &7(%uncolored za_qz_etat_nom(za_qz_etat({_z}))%)" to player
+        set {_ok} to "&a✔ "
+        set {_ko} to "&8✘ "
+        set {_x} to {_ko}
+        if {_e} >= 1:
+            set {_x} to {_ok}
+        send "%{_x}%&fNettoyer &7: pression %floor({za::qz::%{_z}%::pression} ? 30)%/100 (moins de 20), aucun nid" to player
+        set {_x} to {_ko}
+        if {_e} >= 2:
+            set {_x} to {_ok}
+        send "%{_x}%&fSécuriser &7: barricades %{za::reprise::%{_z}%::barr} ? 0%/{@barr}, lumières %{za::reprise::%{_z}%::lum} ? 0%/{@lum}" to player
+        set {_x} to {_ko}
+        if {_e} >= 3:
+            set {_x} to {_ok}
+        send "%{_x}%&fRétablir &7: le courant (sous-station, réseau du quartier ou génératrice)" to player
+        set {_x} to {_ko}
+        if {_e} >= 4:
+            set {_x} to {_ok}
+        send "%{_x}%&fRepeupler &7: réfugiés %{za::reprise::%{_z}%::refugies} ? 0%/{@refugies} (ils arrivent chaque jour)" to player
+        set {_x} to {_ko}
+        if {_e} >= 5:
+            set {_x} to {_ok}
+        send "%{_x}%&fTenir &7: une nuit, une horde-test ({@kills} morts à abattre, rester sur place)" to player
+        set {_x} to {_ko}
+        if {_e} >= 6:
+            set {_x} to {_ok}
+        send "%{_x}%&fFêter" to player
+        loop {za::reprise::%{_z}%::histoire::*}:
+            send "&8  %loop-value%" to player
+
+# ---------------------------------------------------------------- constructions abandonnées (70)
+
+function za_aband_creer(u: text, nom: text, l: location):
+    add 1 to {za::aband::n}
+    set {_i} to {za::aband::n}
+    set {za::aband::%{_i}%::loc} to {_l}
+    set {za::aband::%{_i}%::nom} to {_nom}
+    set {za::aband::%{_i}%::jour} to {za::serveur::jours} ? 0
+    add {_i} to {za::aband::liste::*}
+    remove {_u} from {za::base::liste::*}
+    delete {za::base::%{_u}%}
+    delete {za::base::taille::%{_u}%}
+    delete {za::base::entretien::%{_u}%}
+    za_mot_base_sync({_u})
+    set {_s} to location(((x-coordinate of {_l}) + 1), (y-coordinate of {_l}), (z-coordinate of {_l}), (world of {_l}))
+    if block at {_s} is air:
+        execute console command "execute in %za_dim(world of {_s})% run setblock %floor(x-coordinate of {_s})% %floor(y-coordinate of {_s})% %floor(z-coordinate of {_s})% minecraft:oak_sign[rotation=%random integer between 0 and 15%]{front_text:{color:""gray"",messages:['""Ancienne base""','""de %{_nom}%""','""jour %{za::serveur::jours} ? 0%""','""""']}}"
+    za_mot_evt("base_abandonnee", {_l}, 2, {_u}, "Ancienne base de %{_nom}%")
+    za_journal("La base de %{_nom}% a été abandonnée. Les morts s'y installeront.")
+
+function za_rec_abandonner(p: player):
+    set {_u} to "%{_p}'s uuid%"
+    set {_b} to {za::base::%{_u}%}
+    if {_b} is not set:
+        send "&cAucune base." to {_p}
+        stop
+    za_aband_creer({_u}, "%{_p}%", {_b})
+    send "&7Tu laisses ta base derrière toi. &8Elle devient un lieu du monde : ce qui reste dedans y reste, et les morts vont s'y installer." to {_p}
+
+# /base definir près d'une ancienne base : on la reprend
+function za_rec_reprendre(p: player):
+    loop {za::aband::liste::*}:
+        set {_l} to {za::aband::%loop-value%::loc}
+        if {_l} is set:
+            if world of {_l} is world of {_p}:
+                if distance between {_l} and {_p} < 30:
+                    send "&aTu reprends l'ancienne base de %{za::aband::%loop-value%::nom}%. &7Ce que les morts n'ont pas pris est à toi." to {_p}
+                    remove loop-value from {za::aband::liste::*}
+                    delete {za::aband::%loop-value%::*}
+                    stop
+
+function za_aband_approche(p: player):
+    loop {za::aband::liste::*}:
+        set {_i} to loop-value
+        set {_l} to {za::aband::%{_i}%::loc}
+        if {_l} is set:
+            if world of {_l} is world of {_p}:
+                if distance between {_l} and {_p} < 60:
+                    if ({za::aband::%{_i}%::vu::%{_p}'s uuid%} ? 0) < (unix timestamp of now) - 1800:
+                        set {za::aband::%{_i}%::vu::%{_p}'s uuid%} to unix timestamp of now
+                        send "&8Ancienne base de %{za::aband::%{_i}%::nom}%. Les fenêtres sont noires. Quelque chose bouge dedans." to {_p}
+                    if ({za::aband::%{_i}%::occupe} ? 0) < (unix timestamp of now) - 1200:
+                        set {za::aband::%{_i}%::occupe} to unix timestamp of now
+                        if chunk at {_l} is loaded:
+                            set {_n} to random integer between 3 and 5
+                            loop {_n} times:
+                                set {_mob} to random element out of "ZA_Shambler", "ZA_Shambler", "ZA_Crawler" and "ZA_Runner"
+                                set {_x} to floor(x-coordinate of {_l}) + (random integer between -4 and 4)
+                                set {_zz} to floor(z-coordinate of {_l}) + (random integer between -4 and 4)
+                                execute console command "mm mobs spawn %{_mob}% 1 %world of {_l}%,%{_x}%,%floor(y-coordinate of {_l})%,%{_zz}%"
+
+command /zarec <text> <offline player>:
+    permission: za.admin
+    trigger:
+        if arg-1 is "abandonner":
+            set {_u} to "%arg-2's uuid%"
+            if {za::base::%{_u}%} is not set:
+                send "&7%arg-2% n'a pas de base." to sender
+                stop
+            za_aband_creer({_u}, "%arg-2%", {za::base::%{_u}%})
+            send "&7Base de %arg-2% transformée en ancienne base (lieu du monde)." to sender

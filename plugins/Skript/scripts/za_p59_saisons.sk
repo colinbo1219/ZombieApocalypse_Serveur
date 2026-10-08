@@ -327,6 +327,8 @@ function za_hist_enregistrer(n: number, heros: text, issue: text):
     while {_k} <= {_nm}:
         add {_mo::%{_k}%} to {za::histoire::saison::%{_n}%::moments::*}
         add 1 to {_k}
+    # personnages, réseau, Saint-Aurèle, guerres (za_p72_archives)
+    za_hist_extra({_n})
     za_journal("La chronique de la saison %{_n}% a été écrite.")
 
 # palmarès des pourvoyeurs : on préfère celui que le module ressources a figé
@@ -434,6 +436,8 @@ function za_chron_page(n: number, page: number) :: texts:
         set {_rr} to ({za::histoire::saison::%{_n}%::raids_repousses} ? 0) + ({za::histoire::saison::%{_n}%::raids_subis} ? 0)
         if {_rr} > 0:
             add "&6Raids de Pillards : &f%{za::histoire::saison::%{_n}%::raids_repousses}% repoussés &8| &f%{za::histoire::saison::%{_n}%::raids_subis}% subis &8| &f%{za::histoire::saison::%{_n}%::trahisons} ? 0% trahisons" to {_l::*}
+        loop za_hist_extra_lignes({_n}):
+            add loop-value to {_l::*}
         if {za::histoire::saison::%{_n} + 1%::theme} is set:
             add "&8Saison suivante : &7« %{za::histoire::saison::%{_n} + 1%::theme}% »" to {_l::*}
         else:
@@ -726,6 +730,8 @@ function za_saison_nouvelle(n: number):
     delete {za::saison::raids::*}
     set {za::raid::prochain} to ({za::serveur::jours} ? 0) + 1
     za_theme_appliquer({_n})
+    # séquelles de l'hiver entre deux saisons (za_p72_archives)
+    za_saison_suite_monde({_n})
     set {za::histoire::saison::%{_n}%::theme} to za_theme_nom(za_theme_index({_n}))
     za_diffuser("&6&l══ SAISON %{_n}% ══ &7Thème : %za_theme_titre({_n})%")
     za_diffuser("&7%{za::theme::desc}%")
@@ -768,6 +774,10 @@ function za_saison_monologue(n: number) :: texts:
                 add "Les bâtiments n'appartiennent à personne. Ceux qui les prennent, ils se font reprendre." to {_r::*}
     else:
         add "Les camps, les territoires, les factions : tout ça reste comme vous l'avez laissé. Les ruines restent des ruines, les noms restent gravés." to {_r::*}
+    if {_i} is set:
+        set {_xm} to za_hist_extra_monologue({_p})
+        if {_xm} is not "":
+            add {_xm} to {_r::*}
     if {_t} is 1:
         add "Cette saison, « Les morts » : ils reviennent en masse. Hordes, nids, Overlords. Rien de compliqué : tenez debout et restez groupés." to {_r::*}
     else if {_t} is 2:
