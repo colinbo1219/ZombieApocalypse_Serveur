@@ -219,6 +219,9 @@ every 2 seconds:
 
 # un piège : vérifié avant d'agir (la plaque est-elle toujours là ?), puis déclenché par un zombie (audit C4)
 function za_piege_tick(loc: location):
+    # chunk non chargé : on ne le charge pas toutes les 2 secondes pour rien
+    if chunk at {_loc} is not loaded:
+        stop
     set {_k} to za_lkey({_loc})
     if "%block at {_loc}%" does not contain "pressure plate":
         remove {_loc} from {za::pieges::*}

@@ -245,7 +245,7 @@ function za_ia_derriere(p: player) :: location:
     set {_l0} to location of {_p}
     loop 3 times:
         set {_d} to 5 - loop-number
-        set {_l} to location((x-coordinate of {_l0}) + ({_d} * sin({_yaw})), y-coordinate of {_l0}, (z-coordinate of {_l0}) - ({_d} * cos({_yaw})), world of {_l0})
+        set {_l} to location(((x-coordinate of {_l0}) + ({_d} * sin({_yaw}))), (y-coordinate of {_l0}), ((z-coordinate of {_l0}) - ({_d} * cos({_yaw}))), (world of {_l0}))
         set {_b1} to block at {_l}
         set {_l2} to {_l}
         add 1 to y-coordinate of {_l2}

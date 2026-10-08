@@ -98,15 +98,19 @@ command /jetons [<text>] [<number>]:
             send "&6Jetons de Survie: &e%za_jetons(player)% &7| Rang: &e%za_rang(player)% &7(score %za_score(player)%, remise %floor(za_remise(player) * 100)% pourcent)" to player
         else if arg-1 is "deposer":
             # seulement des pépites d'or au nom du jeton (audit C1)
+            # on vide exactement les cases comptées (les jetons lâchés par MythicMobs ont un lore : un « remove ... named »
+            # ne les retirait pas et le dépôt se répétait à l'infini)
             set {_n} to 0
-            loop all items in inventory of player:
-                if loop-item is a gold nugget:
-                    if uncolored name of loop-item is "Jeton de Survie":
-                        add item amount of loop-item to {_n}
+            loop 41 times:
+                set {_s} to loop-number - 1
+                set {_it} to slot {_s} of player's inventory
+                if {_it} is a gold nugget:
+                    if uncolored name of {_it} is "Jeton de Survie":
+                        add item amount of {_it} to {_n}
+                        set slot {_s} of player's inventory to air
             if {_n} is 0:
                 send "&7Tu n'as aucun jeton en main/sur toi." to player
             else:
-                remove {_n} of gold nugget named "&6Jeton de Survie" from player's inventory
                 za_jetons_ajouter(player, {_n})
                 send "&6+%{_n}% jeton(s). Solde: &e%za_jetons(player)%" to player
         else if arg-1 is "retirer":

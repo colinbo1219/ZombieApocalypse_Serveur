@@ -20,7 +20,7 @@ function za_mu_o() :: location:
 
 function za_mu_loc(dx: number, dy: number, dz: number) :: location:
     set {_o} to {za::musee::o}
-    return location((x-coordinate of {_o}) + {_dx}, (y-coordinate of {_o}) + {_dy}, (z-coordinate of {_o}) + {_dz}, world of {_o})
+    return location(((x-coordinate of {_o}) + {_dx}), ((y-coordinate of {_o}) + {_dy}), ((z-coordinate of {_o}) + {_dz}), (world of {_o}))
 
 function za_mu_cmd(dx: number, dy: number, dz: number, b: text):
     set {_l} to za_mu_loc({_dx}, {_dy}, {_dz})

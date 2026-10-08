@@ -192,7 +192,7 @@ function za_disp_il(d: number) :: text:
 function za_disp_poser_sac(d: number, k: text, quoi: text):
     set {_w} to world("world")
     set {_l} to za_disp_sloc({_k}, {_w})
-    set {_l} to location((x-coordinate of {_l}) + ({za::site::d::%{_k}%::dx} ? 6) + 3, (y-coordinate of {_l}) + 2, (z-coordinate of {_l}) + 2, {_w})
+    set {_l} to location(((x-coordinate of {_l}) + ({za::site::d::%{_k}%::dx} ? 6) + 3), ((y-coordinate of {_l}) + 2), ((z-coordinate of {_l}) + 2), {_w})
     set {_l} to za_eq_sol({_l})
     set {_nm} to "Sac abandonné"
     if {_quoi} is "objet":
@@ -401,7 +401,7 @@ function za_disp_revelation(p: player, d: number):
     set {_nom} to {za::disp::%{_d}%::nom}
     set {_l} to za_eq_sol(location of {_p})
     set {_a} to random number between 0 and 360
-    set {_c} to za_eq_sol(location((x-coordinate of {_l}) + (7 * cos({_a})), (y-coordinate of {_l}) + 1, (z-coordinate of {_l}) + (7 * sin({_a})), world of {_l}))
+    set {_c} to za_eq_sol(location(((x-coordinate of {_l}) + (7 * cos({_a}))), ((y-coordinate of {_l}) + 1), ((z-coordinate of {_l}) + (7 * sin({_a}))), (world of {_l})))
     set {za::disp::%{_d}%::scene} to {_c}
     if {za::disp::%{_d}%::bon} is not true:
         if {za::disp::%{_d}%::tard} is not set:

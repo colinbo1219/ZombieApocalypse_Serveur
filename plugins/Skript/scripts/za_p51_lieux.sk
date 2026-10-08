@@ -43,7 +43,7 @@ function za_lieu_orig(s: text) :: location:
     return location(({_a::1} parsed as number), ({_a::2} parsed as number), ({_a::3} parsed as number), {_w})
 
 function za_lieu_loc(o: location, dx: number, dy: number, dz: number) :: location:
-    return location((x-coordinate of {_o}) + {_dx}, (y-coordinate of {_o}) + {_dy}, (z-coordinate of {_o}) + {_dz}, world of {_o})
+    return location(((x-coordinate of {_o}) + {_dx}), ((y-coordinate of {_o}) + {_dy}), ((z-coordinate of {_o}) + {_dz}), (world of {_o}))
 
 function za_lieu_set(o: location, dx: number, dy: number, dz: number, b: text):
     set {_wd} to za_dim(world of {_o})

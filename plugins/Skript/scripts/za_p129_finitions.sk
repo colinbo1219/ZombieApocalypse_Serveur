@@ -106,18 +106,18 @@ function za_grue_tomber(k: text, cause: text):
                 send "&6Un long grincement de métal, au-dessus de toi. &7La grue penche." to loop-value
     wait 3 seconds
     # tout le haut disparaît : flèche, contrepoids, cabine, câble, crochet ; il reste un moignon de mât
-    za_grue_fill({_x} - 10, {_y} + 45, {_z} - 2, {_x} + 28, {_y} + 50, {_z} + 2, "minecraft:air")
-    za_grue_fill({_x} + 22, {_y} + 28, {_z} - 1, {_x} + 26, {_y} + 44, {_z} + 1, "minecraft:air")
-    za_grue_fill({_x} - 1, {_y} + 14, {_z} - 1, {_x} + 1, {_y} + 44, {_z} + 1, "minecraft:air")
+    za_grue_fill(({_x} - 10), ({_y} + 45), ({_z} - 2), ({_x} + 28), ({_y} + 50), ({_z} + 2), "minecraft:air")
+    za_grue_fill(({_x} + 22), ({_y} + 28), ({_z} - 1), ({_x} + 26), ({_y} + 44), ({_z} + 1), "minecraft:air")
+    za_grue_fill(({_x} - 1), ({_y} + 14), ({_z} - 1), ({_x} + 1), ({_y} + 44), ({_z} + 1), "minecraft:air")
     # elle s'abat dans l'axe de la flèche (on ne remplace que l'air : rien n'est traversé)
-    za_grue_fill({_x} + 2, {_y}, {_z}, {_x} + 44, {_y}, {_z}, "minecraft:yellow_concrete keep")
-    za_grue_fill({_x} + 6, {_y} + 1, {_z}, {_x} + 30, {_y} + 1, {_z}, "minecraft:yellow_concrete keep")
-    za_grue_fill({_x} + 10, {_y}, {_z} - 1, {_x} + 34, {_y}, {_z} - 1, "minecraft:iron_bars keep")
-    za_grue_fill({_x} + 40, {_y}, {_z} - 1, {_x} + 44, {_y} + 2, {_z} + 1, "minecraft:gray_concrete keep")
-    za_grue_fill({_x} + 30, {_y}, {_z} + 2, {_x} + 33, {_y} + 1, {_z} + 3, "minecraft:orange_concrete keep")
+    za_grue_fill(({_x} + 2), {_y}, {_z}, ({_x} + 44), {_y}, {_z}, "minecraft:yellow_concrete keep")
+    za_grue_fill(({_x} + 6), ({_y} + 1), {_z}, ({_x} + 30), ({_y} + 1), {_z}, "minecraft:yellow_concrete keep")
+    za_grue_fill(({_x} + 10), {_y}, ({_z} - 1), ({_x} + 34), {_y}, ({_z} - 1), "minecraft:iron_bars keep")
+    za_grue_fill(({_x} + 40), {_y}, ({_z} - 1), ({_x} + 44), ({_y} + 2), ({_z} + 1), "minecraft:gray_concrete keep")
+    za_grue_fill(({_x} + 30), {_y}, ({_z} + 2), ({_x} + 33), ({_y} + 1), ({_z} + 3), "minecraft:orange_concrete keep")
     set {_k2} to 0
     while {_k2} <= 44:
-        set {_p} to location({_x} + {_k2}, {_y} + 1, {_z}, world("world"))
+        set {_p} to location(({_x} + {_k2}), ({_y} + 1), {_z}, world("world"))
         execute console command "execute in minecraft:overworld run particle minecraft:explosion %x-coordinate of {_p}% %y-coordinate of {_p}% %z-coordinate of {_p}% 1 0.5 1 0 2 force"
         loop all entities in radius 4 around {_p}:
             if loop-entity is a living entity:
@@ -138,17 +138,17 @@ function za_grue_reparer(k: text):
     set {_x} to x-coordinate of {_l}
     set {_y} to y-coordinate of {_l}
     set {_z} to z-coordinate of {_l}
-    za_grue_fill({_x} + 2, {_y}, {_z} - 1, {_x} + 44, {_y} + 2, {_z} + 3, "minecraft:air replace minecraft:yellow_concrete")
-    za_grue_fill({_x} + 2, {_y}, {_z} - 1, {_x} + 44, {_y} + 2, {_z} + 3, "minecraft:air replace minecraft:iron_bars")
-    za_grue_fill({_x} + 2, {_y}, {_z} - 1, {_x} + 44, {_y} + 2, {_z} + 3, "minecraft:air replace minecraft:gray_concrete")
-    za_grue_fill({_x} + 2, {_y}, {_z} - 1, {_x} + 44, {_y} + 2, {_z} + 3, "minecraft:air replace minecraft:orange_concrete")
-    za_grue_fill({_x} - 1, {_y}, {_z} - 1, {_x} + 1, {_y} + 46, {_z} + 1, "minecraft:yellow_concrete")
-    za_grue_fill({_x}, {_y}, {_z}, {_x}, {_y} + 45, {_z}, "minecraft:ladder[facing=south]")
-    za_grue_fill({_x} - 2, {_y} + 46, {_z} - 2, {_x} + 2, {_y} + 48, {_z} + 2, "minecraft:yellow_concrete")
-    za_grue_fill({_x} - 10, {_y} + 49, {_z}, {_x} + 28, {_y} + 49, {_z}, "minecraft:yellow_concrete")
-    za_grue_fill({_x} - 10, {_y} + 45, {_z} - 1, {_x} - 6, {_y} + 48, {_z} + 1, "minecraft:gray_concrete")
-    za_grue_fill({_x} + 24, {_y} + 32, {_z}, {_x} + 24, {_y} + 48, {_z}, "minecraft:chain")
-    za_grue_fill({_x} + 22, {_y} + 29, {_z} - 1, {_x} + 26, {_y} + 31, {_z} + 1, "minecraft:orange_concrete")
+    za_grue_fill(({_x} + 2), {_y}, ({_z} - 1), ({_x} + 44), ({_y} + 2), ({_z} + 3), "minecraft:air replace minecraft:yellow_concrete")
+    za_grue_fill(({_x} + 2), {_y}, ({_z} - 1), ({_x} + 44), ({_y} + 2), ({_z} + 3), "minecraft:air replace minecraft:iron_bars")
+    za_grue_fill(({_x} + 2), {_y}, ({_z} - 1), ({_x} + 44), ({_y} + 2), ({_z} + 3), "minecraft:air replace minecraft:gray_concrete")
+    za_grue_fill(({_x} + 2), {_y}, ({_z} - 1), ({_x} + 44), ({_y} + 2), ({_z} + 3), "minecraft:air replace minecraft:orange_concrete")
+    za_grue_fill(({_x} - 1), {_y}, ({_z} - 1), ({_x} + 1), ({_y} + 46), ({_z} + 1), "minecraft:yellow_concrete")
+    za_grue_fill({_x}, {_y}, {_z}, {_x}, ({_y} + 45), {_z}, "minecraft:ladder[facing=south]")
+    za_grue_fill(({_x} - 2), ({_y} + 46), ({_z} - 2), ({_x} + 2), ({_y} + 48), ({_z} + 2), "minecraft:yellow_concrete")
+    za_grue_fill(({_x} - 10), ({_y} + 49), {_z}, ({_x} + 28), ({_y} + 49), {_z}, "minecraft:yellow_concrete")
+    za_grue_fill(({_x} - 10), ({_y} + 45), ({_z} - 1), ({_x} - 6), ({_y} + 48), ({_z} + 1), "minecraft:gray_concrete")
+    za_grue_fill(({_x} + 24), ({_y} + 32), {_z}, ({_x} + 24), ({_y} + 48), {_z}, "minecraft:chain")
+    za_grue_fill(({_x} + 22), ({_y} + 29), ({_z} - 1), ({_x} + 26), ({_y} + 31), ({_z} + 1), "minecraft:orange_concrete")
     delete {za::grue::tombee::%{_k}%}
 
 # une explosion près d'une grue

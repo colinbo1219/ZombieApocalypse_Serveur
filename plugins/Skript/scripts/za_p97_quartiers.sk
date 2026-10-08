@@ -233,7 +233,7 @@ function za_qz_changer(z: text, e: text):
 function za_qz_point(c: location, r: number) :: location:
     set {_a} to random number between 0 and 360
     set {_d} to random number between 4 and {_r}
-    set {_l} to location((x-coordinate of {_c}) + ({_d} * cos({_a})), (y-coordinate of {_c}) + 4, (z-coordinate of {_c}) + ({_d} * sin({_a})), world of {_c})
+    set {_l} to location(((x-coordinate of {_c}) + ({_d} * cos({_a}))), ((y-coordinate of {_c}) + 4), ((z-coordinate of {_c}) + ({_d} * sin({_a}))), (world of {_c}))
     return za_eq_sol({_l})
 
 # pose un bloc de décor dans l'air (retiré au prochain changement d'état)
@@ -285,7 +285,7 @@ function za_qz_decor(z: text):
         loop 8 times:
             set {_b} to random element out of "minecraft:gravel", "minecraft:cobblestone", "minecraft:cracked_stone_bricks" and "minecraft:oak_trapdoor[open=true]"
             za_qz_poser({_z}, za_qz_point({_c}, {_r}), {_b})
-        za_decay({_wd}, (x-coordinate of {_c}) - {_r}, (y-coordinate of {_c}) - 1, (z-coordinate of {_c}) - {_r}, (x-coordinate of {_c}) + {_r}, (y-coordinate of {_c}) + 4, (z-coordinate of {_c}) + {_r}, 20)
+        za_decay({_wd}, ((x-coordinate of {_c}) - {_r}), ((y-coordinate of {_c}) - 1), ((z-coordinate of {_c}) - {_r}), ((x-coordinate of {_c}) + {_r}), ((y-coordinate of {_c}) + 4), ((z-coordinate of {_c}) + {_r}), 20)
     else if {_e} is "faction":
         set {_f} to {za::qz::%{_z}%::fac} ? "survivants"
         set {_col} to za_terr_bcol({_f})

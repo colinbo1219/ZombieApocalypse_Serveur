@@ -264,7 +264,7 @@ function za_cmp_tente(wd: text, ox: number, oy: number, oz: number, tx: number, 
     za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 2, 3, {_tz}, {_tx} + 2, 3, {_tz} + 4, {_w})
     za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 3, 2, {_tz}, {_tx} + 3, 2, {_tz} + 4, {_w})
     za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 4, 1, {_tz}, {_tx} + 4, 1, {_tz} + 4, {_w})
-    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 1, 1, {_tz} + 4, {_tx} + 3, 1, {_tz} + 4, {_w})
+    za_cmp_f({_wd}, {_ox}, {_oy}, {_oz}, ({_tx} + 1), 1, ({_tz} + 4), ({_tx} + 3), 1, ({_tz} + 4), {_w})
     za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 2, 2, {_tz} + 4, {_w})
     za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 2, 1, {_tz} + 2, "%{_lit}%_bed[facing=south,part=foot]")
     za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, {_tx} + 2, 1, {_tz} + 3, "%{_lit}%_bed[facing=south,part=head]")
@@ -612,7 +612,7 @@ function za_cmp_npcs(id: number):
                     set {_nm} to za_surv_titre("infirmier", {_g}, {_nm})
                 set {_sx} to random integer between 6 and 14
                 set {_sz} to random integer between 6 and 12
-                za_cmp_npc({_id}, {_nm}, {_ox} + {_sx} + 0.5, {_oy} + 1, {_oz} + {_sz} + 0.5, "", false)
+                za_cmp_npc({_id}, {_nm}, ({_ox} + {_sx} + 0.5), ({_oy} + 1), ({_oz} + {_sz} + 0.5), "", false)
                 add 1 to {_have}
             add 1 to {_k}
     else if {_have} > {_want} + 1:
@@ -665,7 +665,7 @@ function za_cmp_ruine(id: number, force: number):
     loop 4 times:
         set {_hb} to highest block at location({_ox} + (mod(loop-number - 1, 2) * 20), 64, {_oz} + (floor((loop-number - 1) / 2) * 20), {_w})
     za_cmp_b({_wd}, {_ox}, {_oy}, {_oz}, 10, 1, 10, "campfire[lit=false]")
-    za_decay({_wd}, {_ox}, {_oy} + 1, {_oz}, {_ox} + 20, {_oy} + 6, {_oz} + 20, {_force})
+    za_decay({_wd}, {_ox}, ({_oy} + 1), {_oz}, ({_ox} + 20), ({_oy} + 6), ({_oz} + 20), {_force})
     # brèches dans la palissade
     loop floor({_force} / 6) times:
         set {_a} to random integer between 1 and 19
@@ -1436,7 +1436,7 @@ function za_cmp_accueillir(c: number, s: number, p: player):
     set {za::surv::%{_s}%::camp} to {_c}
     delete {za::surv::%{_s}%::base}
     delete {za::surv::%{_s}%::expire}
-    set {za::surv::%{_s}%::lieu} to location(x-coordinate of {_pt}, y-coordinate of {_cl}, z-coordinate of {_pt}, world of {_cl})
+    set {za::surv::%{_s}%::lieu} to location((x-coordinate of {_pt}), (y-coordinate of {_cl}), (z-coordinate of {_pt}), (world of {_cl}))
     za_cmp_pop_ajouter({_c}, 1)
     za_cmp_champ({_c}, "moral", 3)
     za_cmp_conf_ajouter({_u}, {_c}, 8)

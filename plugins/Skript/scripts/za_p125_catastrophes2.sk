@@ -59,7 +59,7 @@ function za_catas2_depot(d: location):
     set {_n} to "Dépôt de carburant de l'aéroport"
     loop 3 times:
         wait 2 seconds
-        set {_e} to location((x-coordinate of {_d}) + (random number between -8 and 8), y-coordinate of {_d}, (z-coordinate of {_d}) + (random number between -4 and 4), world of {_d})
+        set {_e} to location(((x-coordinate of {_d}) + (random number between -8 and 8)), (y-coordinate of {_d}), ((z-coordinate of {_d}) + (random number between -4 and 4)), (world of {_d}))
         create an explosion of force 4 at {_e}
         execute console command "execute in minecraft:overworld run fill %floor(x-coordinate of {_e}) - 1% %floor(y-coordinate of {_e})% %floor(z-coordinate of {_e}) - 1% %floor(x-coordinate of {_e}) + 1% %floor(y-coordinate of {_e})% %floor(z-coordinate of {_e}) + 1% minecraft:fire replace minecraft:air"
     za_diffuser("&6&l🔥 &cUne série d'explosions à l'aéroport. &7Le dépôt de carburant a sauté. On voit la fumée à des kilomètres.")

@@ -136,7 +136,7 @@ function za_ep_poser_affiche(l: location, n: number):
     if block at {_l} is not air:
         stop
     execute console command "execute in %za_dim(world of {_l})% run setblock %floor(x-coordinate of {_l})% %floor(y-coordinate of {_l})% %floor(z-coordinate of {_l})% minecraft:oak_sign[rotation=%random integer between 0 and 15%]{front_text:{color:""%{_b}%"",has_glowing_text:1b,messages:['""%{_t::1}%""','""%{_t::2}%""','""%{_t::3}%""','""%{_t::4}%""']}}"
-    set {_l2} to location((x-coordinate of {_l}) + 1, y-coordinate of {_l}, z-coordinate of {_l}, world of {_l})
+    set {_l2} to location(((x-coordinate of {_l}) + 1), (y-coordinate of {_l}), (z-coordinate of {_l}), (world of {_l}))
     if block at {_l2} is air:
         execute console command "execute in %za_dim(world of {_l2})% run setblock %floor(x-coordinate of {_l2})% %floor(y-coordinate of {_l2})% %floor(z-coordinate of {_l2})% minecraft:%{_b}%_banner[rotation=%random integer between 0 and 15%]"
 
@@ -168,7 +168,7 @@ every 30 seconds:
                 set {_tout} to false
                 set {_c} to {za::camp::%loop-value%::loc}
                 if chunk at {_c} is loaded:
-                    za_ep_poser_affiche(za_eq_sol(location((x-coordinate of {_c}) + 3, (y-coordinate of {_c}) + 2, (z-coordinate of {_c}) + 3, world of {_c})), {_n})
+                    za_ep_poser_affiche(za_eq_sol(location(((x-coordinate of {_c}) + 3), ((y-coordinate of {_c}) + 2), ((z-coordinate of {_c}) + 3), (world of {_c}))), {_n})
                     set {za::ep::aff::camp::%loop-value%::%{_n}%} to true
     if {_tout} is true:
         delete {za::ep::affiches_a_poser}

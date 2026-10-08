@@ -227,7 +227,7 @@ function za_hall_graver(n: number, heros: text, j: number):
         set {_pi} to {za::hall::plaque::next}
         if {za::hall::plaque::%{_pi}%} is set:
             set {_q::*} to split {za::hall::plaque::%{_pi}%} at ";"
-            set {_pl} to location(floor(x-coordinate of {_b}) + ({_q::1} parsed as number), floor(y-coordinate of {_b}) + ({_q::2} parsed as number), floor(z-coordinate of {_b}) + ({_q::3} parsed as number), world of {_b})
+            set {_pl} to location((floor(x-coordinate of {_b}) + ({_q::1} parsed as number)), (floor(y-coordinate of {_b}) + ({_q::2} parsed as number)), (floor(z-coordinate of {_b}) + ({_q::3} parsed as number)), (world of {_b}))
             set {_bl} to block at {_pl}
             if "%type of {_bl}%" contains "sign":
                 set line 1 of {_bl} to "&8Saison %{_n}%"

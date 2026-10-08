@@ -50,7 +50,9 @@ function za_ref_bruler(id: text):
 function za_ref_visite(p: player, id: text):
     set {_u} to "%{_p}'s uuid%"
     set {_e} to za_ref_etat({_id})
-    set {_n} to (({_id} replace all "refuge_" with "") parsed as number) ? 1
+    set {_t} to {_id}
+    replace all "refuge_" with "" in {_t}
+    set {_n} to ({_t} parsed as number) ? 1
     if {_e} is "detruit":
         if {za::refuge::%{_id}%::brule} is not set:
             za_ref_bruler({_id})

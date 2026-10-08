@@ -354,7 +354,7 @@ every 5 seconds:
     if {_nl} is not set:
         stop
     loop za_col_entites({_i}):
-        set {_dl} to location({_nx} + (random number between -2 and 2), y-coordinate of {_nl}, {_nz} + (random number between -2 and 2), world of {_nl})
+        set {_dl} to location(({_nx} + (random number between -2 and 2)), (y-coordinate of {_nl}), ({_nz} + (random number between -2 and 2)), (world of {_nl}))
         teleport loop-value to {_dl}
     set {za::col::%{_i}%::loc} to {_nl}
     za_activite_ajouter({_nl}, 2)

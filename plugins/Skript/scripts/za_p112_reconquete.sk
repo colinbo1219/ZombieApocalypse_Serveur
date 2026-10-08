@@ -72,7 +72,7 @@ function za_rep_monter(z: text, n: number):
     set {_nom} to za_qz_nom({_z})
     set {_m} to ""
     if {_n} is 1:
-        set {_m} to "&a%{_nom}% est nettoyé. &7Prochaine étape : sécuriser (%{@barr}% barricades, %{@lum}% lumières)."
+        set {_m} to "&a%{_nom}% est nettoyé. &7Prochaine étape : sécuriser ({@barr} barricades, {@lum} lumières)."
     else if {_n} is 2:
         set {_m} to "&a%{_nom}% est sécurisé. &7Prochaine étape : rétablir le courant."
     else if {_n} is 3:
@@ -160,7 +160,7 @@ function za_rep_horde(z: text):
     add 10 to {za::qz::%{_z}%::pression}
     za_radio("&bLéa", "%{_nom}% n'a pas tenu cette nuit. Ce n'est pas fini. Rien n'est jamais fini.")
     loop za_rep_joueurs({_z}):
-        send "&c[Reprise] La zone n'a pas tenu (%{_k}%/%{@kills}% morts abattus). &7Il faudra recommencer une autre nuit." to loop-value
+        send "&c[Reprise] La zone n'a pas tenu (%{_k}%/{@kills} morts abattus). &7Il faudra recommencer une autre nuit." to loop-value
 
 on death:
     if attacker is not a player:
@@ -305,7 +305,7 @@ command /reprise [<text>]:
         set {_x} to {_ko}
         if {_e} >= 2:
             set {_x} to {_ok}
-        send "%{_x}%&fSécuriser &7: barricades %{za::reprise::%{_z}%::barr} ? 0%/%{@barr}%, lumières %{za::reprise::%{_z}%::lum} ? 0%/%{@lum}%" to player
+        send "%{_x}%&fSécuriser &7: barricades %{za::reprise::%{_z}%::barr} ? 0%/{@barr}, lumières %{za::reprise::%{_z}%::lum} ? 0%/{@lum}" to player
         set {_x} to {_ko}
         if {_e} >= 3:
             set {_x} to {_ok}
@@ -313,11 +313,11 @@ command /reprise [<text>]:
         set {_x} to {_ko}
         if {_e} >= 4:
             set {_x} to {_ok}
-        send "%{_x}%&fRepeupler &7: réfugiés %{za::reprise::%{_z}%::refugies} ? 0%/%{@refugies}% (ils arrivent chaque jour)" to player
+        send "%{_x}%&fRepeupler &7: réfugiés %{za::reprise::%{_z}%::refugies} ? 0%/{@refugies} (ils arrivent chaque jour)" to player
         set {_x} to {_ko}
         if {_e} >= 5:
             set {_x} to {_ok}
-        send "%{_x}%&fTenir &7: une nuit, une horde-test (%{@kills}% morts à abattre, rester sur place)" to player
+        send "%{_x}%&fTenir &7: une nuit, une horde-test ({@kills} morts à abattre, rester sur place)" to player
         set {_x} to {_ko}
         if {_e} >= 6:
             set {_x} to {_ok}
@@ -339,7 +339,7 @@ function za_aband_creer(u: text, nom: text, l: location):
     delete {za::base::taille::%{_u}%}
     delete {za::base::entretien::%{_u}%}
     za_mot_base_sync({_u})
-    set {_s} to location((x-coordinate of {_l}) + 1, y-coordinate of {_l}, z-coordinate of {_l}, world of {_l})
+    set {_s} to location(((x-coordinate of {_l}) + 1), (y-coordinate of {_l}), (z-coordinate of {_l}), (world of {_l}))
     if block at {_s} is air:
         execute console command "execute in %za_dim(world of {_s})% run setblock %floor(x-coordinate of {_s})% %floor(y-coordinate of {_s})% %floor(z-coordinate of {_s})% minecraft:oak_sign[rotation=%random integer between 0 and 15%]{front_text:{color:""gray"",messages:['""Ancienne base""','""de %{_nom}%""','""jour %{za::serveur::jours} ? 0%""','""""']}}"
     za_mot_evt("base_abandonnee", {_l}, 2, {_u}, "Ancienne base de %{_nom}%")

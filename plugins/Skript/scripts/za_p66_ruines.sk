@@ -33,7 +33,7 @@ function za_ruines_poi(n: text) :: location:
         stop
     set {_c::*} to split {_v} at ";"
     set {_b} to {za::ruines::base}
-    return location((x-coordinate of {_b}) + ({_c::1} parsed as number), (y-coordinate of {_b}) + ({_c::2} parsed as number), (z-coordinate of {_b}) + ({_c::3} parsed as number), world of {_b})
+    return location(((x-coordinate of {_b}) + ({_c::1} parsed as number)), ((y-coordinate of {_b}) + ({_c::2} parsed as number)), ((z-coordinate of {_b}) + ({_c::3} parsed as number)), (world of {_b}))
 
 function za_ruines_dans(l: location, marge: number) :: boolean:
     if {za::ruines::base} is not set:

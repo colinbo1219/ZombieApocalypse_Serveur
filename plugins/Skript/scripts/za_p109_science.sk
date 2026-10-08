@@ -163,7 +163,9 @@ function za_sci_labo(p: player) :: boolean:
     return false
 
 function za_sci_debloque(k: text) :: boolean:
-    return {za::sci::deb::%{_k}%} is set
+    if {za::sci::deb::%{_k}%} is set:
+        return true
+    return false
 
 function za_sci_palier(n: number, voie: text):
     set {_k} to ""

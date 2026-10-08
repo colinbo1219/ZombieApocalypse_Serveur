@@ -238,7 +238,7 @@ function za_chien_veille(p: player):
     if chunk at {_b} is not loaded:
         stop
     loop all wolves in radius 40 around {_b}:
-        if loop-entity is tamed:
+        if owner of loop-entity is set:
             if "%owner of loop-entity's uuid%" is {_o}:
                 za_chien_sentir({_p}, location of loop-entity)
 

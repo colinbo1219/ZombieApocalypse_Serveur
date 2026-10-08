@@ -73,7 +73,7 @@ function za_dest_zombie(l: location, nom: text, bebe: boolean):
 function za_dest_pres(p: player, d: number) :: location:
     set {_l} to location of {_p}
     set {_a} to random number between 0 and 360
-    set {_l2} to location((x-coordinate of {_l}) + ({_d} * cos({_a})), (y-coordinate of {_l}) + 1, (z-coordinate of {_l}) + ({_d} * sin({_a})), world of {_l})
+    set {_l2} to location(((x-coordinate of {_l}) + ({_d} * cos({_a}))), ((y-coordinate of {_l}) + 1), ((z-coordinate of {_l}) + ({_d} * sin({_a}))), (world of {_l}))
     return za_eq_sol({_l2})
 
 function za_dest_dit(p: player, nom: text, t: text):
@@ -125,7 +125,7 @@ function za_dest_offrir(p: player, s: text, forcer: boolean) :: boolean:
             set {za::dest::%{_q}%::lieu} to {za::site::d::%{_k}%::nom}
         else:
             set {_a} to random number between 0 and 360
-            set {za::dest::%{_q}%::loc} to location((x-coordinate of {_p}) + (300 * cos({_a})), y-coordinate of {_p}, (z-coordinate of {_p}) + (300 * sin({_a})), world of {_p})
+            set {za::dest::%{_q}%::loc} to location(((x-coordinate of {_p}) + (300 * cos({_a}))), (y-coordinate of {_p}), ((z-coordinate of {_p}) + (300 * sin({_a}))), (world of {_p}))
             set {za::dest::%{_q}%::lieu} to "un bâtiment isolé"
     set {_l} to {za::dest::%{_q}%::loc}
     set {_pos} to ""
@@ -196,7 +196,7 @@ function za_dest_scene(p: player, q: number):
     set {_s} to {za::dest::%{_q}%::s}
     set {_l} to za_eq_sol(location of {_p})
     set {_a} to random number between 0 and 360
-    set {_c} to za_eq_sol(location((x-coordinate of {_l}) + (5 * cos({_a})), (y-coordinate of {_l}) + 1, (z-coordinate of {_l}) + (5 * sin({_a})), world of {_l}))
+    set {_c} to za_eq_sol(location(((x-coordinate of {_l}) + (5 * cos({_a}))), ((y-coordinate of {_l}) + 1), ((z-coordinate of {_l}) + (5 * sin({_a}))), (world of {_l})))
     set {za::dest::%{_q}%::scene} to {_c}
     set {za::dest::%{_q}%::etape} to "choix"
     if {_s} is "frere":
@@ -207,13 +207,13 @@ function za_dest_scene(p: player, q: number):
         za_dest_dit({_p}, "Marc Tremblay", "T'es réel ? Dis-moi que t'es réel. Viens me parler, vite !")
     else if {_s} is "convoi":
         za_dest_pnj({_q}, {_c}, "Caporal Bouchard", false)
-        set {_r} to za_eq_sol(location((x-coordinate of {_c}) + 9, (y-coordinate of {_c}) + 1, (z-coordinate of {_c}) + 3, world of {_c}))
+        set {_r} to za_eq_sol(location(((x-coordinate of {_c}) + 9), ((y-coordinate of {_c}) + 1), ((z-coordinate of {_c}) + 3), (world of {_c})))
         za_dest_pnj({_q}, {_r}, "Rémi (Pilleurs)", false)
         send "&7Un camion bâché, moteur coupé. Le caporal Bouchard fume, nerveux. Plus loin, un type en cuir te fait un petit signe : Rémi, des Pilleurs." to {_p}
         za_dest_dit({_p}, "Rémi (Pilleurs)", "Psst. Avant de parler au soldat... Dis-moi juste par où il passe. 40 jetons. Personne saura.")
     else if {_s} is "emilie":
         za_dest_pnj({_q}, {_c}, "Nathalie Roy", false)
-        set {_r} to za_eq_sol(location((x-coordinate of {_c}) + 1, (y-coordinate of {_c}) + 1, (z-coordinate of {_c}) + 1, world of {_c}))
+        set {_r} to za_eq_sol(location(((x-coordinate of {_c}) + 1), ((y-coordinate of {_c}) + 1), ((z-coordinate of {_c}) + 1), (world of {_c})))
         za_dest_pnj({_q}, {_r}, "Émilie Roy", true)
         send "&7Une femme berce une petite fille. Le bras de l'enfant est enveloppé dans un chandail taché. La petite tousse. Une toux mouillée." to {_p}
         za_dest_dit({_p}, "Nathalie Roy", "Vous avez quelque chose ? N'importe quoi ? Elle a sept ans. Elle a SEPT ANS.")
@@ -224,7 +224,7 @@ function za_dest_scene(p: player, q: number):
         set {_r} to za_eq_sol(location((x-coordinate of {_c}) + 3, (y-coordinate of {_c}) + 1, (z-coordinate of {_c}), world of {_c}))
         za_dest_pnj({_q}, {_r}, "Sylvie Morin", false)
         # la cache existe vraiment
-        set {_k} to za_eq_sol(location((x-coordinate of {_c}) - 3, (y-coordinate of {_c}) + 1, (z-coordinate of {_c}) - 2, world of {_c}))
+        set {_k} to za_eq_sol(location(((x-coordinate of {_c}) - 3), ((y-coordinate of {_c}) + 1), ((z-coordinate of {_c}) - 2), (world of {_c})))
         set {za::dest::%{_q}%::coffre} to {_k}
         execute console command "execute in %za_dim(world of {_k})% run setblock %x-coordinate of {_k}% %y-coordinate of {_k}% %z-coordinate of {_k}% minecraft:barrel{CustomName:'""Réserve commune""',Items:[{Slot:0b,id:""minecraft:bread"",Count:12b},{Slot:1b,id:""minecraft:baked_potato"",Count:10b},{Slot:2b,id:""minecraft:iron_ingot"",Count:4b},{Slot:3b,id:""minecraft:arrow"",Count:16b}]}"
         send "&7Deux survivants se font face à côté d'un tonneau vide. Ils se tournent vers toi en même temps." to {_p}

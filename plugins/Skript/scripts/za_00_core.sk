@@ -232,7 +232,7 @@ function za_nom_protege(n: text) :: boolean:
 
 # l'enclume : le résultat d'un renommage vers un nom réservé ne peut pas être pris
 on inventory click:
-    if "%inventory type of event-inventory%" does not contain "anvil":
+    if type of event-inventory is not anvil inventory:
         stop
     if index of event-slot is not 2:
         stop

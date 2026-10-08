@@ -137,7 +137,7 @@ function za_nuit_serveur() :: boolean:
     set {_w} to world "world"
     if {_w} is not set:
         return false
-    set {_t} to time in {_w}
+    set {_t} to time of {_w}
     if {_t} is between 19:00 and 23:59:
         return true
     if {_t} is between 0:00 and 5:00:

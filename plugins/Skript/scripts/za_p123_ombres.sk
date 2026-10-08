@@ -182,7 +182,7 @@ function za_filat_sortie(u: text, id: number):
         if {_e} is not set:
             stop
         set {_f} to loop-value / 4
-        set {_pt} to location((x-coordinate of {_dep}) + {_f} * ((x-coordinate of {_bal}) - (x-coordinate of {_dep})), y-coordinate of {_dep}, (z-coordinate of {_dep}) + {_f} * ((z-coordinate of {_bal}) - (z-coordinate of {_dep})), world of {_dep})
+        set {_pt} to location(((x-coordinate of {_dep}) + {_f} * ((x-coordinate of {_bal}) - (x-coordinate of {_dep}))), (y-coordinate of {_dep}), ((z-coordinate of {_dep}) + {_f} * ((z-coordinate of {_bal}) - (z-coordinate of {_dep}))), (world of {_dep}))
         set {_pt} to za_eq_sol({_pt})
         if {_pt} is set:
             teleport {_e} to {_pt}

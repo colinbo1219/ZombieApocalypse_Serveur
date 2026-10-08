@@ -560,7 +560,7 @@ function za_e_annexe_loc(c: location, style: text) :: location:
 
 # panneau au-dessus du coffre d'une annexe (l = emplacement du coffre)
 function za_e_annexe_panneau(l: location, l1: text, l2: text, l3: text, l4: text):
-    set {_sg} to block at location(x-coordinate of {_l}, (y-coordinate of {_l}) + 1, z-coordinate of {_l}, world of {_l})
+    set {_sg} to block at location((x-coordinate of {_l}), ((y-coordinate of {_l}) + 1), (z-coordinate of {_l}), (world of {_l}))
     set line 1 of {_sg} to {_l1}
     set line 2 of {_sg} to {_l2}
     set line 3 of {_sg} to {_l3}

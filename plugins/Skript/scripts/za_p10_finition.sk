@@ -31,7 +31,7 @@ every 15 seconds:
                 loop all zombies in radius 64 around loop-value:
                     if {_excess} > 0:
                         if za_zombie_protege(loop-zombie) is false:
-                            if distance between loop-zombie and loop-value > 24:
+                            if distance between loop-zombie and loop-value-1 > 24:
                                 delete loop-zombie
                                 remove 1 from {_excess}
 

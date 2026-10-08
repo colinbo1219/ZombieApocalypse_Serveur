@@ -534,7 +534,7 @@ function za_eq_choisir_zone(id: number, t: text, u: text, z: text) :: boolean:
         if {_t} is "recon":
             set {_d} to 520
         set {_a} to random number between 0 and 360
-        set {_l} to location((x-coordinate of {_bl}) + ({_d} * cos({_a})), y-coordinate of {_bl}, (z-coordinate of {_bl}) + ({_d} * sin({_a})), world of {_bl})
+        set {_l} to location(((x-coordinate of {_bl}) + ({_d} * cos({_a}))), (y-coordinate of {_bl}), ((z-coordinate of {_bl}) + ({_d} * sin({_a}))), (world of {_bl}))
         set {_cat} to "Terres"
         if {_t} is "bois":
             set {_cat} to "Forêt"
@@ -1125,7 +1125,7 @@ function za_eq_marcher(id: number, jeton: number):
             # il tourne autour de la zone de travail
             if mod({_i}, 25) is 0:
                 set {_c2} to {za::eq::m::%{_id}%::cible}
-                set {za::eq::m::%{_id}%::coin} to location((x-coordinate of {_c2}) + (random number between -8 and 8), y-coordinate of {_c2}, (z-coordinate of {_c2}) + (random number between -8 and 8), world of {_c2})
+                set {za::eq::m::%{_id}%::coin} to location(((x-coordinate of {_c2}) + (random number between -8 and 8)), (y-coordinate of {_c2}), ((z-coordinate of {_c2}) + (random number between -8 and 8)), (world of {_c2}))
             set {_cible} to {za::eq::m::%{_id}%::coin} ? {_cible}
             if distance between {_cible} and {_e} > 1.5:
                 set {_bouge} to true
@@ -1155,7 +1155,7 @@ function za_eq_marcher(id: number, jeton: number):
                         if {_coince} >= 10:
                             # il escalade / contourne : petit saut en avant
                             set {_a} to atan2({_dx}, {_dz})
-                            set {_t} to location((x-coordinate of {_pos}) + (3 * cos({_a})), (y-coordinate of {_pos}) + 4, (z-coordinate of {_pos}) + (3 * sin({_a})), world of {_pos})
+                            set {_t} to location(((x-coordinate of {_pos}) + (3 * cos({_a}))), ((y-coordinate of {_pos}) + 4), ((z-coordinate of {_pos}) + (3 * sin({_a}))), (world of {_pos}))
                             set {_s} to za_eq_sol({_t})
                             set {_ok} to true
                             set {_coince} to 0
@@ -1478,7 +1478,7 @@ function za_eq_tick(id: number):
             set {_pas} to 5 * ({@vit} + (za_eq_st({_id}, "vitesse") * 0.05))
             if {_d} > {_pas}:
                 set {_k} to {_pas} / {_d}
-                set {za::eq::m::%{_id}%::pos} to location((x-coordinate of {_l}) + (((x-coordinate of {_c}) - (x-coordinate of {_l})) * {_k}), (y-coordinate of {_l}) + (((y-coordinate of {_c}) - (y-coordinate of {_l})) * {_k}), (z-coordinate of {_l}) + (((z-coordinate of {_c}) - (z-coordinate of {_l})) * {_k}), world of {_l})
+                set {za::eq::m::%{_id}%::pos} to location(((x-coordinate of {_l}) + (((x-coordinate of {_c}) - (x-coordinate of {_l})) * {_k})), ((y-coordinate of {_l}) + (((y-coordinate of {_c}) - (y-coordinate of {_l})) * {_k})), ((z-coordinate of {_l}) + (((z-coordinate of {_c}) - (z-coordinate of {_l})) * {_k})), (world of {_l}))
             else:
                 set {za::eq::m::%{_id}%::pos} to {_c}
         set {_l} to {za::eq::m::%{_id}%::pos}
@@ -1621,7 +1621,7 @@ function za_eq_tick(id: number):
             # se perdre
             if chance of 0.15%:
                 set {_c} to {za::eq::m::%{_id}%::cible}
-                set {za::eq::m::%{_id}%::pos} to location((x-coordinate of {_l}) + (random number between -60 and 60), y-coordinate of {_l}, (z-coordinate of {_l}) + (random number between -60 and 60), world of {_l})
+                set {za::eq::m::%{_id}%::pos} to location(((x-coordinate of {_l}) + (random number between -60 and 60)), (y-coordinate of {_l}), ((z-coordinate of {_l}) + (random number between -60 and 60)), (world of {_l}))
                 za_eq_log({_id}, "S'est perdu en chemin. Il a retrouvé la route, tard.")
     else:
         # en chair et en os : de vrais morts arrivent

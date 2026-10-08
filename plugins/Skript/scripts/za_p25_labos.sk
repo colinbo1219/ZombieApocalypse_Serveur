@@ -133,7 +133,7 @@ function za_labo_generer():
     execute console command "execute in %{_wd}% run setblock %{_bx} + 3% %{_gy}% %{_bz} - 1% minecraft:stone_bricks"
     execute console command "execute in %{_wd}% run setblock %{_bx} + 3% %{_gy} + 1% %{_bz} - 1% minecraft:lectern[facing=south]"
     execute console command "execute in %{_wd}% run setblock %{_bx} + 7% %{_gy} + 1% %{_bz} - 1% minecraft:oak_sign[rotation=8]"
-    set {_sw} to block at location({_bx} + 7, {_gy} + 1, {_bz} - 1, {_w})
+    set {_sw} to block at location(({_bx} + 7), ({_gy} + 1), ({_bz} - 1), {_w})
     set line 1 of {_sw} to "&e&lDANGER"
     set line 2 of {_sw} to "&eConfinement"
     set line 3 of {_sw} to "&eNiveau 4"
@@ -148,7 +148,7 @@ function za_labo_generer():
     execute console command "execute in %{_wd}% run setblock %{_bx} + 2% %{_gy} + 2% %{_bz} + 3% minecraft:cobweb"
     execute console command "execute in %{_wd}% run setblock %{_bx} + 1% %{_gy}% %{_bz} + 1% minecraft:bone_block"
     # butin
-    set {_c1} to block at location({_bx} + 2, {_gy} + 1, {_bz} + 8, {_w})
+    set {_c1} to block at location(({_bx} + 2), ({_gy} + 1), ({_bz} + 8), {_w})
     set {_c2} to block at location({_bx} + 8, {_gy} + 1, {_bz} + 8, {_w})
     add za_item("gold nugget", "Jeton de Survie", "&6", random integer between 10 and 20) to inventory of {_c1}
     add za_item("honey bottle", "Serum", "&d", 2) to inventory of {_c1}

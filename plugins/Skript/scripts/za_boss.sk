@@ -53,7 +53,7 @@ function za_boss_spawn():
     set {_y} to (y-coordinate of (location of {_b})) + 1
     execute console command "mm mobs spawn ZA_Overlord 1 %world of {_l}%,%floor(x-coordinate of {_l})%,%{_y}%,%floor(z-coordinate of {_l})%"
     set {za::boss::vivant} to true
-    set {_ml} to location(x-coordinate of {_l}, {_y}, z-coordinate of {_l}, world of {_l})
+    set {_ml} to location((x-coordinate of {_l}), {_y}, (z-coordinate of {_l}), (world of {_l}))
     za_overlord_marquer({_ml}, false)
     za_diffuser("&4&lL'UNDEAD OVERLORD S'EST EVEILLE ! &7Il rode pres de %{_p}%...")
 

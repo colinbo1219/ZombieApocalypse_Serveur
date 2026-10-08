@@ -40,7 +40,7 @@ function za_cim_graver(nom: text, u: text, cause: text):
     set line 2 of {_s} to "Saison %{za::cim::tombe::%{_n}%::saison}%"
     set line 3 of {_s} to "Mort jour %{za::cim::tombe::%{_n}%::jour}%"
     set line 4 of {_s} to "%{_ep}%"
-    set block at location(x-coordinate of {_l}, y-coordinate of {_l}, z-coordinate of {_l} + 1, world of {_l}) to poppy
+    set block at location((x-coordinate of {_l}), (y-coordinate of {_l}), (z-coordinate of {_l} + 1), (world of {_l})) to poppy
 
 on death of player:
     if za_pro(victim) is true:

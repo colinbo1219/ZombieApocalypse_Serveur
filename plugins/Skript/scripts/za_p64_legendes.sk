@@ -281,7 +281,7 @@ function za_leg_vega_lieu() :: location:
             set {_c} to za_bat_centre(loop-value)
             if {_c} is set:
                 # devant la caserne, pas sur son toit
-                set {_res} to za_sol(location(x-coordinate of {_c}, 64, z-coordinate of {_c} + 13, world of {_c}))
+                set {_res} to za_sol(location((x-coordinate of {_c}), 64, (z-coordinate of {_c} + 13), (world of {_c})))
     if {_res} is set:
         return {_res}
     set {_ps::*} to za_leg_joueurs()
@@ -501,7 +501,7 @@ function za_leg_z00_generer():
     # charge les chunks voisins (une commande fill qui touche un chunk non chargé échoue en entier)
     loop -8 and 8:
         loop -8 and 8:
-            set {_tmp} to highest block at location({_x} + loop-value-1, 64, {_z} + loop-value-2, {_w})
+            set {_tmp} to highest block at location(({_x} + loop-value-1), 64, ({_z} + loop-value-2), {_w})
     set {_wd} to za_dim({_w})
     set {_c} to "execute in %{_wd}% run"
     # dalle et kiosque de béton

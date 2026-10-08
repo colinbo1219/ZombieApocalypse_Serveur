@@ -113,7 +113,7 @@ function za_feu_tick(i: number):
         if za_eq_pres_base({_p}) is false:
             set {_t} to "%type of block at {_p}%"
             if za_feu_inflammable({_t}) is true:
-                set {_haut} to location(x-coordinate of {_p}, (y-coordinate of {_p}) + 1, z-coordinate of {_p}, {_w})
+                set {_haut} to location((x-coordinate of {_p}), ((y-coordinate of {_p}) + 1), (z-coordinate of {_p}), {_w})
                 if block at {_haut} is air:
                     set block at {_haut} to fire
                     add {_haut} to {za::feu::%{_i}%::flammes::*}
@@ -124,7 +124,7 @@ function za_feu_tick(i: number):
                     else:
                         set block at {_p} to blackstone
             else if block at {_p} is air:
-                set {_b} to location(x-coordinate of {_p}, (y-coordinate of {_p}) - 1, z-coordinate of {_p}, {_w})
+                set {_b} to location((x-coordinate of {_p}), ((y-coordinate of {_p}) - 1), (z-coordinate of {_p}), {_w})
                 if block at {_b} is solid:
                     if chance of 25%:
                         set block at {_p} to fire

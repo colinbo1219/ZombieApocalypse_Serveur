@@ -57,7 +57,7 @@ function za_son_point(p: player, dmin: number, dmax: number, dy: number) :: loca
     set {_l} to location of {_p}
     set {_a} to random number between 0 and 360
     set {_d} to random number between {_dmin} and {_dmax}
-    return location((x-coordinate of {_l}) + ({_d} * cos({_a})), (y-coordinate of {_l}) + {_dy}, (z-coordinate of {_l}) + ({_d} * sin({_a})), world of {_l})
+    return location(((x-coordinate of {_l}) + ({_d} * cos({_a}))), ((y-coordinate of {_l}) + {_dy}), ((z-coordinate of {_l}) + ({_d} * sin({_a}))), (world of {_l}))
 
 every 12 seconds:
     loop za_monde_joueurs():
@@ -109,7 +109,7 @@ function za_son_ambiance(p: player):
         add y-coordinate of loop-value to {_y}
         add z-coordinate of loop-value to {_z}
     if {_n} >= 8:
-        set {_c} to location({_x} / {_n}, {_y} / {_n}, {_z} / {_n}, world of {_p})
+        set {_c} to location(({_x} / {_n}), ({_y} / {_n}), ({_z} / {_n}), (world of {_p}))
         za_son_pos({_p}, {_c}, "minecraft:entity.zombie.ambient", 2, 0.55)
         za_son_pos({_p}, {_c}, "minecraft:entity.ravager.ambient", 0.8, 0.5)
 

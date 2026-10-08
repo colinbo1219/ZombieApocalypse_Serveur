@@ -100,7 +100,7 @@ every 10 seconds:
     set {_w} to world("world")
     if {_w} is not set:
         stop
-    set {_t} to time in {_w}
+    set {_t} to time of {_w}
     # aube : 5 h à 7 h (retraite répétée : ceux qui s'approchent pendant l'aube rentrent aussi)
     if {_t} is between 5:00 and 7:00:
         za_aube_retraite()

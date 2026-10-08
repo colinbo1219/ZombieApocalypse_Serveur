@@ -12,7 +12,7 @@ options:
 
 function za_jour(w: world) :: boolean:
     # la nuit va de 18 h 30 à 5 h : c'est un OU, pas un ET (audit M3)
-    set {_t} to time in {_w}
+    set {_t} to time of {_w}
     if any:
         {_t} is greater than 18:30
         {_t} is less than 5:00
