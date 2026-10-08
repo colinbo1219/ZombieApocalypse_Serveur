@@ -95,6 +95,23 @@ Extraire avec `unzip -o ZA_sources_build.zip` : crée `ZA_sources/`, qui est ign
     `add vector(dx * v, 0, dz * v) to velocity of X`.
   - Argument `<number>` comparé à du texte (`if arg-2 is "hache"`) : « Can't compare a number with a text ».
     Déclarer `<text>` et utiliser `(arg-2 parsed as number) ? 0` là où il sert de nombre.
+  - `time in {_w}` (variable de monde) rend toujours `<none>` : écrire `time of {_w}`.
+  - `inventory type of` n'existe pas : écrire `type of event-inventory is anvil inventory`.
+  - Dans des boucles imbriquées, `loop-value` est refusé : écrire `loop-value-1`, `loop-value-2`...
+  - Une fonction `:: boolean` ne peut pas faire `return <condition>` : passer par `if`, puis `return true` / `return false`.
+  - `replace all "a" with "b"` est un effet, pas une expression : copier dans `{_t}` puis `replace all "a" with "b" in {_t}`.
+  - `%{@option}%` est refusé dans un texte : écrire `{@option}` directement (`"... ({@barr} barricades)"`).
+  - `is tamed` n'existe pas : écrire `owner of X is set`.
+- Pièges sans erreur au chargement (avertissements de `verif_skript.py`) :
+  - `remove N of X named "..."` ne retire pas un objet qui a un lore (objets MythicMobs, objets du prologue) :
+    `za_retirer_nomme(joueur, "paper", "Nom", n)` (za_00_core) vide les cases une par une et renvoie le nombre retiré.
+  - Entourer de parenthèses chaque argument calculé d'un appel de fonction :
+    `location((x-coordinate of {_l}) + 1, (y-coordinate of {_l}), (z-coordinate of {_l}), (world of {_l}))`.
+    Sans parenthèses, une seule ligne peut prendre 40 s à charger (`verif_skript.py --lent` liste les appels).
+  - Dans une tâche périodique (`every ...`), vérifier `chunk at X is loaded` avant `block at X`, sinon le chunk est
+    chargé à chaque passage.
+- Serveur de test de Colin (Arclight, Forge 47.4.20, Skript 2.9.5, MythicMobs 5.7.2) : les 137 scripts se chargent
+  en 47 s sans erreur (correctifs du commit 252cb65).
 
 ## Travail des phases 2 à 15 (voir docs/RAPPORTS_PHASES.md)
 - Nouveaux modules : `za_p61_electricite` (sous-stations Create/CCA/IE), `za_p63_echos` (personnages du prologue),
